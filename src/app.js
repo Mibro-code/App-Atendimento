@@ -101,7 +101,11 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   app.post("/api/contacts/:contactId/notes", inbox.addNote);
 
   app.use((error, _req, res, _next) => {
-    if (!error.statusCode) console.error("Erro interno:", error);
+    if (!error.statusCode) console.error("Erro interno:", {
+      name: error.name,
+      message: error.message,
+      code: error.code,
+    });
     res.status(error.statusCode || 500).json({
       error: error.statusCode ? error.message : "Erro interno do servidor.",
     });

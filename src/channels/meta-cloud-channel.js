@@ -27,10 +27,24 @@ class MetaCloudChannel {
     const required = ["GRAPH_VERSION", "PHONE_NUMBER_ID", "WHATSAPP_TOKEN"];
     for (const key of required) if (!process.env[key]) throw new Error(`Variável ausente: ${key}`);
     const url = `https://graph.facebook.com/${process.env.GRAPH_VERSION}/${process.env.PHONE_NUMBER_ID}/messages`;
-    const response = await axios.post(url, {
-      messaging_product: "whatsapp", recipient_type: "individual", to, type: "text", text: { body: text },
-    }, { headers: { Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`, "Content-Type": "application/json" } });
-    return { externalId: response.data?.messages?.[0]?.id, data: response.data };
+    try {
+      const response = await axios.post(url, {
+        messaging_product: "whatsapp", recipient_type: "individual", to, type: "text", text: { body: text },
+      }, { headers: { Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`, "Content-Type": "application/json" } });
+      return { externalId: response.data?.messages?.[0]?.id, data: response.data };
+    } catch (error) {
+      const providerError = error.response?.data?.error;
+      console.error("Falha segura na Meta Cloud API:", {
+        status: error.response?.status,
+        code: providerError?.code,
+        type: providerError?.type,
+        traceId: providerError?.fbtrace_id,
+      });
+      const message = error.response?.status === 401
+        ? "A Meta recusou a credencial do WhatsApp. Atualize o token de acesso."
+        : "A Meta não aceitou o envio da mensagem.";
+      throw Object.assign(new Error(message), { statusCode: 502 });
+    }
   }
 }
 
