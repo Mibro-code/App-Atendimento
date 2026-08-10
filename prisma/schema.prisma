@@ -1,0 +1,142 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Channel {
+  META
+  ZENVIA
+}
+
+enum ConversationStatus {
+  NOVO
+  EM_ATENDIMENTO
+  AGUARDANDO_CLIENTE
+  BOT
+  FINALIZADO
+}
+
+enum MessageDirection {
+  RECEBIDA
+  ENVIADA
+}
+
+enum MessageStatus {
+  RECEBIDA
+  PENDENTE
+  ENVIADA
+  ENTREGUE
+  LIDA
+  FALHOU
+}
+
+enum UserRole {
+  ADMIN
+  SUPERVISOR
+  ATENDENTE
+  BOT
+}
+
+model Contact {
+  id            String         @id @default(cuid())
+  channel       Channel        @default(META)
+  externalId    String
+  phone         String
+  name          String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  conversations Conversation[]
+  notes         ContactNote[]
+
+  @@unique([channel, externalId])
+  @@index([phone])
+}
+
+model ContactNote {
+  id        String   @id @default(cuid())
+  contactId String
+  authorId  String?
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  contact   Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  author    User?    @relation("ContactNotes", fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([contactId, createdAt])
+  @@index([authorId])
+}
+
+model Conversation {
+  id             String             @id @default(cuid())
+  contactId      String
+  channel        Channel            @default(META)
+  categoryId     String?
+  assignedUserId String?
+  status         ConversationStatus @default(NOVO)
+  unreadCount    Int                @default(0)
+  lastMessageAt  DateTime?
+  finalizedAt    DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  contact        Contact            @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  category       Category?          @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  assignedUser   User?              @relation("AssignedConversations", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  messages       Message[]
+
+  @@unique([contactId, channel])
+  @@index([status, lastMessageAt])
+  @@index([categoryId, lastMessageAt])
+  @@index([assignedUserId])
+}
+
+model Message {
+  id             String           @id @default(cuid())
+  conversationId String
+  externalId     String?          @unique
+  channel        Channel          @default(META)
+  direction      MessageDirection
+  status         MessageStatus
+  type           String
+  text           String?
+  occurredAt     DateTime
+  sentByUserId   String?
+  rawPayload     Json?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  conversation   Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sentByUser     User?            @relation("SentMessages", fields: [sentByUserId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, occurredAt])
+  @@index([sentByUserId])
+}
+
+model User {
+  id                    String         @id @default(cuid())
+  name                  String
+  email                 String         @unique
+  passwordHash          String?
+  role                  UserRole       @default(ATENDENTE)
+  active                Boolean        @default(true)
+  sessionVersion        Int            @default(0)
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  assignedConversations Conversation[] @relation("AssignedConversations")
+  sentMessages          Message[]      @relation("SentMessages")
+  contactNotes          ContactNote[]  @relation("ContactNotes")
+}
+
+model Category {
+  id            String         @id @default(cuid())
+  code          String         @unique
+  name          String
+  color         String?
+  active        Boolean        @default(true)
+  displayOrder  Int            @default(0)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  conversations Conversation[]
+}

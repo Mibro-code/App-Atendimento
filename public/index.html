@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mibro • Central de Atendimento</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-word">mibro</span><span class="brand-divider"></span><small>Central de Atendimento</small></div>
+    <div class="connection"><span></span> WhatsApp conectado</div>
+    <button id="user-button" class="user-button" type="button"><span id="current-user">Usuário</span> • Sair</button>
+  </header>
+
+  <main class="workspace">
+    <aside class="filters-panel">
+      <label class="search"><span>⌕</span><input id="search" type="search" placeholder="Buscar nome ou telefone"></label>
+      <nav>
+        <p class="nav-title">ATENDIMENTO</p>
+        <button class="filter active" data-status=""><span>Todos</span><strong id="count-all">0</strong></button>
+        <button class="filter" data-status="NOVO"><span>Novos</span><strong id="count-new">0</strong></button>
+        <button class="filter" data-status="EM_ATENDIMENTO"><span>Em atendimento</span></button>
+        <button class="filter" data-status="AGUARDANDO_CLIENTE"><span>Aguardando cliente</span></button>
+        <button class="filter" data-status="BOT"><span>Bot</span></button>
+        <button class="filter" data-status="FINALIZADO"><span>Finalizados</span></button>
+        <p class="nav-title categories-title">CATEGORIAS</p>
+        <div id="category-filters"></div>
+      </nav>
+    </aside>
+
+    <section class="conversation-list-panel">
+      <div class="list-heading"><div><h1>Conversas</h1><p id="list-summary">Carregando...</p></div><button id="refresh" title="Atualizar">↻</button></div>
+      <div id="conversation-list" class="conversation-list"></div>
+    </section>
+
+    <section id="chat-panel" class="chat-panel empty">
+      <div id="empty-state" class="empty-state"><div class="empty-icon">◌</div><h2>Selecione uma conversa</h2><p>Escolha um atendimento na lista para visualizar o histórico e responder.</p></div>
+      <div id="chat-content" class="chat-content" hidden>
+        <header class="chat-header">
+          <div class="contact-avatar" id="contact-avatar"></div>
+          <div class="contact-info"><h2 id="contact-name"></h2><p id="contact-phone"></p></div>
+          <div class="chat-actions">
+            <button id="notes-toggle" class="secondary-action" type="button">Notas</button>
+            <select id="category-select" aria-label="Categoria"></select>
+            <button id="toggle-finalized" class="secondary-action"></button>
+          </div>
+        </header>
+        <div class="conversation-meta"><span id="status-badge"></span><span id="assignment">Sem atendente responsável</span></div>
+        <div id="messages" class="messages"></div>
+        <aside id="notes-panel" class="notes-panel" aria-label="Notas do contato">
+          <div class="notes-header"><div><span>CONTATO</span><h3>Notas internas</h3></div><button id="notes-close" type="button">×</button></div>
+          <p class="notes-help">Informações visíveis apenas para a equipe.</p>
+          <form id="note-form"><textarea id="note-input" maxlength="2000" placeholder="Ex.: Cliente prefere contato à tarde" required></textarea><button type="submit">Adicionar nota</button></form>
+          <div id="notes-list" class="notes-list"></div>
+        </aside>
+        <form id="composer" class="composer">
+          <textarea id="message-input" rows="1" placeholder="Digite uma mensagem..." required></textarea>
+          <button id="send-button" type="submit">Enviar</button>
+        </form>
+      </div>
+    </section>
+  </main>
+  <div id="toast" class="toast" role="status"></div>
+  <script src="/js/app.js"></script>
+</body>
+</html>

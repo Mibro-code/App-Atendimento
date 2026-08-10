@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Acesso • Mibro Atendimento</title>
+  <link rel="stylesheet" href="/css/login.css">
+</head>
+<body>
+  <main class="auth-shell">
+    <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
+    <section class="glass-card">
+      <div class="logo-orbit"><span>m</span></div>
+      <div class="brand-word">mibro</div>
+      <span class="eyebrow" id="eyebrow">ACESSO SEGURO</span>
+      <h1 id="title">Entrar na central</h1>
+      <p id="description">Atendimento, clientes e conversas em um só lugar.</p>
+      <form id="auth-form">
+        <label id="name-field" hidden><span>Nome</span><input id="name" autocomplete="name" placeholder="Seu nome"></label>
+        <label><span>E-mail</span><input id="email" type="email" autocomplete="username" placeholder="voce@empresa.com" required></label>
+        <label><span>Senha</span><input id="password" type="password" autocomplete="current-password" minlength="8" placeholder="Sua senha" required></label>
+        <div id="error" class="error" role="alert"></div>
+        <button id="submit" type="submit">Entrar</button>
+      </form>
+      <footer><i></i> WhatsApp Cloud API conectado</footer>
+    </section>
+    <p class="page-footer">Mibro Brasil • Central de Atendimento</p>
+  </main>
+  <script src="/js/login.js"></script>
+</body>
+</html>
