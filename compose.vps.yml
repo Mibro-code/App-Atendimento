@@ -1,0 +1,78 @@
+name: mibro-atendimento
+
+services:
+  database:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-app_whats}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - atendimento_postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 320m
+    networks:
+      - private
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mibro-atendimento-app:local
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      NODE_OPTIONS: --max-old-space-size=320
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB:-app_whats}?schema=public
+      SESSION_SECRET: ${SESSION_SECRET}
+      VERIFY_TOKEN: ${VERIFY_TOKEN}
+      WHATSAPP_TOKEN: ${WHATSAPP_TOKEN}
+      PHONE_NUMBER_ID: ${PHONE_NUMBER_ID}
+      GRAPH_VERSION: ${GRAPH_VERSION}
+      META_APP_SECRET: ${META_APP_SECRET}
+    expose:
+      - "3000"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    mem_limit: 448m
+    networks:
+      private:
+      proxy:
+        aliases:
+          - atendimento-app
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  atendimento_postgres_data:
+
+networks:
+  private:
+    driver: bridge
+  proxy:
+    external: true
+    name: shopify-proxy
