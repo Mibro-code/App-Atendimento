@@ -75,6 +75,10 @@ test("entrega o painel e as APIs básicas da caixa de entrada", async () => {
     const conversations = await fetch(`${base}/api/conversations`, { headers: { Cookie: cookie } });
     assert.equal(conversations.status, 200);
     assert.ok(Array.isArray(await conversations.json()));
+
+    const summary = await fetch(`${base}/api/conversations/summary`, { headers: { Cookie: cookie } });
+    assert.equal(summary.status, 200);
+    assert.equal(typeof (await summary.json()).total, "number");
     const logout = await fetch(`${base}/api/auth/logout`, { method: "POST", headers: { Cookie: cookie } });
     assert.equal(logout.status, 204);
     assert.equal((await fetch(`${base}/api/conversations`, { headers: { Cookie: cookie } })).status, 401);

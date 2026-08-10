@@ -18,6 +18,10 @@ function createInboxController(channel) {
         return res.json(conversation);
       } catch (error) { return next(error); }
     },
+    async summary(_req, res, next) {
+      try { return res.json(await inbox.getConversationSummary()); }
+      catch (error) { return next(error); }
+    },
     async update(req, res, next) {
       try { return res.json(await inbox.updateConversation(req.params.id, req.body)); }
       catch (error) { return next(error); }

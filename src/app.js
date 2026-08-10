@@ -92,6 +92,7 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   });
 
   app.get("/api/conversations", inbox.list);
+  app.get("/api/conversations/summary", inbox.summary);
   app.get("/api/conversations/:id", inbox.detail);
   app.patch("/api/conversations/:id", inbox.update);
   app.post("/api/conversations/:id/read", inbox.read);

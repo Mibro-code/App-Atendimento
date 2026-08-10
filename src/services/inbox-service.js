@@ -53,6 +53,23 @@ async function getConversation(id) {
   });
 }
 
+async function getConversationSummary() {
+  const [total, statuses, categories] = await Promise.all([
+    prisma.conversation.count(),
+    prisma.conversation.groupBy({ by: ["status"], _count: { _all: true } }),
+    prisma.conversation.groupBy({
+      by: ["categoryId"],
+      where: { categoryId: { not: null } },
+      _count: { _all: true },
+    }),
+  ]);
+  return {
+    total,
+    statuses: Object.fromEntries(statuses.map((item) => [item.status, item._count._all])),
+    categories: Object.fromEntries(categories.map((item) => [item.categoryId, item._count._all])),
+  };
+}
+
 async function addContactNote(contactId, { content, authorId }) {
   const text = content?.trim();
   if (!text) throw Object.assign(new Error("A nota não pode ficar vazia."), { statusCode: 400 });
@@ -118,6 +135,6 @@ async function updateCategory(id, data) {
 }
 
 module.exports = {
-  addContactNote, conversationStatuses, getConversation, listCategories, listConversations,
+  addContactNote, conversationStatuses, getConversation, getConversationSummary, listCategories, listConversations,
   markAsRead, updateCategory, updateConversation,
 };
