@@ -10,6 +10,7 @@ const { closingMessage, finalizeConversation, saveIncoming, sendImage, sendText 
 const inbox = require("../src/services/inbox-service");
 const mediaTestDir = path.join(os.tmpdir(), `app-whats-media-test-${process.pid}`);
 process.env.MEDIA_STORAGE_DIR = mediaTestDir;
+const masterViewer = { id: "master-test", role: "ADMIN" };
 
 test.before(async () => {
   await prisma.message.deleteMany();
@@ -47,12 +48,12 @@ test("persiste contato, conversa e mensagem sem duplicar wamid", async () => {
 
 test("registra mensagem enviada e o atendente autor", async () => {
   const user = await prisma.user.upsert({
-    where: { email: "teste@mibro.local" }, update: {},
-    create: { name: "Atendente Teste", email: "teste@mibro.local", role: "ATENDENTE" },
+    where: { email: "teste@mibro.local" }, update: { role: "ADMIN" },
+    create: { name: "Atendente Teste", email: "teste@mibro.local", role: "ADMIN" },
   });
   const category = await prisma.category.findUnique({ where: { code: "SUPORTE" } });
   let conversation = await prisma.conversation.findFirst();
-  conversation = await inbox.updateConversation(conversation.id, { categoryId: category.id });
+  conversation = await inbox.updateConversation(conversation.id, { categoryId: category.id }, masterViewer);
   assert.equal(conversation.status, "NOVO");
   let providerText;
   const channel = { sendText: async (_phone, text) => { providerText = text; return { externalId: "wamid.test.outgoing", data: { messages: [{ id: "wamid.test.outgoing" }] } }; } };
@@ -71,12 +72,12 @@ test("lista, pesquisa, classifica, lê, finaliza e reabre a conversa", async () 
   let conversation = await prisma.conversation.findFirst();
   conversation = await inbox.updateConversation(conversation.id, {
     categoryId: category.id, assignedUserId: user.id,
-  });
+  }, masterViewer);
   assert.equal(conversation.category.code, "SUPORTE");
   assert.equal(conversation.status, "EM_ATENDIMENTO");
   assert.equal(conversation.assignedUser.id, user.id);
 
-  const result = await inbox.listConversations({ search: "Cliente", category: "SUPORTE", status: "EM_ATENDIMENTO" });
+  const result = await inbox.listConversations({ search: "Cliente", category: "SUPORTE", status: "EM_ATENDIMENTO" }, masterViewer);
   assert.equal(result.length, 1);
   assert.equal(result[0].messages[0].text, "Qual é o modelo?");
 
@@ -85,17 +86,17 @@ test("lista, pesquisa, classifica, lê, finaliza e reabre a conversa", async () 
     phone: "5511999999999", contactName: "Cliente Teste", type: "text", text: "É o modelo X1",
     occurredAt: new Date("2026-08-10T12:05:00Z"), rawPayload: { id: "wamid.test.customer.reply" },
   });
-  assert.equal((await inbox.getConversation(conversation.id)).status, "AGUARDANDO_RESPOSTA");
+  assert.equal((await inbox.getConversation(conversation.id, masterViewer)).status, "AGUARDANDO_RESPOSTA");
 
   let readMessageId;
   const readResult = await inbox.markAsRead(conversation.id, { channel: { markAsRead: async (messageId) => { readMessageId = messageId; } } });
   assert.equal(readMessageId, "wamid.test.customer.reply");
   assert.equal(readResult.readReceiptSent, true);
-  assert.equal((await inbox.getConversation(conversation.id)).unreadCount, 0);
-  await inbox.updateConversation(conversation.id, { status: "FINALIZADO" });
-  assert.ok((await inbox.getConversation(conversation.id)).finalizedAt);
-  await inbox.updateConversation(conversation.id, { status: "NOVO" });
-  assert.equal((await inbox.getConversation(conversation.id)).finalizedAt, null);
+  assert.equal((await inbox.getConversation(conversation.id, masterViewer)).unreadCount, 0);
+  await inbox.updateConversation(conversation.id, { status: "FINALIZADO" }, masterViewer);
+  assert.ok((await inbox.getConversation(conversation.id, masterViewer)).finalizedAt);
+  await inbox.updateConversation(conversation.id, { status: "NOVO" }, masterViewer);
+  assert.equal((await inbox.getConversation(conversation.id, masterViewer)).finalizedAt, null);
 });
 
 test("envia mensagem neutra antes de finalizar o atendimento", async () => {
@@ -110,47 +111,47 @@ test("envia mensagem neutra antes de finalizar o atendimento", async () => {
   assert.equal(result.message.text, closingMessage);
   assert.equal(result.message.sentByUserId, user.id);
   assert.equal(providerText, `[*Suporte*]\n\n${closingMessage}`);
-  const finalized = await inbox.getConversation(conversation.id);
+  const finalized = await inbox.getConversation(conversation.id, masterViewer);
   assert.equal(finalized.status, "FINALIZADO");
   assert.ok(finalized.finalizedAt);
 });
 
 test("cria e edita categorias com código único e cor validada", async () => {
-  const first = await inbox.createCategory({ name: "Financeiro Teste", color: "#EF5B2A" });
-  const second = await inbox.createCategory({ name: "Financeiro Teste", color: "#112233" });
+  const first = await inbox.createCategory({ name: "Financeiro Teste", color: "#EF5B2A" }, masterViewer);
+  const second = await inbox.createCategory({ name: "Financeiro Teste", color: "#112233" }, masterViewer);
   assert.equal(first.code, "FINANCEIRO_TESTE");
   assert.equal(second.code, "FINANCEIRO_TESTE_2");
   assert.equal(first.color, "#ef5b2a");
-  const emoji = await inbox.createCategory({ name: "🛠️ Suporte VIP Teste", color: "#2563eb", parentId: first.id });
+  const emoji = await inbox.createCategory({ name: "🛠️ Suporte VIP Teste", color: "#2563eb", parentId: first.id }, masterViewer);
   assert.equal(emoji.name, "🛠️ Suporte VIP Teste");
   assert.equal(emoji.code, "SUPORTE_VIP_TESTE");
   assert.equal(emoji.parentId, first.id);
-  const listed = await inbox.listCategories();
+  const listed = await inbox.listCategories(masterViewer);
   assert.equal(listed.find((category) => category.id === emoji.id).parent.name, "Financeiro Teste");
   const conversation = await prisma.conversation.findFirst();
-  await inbox.updateConversation(conversation.id, { categoryId: emoji.id });
-  assert.equal((await inbox.listConversations({ category: first.code })).length, 1);
+  await inbox.updateConversation(conversation.id, { categoryId: emoji.id }, masterViewer);
+  assert.equal((await inbox.listConversations({ category: first.code }, masterViewer)).length, 1);
   const support = await prisma.category.findUnique({ where: { code: "SUPORTE" } });
-  await inbox.updateConversation(conversation.id, { categoryId: support.id });
-  const updated = await inbox.updateCategory(first.id, { name: "Financeiro", active: false });
+  await inbox.updateConversation(conversation.id, { categoryId: support.id }, masterViewer);
+  const updated = await inbox.updateCategory(first.id, { name: "Financeiro", active: false }, masterViewer);
   assert.equal(updated.name, "Financeiro");
   assert.equal(updated.active, false);
-  await assert.rejects(() => inbox.createCategory({ name: "Cor inválida", color: "laranja" }), /Cor da categoria inválida/);
+  await assert.rejects(() => inbox.createCategory({ name: "Cor inválida", color: "laranja" }, masterViewer), /Cor da categoria inválida/);
 });
 
 test("salva notas no contato e mantém busca pelo nome", async () => {
   const conversation = await prisma.conversation.findFirst({ include: { contact: true } });
-  const note = await inbox.addContactNote(conversation.contactId, { content: "Cliente prefere atendimento no período da tarde." });
+  const note = await inbox.addContactNote(conversation.contactId, { content: "Cliente prefere atendimento no período da tarde." }, masterViewer);
   assert.equal(note.content, "Cliente prefere atendimento no período da tarde.");
-  const newerNote = await inbox.addContactNote(conversation.contactId, { content: "Nota criada depois." });
-  const pinned = await inbox.setContactNotePinned(conversation.contactId, note.id, { pinned: true });
+  const newerNote = await inbox.addContactNote(conversation.contactId, { content: "Nota criada depois." }, masterViewer);
+  const pinned = await inbox.setContactNotePinned(conversation.contactId, note.id, { pinned: true }, masterViewer);
   assert.equal(pinned.pinned, true);
-  const detail = await inbox.getConversation(conversation.id);
+  const detail = await inbox.getConversation(conversation.id, masterViewer);
   assert.equal(detail.contact.notes.length, 2);
   assert.equal(detail.contact.notes[0].id, note.id);
   assert.equal(detail.contact.notes[0].pinned, true);
   assert.equal(detail.contact.notes[1].id, newerNote.id);
-  const found = await inbox.listConversations({ search: "Cliente Teste" });
+  const found = await inbox.listConversations({ search: "Cliente Teste" }, masterViewer);
   assert.equal(found.length, 1);
   assert.equal(found[0].contact.name, "Cliente Teste");
   assert.equal(found[0].contact.notes[0].content, "Cliente prefere atendimento no período da tarde.");

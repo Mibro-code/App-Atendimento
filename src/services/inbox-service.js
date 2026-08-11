@@ -1,4 +1,5 @@
 const prisma = require("../database/prisma");
+const authorization = require("./authorization-service");
 
 const conversationStatuses = new Set([
   "NOVO", "EM_ATENDIMENTO", "AGUARDANDO_RESPOSTA", "BOT", "FINALIZADO",
@@ -25,7 +26,7 @@ function categoryCode(name) {
     .toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 50) || "CATEGORIA";
 }
 
-async function listConversations({ search, category, status }) {
+async function listConversations({ search, category, status, assignedUser }, viewer) {
   const where = {};
   if (status) where.status = status;
   if (category) where.category = { OR: [
@@ -38,8 +39,15 @@ async function listConversations({ search, category, status }) {
       { phone: { contains: search } },
     ] };
   }
+  if (assignedUser) {
+    if (!authorization.isMaster(viewer) && !viewer.canViewTeamActivity && assignedUser !== viewer.id) {
+      throw authorization.forbidden("Você não pode consultar os atendimentos de outro usuário.");
+    }
+    where.assignedUserId = assignedUser;
+  }
+  const scope = await authorization.conversationScope(viewer);
   return prisma.conversation.findMany({
-    where,
+    where: { AND: [where, scope] },
     include: {
       contact: {
         include: {
@@ -55,9 +63,10 @@ async function listConversations({ search, category, status }) {
   });
 }
 
-async function getConversation(id) {
-  return prisma.conversation.findUnique({
-    where: { id },
+async function getConversation(id, viewer) {
+  const scope = await authorization.conversationScope(viewer);
+  return prisma.conversation.findFirst({
+    where: { AND: [{ id }, scope] },
     include: {
       category: { include: { parent: true } },
       assignedUser: { select: { id: true, name: true, email: true } },
@@ -77,13 +86,14 @@ async function getConversation(id) {
   });
 }
 
-async function getConversationSummary() {
+async function getConversationSummary(viewer) {
+  const scope = await authorization.conversationScope(viewer);
   const [total, statuses, categories] = await Promise.all([
-    prisma.conversation.count(),
-    prisma.conversation.groupBy({ by: ["status"], _count: { _all: true } }),
+    prisma.conversation.count({ where: scope }),
+    prisma.conversation.groupBy({ by: ["status"], where: scope, _count: { _all: true } }),
     prisma.conversation.groupBy({
       by: ["categoryId"],
-      where: { categoryId: { not: null } },
+      where: { AND: [{ categoryId: { not: null } }, scope] },
       _count: { _all: true },
     }),
   ]);
@@ -94,7 +104,8 @@ async function getConversationSummary() {
   };
 }
 
-async function addContactNote(contactId, { content, authorId }) {
+async function addContactNote(contactId, { content, authorId }, viewer) {
+  await authorization.assertCanAccessContact(viewer, contactId);
   const text = content?.trim();
   if (!text) throw Object.assign(new Error("A nota não pode ficar vazia."), { statusCode: 400 });
   if (text.length > 2000) throw Object.assign(new Error("A nota deve ter no máximo 2.000 caracteres."), { statusCode: 400 });
@@ -109,7 +120,8 @@ async function addContactNote(contactId, { content, authorId }) {
   }
 }
 
-async function setContactNotePinned(contactId, noteId, { pinned }) {
+async function setContactNotePinned(contactId, noteId, { pinned }, viewer) {
+  await authorization.assertCanAccessContact(viewer, contactId);
   if (typeof pinned !== "boolean") {
     throw Object.assign(new Error("Informe se a nota deve ser fixada."), { statusCode: 400 });
   }
@@ -129,17 +141,31 @@ async function setContactNotePinned(contactId, noteId, { pinned }) {
   });
 }
 
-async function updateConversation(id, { categoryId, status, assignedUserId }) {
+async function updateConversation(id, { categoryId, status, assignedUserId }, viewer) {
+  const currentAccess = await authorization.assertCanViewConversation(viewer, id);
   if (status && !conversationStatuses.has(status)) {
     throw Object.assign(new Error("Status inválido."), { statusCode: 400 });
   }
   if (categoryId) {
     const category = await prisma.category.findFirst({ where: { id: categoryId, active: true } });
     if (!category) throw Object.assign(new Error("Categoria não encontrada ou inativa."), { statusCode: 400 });
+    if (!(await authorization.canAccessCategory(viewer, categoryId))) {
+      throw authorization.forbidden("Você não possui acesso à categoria selecionada.");
+    }
+  }
+  if (categoryId === null && !(await authorization.canAccessCategory(viewer, null))) {
+    throw authorization.forbidden("Você não pode remover a categoria desta conversa.");
   }
   if (assignedUserId) {
     const user = await prisma.user.findFirst({ where: { id: assignedUserId, active: true } });
     if (!user) throw Object.assign(new Error("Atendente não encontrado ou inativo."), { statusCode: 400 });
+    const targetCategoryId = categoryId !== undefined ? categoryId : currentAccess.categoryId;
+    if (!(await authorization.canAccessCategory(user, targetCategoryId))) {
+      throw Object.assign(new Error("O atendente não possui acesso à categoria desta conversa."), { statusCode: 400 });
+    }
+  }
+  if (assignedUserId !== undefined && !authorization.canTransfer(viewer) && assignedUserId !== viewer.id) {
+    throw authorization.forbidden("Você não pode transferir esta conversa.");
   }
   const data = {};
   if (categoryId !== undefined) data.categoryId = categoryId || null;
@@ -192,14 +218,29 @@ async function markAsRead(id, { channel } = {}) {
   }
 }
 
-async function listCategories() {
-  return prisma.category.findMany({
+async function listCategories(viewer) {
+  let where;
+  let selectableIds = null;
+  if (!authorization.isMaster(viewer) && !viewer.canManageCategories) {
+    const categoryIds = await authorization.allowedCategoryIds(viewer);
+    selectableIds = new Set(categoryIds);
+    where = { OR: [
+      { id: { in: categoryIds } },
+      { children: { some: { id: { in: categoryIds } } } },
+    ] };
+  }
+  const categories = await prisma.category.findMany({
+    where,
     include: { parent: { select: { id: true, name: true, code: true, active: true } } },
     orderBy: [{ displayOrder: "asc" }, { name: "asc" }],
   });
+  return categories.map((category) => ({
+    ...category, selectable: selectableIds ? selectableIds.has(category.id) : true,
+  }));
 }
 
-async function createCategory(data) {
+async function createCategory(data, viewer) {
+  authorization.assertCanManageCategories(viewer);
   const name = validateCategoryName(data.name);
   const color = validateCategoryColor(data.color) || "#6b7280";
   const parentId = data.parentId || null;
@@ -222,7 +263,8 @@ async function createCategory(data) {
   throw Object.assign(new Error("Não foi possível gerar um código único para a categoria."), { statusCode: 409 });
 }
 
-async function updateCategory(id, data) {
+async function updateCategory(id, data, viewer) {
+  authorization.assertCanManageCategories(viewer);
   const allowed = {};
   if (data.name !== undefined) allowed.name = validateCategoryName(data.name);
   if (data.color !== undefined) allowed.color = validateCategoryColor(data.color);
@@ -249,9 +291,11 @@ async function updateCategory(id, data) {
   }
 }
 
-async function listUsers() {
+async function listUsers(viewer) {
+  const where = authorization.isMaster(viewer) || viewer.canViewTeamActivity || viewer.canTransferConversations
+    ? { active: true } : { id: viewer.id, active: true };
   return prisma.user.findMany({
-    where: { active: true },
+    where,
     select: { id: true, name: true, email: true, role: true },
     orderBy: { name: "asc" },
   });

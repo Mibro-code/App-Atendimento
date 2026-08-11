@@ -12,6 +12,8 @@ const authController = require("./controllers/auth-controller");
 const { authenticate, requirePageAuth } = require("./middleware/auth");
 const verifyMetaSignature = require("./middleware/meta-signature");
 const inboxEvents = require("./realtime/inbox-events");
+const authorization = require("./services/authorization-service");
+const userManagementController = require("./controllers/user-management-controller");
 const imageUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024, files: 1 },
@@ -95,9 +97,11 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   app.use("/api", authenticate);
   app.get("/api/events", inboxEvents.handle);
 
-  app.get("/api/messages", async (_req, res, next) => {
+  app.get("/api/messages", async (req, res, next) => {
     try {
+      const scope = await authorization.conversationScope(req.user);
       const rows = await prisma.message.findMany({
+        where: { conversation: { is: scope } },
         include: { conversation: { include: { contact: true } } }, orderBy: { occurredAt: "asc" }, take: 500,
       });
       return res.json(rows.map((item) => ({
@@ -111,6 +115,7 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   });
 
   app.post("/api/send", async (req, res) => {
+    if (!authorization.isMaster(req.user)) return res.status(403).json({ error: "Somente uma conta Master pode iniciar conversas por número." });
     const { to, message } = req.body;
     if (!to || !message?.trim()) return res.status(400).json({ error: "Número e mensagem são obrigatórios." });
     try {
@@ -138,6 +143,10 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   app.get("/api/users", inbox.users);
   app.post("/api/contacts/:contactId/notes", inbox.addNote);
   app.patch("/api/contacts/:contactId/notes/:noteId", inbox.pinNote);
+  app.get("/api/admin/users", userManagementController.list);
+  app.post("/api/admin/users", userManagementController.create);
+  app.patch("/api/admin/users/:id", userManagementController.update);
+  app.get("/api/team/users", userManagementController.activity);
 
   app.use((error, _req, res, _next) => {
     if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {

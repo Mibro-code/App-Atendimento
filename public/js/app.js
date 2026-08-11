@@ -3,7 +3,7 @@ const state = {
   selectedId: null, selectedContactId: null, status: "", category: "", search: "",
   categorySignature: "", listSignature: "", selectedHeaderSignature: "",
   selectedMessagesSignature: "", selectedNotesSignature: "", selectedMessageItems: [],
-  expandedCategories: new Set(),
+  expandedCategories: new Set(), adminUsers: [], editingUserId: null, assignedUser: "",
 };
 const $ = (selector) => document.querySelector(selector);
 const escapeHtml = (value = "") => String(value).replace(/[&<>'"]/g, (char) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" })[char]);
@@ -19,7 +19,7 @@ function orderedCategories(categories) {
 }
 function populateSubcategorySelect(parentId, selectedId = "") {
   const select = $("#subcategory-select");
-  const children = state.categories.filter((category) => category.active && category.parentId === parentId);
+  const children = state.categories.filter((category) => category.active && category.parentId === parentId && category.selectable !== false);
   select.innerHTML = `<option value="">Subcategoria (opcional)</option>` + children.map((category) => `<option value="${category.id}">${escapeHtml(category.name)}</option>`).join("");
   select.hidden = !parentId || !children.length;
   if (children.some((category) => category.id === selectedId)) select.value = selectedId;
@@ -137,6 +137,9 @@ async function loadCurrentUser() {
   if (!status.authenticated) return location.replace("/login.html");
   state.currentUser = status.user;
   $("#current-user").textContent = status.user.name;
+  $("#team-button").hidden = !status.user.isMaster && !status.user.canViewTeamActivity;
+  $("#manage-categories").hidden = !status.user.canManageCategories;
+  $("#assignee-select").disabled = !status.user.canTransferConversations;
 }
 
 async function loadUsers() {
@@ -172,7 +175,7 @@ async function loadCategories() {
     const expanded = state.expandedCategories.has(root.id);
     return `<div class="category-filter-group"><button class="filter category-parent-filter" data-category="${root.code}" data-category-group="${root.id}" aria-expanded="${expanded}"><span><i class="category-dot" style="background:${root.color || "#999"}"></i>${escapeHtml(root.name)}${children.length ? `<i class="category-chevron" aria-hidden="true">${expanded ? "⌃" : "⌄"}</i>` : ""}</span><strong data-category-count="${root.id}">0</strong></button>${children.length ? `<div class="subcategory-filters" data-category-children="${root.id}" ${expanded ? "" : "hidden"}>${children.map((child) => `<button class="filter subcategory-filter" data-category="${child.code}"><span><i class="category-dot" style="background:${child.color || root.color || "#999"}"></i>↳ ${escapeHtml(child.name)}</span><strong data-category-count="${child.id}">0</strong></button>`).join("")}</div>` : ""}</div>`;
   }).join("");
-  $("#category-select").innerHTML = `<option value="">Sem categoria</option>` + roots.map((category) => `<option value="${category.id}">${escapeHtml(category.name)}</option>`).join("");
+  $("#category-select").innerHTML = `${state.currentUser?.canViewUncategorized ? `<option value="">Sem categoria</option>` : `<option value="" disabled>Selecione a categoria</option>`}` + roots.map((category) => `<option value="${category.id}" data-selectable="${category.selectable !== false}">${escapeHtml(category.name)}</option>`).join("");
   $("#category-parent").innerHTML = `<option value="">Categoria principal</option>` + roots.map((category) => `<option value="${category.id}">${escapeHtml(category.name)}</option>`).join("");
   if ([...$("#category-select").options].some((option) => option.value === previousPrimaryCategory)) $("#category-select").value = previousPrimaryCategory;
   populateSubcategorySelect($("#category-select").value, previousSubcategory);
@@ -222,12 +225,15 @@ async function loadConversations() {
   if (state.search) params.set("search", state.search);
   if (state.status) params.set("status", state.status);
   if (state.category) params.set("category", state.category);
+  if (state.assignedUser) params.set("assignedUser", state.assignedUser);
   const [conversations, summary] = await Promise.all([
     api(`/api/conversations?${params}`),
     api("/api/conversations/summary"),
   ]);
   state.conversations = conversations;
-  $("#list-summary").textContent = `${state.conversations.length} atendimento${state.conversations.length === 1 ? "" : "s"}`;
+  const filteredUser = state.adminUsers.find((user) => user.id === state.assignedUser);
+  $("#list-summary").textContent = `${state.conversations.length} atendimento${state.conversations.length === 1 ? "" : "s"}${filteredUser ? ` • ${filteredUser.name}` : ""}`;
+  $("#clear-team-filter").hidden = !state.assignedUser;
   $("#count-all").textContent = summary.total || 0;
   $("#count-new").textContent = summary.statuses.NOVO || 0;
   $("#count-in-progress").textContent = summary.statuses.EM_ATENDIMENTO || 0;
@@ -291,6 +297,9 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
       $("#subcategory-select").hidden = false;
     }
     $("#status-badge").className = "status-badge"; $("#status-badge").textContent = statusLabel(c.status);
+    if (c.assignedUserId && ![...$("#assignee-select").options].some((option) => option.value === c.assignedUserId)) {
+      $("#assignee-select").add(new Option(c.assignedUser?.name || "Outro atendente", c.assignedUserId));
+    }
     $("#assignee-select").value = c.assignedUserId || "";
     $("#claim-conversation").hidden = c.assignedUserId === state.currentUser?.id;
     $("#toggle-finalized").textContent = c.status === "FINALIZADO" ? "Reabrir" : "Finalizar"; $("#toggle-finalized").dataset.status = c.status;
@@ -342,6 +351,65 @@ function renderNotes(notes) {
   $("#notes-list").innerHTML = notes.length ? notes.map((note) => `<article class="note ${note.pinned ? "pinned" : ""}"><div class="note-heading">${note.pinned ? `<span class="pinned-label">📌 FIXADA</span>` : `<span></span>`}<button class="pin-note" type="button" data-note-id="${escapeHtml(note.id)}" data-pinned="${note.pinned}" title="${note.pinned ? "Desafixar nota" : "Fixar esta nota no topo"}">${note.pinned ? "Desafixar" : "📌 Fixar"}</button></div><p>${escapeHtml(note.content)}</p><footer>${escapeHtml(note.author?.name || "Equipe")} • ${new Intl.DateTimeFormat("pt-BR", { dateStyle:"short", timeStyle:"short" }).format(new Date(note.createdAt))}</footer></article>`).join("") : `<div class="notes-empty">Nenhuma nota adicionada.</div>`;
 }
 
+const roleLabel = (role) => ({ ADMIN:"Master", SUPERVISOR:"Supervisor", ATENDENTE:"Atendente" })[role] || role;
+
+function renderTeamCategoryAccess(selectedIds = []) {
+  const selected = new Set(selectedIds);
+  $("#team-category-access").innerHTML = `<div class="team-category-list">${orderedCategories(state.categories.filter((category) => category.active)).map((category) => `<label class="team-category-option ${category.parentId ? "child" : ""}"><input type="checkbox" value="${escapeHtml(category.id)}" ${selected.has(category.id) ? "checked" : ""}><i class="category-dot" style="background:${category.color || "#999"}"></i><span>${category.parentId ? "↳ " : ""}${escapeHtml(category.name)}</span></label>`).join("")}</div>`;
+}
+
+function syncMasterForm() {
+  const master = $("#team-role").value === "ADMIN";
+  document.querySelectorAll(".team-permissions input,.team-categories input").forEach((input) => { input.disabled = master; });
+}
+
+function resetTeamForm() {
+  state.editingUserId = null;
+  $("#team-form").reset();
+  $("#team-role").value = "ATENDENTE";
+  $("#team-active").checked = true;
+  $("#team-active-field").hidden = true;
+  $("#team-password").required = true;
+  $("#team-password-label").textContent = "Senha inicial";
+  $("#team-form-eyebrow").textContent = "NOVA CONTA";
+  $("#team-form-title").textContent = "Adicionar membro";
+  renderTeamCategoryAccess();
+  syncMasterForm();
+}
+
+function editTeamUser(userId) {
+  const user = state.adminUsers.find((item) => item.id === userId);
+  if (!user) return;
+  state.editingUserId = user.id;
+  $("#team-name").value = user.name;
+  $("#team-email").value = user.email;
+  $("#team-role").value = user.role;
+  $("#team-password").value = "";
+  $("#team-password").required = false;
+  $("#team-password-label").textContent = "Nova senha (opcional)";
+  $("#team-active").checked = user.active;
+  $("#team-active-field").hidden = false;
+  $("#permission-uncategorized").checked = user.canViewUncategorized;
+  $("#permission-categories").checked = user.canManageCategories;
+  $("#permission-transfer").checked = user.canTransferConversations;
+  $("#permission-team").checked = user.canViewTeamActivity;
+  $("#team-form-eyebrow").textContent = "EDITAR CONTA";
+  $("#team-form-title").textContent = user.name;
+  renderTeamCategoryAccess(user.categoryAccess.map((access) => access.categoryId));
+  syncMasterForm();
+}
+
+function renderAdminUsers() {
+  $("#team-count").textContent = `${state.adminUsers.length} conta${state.adminUsers.length === 1 ? "" : "s"}`;
+  $("#team-user-list").innerHTML = state.adminUsers.map((user) => `<article class="team-user-card ${user.active ? "" : "inactive"}"><div class="team-user-main"><span class="team-user-avatar">${escapeHtml(initials(user.name))}</span><span class="team-user-info"><b>${escapeHtml(user.name)}</b><small>${escapeHtml(user.email || "Membro da equipe")}</small></span><span class="role-pill">${escapeHtml(roleLabel(user.role))}</span></div><div class="team-user-meta"><span>${user._count.assignedConversations} conversa(s) atribuída(s)</span>${state.currentUser?.isMaster ? `<span>•</span><span>${user._count.sentMessages} resposta(s)</span>` : ""}${user.active ? "" : "<span>• Inativa</span>"}</div><div class="team-user-actions">${state.currentUser?.isMaster ? `<button type="button" data-edit-user="${escapeHtml(user.id)}">Editar</button>` : ""}<button type="button" data-view-user="${escapeHtml(user.id)}">Ver atendimentos</button></div></article>`).join("");
+}
+
+async function loadAdminUsers() {
+  if (!state.currentUser?.isMaster && !state.currentUser?.canViewTeamActivity) return;
+  state.adminUsers = await api(state.currentUser.isMaster ? "/api/admin/users" : "/api/team/users");
+  renderAdminUsers();
+}
+
 $("#conversation-list").addEventListener("click", (event) => {
   const card = event.target.closest(".conversation-card");
   if (card) openConversation(card.dataset.id);
@@ -351,6 +419,7 @@ document.querySelectorAll("[data-status]").forEach((button) => button.addEventLi
 }));
 let searchTimer; $("#search").addEventListener("input", (event) => { clearTimeout(searchTimer); state.search = event.target.value.trim(); searchTimer = setTimeout(loadConversations, 250); });
 $("#refresh").addEventListener("click", loadConversations);
+$("#clear-team-filter").addEventListener("click", () => { state.assignedUser = ""; loadConversations(); });
 $("#theme-toggle").addEventListener("click", () => {
   const theme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
   document.documentElement.dataset.theme = theme;
@@ -358,6 +427,41 @@ $("#theme-toggle").addEventListener("click", () => {
   syncThemeToggle();
 });
 $("#user-button").addEventListener("click", async () => { await api("/api/auth/logout", { method:"POST" }); location.replace("/login.html"); });
+$("#team-button").addEventListener("click", async () => { try { await loadAdminUsers(); resetTeamForm(); $("#new-team-user").hidden = !state.currentUser.isMaster; $("#team-form").hidden = !state.currentUser.isMaster; $("#team-dialog").classList.toggle("activity-only", !state.currentUser.isMaster); $("#team-dialog").showModal(); } catch (e) { toast(e.message, true); } });
+$("#close-team").addEventListener("click", () => $("#team-dialog").close());
+$("#team-dialog").addEventListener("click", (event) => { if (event.target === $("#team-dialog")) $("#team-dialog").close(); });
+$("#new-team-user").addEventListener("click", resetTeamForm);
+$("#cancel-team-edit").addEventListener("click", resetTeamForm);
+$("#team-role").addEventListener("change", syncMasterForm);
+$("#team-user-list").addEventListener("click", (event) => {
+  const edit = event.target.closest("[data-edit-user]");
+  if (edit) return editTeamUser(edit.dataset.editUser);
+  const view = event.target.closest("[data-view-user]");
+  if (view) { state.assignedUser = view.dataset.viewUser; state.status = ""; state.category = ""; $("#team-dialog").close(); loadConversations(); }
+});
+$("#team-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const password = $("#team-password").value;
+  const body = {
+    name: $("#team-name").value.trim(), email: $("#team-email").value.trim(), role: $("#team-role").value,
+    canViewUncategorized: $("#permission-uncategorized").checked,
+    canManageCategories: $("#permission-categories").checked,
+    canTransferConversations: $("#permission-transfer").checked,
+    canViewTeamActivity: $("#permission-team").checked,
+    categoryIds: [...document.querySelectorAll("#team-category-access input:checked")].map((input) => input.value),
+  };
+  if (password) body.password = password;
+  if (state.editingUserId) body.active = $("#team-active").checked;
+  const submit = event.submitter; submit.disabled = true;
+  try {
+    const editing = Boolean(state.editingUserId);
+    await api(editing ? `/api/admin/users/${state.editingUserId}` : "/api/admin/users", { method:editing ? "PATCH" : "POST", body:JSON.stringify(body) });
+    toast(editing ? "Conta atualizada." : "Conta criada.");
+    await Promise.all([loadAdminUsers(), loadUsers()]);
+    resetTeamForm();
+  } catch (e) { toast(e.message, true); }
+  finally { submit.disabled = false; }
+});
 $("#notes-toggle").addEventListener("click", () => $("#notes-panel").classList.toggle("open"));
 $("#notes-close").addEventListener("click", () => $("#notes-panel").classList.remove("open"));
 $("#note-form").addEventListener("submit", async (event) => { event.preventDefault(); const input = $("#note-input"); const content = input.value.trim(); if (!content) return; try { await api(`/api/contacts/${state.selectedContactId}/notes`, { method:"POST", body:JSON.stringify({ content }) }); input.value = ""; toast("Nota adicionada ao contato."); await openConversation(state.selectedId); $("#notes-panel").classList.add("open"); } catch (e) { toast(e.message, true); } });
@@ -371,7 +475,8 @@ async function updateConversationCategory(categoryId) {
 $("#category-select").addEventListener("change", async (event) => {
   const primaryId = event.target.value;
   populateSubcategorySelect(primaryId);
-  await updateConversationCategory(primaryId);
+  const option = event.target.selectedOptions[0];
+  if (!primaryId || option?.dataset.selectable !== "false") await updateConversationCategory(primaryId);
 });
 $("#subcategory-select").addEventListener("change", async (event) => {
   await updateConversationCategory(event.target.value || $("#category-select").value);
@@ -421,7 +526,9 @@ $("#message-input").addEventListener("keydown", (event) => { if (event.key === "
 $(".chat-header").addEventListener("click", (event) => { if (innerWidth <= 700 && event.offsetX < 45) $("#chat-panel").classList.remove("open"); });
 
 syncThemeToggle();
-Promise.all([loadCurrentUser(), loadUsers(), loadCategories()])
+loadCurrentUser()
+  .then(() => Promise.all([loadUsers(), loadCategories()]))
+  .then(loadAdminUsers)
   .then(loadConversations)
   .then(connectRealtime)
   .catch((error) => toast(error.message, true));

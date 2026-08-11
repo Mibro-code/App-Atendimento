@@ -78,6 +78,33 @@ test("entrega o painel e as APIs básicas da caixa de entrada", async () => {
     const createdCategory = await fetch(`${base}/api/categories`, { method: "POST", headers: { Cookie: cookie, "Content-Type": "application/json" }, body: JSON.stringify({ name: "Categoria API Teste", color: "#ef5b2a" }) });
     assert.equal(createdCategory.status, 201);
     assert.equal((await createdCategory.json()).name, "Categoria API Teste");
+    const support = await prisma.category.findUnique({ where: { code: "SUPORTE" } });
+    const commercial = await prisma.category.findUnique({ where: { code: "COMERCIAL" } });
+    const createAgent = await fetch(`${base}/api/admin/users`, { method: "POST", headers: { Cookie: cookie, "Content-Type": "application/json" }, body: JSON.stringify({
+      name: "Agente Restrito", email: "agente@teste.local", password: "senha-agente-123", role: "ATENDENTE",
+      categoryIds: [support.id], canViewUncategorized: false,
+    }) });
+    assert.equal(createAgent.status, 201);
+    const createdAgent = await createAgent.json();
+    assert.equal(createdAgent.passwordHash, undefined);
+    const supportContact = await prisma.contact.create({ data: { externalId: "app-support", phone: "551100000001", name: "Cliente Suporte" } });
+    const commercialContact = await prisma.contact.create({ data: { externalId: "app-commercial", phone: "551100000002", name: "Cliente Comercial" } });
+    const supportConversation = await prisma.conversation.create({ data: { contactId: supportContact.id, categoryId: support.id, assignedUserId: createdAgent.id } });
+    const commercialConversation = await prisma.conversation.create({ data: { contactId: commercialContact.id, categoryId: commercial.id } });
+    const agentLogin = await fetch(`${base}/api/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: "agente@teste.local", password: "senha-agente-123" }) });
+    assert.equal(agentLogin.status, 200);
+    const agentCookie = agentLogin.headers.get("set-cookie").split(";")[0];
+    const agentConversations = await fetch(`${base}/api/conversations`, { headers: { Cookie: agentCookie } });
+    assert.deepEqual((await agentConversations.json()).map(({ id }) => id), [supportConversation.id]);
+    assert.equal((await fetch(`${base}/api/conversations/${commercialConversation.id}`, { headers: { Cookie: agentCookie } })).status, 404);
+    assert.equal((await fetch(`${base}/api/admin/users`, { headers: { Cookie: agentCookie } })).status, 403);
+    assert.equal((await fetch(`${base}/api/team/users`, { headers: { Cookie: agentCookie } })).status, 403);
+    const allowTeamActivity = await fetch(`${base}/api/admin/users/${createdAgent.id}`, { method: "PATCH", headers: { Cookie: cookie, "Content-Type": "application/json" }, body: JSON.stringify({ canViewTeamActivity: true }) });
+    assert.equal(allowTeamActivity.status, 200);
+    const teamActivity = await fetch(`${base}/api/team/users`, { headers: { Cookie: agentCookie } });
+    assert.equal(teamActivity.status, 200);
+    assert.equal((await teamActivity.json()).find(({ id }) => id === createdAgent.id)._count.assignedConversations, 1);
+    assert.equal((await fetch(`${base}/api/categories`, { method: "POST", headers: { Cookie: agentCookie, "Content-Type": "application/json" }, body: JSON.stringify({ name: "Sem permissão" }) })).status, 403);
     const imageForm = new FormData();
     imageForm.append("image", new Blob([Buffer.from([0xff, 0xd8, 0xff, 0x00])], { type: "image/jpeg" }), "teste.jpg");
     const missingConversationImage = await fetch(`${base}/api/conversations/inexistente/images`, { method: "POST", headers: { Cookie: cookie }, body: imageForm });
@@ -112,8 +139,11 @@ test("entrega o painel e as APIs básicas da caixa de entrada", async () => {
     assert.equal(login.status, 200);
   } finally {
     server.close();
+    await prisma.message.deleteMany();
+    await prisma.conversation.deleteMany();
+    await prisma.contact.deleteMany();
     await prisma.category.deleteMany({ where: { code: { startsWith: "CATEGORIA_API_TESTE" } } });
-    await prisma.user.deleteMany({ where: { email: "admin@teste.local" } });
+    await prisma.user.deleteMany({ where: { email: { in: ["admin@teste.local", "agente@teste.local"] } } });
     await prisma.$disconnect();
   }
 });

@@ -3,6 +3,7 @@ const prisma = require("../database/prisma");
 const { resolveMedia } = require("../services/media-storage-service");
 const { finalizeConversation, sendImage, sendText } = require("../services/message-service");
 const inboxEvents = require("../realtime/inbox-events");
+const authorization = require("../services/authorization-service");
 
 function createInboxController(channel) {
   return {
@@ -11,23 +12,23 @@ function createInboxController(channel) {
         if (req.query.status && !inbox.conversationStatuses.has(req.query.status)) {
           return res.status(400).json({ error: "Status inválido." });
         }
-        return res.json(await inbox.listConversations(req.query));
+        return res.json(await inbox.listConversations(req.query, req.user));
       } catch (error) { return next(error); }
     },
     async detail(req, res, next) {
       try {
-        const conversation = await inbox.getConversation(req.params.id);
+        const conversation = await inbox.getConversation(req.params.id, req.user);
         if (!conversation) return res.status(404).json({ error: "Conversa não encontrada." });
         return res.json(conversation);
       } catch (error) { return next(error); }
     },
-    async summary(_req, res, next) {
-      try { return res.json(await inbox.getConversationSummary()); }
+    async summary(req, res, next) {
+      try { return res.json(await inbox.getConversationSummary(req.user)); }
       catch (error) { return next(error); }
     },
     async update(req, res, next) {
       try {
-        const conversation = await inbox.updateConversation(req.params.id, req.body);
+        const conversation = await inbox.updateConversation(req.params.id, req.body, req.user);
         inboxEvents.publish();
         return res.json(conversation);
       }
@@ -38,13 +39,14 @@ function createInboxController(channel) {
         const conversation = await inbox.updateConversation(req.params.id, {
           assignedUserId: req.user.id,
           status: "EM_ATENDIMENTO",
-        });
+        }, req.user);
         inboxEvents.publish();
         return res.json(conversation);
       } catch (error) { return next(error); }
     },
     async read(req, res, next) {
       try {
+        await authorization.assertCanViewConversation(req.user, req.params.id);
         const result = await inbox.markAsRead(req.params.id, { channel });
         inboxEvents.publish();
         return res.json(result);
@@ -55,6 +57,7 @@ function createInboxController(channel) {
       const text = req.body.text?.trim();
       if (!text) return res.status(400).json({ error: "Mensagem é obrigatória." });
       try {
+        await authorization.assertCanViewConversation(req.user, req.params.id);
         const result = await sendText({ conversationId: req.params.id, text, sentByUserId: req.user.id, channel });
         inboxEvents.publish();
         return res.status(201).json(result.message);
@@ -63,6 +66,7 @@ function createInboxController(channel) {
     async replyImage(req, res, next) {
       if (!req.file) return res.status(400).json({ error: "Selecione uma imagem JPG ou PNG." });
       try {
+        await authorization.assertCanViewConversation(req.user, req.params.id);
         const result = await sendImage({
           conversationId: req.params.id, buffer: req.file.buffer,
           mimeType: req.file.mimetype, fileName: req.file.originalname,
@@ -74,6 +78,7 @@ function createInboxController(channel) {
     },
     async finalize(req, res, next) {
       try {
+        await authorization.assertCanViewConversation(req.user, req.params.id);
         const result = await finalizeConversation({
           conversationId: req.params.id, sentByUserId: req.user.id, channel,
         });
@@ -85,9 +90,10 @@ function createInboxController(channel) {
       try {
         const message = await prisma.message.findUnique({
           where: { id: req.params.messageId },
-          select: { mediaStorageKey: true, mediaMimeType: true, mediaFileName: true },
+          select: { conversationId: true, mediaStorageKey: true, mediaMimeType: true, mediaFileName: true },
         });
         if (!message?.mediaStorageKey) return res.status(404).json({ error: "Mídia não encontrada." });
+        await authorization.assertCanViewConversation(req.user, message.conversationId);
         res.set({
           "Content-Type": message.mediaMimeType,
           "Content-Disposition": `inline; filename="${encodeURIComponent(message.mediaFileName || "midia")}"`,
@@ -97,20 +103,20 @@ function createInboxController(channel) {
         return res.sendFile(resolveMedia(message.mediaStorageKey));
       } catch (error) { return next(error); }
     },
-    async categories(_req, res, next) {
-      try { return res.json(await inbox.listCategories()); }
+    async categories(req, res, next) {
+      try { return res.json(await inbox.listCategories(req.user)); }
       catch (error) { return next(error); }
     },
     async createCategory(req, res, next) {
       try {
-        const category = await inbox.createCategory(req.body);
+        const category = await inbox.createCategory(req.body, req.user);
         inboxEvents.publish();
         return res.status(201).json(category);
       } catch (error) { return next(error); }
     },
     async updateCategory(req, res, next) {
       try {
-        const category = await inbox.updateCategory(req.params.id, req.body);
+        const category = await inbox.updateCategory(req.params.id, req.body, req.user);
         inboxEvents.publish();
         return res.json(category);
       }
@@ -118,20 +124,20 @@ function createInboxController(channel) {
     },
     async addNote(req, res, next) {
       try {
-        const note = await inbox.addContactNote(req.params.contactId, { ...req.body, authorId: req.user.id });
+        const note = await inbox.addContactNote(req.params.contactId, { ...req.body, authorId: req.user.id }, req.user);
         inboxEvents.publish();
         return res.status(201).json(note);
       } catch (error) { return next(error); }
     },
     async pinNote(req, res, next) {
       try {
-        const note = await inbox.setContactNotePinned(req.params.contactId, req.params.noteId, req.body);
+        const note = await inbox.setContactNotePinned(req.params.contactId, req.params.noteId, req.body, req.user);
         inboxEvents.publish();
         return res.json(note);
       } catch (error) { return next(error); }
     },
-    async users(_req, res, next) {
-      try { return res.json(await inbox.listUsers()); }
+    async users(req, res, next) {
+      try { return res.json(await inbox.listUsers(req.user)); }
       catch (error) { return next(error); }
     },
   };

@@ -12,7 +12,14 @@ function secret() {
 }
 
 function publicUser(user) {
-  return { id: user.id, name: user.name, email: user.email, role: user.role };
+  return {
+    id: user.id, name: user.name, email: user.email, role: user.role,
+    isMaster: user.role === "ADMIN",
+    canViewUncategorized: user.role === "ADMIN" || user.canViewUncategorized,
+    canManageCategories: user.role === "ADMIN" || user.canManageCategories,
+    canTransferConversations: user.role === "ADMIN" || user.canTransferConversations,
+    canViewTeamActivity: user.role === "ADMIN" || user.canViewTeamActivity,
+  };
 }
 
 function setSession(res, user) {

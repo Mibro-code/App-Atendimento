@@ -11,6 +11,7 @@
   <header class="topbar">
     <div class="brand"><img class="brand-logo" src="/assets/mibro-logo.png" alt="Mibro"><span class="brand-divider"></span><small>Central de Atendimento</small></div>
     <div class="connection"><span></span> WhatsApp conectado</div>
+    <button id="team-button" class="team-button" type="button" hidden>Equipe</button>
     <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Usar tema escuro" title="Usar tema escuro"><span id="theme-icon" aria-hidden="true">☾</span></button>
     <button id="user-button" class="user-button" type="button"><span id="current-user">Usuário</span> • Sair</button>
   </header>
@@ -32,7 +33,7 @@
     </aside>
 
     <section class="conversation-list-panel">
-      <div class="list-heading"><div><h1>Conversas</h1><p id="list-summary">Carregando...</p></div><button id="refresh" title="Atualizar">↻</button></div>
+      <div class="list-heading"><div><h1>Conversas</h1><p id="list-summary">Carregando...</p></div><div class="list-heading-actions"><button id="clear-team-filter" title="Remover filtro de atendente" hidden>×</button><button id="refresh" title="Atualizar">↻</button></div></div>
       <div id="conversation-list" class="conversation-list"></div>
     </section>
 
@@ -80,6 +81,33 @@
     </form>
     <div class="category-manager-title"><strong>Categorias existentes</strong><small>Desative uma categoria para ocultá-la dos novos atendimentos.</small></div>
     <div id="category-manager-list" class="category-manager-list"></div>
+  </dialog>
+  <dialog id="team-dialog" class="team-dialog">
+    <div class="dialog-header"><div><span>ADMINISTRAÇÃO</span><h2>Equipe</h2><p>Crie contas e defina exatamente quais atendimentos cada pessoa pode acessar.</p></div><button id="close-team" type="button" aria-label="Fechar">×</button></div>
+    <div class="team-layout">
+      <section class="team-members">
+        <div class="team-section-title"><div><strong>Membros</strong><small id="team-count"></small></div><button id="new-team-user" type="button">+ Nova conta</button></div>
+        <div id="team-user-list" class="team-user-list"></div>
+      </section>
+      <form id="team-form" class="team-form">
+        <div class="team-form-heading"><div><span id="team-form-eyebrow">NOVA CONTA</span><h3 id="team-form-title">Adicionar membro</h3></div></div>
+        <div class="team-fields">
+          <label><span>Nome</span><input id="team-name" maxlength="100" required></label>
+          <label><span>E-mail</span><input id="team-email" type="email" autocomplete="off" required></label>
+          <label><span>Perfil</span><select id="team-role"><option value="ATENDENTE">Atendente</option><option value="SUPERVISOR">Supervisor</option><option value="ADMIN">Master</option></select></label>
+          <label><span id="team-password-label">Senha inicial</span><input id="team-password" type="password" minlength="8" autocomplete="new-password" placeholder="Mínimo de 8 caracteres"></label>
+        </div>
+        <label id="team-active-field" class="team-check single" hidden><input id="team-active" type="checkbox" checked><span>Conta ativa</span></label>
+        <fieldset class="team-permissions"><legend>Permissões adicionais</legend>
+          <label class="team-check"><input id="permission-uncategorized" type="checkbox"><span><b>Conversas novas</b><small>Visualizar atendimentos ainda sem categoria.</small></span></label>
+          <label class="team-check"><input id="permission-categories" type="checkbox"><span><b>Gerenciar categorias</b><small>Criar, editar e desativar categorias.</small></span></label>
+          <label class="team-check"><input id="permission-transfer" type="checkbox"><span><b>Transferir conversas</b><small>Alterar o atendente responsável.</small></span></label>
+          <label class="team-check"><input id="permission-team" type="checkbox"><span><b>Acompanhar equipe</b><small>Filtrar atendimentos de outros membros.</small></span></label>
+        </fieldset>
+        <fieldset class="team-categories"><legend>Categorias liberadas</legend><p>Ao liberar uma categoria principal, suas subcategorias também serão incluídas.</p><div id="team-category-access"></div></fieldset>
+        <div class="team-form-actions"><button id="cancel-team-edit" type="button">Limpar</button><button type="submit">Salvar conta</button></div>
+      </form>
+    </div>
   </dialog>
   <div id="toast" class="toast" role="status"></div>
   <script src="/js/app.js"></script>
