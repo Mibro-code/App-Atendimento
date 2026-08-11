@@ -4,6 +4,25 @@ const escapeHtml = (value = "") => String(value).replace(/[&<>'"]/g, (char) => (
 const initials = (name = "?") => name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
 const time = (value) => value ? new Intl.DateTimeFormat("pt-BR", { hour:"2-digit", minute:"2-digit" }).format(new Date(value)) : "";
 const statusLabel = (value) => ({ NOVO:"Novo", EM_ATENDIMENTO:"Em atendimento", AGUARDANDO_CLIENTE:"Aguardando cliente", BOT:"Bot", FINALIZADO:"Finalizado" })[value] || value;
+const messagePreview = (message) => {
+  if (!message) return "Conversa sem mensagens";
+  if (message.type === "image") return message.text && message.text !== "[image]" ? `📷 ${message.text}` : "📷 Imagem";
+  if (message.type === "audio") return "▶ Áudio";
+  return message.text || `[${message.type}]`;
+};
+
+function messageContent(message) {
+  const mediaUrl = `/api/messages/${encodeURIComponent(message.id)}/media`;
+  if (message.type === "image" && message.mediaStorageKey) {
+    return `<a class="message-image-link" href="${mediaUrl}" target="_blank" rel="noopener"><img class="message-image" src="${mediaUrl}" alt="${escapeHtml(message.text || "Imagem da conversa")}" loading="lazy"></a>${message.text && message.text !== "[image]" ? `<p>${escapeHtml(message.text)}</p>` : ""}`;
+  }
+  if (message.type === "audio" && message.mediaStorageKey) {
+    return `<audio class="message-audio" controls preload="metadata"><source src="${mediaUrl}" type="${escapeHtml(message.mediaMimeType || "audio/ogg")}">Seu navegador não conseguiu reproduzir este áudio.</audio><a class="audio-download" href="${mediaUrl}" download>Baixar áudio</a>`;
+  }
+  if (message.type === "image") return "<p>[Imagem indisponível]</p>";
+  if (message.type === "audio") return "<p>[Áudio indisponível]</p>";
+  return `<p>${escapeHtml(message.text || `[${message.type}]`)}</p>`;
+}
 
 async function loadCurrentUser() {
   const status = await api("/api/auth/status");
@@ -80,7 +99,7 @@ async function loadConversations() {
     return `<button class="conversation-card ${c.id === state.selectedId ? "active" : ""}" data-id="${c.id}">
       <span class="card-grip" aria-hidden="true"></span><span class="avatar">${escapeHtml(initials(name))}</span><span class="card-main">
       <span class="card-title"><strong>${escapeHtml(name)}</strong><small>${escapeHtml(c.contact.phone)}</small></span>
-      <span class="preview">${escapeHtml(last ? (last.type === "image" ? (last.text && last.text !== "[image]" ? `📷 ${last.text}` : "📷 Imagem") : (last.text || `[${last.type}]`)) : "Conversa sem mensagens")}</span>
+      <span class="preview">${escapeHtml(messagePreview(last))}</span>
       <span class="card-labels"><span class="category-label" style="color:${c.category?.color || "#666"};border-color:${c.category?.color || "#aaa"}">${escapeHtml(c.category?.name || "Sem categoria")}</span><span class="status-label">${escapeHtml(statusLabel(c.status))}</span>${c.assignedUser ? `<span class="assignee-label">${escapeHtml(c.assignedUser.name)}</span>` : ""}</span>
       <span class="note-preview"><b>NOTA</b> ${escapeHtml(note?.content || "Sem notas para este contato")}${c.contact._count?.notes ? `<i>${c.contact._count.notes}</i>` : ""}</span></span>
       <span class="card-side"><span>${time(c.lastMessageAt)}</span>${c.unreadCount ? `<span class="unread">${c.unreadCount}</span>` : ""}</span></button>`;
@@ -103,7 +122,7 @@ async function openConversation(id, { refreshList = true } = {}) {
   $("#assignee-select").value = c.assignedUserId || "";
   $("#claim-conversation").hidden = c.assignedUserId === state.currentUser?.id;
   $("#toggle-finalized").textContent = c.status === "FINALIZADO" ? "Reabrir" : "Finalizar"; $("#toggle-finalized").dataset.status = c.status;
-  $("#messages").innerHTML = c.messages.map((m) => `<div class="message-row ${m.direction === "ENVIADA" ? "sent" : "received"}"><div class="bubble ${m.type === "image" ? "image-bubble" : ""}">${m.type === "image" && m.mediaStorageKey ? `<a class="message-image-link" href="/api/messages/${encodeURIComponent(m.id)}/media" target="_blank" rel="noopener"><img class="message-image" src="/api/messages/${encodeURIComponent(m.id)}/media" alt="${escapeHtml(m.text || "Imagem da conversa")}" loading="lazy"></a>` : ""}${m.text && !(m.type === "image" && m.text === "[image]") ? `<p>${escapeHtml(m.text)}</p>` : (m.type === "image" && !m.mediaStorageKey ? `<p>[Imagem indisponível]</p>` : "")}<footer>${m.sentByUser ? `<span class="author">${escapeHtml(m.sentByUser.name)}</span>` : ""}<span>${time(m.occurredAt)}</span></footer></div></div>`).join("");
+  $("#messages").innerHTML = c.messages.map((m) => `<div class="message-row ${m.direction === "ENVIADA" ? "sent" : "received"}"><div class="bubble ${["image", "audio"].includes(m.type) ? `${m.type}-bubble` : ""}">${messageContent(m)}<footer>${m.sentByUser ? `<span class="author">${escapeHtml(m.sentByUser.name)}</span>` : ""}<span>${time(m.occurredAt)}</span></footer></div></div>`).join("");
   renderNotes(c.contact.notes || []);
   $("#messages").scrollTop = $("#messages").scrollHeight;
   if (refreshList) await loadConversations();

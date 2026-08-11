@@ -10,16 +10,20 @@ test("interpreta todas as mensagens e status de um webhook", () => {
     messages: [
       { id: "wamid.1", from: "5511999999999", type: "text", text: { body: "Olá" }, timestamp: "1700000000" },
       { id: "wamid.2", from: "5511999999999", type: "image", image: { id: "media.2", mime_type: "image/jpeg", caption: "Foto do produto" }, timestamp: "1700000001" },
+      { id: "wamid.4", from: "5511999999999", type: "audio", audio: { id: "media.4", mime_type: "audio/ogg; codecs=opus", voice: true }, timestamp: "1700000002" },
     ],
     statuses: [{ id: "wamid.3", status: "delivered", timestamp: "1700000002" }],
   } }] }] });
-  assert.equal(events.length, 3);
+  assert.equal(events.length, 4);
   assert.equal(events[0].contactName, "Cliente");
   assert.equal(events[0].text, "Olá");
   assert.equal(events[1].text, "Foto do produto");
   assert.equal(events[1].mediaId, "media.2");
   assert.equal(events[1].mediaMimeType, "image/jpeg");
-  assert.equal(events[2].kind, "status");
+  assert.equal(events[2].text, "[audio]");
+  assert.equal(events[2].mediaId, "media.4");
+  assert.equal(events[2].mediaMimeType, "audio/ogg; codecs=opus");
+  assert.equal(events[3].kind, "status");
 });
 
 test("baixa e envia imagens usando os endpoints de mídia da Meta", async () => {

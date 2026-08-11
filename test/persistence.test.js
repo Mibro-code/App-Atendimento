@@ -5,7 +5,7 @@ const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const prisma = require("../src/database/prisma");
-const { resolveImage } = require("../src/services/media-storage-service");
+const { resolveImage, resolveMedia } = require("../src/services/media-storage-service");
 const { saveIncoming, sendImage, sendText } = require("../src/services/message-service");
 const inbox = require("../src/services/inbox-service");
 const mediaTestDir = path.join(os.tmpdir(), `app-whats-media-test-${process.pid}`);
@@ -126,4 +126,18 @@ test("persiste imagens recebidas e enviadas com autoria", async () => {
   assert.equal(outgoing.message.sentByUserId, user.id);
   assert.equal(outgoing.message.mediaMimeType, "image/png");
   assert.deepEqual(await fs.readFile(resolveImage(outgoing.message.mediaStorageKey)), png);
+});
+
+test("persiste áudio recebido para reprodução no histórico", async () => {
+  const audio = Buffer.from("OggS-audio-opus-de-teste");
+  const incoming = await saveIncoming({
+    externalId: "wamid.test.audio.in", contactExternalId: "5511999999999", phone: "5511999999999",
+    contactName: "Cliente Teste", type: "audio", text: "[audio]", occurredAt: new Date(),
+    rawPayload: { audio: { id: "media.audio", voice: true } }, mediaBuffer: audio,
+    mediaMimeType: "audio/ogg; codecs=opus", mediaFileName: "audio-media.ogg",
+  });
+  assert.equal(incoming.message.type, "audio");
+  assert.equal(incoming.message.mediaMimeType, "audio/ogg");
+  assert.equal(incoming.message.mediaFileName, "audio-media.ogg");
+  assert.deepEqual(await fs.readFile(resolveMedia(incoming.message.mediaStorageKey)), audio);
 });

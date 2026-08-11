@@ -1,6 +1,6 @@
 const inbox = require("../services/inbox-service");
 const prisma = require("../database/prisma");
-const { resolveImage } = require("../services/media-storage-service");
+const { resolveMedia } = require("../services/media-storage-service");
 const { sendImage, sendText } = require("../services/message-service");
 const inboxEvents = require("../realtime/inbox-events");
 
@@ -74,14 +74,14 @@ function createInboxController(channel) {
           where: { id: req.params.messageId },
           select: { mediaStorageKey: true, mediaMimeType: true, mediaFileName: true },
         });
-        if (!message?.mediaStorageKey) return res.status(404).json({ error: "Imagem não encontrada." });
+        if (!message?.mediaStorageKey) return res.status(404).json({ error: "Mídia não encontrada." });
         res.set({
           "Content-Type": message.mediaMimeType,
           "Content-Disposition": `inline; filename="${encodeURIComponent(message.mediaFileName || "imagem")}"`,
           "Cache-Control": "private, max-age=3600",
           "X-Content-Type-Options": "nosniff",
         });
-        return res.sendFile(resolveImage(message.mediaStorageKey));
+        return res.sendFile(resolveMedia(message.mediaStorageKey));
       } catch (error) { return next(error); }
     },
     async categories(_req, res, next) {

@@ -35,13 +35,13 @@ class MetaCloudChannel {
       const contacts = new Map((value.contacts || []).map((item) => [item.wa_id, item]));
       for (const message of value.messages || []) {
         const contact = contacts.get(message.from) || value.contacts?.[0];
-        const image = message.type === "image" ? message.image : null;
+        const media = message.type === "image" ? message.image : (message.type === "audio" ? message.audio : null);
         events.push({
           kind: "message", externalId: message.id, contactExternalId: message.from,
           phone: message.from, contactName: contact?.profile?.name || message.from,
           type: message.type,
-          text: message.type === "text" ? message.text?.body : (image?.caption || `[${message.type}]`),
-          mediaId: image?.id, mediaMimeType: image?.mime_type,
+          text: message.type === "text" ? message.text?.body : (media?.caption || `[${message.type}]`),
+          mediaId: media?.id, mediaMimeType: media?.mime_type,
           occurredAt: new Date(Number(message.timestamp) * 1000), rawPayload: message,
         });
       }
@@ -65,7 +65,7 @@ class MetaCloudChannel {
     }
   }
 
-  async downloadMedia(mediaId) {
+  async downloadMedia(mediaId, { maxSize = 16 * 1024 * 1024 } = {}) {
     this.assertConfigured();
     try {
       const metadata = await axios.get(this.apiUrl(mediaId), {
@@ -77,15 +77,19 @@ class MetaCloudChannel {
       if (mediaUrl.protocol !== "https:" || !allowedHost) throw new Error("URL de mídia inesperada.");
       const media = await axios.get(mediaUrl.toString(), {
         responseType: "arraybuffer", headers: this.authHeaders(),
-        maxContentLength: 5 * 1024 * 1024, maxBodyLength: 5 * 1024 * 1024,
+        maxContentLength: maxSize, maxBodyLength: maxSize,
       });
-      const mimeType = metadata.data.mime_type || media.headers["content-type"];
+      const mimeType = String(metadata.data.mime_type || media.headers["content-type"] || "").split(";", 1)[0].toLowerCase();
+      const extension = ({
+        "image/png": "png", "image/jpeg": "jpg", "audio/aac": "aac", "audio/mp4": "m4a",
+        "audio/mpeg": "mp3", "audio/amr": "amr", "audio/ogg": "ogg",
+      })[mimeType] || "bin";
       return {
         buffer: Buffer.from(media.data), mimeType,
-        fileName: `imagem-${mediaId}.${mimeType === "image/png" ? "png" : "jpg"}`,
+        fileName: `${mimeType.startsWith("audio/") ? "audio" : "imagem"}-${mediaId}.${extension}`,
       };
     } catch (error) {
-      throw this.providerFailure(error, "Não foi possível baixar a imagem recebida.");
+      throw this.providerFailure(error, "Não foi possível baixar a mídia recebida.");
     }
   }
 

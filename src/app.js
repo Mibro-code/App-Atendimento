@@ -49,10 +49,12 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
       let changed = false;
       for (const event of events) {
         if (event.kind === "message") {
-          if (event.type === "image" && event.mediaId) {
+          if (["image", "audio"].includes(event.type) && event.mediaId) {
             const existing = await prisma.message.findUnique({ where: { externalId: event.externalId }, select: { id: true } });
             if (existing) continue;
-            const media = await channel.downloadMedia(event.mediaId);
+            const media = await channel.downloadMedia(event.mediaId, {
+              maxSize: event.type === "audio" ? 16 * 1024 * 1024 : 5 * 1024 * 1024,
+            });
             event.mediaBuffer = media.buffer;
             event.mediaMimeType = media.mimeType;
             event.mediaFileName = media.fileName;
