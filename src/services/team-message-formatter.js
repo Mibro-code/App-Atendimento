@@ -1,6 +1,8 @@
 function teamLabel(category) {
   if (!category?.name?.trim()) return null;
-  return category.name.trim();
+  const name = category.name.trim();
+  const parentName = category.parent?.name?.trim();
+  return parentName ? `${parentName}: ${name}` : name;
 }
 
 function formatTeamMessage(category, content = "") {

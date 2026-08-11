@@ -44,7 +44,11 @@ function createInboxController(channel) {
       } catch (error) { return next(error); }
     },
     async read(req, res, next) {
-      try { return res.json(await inbox.markAsRead(req.params.id)); }
+      try {
+        const result = await inbox.markAsRead(req.params.id, { channel });
+        inboxEvents.publish();
+        return res.json(result);
+      }
       catch (error) { return next(error); }
     },
     async reply(req, res, next) {

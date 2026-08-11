@@ -88,7 +88,10 @@ test("lista, pesquisa, classifica, lê, finaliza e reabre a conversa", async () 
   });
   assert.equal((await inbox.getConversation(conversation.id)).status, "EM_ATENDIMENTO");
 
-  await inbox.markAsRead(conversation.id);
+  let readMessageId;
+  const readResult = await inbox.markAsRead(conversation.id, { channel: { markAsRead: async (messageId) => { readMessageId = messageId; } } });
+  assert.equal(readMessageId, "wamid.test.customer.reply");
+  assert.equal(readResult.readReceiptSent, true);
   assert.equal((await inbox.getConversation(conversation.id)).unreadCount, 0);
   await inbox.updateConversation(conversation.id, { status: "FINALIZADO" });
   assert.ok((await inbox.getConversation(conversation.id)).finalizedAt);
@@ -119,12 +122,20 @@ test("cria e edita categorias com código único e cor validada", async () => {
   assert.equal(first.code, "FINANCEIRO_TESTE");
   assert.equal(second.code, "FINANCEIRO_TESTE_2");
   assert.equal(first.color, "#ef5b2a");
+  const emoji = await inbox.createCategory({ name: "🛠️ Suporte VIP Teste", color: "#2563eb", parentId: first.id });
+  assert.equal(emoji.name, "🛠️ Suporte VIP Teste");
+  assert.equal(emoji.code, "SUPORTE_VIP_TESTE");
+  assert.equal(emoji.parentId, first.id);
+  const listed = await inbox.listCategories();
+  assert.equal(listed.find((category) => category.id === emoji.id).parent.name, "Financeiro Teste");
+  const conversation = await prisma.conversation.findFirst();
+  await inbox.updateConversation(conversation.id, { categoryId: emoji.id });
+  assert.equal((await inbox.listConversations({ category: first.code })).length, 1);
+  const support = await prisma.category.findUnique({ where: { code: "SUPORTE" } });
+  await inbox.updateConversation(conversation.id, { categoryId: support.id });
   const updated = await inbox.updateCategory(first.id, { name: "Financeiro", active: false });
   assert.equal(updated.name, "Financeiro");
   assert.equal(updated.active, false);
-  const emoji = await inbox.createCategory({ name: "🛠️ Suporte VIP Teste", color: "#2563eb" });
-  assert.equal(emoji.name, "🛠️ Suporte VIP Teste");
-  assert.equal(emoji.code, "SUPORTE_VIP_TESTE");
   await assert.rejects(() => inbox.createCategory({ name: "Cor inválida", color: "laranja" }), /Cor da categoria inválida/);
 });
 

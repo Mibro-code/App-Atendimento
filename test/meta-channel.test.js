@@ -38,6 +38,7 @@ test("baixa e envia imagens usando os endpoints de mídia da Meta", async () => 
   };
   const previousGet = axios.get;
   const previousPost = axios.post;
+  const previousPut = axios.put;
   process.env.GRAPH_VERSION = "v-test";
   process.env.PHONE_NUMBER_ID = "phone-test";
   process.env.WHATSAPP_TOKEN = "token-test";
@@ -51,6 +52,8 @@ test("baixa e envia imagens usando os endpoints de mídia da Meta", async () => 
       ? { data: { id: "media.uploaded" } }
       : { data: { messages: [{ id: "wamid.image.sent" }] } };
   };
+  let readBody;
+  axios.put = async (_url, body) => { readBody = body; return { data: { success: true } }; };
   try {
     const channel = new MetaCloudChannel();
     const downloaded = await channel.downloadMedia("media.received");
@@ -65,9 +68,12 @@ test("baixa e envia imagens usando os endpoints de mídia da Meta", async () => 
     assert.match(posts[0].url, /phone-test\/media$/);
     assert.match(posts[1].url, /phone-test\/messages$/);
     assert.equal(posts[1].body.image.caption, "Legenda");
+    await channel.markAsRead("wamid.received");
+    assert.deepEqual(readBody, { messaging_product: "whatsapp", status: "read", message_id: "wamid.received" });
   } finally {
     axios.get = previousGet;
     axios.post = previousPost;
+    axios.put = previousPut;
     for (const [key, value] of Object.entries(previousEnv)) {
       if (value === undefined) delete process.env[key]; else process.env[key] = value;
     }

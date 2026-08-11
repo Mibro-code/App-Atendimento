@@ -47,7 +47,7 @@ async function updateStatus(event) {
 }
 
 async function sendText({ conversationId, text, sentByUserId, channel }) {
-  const conversation = await prisma.conversation.findUnique({ where: { id: conversationId }, include: { contact: true, category: true } });
+  const conversation = await prisma.conversation.findUnique({ where: { id: conversationId }, include: { contact: true, category: { include: { parent: true } } } });
   if (!conversation) throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
   const providerText = formatTeamMessage(conversation.category, text);
   if (providerText.length > 4096) {
@@ -66,7 +66,7 @@ async function sendText({ conversationId, text, sentByUserId, channel }) {
 }
 
 async function sendImage({ conversationId, buffer, mimeType, fileName, caption, sentByUserId, channel }) {
-  const conversation = await prisma.conversation.findUnique({ where: { id: conversationId }, include: { contact: true, category: true } });
+  const conversation = await prisma.conversation.findUnique({ where: { id: conversationId }, include: { contact: true, category: { include: { parent: true } } } });
   if (!conversation) throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
   const cleanCaption = caption?.trim() || null;
   const providerCaption = formatTeamMessage(conversation.category, cleanCaption || "");

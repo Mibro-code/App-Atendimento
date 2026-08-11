@@ -65,6 +65,18 @@ class MetaCloudChannel {
     }
   }
 
+  async markAsRead(messageId) {
+    this.assertConfigured();
+    try {
+      const response = await axios.put(this.apiUrl(`${process.env.PHONE_NUMBER_ID}/messages`), {
+        messaging_product: "whatsapp", status: "read", message_id: messageId,
+      }, { headers: { ...this.authHeaders(), "Content-Type": "application/json" } });
+      return response.data;
+    } catch (error) {
+      throw this.providerFailure(error, "A Meta não aceitou a confirmação de leitura.");
+    }
+  }
+
   async downloadMedia(mediaId, { maxSize = 16 * 1024 * 1024 } = {}) {
     this.assertConfigured();
     try {

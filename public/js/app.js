@@ -9,6 +9,20 @@ const escapeHtml = (value = "") => String(value).replace(/[&<>'"]/g, (char) => (
 const initials = (name = "?") => name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
 const time = (value) => value ? new Intl.DateTimeFormat("pt-BR", { hour:"2-digit", minute:"2-digit" }).format(new Date(value)) : "";
 const statusLabel = (value) => ({ NOVO:"Novo", EM_ATENDIMENTO:"Em atendimento", AGUARDANDO_CLIENTE:"Aguardando cliente", BOT:"Bot", FINALIZADO:"Finalizado" })[value] || value;
+const categoryLabel = (category) => category?.parent?.name ? `${category.parent.name}: ${category.name}` : (category?.name || "Sem categoria");
+function orderedCategories(categories) {
+  const roots = categories.filter((category) => !category.parentId);
+  const nested = roots.flatMap((root) => [root, ...categories.filter((category) => category.parentId === root.id)]);
+  const included = new Set(nested.map((category) => category.id));
+  return [...nested, ...categories.filter((category) => !included.has(category.id))];
+}
+function deliveryStatus(status) {
+  return ({
+    PENDENTE:["◷", "Pendente", "pending"], ENVIADA:["✓", "Enviada", "sent"],
+    ENTREGUE:["✓✓", "Entregue", "delivered"], LIDA:["✓✓", "Lida", "read"],
+    FALHOU:["!", "Falhou", "failed"],
+  })[status] || ["", "", ""];
+}
 function syncThemeToggle() {
   const dark = document.documentElement.dataset.theme === "dark";
   $("#theme-icon").textContent = dark ? "☀" : "☾";
@@ -28,7 +42,7 @@ function conversationSignature(conversation) {
   const note = conversation.contact.notes?.[0];
   return JSON.stringify([
     conversation.id, conversation.id === state.selectedId, conversation.status, conversation.unreadCount, conversation.lastMessageAt,
-    conversation.categoryId, conversation.category?.name, conversation.category?.color,
+    conversation.categoryId, conversation.category?.name, conversation.category?.color, conversation.category?.parent?.name,
     conversation.assignedUserId, conversation.assignedUser?.name,
     conversation.contact.name, conversation.contact.phone, conversation.contact._count?.notes,
     note?.id, note?.content,
@@ -42,7 +56,7 @@ function conversationCardMarkup(c) {
     <span class="card-grip" aria-hidden="true"></span><span class="avatar">${escapeHtml(initials(name))}</span><span class="card-main">
     <span class="card-title"><strong>${escapeHtml(name)}</strong><small>${escapeHtml(c.contact.phone)}</small></span>
     <span class="preview">${escapeHtml(messagePreview(last))}</span>
-    <span class="card-labels"><span class="category-label" style="color:${c.category?.color || "#666"};border-color:${c.category?.color || "#aaa"}">${escapeHtml(c.category?.name || "Sem categoria")}</span><span class="status-label">${escapeHtml(statusLabel(c.status))}</span>${c.assignedUser ? `<span class="assignee-label">${escapeHtml(c.assignedUser.name)}</span>` : ""}</span>
+    <span class="card-labels"><span class="category-label" style="color:${c.category?.color || "#666"};border-color:${c.category?.color || "#aaa"}">${escapeHtml(categoryLabel(c.category))}</span><span class="status-label">${escapeHtml(statusLabel(c.status))}</span>${c.assignedUser ? `<span class="assignee-label">${escapeHtml(c.assignedUser.name)}</span>` : ""}</span>
     <span class="note-preview"><b>NOTA</b> ${escapeHtml(note?.content || "Sem notas para este contato")}${c.contact._count?.notes ? `<i>${c.contact._count.notes}</i>` : ""}</span></span>
     <span class="card-side"><span>${time(c.lastMessageAt)}</span>${c.unreadCount ? `<span class="unread">${c.unreadCount}</span>` : ""}</span></button>`;
 }
@@ -94,7 +108,20 @@ function messageContent(message) {
 }
 
 function messageRowMarkup(message) {
-  return `<div class="message-row ${message.direction === "ENVIADA" ? "sent" : "received"}" data-message-id="${escapeHtml(message.id)}"><div class="bubble ${["image", "audio", "video"].includes(message.type) ? `${message.type}-bubble` : ""}">${messageContent(message)}<footer>${message.sentByUser ? `<span class="author">${escapeHtml(message.sentByUser.name)}</span>` : ""}<span>${time(message.occurredAt)}</span></footer></div></div>`;
+  const [symbol, label, statusClass] = deliveryStatus(message.status);
+  return `<div class="message-row ${message.direction === "ENVIADA" ? "sent" : "received"}" data-message-id="${escapeHtml(message.id)}"><div class="bubble ${["image", "audio", "video"].includes(message.type) ? `${message.type}-bubble` : ""}">${messageContent(message)}<footer>${message.sentByUser ? `<span class="author">${escapeHtml(message.sentByUser.name)}</span>` : ""}<span>${time(message.occurredAt)}</span>${message.direction === "ENVIADA" ? `<span class="delivery-status ${statusClass}" title="${label}" aria-label="${label}">${symbol}</span>` : ""}</footer></div></div>`;
+}
+
+function syncMessageStatuses(messages) {
+  const rows = new Map([...$("#messages").querySelectorAll("[data-message-id]")].map((row) => [row.dataset.messageId, row]));
+  for (const message of messages) {
+    if (message.direction !== "ENVIADA") continue;
+    const status = rows.get(message.id)?.querySelector(".delivery-status");
+    if (!status) continue;
+    const [symbol, label, statusClass] = deliveryStatus(message.status);
+    status.textContent = symbol; status.title = label; status.setAttribute("aria-label", label);
+    status.className = `delivery-status ${statusClass}`;
+  }
 }
 
 async function loadCurrentUser() {
@@ -122,15 +149,18 @@ function toast(message, error = false) { const el = $("#toast"); el.textContent 
 async function loadCategories() {
   const previousSelectedCategory = $("#category-select").value;
   const categories = await api("/api/categories");
-  const signature = JSON.stringify(categories.map((category) => [category.id, category.code, category.name, category.color, category.active, category.displayOrder]));
+  const signature = JSON.stringify(categories.map((category) => [category.id, category.parentId, category.parent?.name, category.code, category.name, category.color, category.active, category.displayOrder]));
   state.categories = categories;
   if (signature === state.categorySignature) return;
   state.categorySignature = signature;
   state.selectedHeaderSignature = "";
-  const activeCategories = state.categories.filter((c) => c.active);
+  const activeIds = new Set(state.categories.filter((category) => category.active).map((category) => category.id));
+  const activeCategories = orderedCategories(state.categories.filter((category) => category.active && (!category.parentId || activeIds.has(category.parentId))));
   if (state.category && !activeCategories.some((c) => c.code === state.category)) state.category = "";
-  $("#category-filters").innerHTML = activeCategories.map((c) => `<button class="filter" data-category="${c.code}"><span><i class="category-dot" style="background:${c.color || "#999"}"></i>${escapeHtml(c.name)}</span><strong data-category-count="${c.id}">0</strong></button>`).join("");
-  $("#category-select").innerHTML = `<option value="">Sem categoria</option>` + activeCategories.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("");
+  $("#category-filters").innerHTML = activeCategories.map((c) => `<button class="filter ${c.parentId ? "subcategory-filter" : ""}" data-category="${c.code}"><span><i class="category-dot" style="background:${c.color || "#999"}"></i>${c.parentId ? "↳ " : ""}${escapeHtml(c.name)}</span><strong data-category-count="${c.id}">0</strong></button>`).join("");
+  $("#category-select").innerHTML = `<option value="">Sem categoria</option>` + activeCategories.map((c) => `<option value="${c.id}">${escapeHtml(categoryLabel(c))}</option>`).join("");
+  const roots = activeCategories.filter((category) => !category.parentId);
+  $("#category-parent").innerHTML = `<option value="">Categoria principal</option>` + roots.map((category) => `<option value="${category.id}">${escapeHtml(category.name)}</option>`).join("");
   if ([...$("#category-select").options].some((option) => option.value === previousSelectedCategory)) $("#category-select").value = previousSelectedCategory;
   document.querySelectorAll("[data-category]").forEach((button) => button.addEventListener("click", () => {
     document.querySelectorAll(".filter").forEach((item) => item.classList.remove("active")); button.classList.add("active"); state.category = button.dataset.category; state.status = ""; loadConversations();
@@ -144,12 +174,17 @@ async function loadCategories() {
 }
 
 function renderCategoryManager() {
-  $("#category-manager-list").innerHTML = state.categories.map((category) => `<form class="category-manager-row" data-category-id="${category.id}">
+  const ordered = orderedCategories(state.categories);
+  $("#category-manager-list").innerHTML = ordered.map((category) => {
+    const parents = state.categories.filter((candidate) => candidate.active && !candidate.parentId && candidate.id !== category.id);
+    return `<form class="category-manager-row ${category.parentId ? "subcategory-row" : ""}" data-category-id="${category.id}">
     <input class="managed-color" type="color" value="${category.color || "#6b7280"}" aria-label="Cor de ${escapeHtml(category.name)}">
     <input class="managed-name" maxlength="60" value="${escapeHtml(category.name)}" aria-label="Nome da categoria" required>
+    <select class="managed-parent" aria-label="Categoria principal"><option value="">Principal</option>${parents.map((parent) => `<option value="${parent.id}" ${parent.id === category.parentId ? "selected" : ""}>${escapeHtml(parent.name)}</option>`).join("")}</select>
     <label class="active-switch"><input class="managed-active" type="checkbox" ${category.active ? "checked" : ""}><span>${category.active ? "Ativa" : "Inativa"}</span></label>
     <button type="submit">Salvar</button>
-  </form>`).join("");
+  </form>`;
+  }).join("");
 }
 
 async function loadConversations() {
@@ -170,7 +205,10 @@ async function loadConversations() {
   $("#count-bot").textContent = summary.statuses.BOT || 0;
   $("#count-finalized").textContent = summary.statuses.FINALIZADO || 0;
   document.querySelectorAll("[data-category-count]").forEach((counter) => {
-    counter.textContent = summary.categories[counter.dataset.categoryCount] || 0;
+    const categoryId = counter.dataset.categoryCount;
+    const category = state.categories.find((item) => item.id === categoryId);
+    const childIds = category?.parentId ? [] : state.categories.filter((item) => item.parentId === categoryId).map((item) => item.id);
+    counter.textContent = [categoryId, ...childIds].reduce((total, id) => total + (summary.categories[id] || 0), 0);
   });
   const signature = JSON.stringify({
     selectedId: state.selectedId,
@@ -196,7 +234,7 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
     id: c.id,
     status: c.status,
     categoryId: c.categoryId,
-    category: c.category && [c.category.id, c.category.name, c.category.color, c.category.active],
+    category: c.category && [c.category.id, c.category.name, c.category.color, c.category.active, c.category.parentId, c.category.parent?.name],
     assignedUserId: c.assignedUserId,
     assignedUser: c.assignedUser && [c.assignedUser.id, c.assignedUser.name],
     contact: [c.contact.id, c.contact.name, c.contact.phone],
@@ -211,7 +249,7 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
     const name = c.contact.name || c.contact.phone;
     $("#contact-avatar").textContent = initials(name); $("#contact-name").textContent = name; $("#contact-phone").textContent = `+${c.contact.phone}`;
     if (c.categoryId && ![...$("#category-select").options].some((option) => option.value === c.categoryId)) {
-      $("#category-select").add(new Option(`${c.category?.name || "Categoria"} (inativa)`, c.categoryId, false, false));
+      $("#category-select").add(new Option(`${categoryLabel(c.category)} (inativa)`, c.categoryId, false, false));
     }
     $("#category-select").value = c.categoryId || "";
     $("#status-badge").className = "status-badge"; $("#status-badge").textContent = statusLabel(c.status);
@@ -231,6 +269,7 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
     state.selectedMessageItems = messageItems;
     $("#messages").scrollTop = $("#messages").scrollHeight;
   }
+  syncMessageStatuses(c.messages);
   if (notesSignature !== state.selectedNotesSignature) {
     state.selectedNotesSignature = notesSignature;
     renderNotes(c.contact.notes || []);
@@ -290,8 +329,8 @@ $("#claim-conversation").addEventListener("click", async () => { try { await api
 $("#manage-categories").addEventListener("click", () => { renderCategoryManager(); $("#category-dialog").showModal(); });
 $("#close-categories").addEventListener("click", () => $("#category-dialog").close());
 $("#category-dialog").addEventListener("click", (event) => { if (event.target === $("#category-dialog")) $("#category-dialog").close(); });
-$("#category-form").addEventListener("submit", async (event) => { event.preventDefault(); const name = $("#category-name").value.trim(); const color = $("#category-color").value; try { await api("/api/categories", { method:"POST", body:JSON.stringify({ name, color }) }); $("#category-name").value = ""; await loadCategories(); await loadConversations(); toast("Categoria criada."); } catch (e) { toast(e.message, true); } });
-$("#category-manager-list").addEventListener("submit", async (event) => { event.preventDefault(); const row = event.target.closest("[data-category-id]"); const name = row.querySelector(".managed-name").value.trim(); const color = row.querySelector(".managed-color").value; const active = row.querySelector(".managed-active").checked; try { await api(`/api/categories/${row.dataset.categoryId}`, { method:"PATCH", body:JSON.stringify({ name, color, active }) }); await loadCategories(); await loadConversations(); toast("Categoria atualizada."); } catch (e) { toast(e.message, true); } });
+$("#category-form").addEventListener("submit", async (event) => { event.preventDefault(); const name = $("#category-name").value.trim(); const color = $("#category-color").value; const parentId = $("#category-parent").value || null; try { await api("/api/categories", { method:"POST", body:JSON.stringify({ name, color, parentId }) }); $("#category-name").value = ""; await loadCategories(); await loadConversations(); toast(parentId ? "Subcategoria criada." : "Categoria criada."); } catch (e) { toast(e.message, true); } });
+$("#category-manager-list").addEventListener("submit", async (event) => { event.preventDefault(); const row = event.target.closest("[data-category-id]"); const name = row.querySelector(".managed-name").value.trim(); const color = row.querySelector(".managed-color").value; const parentId = row.querySelector(".managed-parent").value || null; const active = row.querySelector(".managed-active").checked; try { await api(`/api/categories/${row.dataset.categoryId}`, { method:"PATCH", body:JSON.stringify({ name, color, parentId, active }) }); await loadCategories(); await loadConversations(); toast("Categoria atualizada."); } catch (e) { toast(e.message, true); } });
 $("#category-manager-list").addEventListener("change", (event) => { if (event.target.classList.contains("managed-active")) event.target.closest("label").querySelector("span").textContent = event.target.checked ? "Ativa" : "Inativa"; });
 $("#toggle-finalized").addEventListener("click", async (event) => {
   const button = event.currentTarget; const reopening = button.dataset.status === "FINALIZADO";

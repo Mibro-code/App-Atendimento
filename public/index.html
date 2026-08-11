@@ -73,6 +73,7 @@
     <div class="dialog-header"><div><span>ORGANIZAÇÃO</span><h2>Categorias</h2><p>Crie seções e ajuste como elas aparecem no atendimento.</p></div><button id="close-categories" type="button" aria-label="Fechar">×</button></div>
     <form id="category-form" class="category-create-form">
       <label><span>Nome da categoria</span><input id="category-name" maxlength="60" placeholder="Ex.: 🛠️ Suporte" required></label>
+      <label><span>Dentro de</span><select id="category-parent" aria-label="Categoria principal"><option value="">Categoria principal</option></select></label>
       <label class="color-field"><span>Cor</span><input id="category-color" type="color" value="#ef5b2a"></label>
       <button type="submit">Criar categoria</button>
     </form>

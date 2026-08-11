@@ -28,7 +28,10 @@ function categoryCode(name) {
 async function listConversations({ search, category, status }) {
   const where = {};
   if (status) where.status = status;
-  if (category) where.category = { code: category };
+  if (category) where.category = { OR: [
+    { code: category },
+    { parent: { is: { code: category } } },
+  ] };
   if (search) {
     where.contact = { OR: [
       { name: { contains: search, mode: "insensitive" } },
@@ -44,7 +47,7 @@ async function listConversations({ search, category, status }) {
           _count: { select: { notes: true } },
         },
       },
-      category: true,
+      category: { include: { parent: true } },
       assignedUser: { select: { id: true, name: true, email: true } },
       messages: { orderBy: { occurredAt: "desc" }, take: 1 },
     },
@@ -56,7 +59,7 @@ async function getConversation(id) {
   return prisma.conversation.findUnique({
     where: { id },
     include: {
-      category: true,
+      category: { include: { parent: true } },
       assignedUser: { select: { id: true, name: true, email: true } },
       messages: {
         include: { sentByUser: { select: { id: true, name: true } } },
@@ -141,9 +144,28 @@ async function updateConversation(id, { categoryId, status, assignedUserId }) {
   }
 }
 
-async function markAsRead(id) {
+async function markAsRead(id, { channel } = {}) {
+  const latestUnread = await prisma.message.findFirst({
+    where: { conversationId: id, direction: "RECEBIDA", status: { not: "LIDA" }, externalId: { not: null } },
+    orderBy: { occurredAt: "desc" },
+    select: { externalId: true },
+  });
+  let readReceiptSent = false;
+  if (latestUnread?.externalId && typeof channel?.markAsRead === "function") {
+    try {
+      await channel.markAsRead(latestUnread.externalId);
+      readReceiptSent = true;
+      await prisma.message.updateMany({
+        where: { conversationId: id, direction: "RECEBIDA", status: { not: "LIDA" } },
+        data: { status: "LIDA" },
+      });
+    } catch (error) {
+      console.error("Não foi possível confirmar a leitura na Meta:", { conversationId: id, message: error.message });
+    }
+  }
   try {
-    return await prisma.conversation.update({ where: { id }, data: { unreadCount: 0 } });
+    const conversation = await prisma.conversation.update({ where: { id }, data: { unreadCount: 0 } });
+    return { ...conversation, readReceiptSent };
   } catch (error) {
     if (error.code === "P2025") throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
     throw error;
@@ -151,19 +173,27 @@ async function markAsRead(id) {
 }
 
 async function listCategories() {
-  return prisma.category.findMany({ orderBy: [{ displayOrder: "asc" }, { name: "asc" }] });
+  return prisma.category.findMany({
+    include: { parent: { select: { id: true, name: true, code: true, active: true } } },
+    orderBy: [{ displayOrder: "asc" }, { name: "asc" }],
+  });
 }
 
 async function createCategory(data) {
   const name = validateCategoryName(data.name);
   const color = validateCategoryColor(data.color) || "#6b7280";
+  const parentId = data.parentId || null;
+  if (parentId) {
+    const parent = await prisma.category.findFirst({ where: { id: parentId, active: true, parentId: null } });
+    if (!parent) throw Object.assign(new Error("A categoria principal não existe, está inativa ou já é uma subcategoria."), { statusCode: 400 });
+  }
   const baseCode = categoryCode(name);
   const order = await prisma.category.aggregate({ _max: { displayOrder: true } });
   for (let suffix = 1; suffix <= 100; suffix += 1) {
     const code = suffix === 1 ? baseCode : `${baseCode}_${suffix}`;
     try {
       return await prisma.category.create({
-        data: { code, name, color, displayOrder: (order._max.displayOrder || 0) + 10 },
+        data: { code, name, color, parentId, displayOrder: (order._max.displayOrder || 0) + 10 },
       });
     } catch (error) {
       if (error.code !== "P2002") throw error;
@@ -178,6 +208,19 @@ async function updateCategory(id, data) {
   if (data.color !== undefined) allowed.color = validateCategoryColor(data.color);
   if (typeof data.active === "boolean") allowed.active = data.active;
   if (Number.isInteger(data.displayOrder)) allowed.displayOrder = data.displayOrder;
+  if (data.parentId !== undefined) {
+    const parentId = data.parentId || null;
+    if (parentId === id) throw Object.assign(new Error("Uma categoria não pode ser sua própria categoria principal."), { statusCode: 400 });
+    if (parentId) {
+      const [parent, children] = await Promise.all([
+        prisma.category.findFirst({ where: { id: parentId, active: true, parentId: null } }),
+        prisma.category.count({ where: { parentId: id } }),
+      ]);
+      if (!parent) throw Object.assign(new Error("A categoria principal não existe, está inativa ou já é uma subcategoria."), { statusCode: 400 });
+      if (children) throw Object.assign(new Error("Remova ou mova as subcategorias antes de transformar esta categoria em subcategoria."), { statusCode: 400 });
+    }
+    allowed.parentId = parentId;
+  }
   try {
     return await prisma.category.update({ where: { id }, data: allowed });
   } catch (error) {
