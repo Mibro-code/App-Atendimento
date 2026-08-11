@@ -1,4 +1,8 @@
-const state = { conversations: [], categories: [], users: [], currentUser: null, selectedId: null, selectedContactId: null, status: "", category: "", search: "" };
+const state = {
+  conversations: [], categories: [], users: [], currentUser: null,
+  selectedId: null, selectedContactId: null, status: "", category: "", search: "",
+  categorySignature: "", listSignature: "", selectedSignature: "",
+};
 const $ = (selector) => document.querySelector(selector);
 const escapeHtml = (value = "") => String(value).replace(/[&<>'"]/g, (char) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" })[char]);
 const initials = (name = "?") => name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
@@ -58,11 +62,18 @@ async function api(path, options) {
 function toast(message, error = false) { const el = $("#toast"); el.textContent = message; el.className = `toast show${error ? " error" : ""}`; setTimeout(() => el.className = "toast", 2600); }
 
 async function loadCategories() {
-  state.categories = await api("/api/categories");
+  const previousSelectedCategory = $("#category-select").value;
+  const categories = await api("/api/categories");
+  const signature = JSON.stringify(categories.map((category) => [category.id, category.code, category.name, category.color, category.active, category.displayOrder]));
+  state.categories = categories;
+  if (signature === state.categorySignature) return;
+  state.categorySignature = signature;
+  state.selectedSignature = "";
   const activeCategories = state.categories.filter((c) => c.active);
   if (state.category && !activeCategories.some((c) => c.code === state.category)) state.category = "";
   $("#category-filters").innerHTML = activeCategories.map((c) => `<button class="filter" data-category="${c.code}"><span><i class="category-dot" style="background:${c.color || "#999"}"></i>${escapeHtml(c.name)}</span><strong data-category-count="${c.id}">0</strong></button>`).join("");
   $("#category-select").innerHTML = `<option value="">Sem categoria</option>` + activeCategories.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("");
+  if ([...$("#category-select").options].some((option) => option.value === previousSelectedCategory)) $("#category-select").value = previousSelectedCategory;
   document.querySelectorAll("[data-category]").forEach((button) => button.addEventListener("click", () => {
     document.querySelectorAll(".filter").forEach((item) => item.classList.remove("active")); button.classList.add("active"); state.category = button.dataset.category; state.status = ""; loadConversations();
   }));
@@ -103,6 +114,23 @@ async function loadConversations() {
   document.querySelectorAll("[data-category-count]").forEach((counter) => {
     counter.textContent = summary.categories[counter.dataset.categoryCount] || 0;
   });
+  const signature = JSON.stringify({
+    selectedId: state.selectedId,
+    conversations: state.conversations.map((conversation) => {
+      const lastMessage = conversation.messages?.[0];
+      const note = conversation.contact.notes?.[0];
+      return [
+        conversation.id, conversation.status, conversation.unreadCount, conversation.lastMessageAt,
+        conversation.categoryId, conversation.category?.name, conversation.category?.color,
+        conversation.assignedUserId, conversation.assignedUser?.name,
+        conversation.contact.name, conversation.contact.phone, conversation.contact._count?.notes,
+        note?.id, note?.content,
+        lastMessage?.id, lastMessage?.text, lastMessage?.type, lastMessage?.status,
+      ];
+    }),
+  });
+  if (signature === state.listSignature) return;
+  state.listSignature = signature;
   const list = $("#conversation-list");
   if (!state.conversations.length) { list.innerHTML = `<div class="empty-list">Nenhuma conversa encontrada.</div>`; return; }
   list.innerHTML = state.conversations.map((c) => {
@@ -118,9 +146,27 @@ async function loadConversations() {
   document.querySelectorAll(".conversation-card").forEach((card) => card.addEventListener("click", () => openConversation(card.dataset.id)));
 }
 
-async function openConversation(id, { refreshList = true } = {}) {
-  state.selectedId = id; await api(`/api/conversations/${id}/read`, { method:"POST" });
+async function openConversation(id, { refreshList = true, markRead = true } = {}) {
+  state.selectedId = id;
+  if (markRead) await api(`/api/conversations/${id}/read`, { method:"POST" });
   const c = await api(`/api/conversations/${id}`);
+  const signature = JSON.stringify({
+    id: c.id,
+    status: c.status,
+    unreadCount: c.unreadCount,
+    categoryId: c.categoryId,
+    category: c.category && [c.category.id, c.category.name, c.category.color, c.category.active],
+    assignedUserId: c.assignedUserId,
+    assignedUser: c.assignedUser && [c.assignedUser.id, c.assignedUser.name],
+    contact: [c.contact.id, c.contact.name, c.contact.phone],
+    notes: (c.contact.notes || []).map((note) => [note.id, note.content, note.createdAt, note.updatedAt, note.author?.name]),
+    messages: c.messages.map((message) => [message.id, message.direction, message.status, message.type, message.text, message.occurredAt, message.mediaStorageKey, message.mediaMimeType, message.sentByUser?.id, message.sentByUser?.name]),
+  });
+  if (signature === state.selectedSignature) {
+    if (refreshList) await loadConversations();
+    return;
+  }
+  state.selectedSignature = signature;
   state.selectedContactId = c.contact.id;
   $("#empty-state").hidden = true; $("#chat-content").hidden = false; $("#chat-panel").classList.add("open");
   const name = c.contact.name || c.contact.phone;
@@ -146,7 +192,7 @@ async function refreshInbox() {
   realtimeRefreshRunning = true;
   try {
     await loadCategories();
-    if (state.selectedId) await openConversation(state.selectedId, { refreshList:false });
+    if (state.selectedId) await openConversation(state.selectedId, { refreshList:false, markRead:false });
     await loadConversations();
   } finally {
     realtimeRefreshRunning = false;
@@ -213,7 +259,8 @@ $("#message-input").addEventListener("keydown", (event) => { if (event.key === "
 $(".chat-header").addEventListener("click", (event) => { if (innerWidth <= 700 && event.offsetX < 45) $("#chat-panel").classList.remove("open"); });
 
 syncThemeToggle();
-Promise.all([loadCurrentUser(), loadUsers(), loadCategories(), loadConversations()])
+Promise.all([loadCurrentUser(), loadUsers(), loadCategories()])
+  .then(loadConversations)
   .then(connectRealtime)
   .catch((error) => toast(error.message, true));
 setInterval(() => { if (!document.hidden) refreshInbox().catch(() => {}); }, 30000);
