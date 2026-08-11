@@ -1,7 +1,8 @@
 const state = {
   conversations: [], categories: [], users: [], currentUser: null,
   selectedId: null, selectedContactId: null, status: "", category: "", search: "",
-  categorySignature: "", listSignature: "", selectedSignature: "",
+  categorySignature: "", listSignature: "", selectedHeaderSignature: "",
+  selectedMessagesSignature: "", selectedNotesSignature: "", selectedMessageItems: [],
 };
 const $ = (selector) => document.querySelector(selector);
 const escapeHtml = (value = "") => String(value).replace(/[&<>'"]/g, (char) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" })[char]);
@@ -22,6 +23,59 @@ const messagePreview = (message) => {
   return message.text || `[${message.type}]`;
 };
 
+function conversationSignature(conversation) {
+  const lastMessage = conversation.messages?.[0];
+  const note = conversation.contact.notes?.[0];
+  return JSON.stringify([
+    conversation.id, conversation.id === state.selectedId, conversation.status, conversation.unreadCount, conversation.lastMessageAt,
+    conversation.categoryId, conversation.category?.name, conversation.category?.color,
+    conversation.assignedUserId, conversation.assignedUser?.name,
+    conversation.contact.name, conversation.contact.phone, conversation.contact._count?.notes,
+    note?.id, note?.content,
+    lastMessage?.id, lastMessage?.text, lastMessage?.type,
+  ]);
+}
+
+function conversationCardMarkup(c) {
+  const last = c.messages[0]; const name = c.contact.name || c.contact.phone; const note = c.contact.notes?.[0];
+  return `<button class="conversation-card ${c.id === state.selectedId ? "active" : ""}" data-id="${escapeHtml(c.id)}">
+    <span class="card-grip" aria-hidden="true"></span><span class="avatar">${escapeHtml(initials(name))}</span><span class="card-main">
+    <span class="card-title"><strong>${escapeHtml(name)}</strong><small>${escapeHtml(c.contact.phone)}</small></span>
+    <span class="preview">${escapeHtml(messagePreview(last))}</span>
+    <span class="card-labels"><span class="category-label" style="color:${c.category?.color || "#666"};border-color:${c.category?.color || "#aaa"}">${escapeHtml(c.category?.name || "Sem categoria")}</span><span class="status-label">${escapeHtml(statusLabel(c.status))}</span>${c.assignedUser ? `<span class="assignee-label">${escapeHtml(c.assignedUser.name)}</span>` : ""}</span>
+    <span class="note-preview"><b>NOTA</b> ${escapeHtml(note?.content || "Sem notas para este contato")}${c.contact._count?.notes ? `<i>${c.contact._count.notes}</i>` : ""}</span></span>
+    <span class="card-side"><span>${time(c.lastMessageAt)}</span>${c.unreadCount ? `<span class="unread">${c.unreadCount}</span>` : ""}</span></button>`;
+}
+
+function renderConversationCards(conversations) {
+  const list = $("#conversation-list");
+  if (!conversations.length) {
+    if (!list.querySelector(".empty-list")) list.innerHTML = `<div class="empty-list">Nenhuma conversa encontrada.</div>`;
+    return;
+  }
+  list.querySelector(".empty-list")?.remove();
+  const existing = new Map([...list.querySelectorAll(".conversation-card")].map((card) => [card.dataset.id, card]));
+  const expectedIds = new Set(conversations.map((conversation) => conversation.id));
+  let position = list.firstElementChild;
+  for (const conversation of conversations) {
+    const signature = conversationSignature(conversation);
+    let card = existing.get(conversation.id);
+    if (!card || card.dataset.renderSignature !== signature) {
+      const replacesCurrentPosition = card === position;
+      const template = document.createElement("template");
+      template.innerHTML = conversationCardMarkup(conversation);
+      const replacement = template.content.firstElementChild;
+      replacement.dataset.renderSignature = signature;
+      if (card) card.replaceWith(replacement);
+      card = replacement;
+      if (replacesCurrentPosition) position = card;
+    }
+    if (card !== position) list.insertBefore(card, position);
+    position = card.nextElementSibling;
+  }
+  existing.forEach((card, id) => { if (!expectedIds.has(id)) card.remove(); });
+}
+
 function messageContent(message) {
   const mediaUrl = `/api/messages/${encodeURIComponent(message.id)}/media`;
   if (message.type === "image" && message.mediaStorageKey) {
@@ -37,6 +91,10 @@ function messageContent(message) {
   if (message.type === "audio") return "<p>[Áudio indisponível]</p>";
   if (message.type === "video") return "<p>[Vídeo indisponível]</p>";
   return `<p>${escapeHtml(message.text || `[${message.type}]`)}</p>`;
+}
+
+function messageRowMarkup(message) {
+  return `<div class="message-row ${message.direction === "ENVIADA" ? "sent" : "received"}" data-message-id="${escapeHtml(message.id)}"><div class="bubble ${["image", "audio", "video"].includes(message.type) ? `${message.type}-bubble` : ""}">${messageContent(message)}<footer>${message.sentByUser ? `<span class="author">${escapeHtml(message.sentByUser.name)}</span>` : ""}<span>${time(message.occurredAt)}</span></footer></div></div>`;
 }
 
 async function loadCurrentUser() {
@@ -68,7 +126,7 @@ async function loadCategories() {
   state.categories = categories;
   if (signature === state.categorySignature) return;
   state.categorySignature = signature;
-  state.selectedSignature = "";
+  state.selectedHeaderSignature = "";
   const activeCategories = state.categories.filter((c) => c.active);
   if (state.category && !activeCategories.some((c) => c.code === state.category)) state.category = "";
   $("#category-filters").innerHTML = activeCategories.map((c) => `<button class="filter" data-category="${c.code}"><span><i class="category-dot" style="background:${c.color || "#999"}"></i>${escapeHtml(c.name)}</span><strong data-category-count="${c.id}">0</strong></button>`).join("");
@@ -116,72 +174,67 @@ async function loadConversations() {
   });
   const signature = JSON.stringify({
     selectedId: state.selectedId,
-    conversations: state.conversations.map((conversation) => {
-      const lastMessage = conversation.messages?.[0];
-      const note = conversation.contact.notes?.[0];
-      return [
-        conversation.id, conversation.status, conversation.unreadCount, conversation.lastMessageAt,
-        conversation.categoryId, conversation.category?.name, conversation.category?.color,
-        conversation.assignedUserId, conversation.assignedUser?.name,
-        conversation.contact.name, conversation.contact.phone, conversation.contact._count?.notes,
-        note?.id, note?.content,
-        lastMessage?.id, lastMessage?.text, lastMessage?.type, lastMessage?.status,
-      ];
-    }),
+    conversations: state.conversations.map(conversationSignature),
   });
   if (signature === state.listSignature) return;
   state.listSignature = signature;
-  const list = $("#conversation-list");
-  if (!state.conversations.length) { list.innerHTML = `<div class="empty-list">Nenhuma conversa encontrada.</div>`; return; }
-  list.innerHTML = state.conversations.map((c) => {
-    const last = c.messages[0]; const name = c.contact.name || c.contact.phone; const note = c.contact.notes?.[0];
-    return `<button class="conversation-card ${c.id === state.selectedId ? "active" : ""}" data-id="${c.id}">
-      <span class="card-grip" aria-hidden="true"></span><span class="avatar">${escapeHtml(initials(name))}</span><span class="card-main">
-      <span class="card-title"><strong>${escapeHtml(name)}</strong><small>${escapeHtml(c.contact.phone)}</small></span>
-      <span class="preview">${escapeHtml(messagePreview(last))}</span>
-      <span class="card-labels"><span class="category-label" style="color:${c.category?.color || "#666"};border-color:${c.category?.color || "#aaa"}">${escapeHtml(c.category?.name || "Sem categoria")}</span><span class="status-label">${escapeHtml(statusLabel(c.status))}</span>${c.assignedUser ? `<span class="assignee-label">${escapeHtml(c.assignedUser.name)}</span>` : ""}</span>
-      <span class="note-preview"><b>NOTA</b> ${escapeHtml(note?.content || "Sem notas para este contato")}${c.contact._count?.notes ? `<i>${c.contact._count.notes}</i>` : ""}</span></span>
-      <span class="card-side"><span>${time(c.lastMessageAt)}</span>${c.unreadCount ? `<span class="unread">${c.unreadCount}</span>` : ""}</span></button>`;
-  }).join("");
-  document.querySelectorAll(".conversation-card").forEach((card) => card.addEventListener("click", () => openConversation(card.dataset.id)));
+  renderConversationCards(state.conversations);
 }
 
 async function openConversation(id, { refreshList = true, markRead = true } = {}) {
+  const changedConversation = state.selectedId !== id;
   state.selectedId = id;
+  if (changedConversation) {
+    state.selectedHeaderSignature = "";
+    state.selectedMessagesSignature = "";
+    state.selectedNotesSignature = "";
+    state.selectedMessageItems = [];
+  }
   if (markRead) await api(`/api/conversations/${id}/read`, { method:"POST" });
   const c = await api(`/api/conversations/${id}`);
-  const signature = JSON.stringify({
+  const headerSignature = JSON.stringify({
     id: c.id,
     status: c.status,
-    unreadCount: c.unreadCount,
     categoryId: c.categoryId,
     category: c.category && [c.category.id, c.category.name, c.category.color, c.category.active],
     assignedUserId: c.assignedUserId,
     assignedUser: c.assignedUser && [c.assignedUser.id, c.assignedUser.name],
     contact: [c.contact.id, c.contact.name, c.contact.phone],
-    notes: (c.contact.notes || []).map((note) => [note.id, note.content, note.createdAt, note.updatedAt, note.author?.name]),
-    messages: c.messages.map((message) => [message.id, message.direction, message.status, message.type, message.text, message.occurredAt, message.mediaStorageKey, message.mediaMimeType, message.sentByUser?.id, message.sentByUser?.name]),
   });
-  if (signature === state.selectedSignature) {
-    if (refreshList) await loadConversations();
-    return;
-  }
-  state.selectedSignature = signature;
+  const messageItems = c.messages.map((message) => JSON.stringify([message.id, message.direction, message.type, message.text, message.occurredAt, message.mediaStorageKey, message.mediaMimeType, message.sentByUser?.id, message.sentByUser?.name]));
+  const messagesSignature = JSON.stringify(messageItems);
+  const notesSignature = JSON.stringify((c.contact.notes || []).map((note) => [note.id, note.content, note.createdAt, note.updatedAt, note.author?.name]));
   state.selectedContactId = c.contact.id;
   $("#empty-state").hidden = true; $("#chat-content").hidden = false; $("#chat-panel").classList.add("open");
-  const name = c.contact.name || c.contact.phone;
-  $("#contact-avatar").textContent = initials(name); $("#contact-name").textContent = name; $("#contact-phone").textContent = `+${c.contact.phone}`;
-  if (c.categoryId && ![...$("#category-select").options].some((option) => option.value === c.categoryId)) {
-    $("#category-select").add(new Option(`${c.category?.name || "Categoria"} (inativa)`, c.categoryId, false, false));
+  if (headerSignature !== state.selectedHeaderSignature) {
+    state.selectedHeaderSignature = headerSignature;
+    const name = c.contact.name || c.contact.phone;
+    $("#contact-avatar").textContent = initials(name); $("#contact-name").textContent = name; $("#contact-phone").textContent = `+${c.contact.phone}`;
+    if (c.categoryId && ![...$("#category-select").options].some((option) => option.value === c.categoryId)) {
+      $("#category-select").add(new Option(`${c.category?.name || "Categoria"} (inativa)`, c.categoryId, false, false));
+    }
+    $("#category-select").value = c.categoryId || "";
+    $("#status-badge").className = "status-badge"; $("#status-badge").textContent = statusLabel(c.status);
+    $("#assignee-select").value = c.assignedUserId || "";
+    $("#claim-conversation").hidden = c.assignedUserId === state.currentUser?.id;
+    $("#toggle-finalized").textContent = c.status === "FINALIZADO" ? "Reabrir" : "Finalizar"; $("#toggle-finalized").dataset.status = c.status;
   }
-  $("#category-select").value = c.categoryId || "";
-  $("#status-badge").className = "status-badge"; $("#status-badge").textContent = statusLabel(c.status);
-  $("#assignee-select").value = c.assignedUserId || "";
-  $("#claim-conversation").hidden = c.assignedUserId === state.currentUser?.id;
-  $("#toggle-finalized").textContent = c.status === "FINALIZADO" ? "Reabrir" : "Finalizar"; $("#toggle-finalized").dataset.status = c.status;
-  $("#messages").innerHTML = c.messages.map((m) => `<div class="message-row ${m.direction === "ENVIADA" ? "sent" : "received"}"><div class="bubble ${["image", "audio", "video"].includes(m.type) ? `${m.type}-bubble` : ""}">${messageContent(m)}<footer>${m.sentByUser ? `<span class="author">${escapeHtml(m.sentByUser.name)}</span>` : ""}<span>${time(m.occurredAt)}</span></footer></div></div>`).join("");
-  renderNotes(c.contact.notes || []);
-  $("#messages").scrollTop = $("#messages").scrollHeight;
+  if (messagesSignature !== state.selectedMessagesSignature) {
+    state.selectedMessagesSignature = messagesSignature;
+    const canAppend = !changedConversation && state.selectedMessageItems.length <= messageItems.length
+      && state.selectedMessageItems.every((item, index) => item === messageItems[index]);
+    if (canAppend) {
+      $("#messages").insertAdjacentHTML("beforeend", c.messages.slice(state.selectedMessageItems.length).map(messageRowMarkup).join(""));
+    } else {
+      $("#messages").innerHTML = c.messages.map(messageRowMarkup).join("");
+    }
+    state.selectedMessageItems = messageItems;
+    $("#messages").scrollTop = $("#messages").scrollHeight;
+  }
+  if (notesSignature !== state.selectedNotesSignature) {
+    state.selectedNotesSignature = notesSignature;
+    renderNotes(c.contact.notes || []);
+  }
   if (refreshList) await loadConversations();
 }
 
@@ -212,6 +265,10 @@ function renderNotes(notes) {
   $("#notes-list").innerHTML = notes.length ? notes.map((note) => `<article class="note"><p>${escapeHtml(note.content)}</p><footer>${escapeHtml(note.author?.name || "Equipe")} • ${new Intl.DateTimeFormat("pt-BR", { dateStyle:"short", timeStyle:"short" }).format(new Date(note.createdAt))}</footer></article>`).join("") : `<div class="notes-empty">Nenhuma nota adicionada.</div>`;
 }
 
+$("#conversation-list").addEventListener("click", (event) => {
+  const card = event.target.closest(".conversation-card");
+  if (card) openConversation(card.dataset.id);
+});
 document.querySelectorAll("[data-status]").forEach((button) => button.addEventListener("click", () => {
   document.querySelectorAll(".filter").forEach((item) => item.classList.remove("active")); button.classList.add("active"); state.status = button.dataset.status; state.category = ""; loadConversations();
 }));
