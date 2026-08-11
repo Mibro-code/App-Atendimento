@@ -128,7 +128,7 @@ async function updateConversation(id, { categoryId, status, assignedUserId }) {
   if (assignedUserId && !status) {
     const current = await prisma.conversation.findUnique({ where: { id }, select: { status: true } });
     if (!current) throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
-    if (current.status === "NOVO") data.status = "EM_ATENDIMENTO";
+    if (["NOVO", "AGUARDANDO_CLIENTE", "BOT"].includes(current.status)) data.status = "EM_ATENDIMENTO";
   }
   try {
     return await prisma.conversation.update({

@@ -1,7 +1,7 @@
 const inbox = require("../services/inbox-service");
 const prisma = require("../database/prisma");
 const { resolveMedia } = require("../services/media-storage-service");
-const { sendImage, sendText } = require("../services/message-service");
+const { finalizeConversation, sendImage, sendText } = require("../services/message-service");
 const inboxEvents = require("../realtime/inbox-events");
 
 function createInboxController(channel) {
@@ -66,6 +66,15 @@ function createInboxController(channel) {
         });
         inboxEvents.publish();
         return res.status(201).json(result.message);
+      } catch (error) { return next(error); }
+    },
+    async finalize(req, res, next) {
+      try {
+        const result = await finalizeConversation({
+          conversationId: req.params.id, sentByUserId: req.user.id, channel,
+        });
+        inboxEvents.publish();
+        return res.json(result);
       } catch (error) { return next(error); }
     },
     async media(req, res, next) {

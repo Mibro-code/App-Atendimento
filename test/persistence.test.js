@@ -6,7 +6,7 @@ const os = require("node:os");
 const path = require("node:path");
 const prisma = require("../src/database/prisma");
 const { resolveImage, resolveMedia } = require("../src/services/media-storage-service");
-const { saveIncoming, sendImage, sendText } = require("../src/services/message-service");
+const { closingMessage, finalizeConversation, saveIncoming, sendImage, sendText } = require("../src/services/message-service");
 const inbox = require("../src/services/inbox-service");
 const mediaTestDir = path.join(os.tmpdir(), `app-whats-media-test-${process.pid}`);
 process.env.MEDIA_STORAGE_DIR = mediaTestDir;
@@ -62,6 +62,7 @@ test("registra mensagem enviada e o atendente autor", async () => {
   assert.equal(result.message.direction, "ENVIADA");
   assert.equal(result.message.sentByUserId, user.id);
   assert.equal(await prisma.message.count(), 2);
+  assert.equal((await prisma.conversation.findUnique({ where: { id: conversation.id } })).status, "AGUARDANDO_CLIENTE");
 });
 
 test("lista, pesquisa, classifica, lê, finaliza e reabre a conversa", async () => {
@@ -79,12 +80,37 @@ test("lista, pesquisa, classifica, lê, finaliza e reabre a conversa", async () 
   assert.equal(result.length, 1);
   assert.equal(result[0].messages[0].text, "Qual é o modelo?");
 
+  await inbox.updateConversation(conversation.id, { status: "AGUARDANDO_CLIENTE" });
+  await saveIncoming({
+    externalId: "wamid.test.customer.reply", contactExternalId: "5511999999999",
+    phone: "5511999999999", contactName: "Cliente Teste", type: "text", text: "É o modelo X1",
+    occurredAt: new Date("2026-08-10T12:05:00Z"), rawPayload: { id: "wamid.test.customer.reply" },
+  });
+  assert.equal((await inbox.getConversation(conversation.id)).status, "EM_ATENDIMENTO");
+
   await inbox.markAsRead(conversation.id);
   assert.equal((await inbox.getConversation(conversation.id)).unreadCount, 0);
   await inbox.updateConversation(conversation.id, { status: "FINALIZADO" });
   assert.ok((await inbox.getConversation(conversation.id)).finalizedAt);
   await inbox.updateConversation(conversation.id, { status: "NOVO" });
   assert.equal((await inbox.getConversation(conversation.id)).finalizedAt, null);
+});
+
+test("envia mensagem neutra antes de finalizar o atendimento", async () => {
+  const conversation = await prisma.conversation.findFirst();
+  const user = await prisma.user.findUnique({ where: { email: "teste@mibro.local" } });
+  let providerText;
+  const channel = { sendText: async (_phone, text) => {
+    providerText = text;
+    return { externalId: "wamid.test.closing", data: { messages: [{ id: "wamid.test.closing" }] } };
+  } };
+  const result = await finalizeConversation({ conversationId: conversation.id, sentByUserId: user.id, channel });
+  assert.equal(result.message.text, closingMessage);
+  assert.equal(result.message.sentByUserId, user.id);
+  assert.equal(providerText, `*[Suporte]*\n\n${closingMessage}`);
+  const finalized = await inbox.getConversation(conversation.id);
+  assert.equal(finalized.status, "FINALIZADO");
+  assert.ok(finalized.finalizedAt);
 });
 
 test("cria e edita categorias com código único e cor validada", async () => {

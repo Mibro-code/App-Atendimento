@@ -3,6 +3,7 @@ const { findOrCreateMetaConversation } = require("./conversation-service");
 const { removeImage, storeAudio, storeImage, storeVideo } = require("./media-storage-service");
 const { formatTeamMessage } = require("./team-message-formatter");
 const statuses = { sent: "ENVIADA", delivered: "ENTREGUE", read: "LIDA", failed: "FALHOU" };
+const closingMessage = "Agradecemos pelo seu contato. Se precisar de qualquer ajuda, estamos à disposição. Você pode voltar a falar conosco quando quiser.";
 
 async function saveIncoming(event) {
   try {
@@ -24,7 +25,9 @@ async function saveIncoming(event) {
       } });
       await tx.conversation.update({ where: { id: conversation.id }, data: {
         unreadCount: { increment: 1 }, lastMessageAt: event.occurredAt,
-        status: conversation.status === "FINALIZADO" ? "NOVO" : conversation.status,
+        status: conversation.status === "FINALIZADO" ? "NOVO"
+          : conversation.status === "AGUARDANDO_CLIENTE" ? "EM_ATENDIMENTO"
+            : conversation.status,
         finalizedAt: conversation.status === "FINALIZADO" ? null : conversation.finalizedAt,
       } });
       return { message, duplicate: false };
@@ -56,7 +59,9 @@ async function sendText({ conversationId, text, sentByUserId, channel }) {
     conversationId, externalId: result.externalId, channel: conversation.channel, direction: "ENVIADA",
     status: "ENVIADA", type: "text", text, occurredAt, sentByUserId: sentByUserId || null, rawPayload: result.data,
   } });
-  await prisma.conversation.update({ where: { id: conversationId }, data: { lastMessageAt: occurredAt } });
+  await prisma.conversation.update({ where: { id: conversationId }, data: {
+    lastMessageAt: occurredAt, status: "AGUARDANDO_CLIENTE", finalizedAt: null,
+  } });
   return { message, providerData: result.data };
 }
 
@@ -87,8 +92,23 @@ async function sendImage({ conversationId, buffer, mimeType, fileName, caption, 
     occurredAt, sentByUserId: sentByUserId || null,
     rawPayload: { message: result.data, mediaId: result.mediaId },
   } });
-  await prisma.conversation.update({ where: { id: conversationId }, data: { lastMessageAt: occurredAt } });
+  await prisma.conversation.update({ where: { id: conversationId }, data: {
+    lastMessageAt: occurredAt, status: "AGUARDANDO_CLIENTE", finalizedAt: null,
+  } });
   return { message, providerData: result.data };
+}
+
+async function finalizeConversation({ conversationId, sentByUserId, channel }) {
+  const current = await prisma.conversation.findUnique({ where: { id: conversationId } });
+  if (!current) throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
+  if (current.status === "FINALIZADO") {
+    return { conversation: current, message: null, alreadyFinalized: true };
+  }
+  const result = await sendText({ conversationId, text: closingMessage, sentByUserId, channel });
+  const conversation = await prisma.conversation.update({ where: { id: conversationId }, data: {
+    status: "FINALIZADO", finalizedAt: new Date(),
+  } });
+  return { conversation, message: result.message, providerData: result.providerData, alreadyFinalized: false };
 }
 
 async function sendTextToPhone({ phone, text, channel }) {
@@ -96,4 +116,4 @@ async function sendTextToPhone({ phone, text, channel }) {
   return sendText({ conversationId: conversation.id, text, channel });
 }
 
-module.exports = { saveIncoming, sendImage, updateStatus, sendText, sendTextToPhone };
+module.exports = { closingMessage, finalizeConversation, saveIncoming, sendImage, updateStatus, sendText, sendTextToPhone };

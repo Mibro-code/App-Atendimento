@@ -293,7 +293,21 @@ $("#category-dialog").addEventListener("click", (event) => { if (event.target ==
 $("#category-form").addEventListener("submit", async (event) => { event.preventDefault(); const name = $("#category-name").value.trim(); const color = $("#category-color").value; try { await api("/api/categories", { method:"POST", body:JSON.stringify({ name, color }) }); $("#category-name").value = ""; await loadCategories(); await loadConversations(); toast("Categoria criada."); } catch (e) { toast(e.message, true); } });
 $("#category-manager-list").addEventListener("submit", async (event) => { event.preventDefault(); const row = event.target.closest("[data-category-id]"); const name = row.querySelector(".managed-name").value.trim(); const color = row.querySelector(".managed-color").value; const active = row.querySelector(".managed-active").checked; try { await api(`/api/categories/${row.dataset.categoryId}`, { method:"PATCH", body:JSON.stringify({ name, color, active }) }); await loadCategories(); await loadConversations(); toast("Categoria atualizada."); } catch (e) { toast(e.message, true); } });
 $("#category-manager-list").addEventListener("change", (event) => { if (event.target.classList.contains("managed-active")) event.target.closest("label").querySelector("span").textContent = event.target.checked ? "Ativa" : "Inativa"; });
-$("#toggle-finalized").addEventListener("click", async (event) => { const status = event.target.dataset.status === "FINALIZADO" ? "NOVO" : "FINALIZADO"; try { await api(`/api/conversations/${state.selectedId}`, { method:"PATCH", body:JSON.stringify({ status }) }); toast(status === "FINALIZADO" ? "Atendimento finalizado." : "Atendimento reaberto."); await openConversation(state.selectedId); } catch (e) { toast(e.message, true); } });
+$("#toggle-finalized").addEventListener("click", async (event) => {
+  const button = event.currentTarget; const reopening = button.dataset.status === "FINALIZADO";
+  button.disabled = true;
+  try {
+    if (reopening) {
+      await api(`/api/conversations/${state.selectedId}`, { method:"PATCH", body:JSON.stringify({ status:"NOVO" }) });
+      toast("Atendimento reaberto.");
+    } else {
+      await api(`/api/conversations/${state.selectedId}/finalize`, { method:"POST" });
+      toast("Mensagem de encerramento enviada e atendimento finalizado.");
+    }
+    await openConversation(state.selectedId);
+  } catch (e) { toast(e.message, true); }
+  finally { button.disabled = false; }
+});
 let selectedImage = null;
 let attachmentUrl = null;
 function clearSelectedImage() {

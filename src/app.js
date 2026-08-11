@@ -130,6 +130,7 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   app.post("/api/conversations/:id/read", inbox.read);
   app.post("/api/conversations/:id/messages", inbox.reply);
   app.post("/api/conversations/:id/images", imageUpload, inbox.replyImage);
+  app.post("/api/conversations/:id/finalize", inbox.finalize);
   app.get("/api/messages/:messageId/media", inbox.media);
   app.get("/api/categories", inbox.categories);
   app.post("/api/categories", inbox.createCategory);
