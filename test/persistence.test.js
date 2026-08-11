@@ -21,7 +21,10 @@ test.after(async () => {
   await prisma.conversation.deleteMany();
   await prisma.contact.deleteMany();
   await prisma.user.deleteMany({ where: { email: "teste@mibro.local" } });
-  await prisma.category.deleteMany({ where: { code: { startsWith: "FINANCEIRO_TESTE" } } });
+  await prisma.category.deleteMany({ where: { OR: [
+    { code: { startsWith: "FINANCEIRO_TESTE" } },
+    { code: { startsWith: "SUPORTE_VIP_TESTE" } },
+  ] } });
   await fs.rm(mediaTestDir, { recursive: true, force: true });
   await prisma.$disconnect();
 });
@@ -54,7 +57,7 @@ test("registra mensagem enviada e o atendente autor", async () => {
   let providerText;
   const channel = { sendText: async (_phone, text) => { providerText = text; return { externalId: "wamid.test.outgoing", data: { messages: [{ id: "wamid.test.outgoing" }] } }; } };
   const result = await sendText({ conversationId: conversation.id, text: "Qual é o modelo?", sentByUserId: user.id, channel });
-  assert.equal(providerText, "*Equipe de Suporte*\n\nQual é o modelo?");
+  assert.equal(providerText, "*[Suporte]*\n\nQual é o modelo?");
   assert.equal(result.message.text, "Qual é o modelo?");
   assert.equal(result.message.direction, "ENVIADA");
   assert.equal(result.message.sentByUserId, user.id);
@@ -93,6 +96,9 @@ test("cria e edita categorias com código único e cor validada", async () => {
   const updated = await inbox.updateCategory(first.id, { name: "Financeiro", active: false });
   assert.equal(updated.name, "Financeiro");
   assert.equal(updated.active, false);
+  const emoji = await inbox.createCategory({ name: "🛠️ Suporte VIP Teste", color: "#2563eb" });
+  assert.equal(emoji.name, "🛠️ Suporte VIP Teste");
+  assert.equal(emoji.code, "SUPORTE_VIP_TESTE");
   await assert.rejects(() => inbox.createCategory({ name: "Cor inválida", color: "laranja" }), /Cor da categoria inválida/);
 });
 
@@ -133,7 +139,7 @@ test("persiste imagens recebidas e enviadas com autoria", async () => {
   assert.equal(outgoing.message.sentByUserId, user.id);
   assert.equal(outgoing.message.mediaMimeType, "image/png");
   assert.equal(outgoing.message.text, "Imagem enviada");
-  assert.equal(providerCaption, "*Equipe de Suporte*\n\nImagem enviada");
+  assert.equal(providerCaption, "*[Suporte]*\n\nImagem enviada");
   assert.deepEqual(await fs.readFile(resolveImage(outgoing.message.mediaStorageKey)), png);
 });
 

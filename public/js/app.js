@@ -4,6 +4,12 @@ const escapeHtml = (value = "") => String(value).replace(/[&<>'"]/g, (char) => (
 const initials = (name = "?") => name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
 const time = (value) => value ? new Intl.DateTimeFormat("pt-BR", { hour:"2-digit", minute:"2-digit" }).format(new Date(value)) : "";
 const statusLabel = (value) => ({ NOVO:"Novo", EM_ATENDIMENTO:"Em atendimento", AGUARDANDO_CLIENTE:"Aguardando cliente", BOT:"Bot", FINALIZADO:"Finalizado" })[value] || value;
+function syncThemeToggle() {
+  const dark = document.documentElement.dataset.theme === "dark";
+  $("#theme-icon").textContent = dark ? "☀" : "☾";
+  $("#theme-toggle").setAttribute("aria-label", dark ? "Usar tema claro" : "Usar tema escuro");
+  $("#theme-toggle").title = dark ? "Usar tema claro" : "Usar tema escuro";
+}
 const messagePreview = (message) => {
   if (!message) return "Conversa sem mensagens";
   if (message.type === "image") return message.text && message.text !== "[image]" ? `📷 ${message.text}` : "📷 Imagem";
@@ -160,6 +166,12 @@ document.querySelectorAll("[data-status]").forEach((button) => button.addEventLi
 }));
 let searchTimer; $("#search").addEventListener("input", (event) => { clearTimeout(searchTimer); state.search = event.target.value.trim(); searchTimer = setTimeout(loadConversations, 250); });
 $("#refresh").addEventListener("click", loadConversations);
+$("#theme-toggle").addEventListener("click", () => {
+  const theme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  document.documentElement.dataset.theme = theme;
+  try { localStorage.setItem("mibro-theme", theme); } catch {}
+  syncThemeToggle();
+});
 $("#user-button").addEventListener("click", async () => { await api("/api/auth/logout", { method:"POST" }); location.replace("/login.html"); });
 $("#notes-toggle").addEventListener("click", () => $("#notes-panel").classList.toggle("open"));
 $("#notes-close").addEventListener("click", () => $("#notes-panel").classList.remove("open"));
@@ -195,6 +207,7 @@ $("#composer").addEventListener("submit", async (event) => { event.preventDefaul
 $("#message-input").addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); $("#composer").requestSubmit(); } });
 $(".chat-header").addEventListener("click", (event) => { if (innerWidth <= 700 && event.offsetX < 45) $("#chat-panel").classList.remove("open"); });
 
+syncThemeToggle();
 Promise.all([loadCurrentUser(), loadUsers(), loadCategories(), loadConversations()])
   .then(connectRealtime)
   .catch((error) => toast(error.message, true));

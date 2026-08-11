@@ -4,12 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Mibro • Central de Atendimento</title>
+  <script>try{const saved=localStorage.getItem("mibro-theme");document.documentElement.dataset.theme=saved||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch{}</script>
   <link rel="stylesheet" href="/css/app.css">
 </head>
 <body>
   <header class="topbar">
     <div class="brand"><span class="brand-word">mibro</span><span class="brand-divider"></span><small>Central de Atendimento</small></div>
     <div class="connection"><span></span> WhatsApp conectado</div>
+    <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Usar tema escuro" title="Usar tema escuro"><span id="theme-icon" aria-hidden="true">☾</span></button>
     <button id="user-button" class="user-button" type="button"><span id="current-user">Usuário</span> • Sair</button>
   </header>
 
@@ -70,7 +72,7 @@
   <dialog id="category-dialog" class="category-dialog">
     <div class="dialog-header"><div><span>ORGANIZAÇÃO</span><h2>Categorias</h2><p>Crie seções e ajuste como elas aparecem no atendimento.</p></div><button id="close-categories" type="button" aria-label="Fechar">×</button></div>
     <form id="category-form" class="category-create-form">
-      <label><span>Nome da categoria</span><input id="category-name" maxlength="60" placeholder="Ex.: Financeiro" required></label>
+      <label><span>Nome da categoria</span><input id="category-name" maxlength="60" placeholder="Ex.: 🛠️ Suporte" required></label>
       <label class="color-field"><span>Cor</span><input id="category-color" type="color" value="#ef5b2a"></label>
       <button type="submit">Criar categoria</button>
     </form>
