@@ -47,9 +47,15 @@ test("registra mensagem enviada e o atendente autor", async () => {
     where: { email: "teste@mibro.local" }, update: {},
     create: { name: "Atendente Teste", email: "teste@mibro.local", role: "ATENDENTE" },
   });
-  const conversation = await prisma.conversation.findFirst();
-  const channel = { sendText: async () => ({ externalId: "wamid.test.outgoing", data: { messages: [{ id: "wamid.test.outgoing" }] } }) };
+  const category = await prisma.category.findUnique({ where: { code: "SUPORTE" } });
+  let conversation = await prisma.conversation.findFirst();
+  conversation = await inbox.updateConversation(conversation.id, { categoryId: category.id });
+  assert.equal(conversation.status, "NOVO");
+  let providerText;
+  const channel = { sendText: async (_phone, text) => { providerText = text; return { externalId: "wamid.test.outgoing", data: { messages: [{ id: "wamid.test.outgoing" }] } }; } };
   const result = await sendText({ conversationId: conversation.id, text: "Qual é o modelo?", sentByUserId: user.id, channel });
+  assert.equal(providerText, "*Equipe de Suporte*\n\nQual é o modelo?");
+  assert.equal(result.message.text, "Qual é o modelo?");
   assert.equal(result.message.direction, "ENVIADA");
   assert.equal(result.message.sentByUserId, user.id);
   assert.equal(await prisma.message.count(), 2);
@@ -117,7 +123,8 @@ test("persiste imagens recebidas e enviadas com autoria", async () => {
   assert.equal(incoming.message.type, "image");
   assert.deepEqual(await fs.readFile(resolveImage(incoming.message.mediaStorageKey)), jpeg);
 
-  const channel = { sendImage: async () => ({ externalId: "wamid.test.image.out", mediaId: "media.out", data: { messages: [{ id: "wamid.test.image.out" }] } }) };
+  let providerCaption;
+  const channel = { sendImage: async (_phone, data) => { providerCaption = data.caption; return { externalId: "wamid.test.image.out", mediaId: "media.out", data: { messages: [{ id: "wamid.test.image.out" }] } }; } };
   const outgoing = await sendImage({
     conversationId: conversation.id, buffer: png, mimeType: "image/png",
     fileName: "produto.png", caption: "Imagem enviada", sentByUserId: user.id, channel,
@@ -125,6 +132,8 @@ test("persiste imagens recebidas e enviadas com autoria", async () => {
   assert.equal(outgoing.message.direction, "ENVIADA");
   assert.equal(outgoing.message.sentByUserId, user.id);
   assert.equal(outgoing.message.mediaMimeType, "image/png");
+  assert.equal(outgoing.message.text, "Imagem enviada");
+  assert.equal(providerCaption, "*Equipe de Suporte*\n\nImagem enviada");
   assert.deepEqual(await fs.readFile(resolveImage(outgoing.message.mediaStorageKey)), png);
 });
 

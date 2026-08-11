@@ -1,6 +1,7 @@
 const prisma = require("../database/prisma");
 const { findOrCreateMetaConversation } = require("./conversation-service");
 const { removeImage, storeAudio, storeImage } = require("./media-storage-service");
+const { formatTeamMessage } = require("./team-message-formatter");
 const statuses = { sent: "ENVIADA", delivered: "ENTREGUE", read: "LIDA", failed: "FALHOU" };
 
 async function saveIncoming(event) {
@@ -43,9 +44,13 @@ async function updateStatus(event) {
 }
 
 async function sendText({ conversationId, text, sentByUserId, channel }) {
-  const conversation = await prisma.conversation.findUnique({ where: { id: conversationId }, include: { contact: true } });
+  const conversation = await prisma.conversation.findUnique({ where: { id: conversationId }, include: { contact: true, category: true } });
   if (!conversation) throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
-  const result = await channel.sendText(conversation.contact.phone, text);
+  const providerText = formatTeamMessage(conversation.category, text);
+  if (providerText.length > 4096) {
+    throw Object.assign(new Error("A mensagem ficou acima do limite após adicionar o nome da equipe."), { statusCode: 400 });
+  }
+  const result = await channel.sendText(conversation.contact.phone, providerText);
   const occurredAt = new Date();
   const message = await prisma.message.create({ data: {
     conversationId, externalId: result.externalId, channel: conversation.channel, direction: "ENVIADA",
@@ -56,17 +61,18 @@ async function sendText({ conversationId, text, sentByUserId, channel }) {
 }
 
 async function sendImage({ conversationId, buffer, mimeType, fileName, caption, sentByUserId, channel }) {
-  const conversation = await prisma.conversation.findUnique({ where: { id: conversationId }, include: { contact: true } });
+  const conversation = await prisma.conversation.findUnique({ where: { id: conversationId }, include: { contact: true, category: true } });
   if (!conversation) throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
   const cleanCaption = caption?.trim() || null;
-  if (cleanCaption && cleanCaption.length > 1024) {
-    throw Object.assign(new Error("A legenda deve ter no máximo 1.024 caracteres."), { statusCode: 400 });
+  const providerCaption = formatTeamMessage(conversation.category, cleanCaption || "");
+  if (providerCaption.length > 1024) {
+    throw Object.assign(new Error("A legenda ficou acima do limite após adicionar o nome da equipe."), { statusCode: 400 });
   }
   const media = await storeImage({ buffer, mimeType, fileName });
   let result;
   try {
     result = await channel.sendImage(conversation.contact.phone, {
-      buffer, mimeType, fileName: media.fileName, caption: cleanCaption,
+      buffer, mimeType, fileName: media.fileName, caption: providerCaption || null,
     });
   } catch (error) {
     await removeImage(media.storageKey);
