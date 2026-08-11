@@ -57,7 +57,7 @@ test("registra mensagem enviada e o atendente autor", async () => {
   let providerText;
   const channel = { sendText: async (_phone, text) => { providerText = text; return { externalId: "wamid.test.outgoing", data: { messages: [{ id: "wamid.test.outgoing" }] } }; } };
   const result = await sendText({ conversationId: conversation.id, text: "Qual é o modelo?", sentByUserId: user.id, channel });
-  assert.equal(providerText, "*[Suporte]*\n\nQual é o modelo?");
+  assert.equal(providerText, "[*Suporte*]\n\nQual é o modelo?");
   assert.equal(result.message.text, "Qual é o modelo?");
   assert.equal(result.message.direction, "ENVIADA");
   assert.equal(result.message.sentByUserId, user.id);
@@ -110,7 +110,7 @@ test("envia mensagem neutra antes de finalizar o atendimento", async () => {
   const result = await finalizeConversation({ conversationId: conversation.id, sentByUserId: user.id, channel });
   assert.equal(result.message.text, closingMessage);
   assert.equal(result.message.sentByUserId, user.id);
-  assert.equal(providerText, `*[Suporte]*\n\n${closingMessage}`);
+  assert.equal(providerText, `[*Suporte*]\n\n${closingMessage}`);
   const finalized = await inbox.getConversation(conversation.id);
   assert.equal(finalized.status, "FINALIZADO");
   assert.ok(finalized.finalizedAt);
@@ -176,7 +176,7 @@ test("persiste imagens recebidas e enviadas com autoria", async () => {
   assert.equal(outgoing.message.sentByUserId, user.id);
   assert.equal(outgoing.message.mediaMimeType, "image/png");
   assert.equal(outgoing.message.text, "Imagem enviada");
-  assert.equal(providerCaption, "*[Suporte]*\n\nImagem enviada");
+  assert.equal(providerCaption, "[*Suporte*]\n\nImagem enviada");
   assert.deepEqual(await fs.readFile(resolveImage(outgoing.message.mediaStorageKey)), png);
 });
 
