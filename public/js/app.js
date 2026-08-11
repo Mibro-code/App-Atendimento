@@ -9,7 +9,7 @@ const $ = (selector) => document.querySelector(selector);
 const escapeHtml = (value = "") => String(value).replace(/[&<>'"]/g, (char) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" })[char]);
 const initials = (name = "?") => name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
 const time = (value) => value ? new Intl.DateTimeFormat("pt-BR", { hour:"2-digit", minute:"2-digit" }).format(new Date(value)) : "";
-const statusLabel = (value) => ({ NOVO:"Novo", EM_ATENDIMENTO:"Em atendimento", AGUARDANDO_CLIENTE:"Aguardando cliente", BOT:"Bot", FINALIZADO:"Finalizado" })[value] || value;
+const statusLabel = (value) => ({ NOVO:"Novo", EM_ATENDIMENTO:"Em atendimento", AGUARDANDO_RESPOSTA:"Aguardando resposta", BOT:"Bot", FINALIZADO:"Finalizado" })[value] || value;
 const categoryLabel = (category) => category?.parent?.name ? `${category.parent.name}: ${category.name}` : (category?.name || "Sem categoria");
 function orderedCategories(categories) {
   const roots = categories.filter((category) => !category.parentId);
@@ -231,7 +231,7 @@ async function loadConversations() {
   $("#count-all").textContent = summary.total || 0;
   $("#count-new").textContent = summary.statuses.NOVO || 0;
   $("#count-in-progress").textContent = summary.statuses.EM_ATENDIMENTO || 0;
-  $("#count-waiting").textContent = summary.statuses.AGUARDANDO_CLIENTE || 0;
+  $("#count-waiting").textContent = summary.statuses.AGUARDANDO_RESPOSTA || 0;
   $("#count-bot").textContent = summary.statuses.BOT || 0;
   $("#count-finalized").textContent = summary.statuses.FINALIZADO || 0;
   document.querySelectorAll("[data-category-count]").forEach((counter) => {

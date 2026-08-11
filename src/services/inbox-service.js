@@ -1,7 +1,7 @@
 const prisma = require("../database/prisma");
 
 const conversationStatuses = new Set([
-  "NOVO", "EM_ATENDIMENTO", "AGUARDANDO_CLIENTE", "BOT", "FINALIZADO",
+  "NOVO", "EM_ATENDIMENTO", "AGUARDANDO_RESPOSTA", "BOT", "FINALIZADO",
 ]);
 const categoryColorPattern = /^#[0-9a-f]{6}$/i;
 
@@ -151,7 +151,7 @@ async function updateConversation(id, { categoryId, status, assignedUserId }) {
   if (assignedUserId && !status) {
     const current = await prisma.conversation.findUnique({ where: { id }, select: { status: true } });
     if (!current) throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
-    if (["NOVO", "AGUARDANDO_CLIENTE", "BOT"].includes(current.status)) data.status = "EM_ATENDIMENTO";
+    if (["NOVO", "AGUARDANDO_RESPOSTA", "BOT"].includes(current.status)) data.status = "EM_ATENDIMENTO";
   }
   try {
     return await prisma.conversation.update({

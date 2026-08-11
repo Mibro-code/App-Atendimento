@@ -25,9 +25,9 @@ async function saveIncoming(event) {
       } });
       await tx.conversation.update({ where: { id: conversation.id }, data: {
         unreadCount: { increment: 1 }, lastMessageAt: event.occurredAt,
-        status: conversation.status === "FINALIZADO" ? "NOVO"
-          : conversation.status === "AGUARDANDO_CLIENTE" ? "EM_ATENDIMENTO"
-            : conversation.status,
+        status: conversation.status === "FINALIZADO" || conversation.status === "NOVO" ? "NOVO"
+          : conversation.status === "BOT" ? "BOT"
+            : "AGUARDANDO_RESPOSTA",
         finalizedAt: conversation.status === "FINALIZADO" ? null : conversation.finalizedAt,
       } });
       return { message, duplicate: false };
@@ -60,7 +60,7 @@ async function sendText({ conversationId, text, sentByUserId, channel }) {
     status: "ENVIADA", type: "text", text, occurredAt, sentByUserId: sentByUserId || null, rawPayload: result.data,
   } });
   await prisma.conversation.update({ where: { id: conversationId }, data: {
-    lastMessageAt: occurredAt, status: "AGUARDANDO_CLIENTE", finalizedAt: null,
+    lastMessageAt: occurredAt, status: "EM_ATENDIMENTO", finalizedAt: null,
   } });
   return { message, providerData: result.data };
 }
@@ -93,7 +93,7 @@ async function sendImage({ conversationId, buffer, mimeType, fileName, caption, 
     rawPayload: { message: result.data, mediaId: result.mediaId },
   } });
   await prisma.conversation.update({ where: { id: conversationId }, data: {
-    lastMessageAt: occurredAt, status: "AGUARDANDO_CLIENTE", finalizedAt: null,
+    lastMessageAt: occurredAt, status: "EM_ATENDIMENTO", finalizedAt: null,
   } });
   return { message, providerData: result.data };
 }

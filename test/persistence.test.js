@@ -62,7 +62,7 @@ test("registra mensagem enviada e o atendente autor", async () => {
   assert.equal(result.message.direction, "ENVIADA");
   assert.equal(result.message.sentByUserId, user.id);
   assert.equal(await prisma.message.count(), 2);
-  assert.equal((await prisma.conversation.findUnique({ where: { id: conversation.id } })).status, "AGUARDANDO_CLIENTE");
+  assert.equal((await prisma.conversation.findUnique({ where: { id: conversation.id } })).status, "EM_ATENDIMENTO");
 });
 
 test("lista, pesquisa, classifica, lê, finaliza e reabre a conversa", async () => {
@@ -80,13 +80,12 @@ test("lista, pesquisa, classifica, lê, finaliza e reabre a conversa", async () 
   assert.equal(result.length, 1);
   assert.equal(result[0].messages[0].text, "Qual é o modelo?");
 
-  await inbox.updateConversation(conversation.id, { status: "AGUARDANDO_CLIENTE" });
   await saveIncoming({
     externalId: "wamid.test.customer.reply", contactExternalId: "5511999999999",
     phone: "5511999999999", contactName: "Cliente Teste", type: "text", text: "É o modelo X1",
     occurredAt: new Date("2026-08-10T12:05:00Z"), rawPayload: { id: "wamid.test.customer.reply" },
   });
-  assert.equal((await inbox.getConversation(conversation.id)).status, "EM_ATENDIMENTO");
+  assert.equal((await inbox.getConversation(conversation.id)).status, "AGUARDANDO_RESPOSTA");
 
   let readMessageId;
   const readResult = await inbox.markAsRead(conversation.id, { channel: { markAsRead: async (messageId) => { readMessageId = messageId; } } });

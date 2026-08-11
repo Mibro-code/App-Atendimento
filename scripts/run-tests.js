@@ -9,7 +9,7 @@ const testUrl = baseUrl.includes("schema=")
 const env = { ...process.env, DATABASE_URL: testUrl, NODE_ENV: "test" };
 
 for (const [command, args] of [
-  ["node", ["node_modules/prisma/build/index.js", "db", "push", "--skip-generate"]],
+  ["node", ["node_modules/prisma/build/index.js", "db", "push", "--skip-generate", "--accept-data-loss"]],
   ["node", ["prisma/seed.js"]],
   ["node", ["--test", "--test-concurrency=1"]],
 ]) {

@@ -15,7 +15,7 @@ enum Channel {
 enum ConversationStatus {
   NOVO
   EM_ATENDIMENTO
-  AGUARDANDO_CLIENTE
+  AGUARDANDO_RESPOSTA
   BOT
   FINALIZADO
 }
