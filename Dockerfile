@@ -16,6 +16,7 @@ COPY prisma ./prisma
 COPY public ./public
 COPY scripts ./scripts
 COPY src ./src
+RUN mkdir -p /app/storage/media && chown -R node:node /app/storage
 USER node
 EXPOSE 3000
 CMD ["npm", "run", "start:prod"]

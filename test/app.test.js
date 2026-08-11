@@ -78,6 +78,11 @@ test("entrega o painel e as APIs básicas da caixa de entrada", async () => {
     const createdCategory = await fetch(`${base}/api/categories`, { method: "POST", headers: { Cookie: cookie, "Content-Type": "application/json" }, body: JSON.stringify({ name: "Categoria API Teste", color: "#ef5b2a" }) });
     assert.equal(createdCategory.status, 201);
     assert.equal((await createdCategory.json()).name, "Categoria API Teste");
+    const imageForm = new FormData();
+    imageForm.append("image", new Blob([Buffer.from([0xff, 0xd8, 0xff, 0x00])], { type: "image/jpeg" }), "teste.jpg");
+    const missingConversationImage = await fetch(`${base}/api/conversations/inexistente/images`, { method: "POST", headers: { Cookie: cookie }, body: imageForm });
+    assert.equal(missingConversationImage.status, 404);
+    assert.equal((await fetch(`${base}/api/messages/inexistente/media`, { headers: { Cookie: cookie } })).status, 404);
     assert.equal((await fetch(`${base}/health`)).status, 200);
     const conversations = await fetch(`${base}/api/conversations`, { headers: { Cookie: cookie } });
     assert.equal(conversations.status, 200);

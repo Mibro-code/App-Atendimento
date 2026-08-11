@@ -44,6 +44,9 @@ services:
       PHONE_NUMBER_ID: ${PHONE_NUMBER_ID}
       GRAPH_VERSION: ${GRAPH_VERSION}
       META_APP_SECRET: ${META_APP_SECRET}
+      MEDIA_STORAGE_DIR: /app/storage/media
+    volumes:
+      - atendimento_media_data:/app/storage
     expose:
       - "3000"
     healthcheck:
@@ -69,6 +72,7 @@ services:
 
 volumes:
   atendimento_postgres_data:
+  atendimento_media_data:
 
 networks:
   private:

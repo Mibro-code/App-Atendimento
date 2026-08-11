@@ -18,7 +18,9 @@ async function loadUsers() {
 }
 
 async function api(path, options) {
-  const response = await fetch(path, { headers: { "Content-Type":"application/json" }, ...options });
+  const headers = new Headers(options?.headers || {});
+  if (options?.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  const response = await fetch(path, { ...options, headers });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || "Não foi possível concluir a operação.");
   return data;
@@ -78,7 +80,7 @@ async function loadConversations() {
     return `<button class="conversation-card ${c.id === state.selectedId ? "active" : ""}" data-id="${c.id}">
       <span class="card-grip" aria-hidden="true"></span><span class="avatar">${escapeHtml(initials(name))}</span><span class="card-main">
       <span class="card-title"><strong>${escapeHtml(name)}</strong><small>${escapeHtml(c.contact.phone)}</small></span>
-      <span class="preview">${escapeHtml(last?.text || "Conversa sem mensagens")}</span>
+      <span class="preview">${escapeHtml(last ? (last.type === "image" ? (last.text && last.text !== "[image]" ? `📷 ${last.text}` : "📷 Imagem") : (last.text || `[${last.type}]`)) : "Conversa sem mensagens")}</span>
       <span class="card-labels"><span class="category-label" style="color:${c.category?.color || "#666"};border-color:${c.category?.color || "#aaa"}">${escapeHtml(c.category?.name || "Sem categoria")}</span><span class="status-label">${escapeHtml(statusLabel(c.status))}</span>${c.assignedUser ? `<span class="assignee-label">${escapeHtml(c.assignedUser.name)}</span>` : ""}</span>
       <span class="note-preview"><b>NOTA</b> ${escapeHtml(note?.content || "Sem notas para este contato")}${c.contact._count?.notes ? `<i>${c.contact._count.notes}</i>` : ""}</span></span>
       <span class="card-side"><span>${time(c.lastMessageAt)}</span>${c.unreadCount ? `<span class="unread">${c.unreadCount}</span>` : ""}</span></button>`;
@@ -101,7 +103,7 @@ async function openConversation(id, { refreshList = true } = {}) {
   $("#assignee-select").value = c.assignedUserId || "";
   $("#claim-conversation").hidden = c.assignedUserId === state.currentUser?.id;
   $("#toggle-finalized").textContent = c.status === "FINALIZADO" ? "Reabrir" : "Finalizar"; $("#toggle-finalized").dataset.status = c.status;
-  $("#messages").innerHTML = c.messages.map((m) => `<div class="message-row ${m.direction === "ENVIADA" ? "sent" : "received"}"><div class="bubble"><p>${escapeHtml(m.text || `[${m.type}]`)}</p><footer>${m.sentByUser ? `<span class="author">${escapeHtml(m.sentByUser.name)}</span>` : ""}<span>${time(m.occurredAt)}</span></footer></div></div>`).join("");
+  $("#messages").innerHTML = c.messages.map((m) => `<div class="message-row ${m.direction === "ENVIADA" ? "sent" : "received"}"><div class="bubble ${m.type === "image" ? "image-bubble" : ""}">${m.type === "image" && m.mediaStorageKey ? `<a class="message-image-link" href="/api/messages/${encodeURIComponent(m.id)}/media" target="_blank" rel="noopener"><img class="message-image" src="/api/messages/${encodeURIComponent(m.id)}/media" alt="${escapeHtml(m.text || "Imagem da conversa")}" loading="lazy"></a>` : ""}${m.text && !(m.type === "image" && m.text === "[image]") ? `<p>${escapeHtml(m.text)}</p>` : (m.type === "image" && !m.mediaStorageKey ? `<p>[Imagem indisponível]</p>` : "")}<footer>${m.sentByUser ? `<span class="author">${escapeHtml(m.sentByUser.name)}</span>` : ""}<span>${time(m.occurredAt)}</span></footer></div></div>`).join("");
   renderNotes(c.contact.notes || []);
   $("#messages").scrollTop = $("#messages").scrollHeight;
   if (refreshList) await loadConversations();
@@ -153,7 +155,24 @@ $("#category-form").addEventListener("submit", async (event) => { event.preventD
 $("#category-manager-list").addEventListener("submit", async (event) => { event.preventDefault(); const row = event.target.closest("[data-category-id]"); const name = row.querySelector(".managed-name").value.trim(); const color = row.querySelector(".managed-color").value; const active = row.querySelector(".managed-active").checked; try { await api(`/api/categories/${row.dataset.categoryId}`, { method:"PATCH", body:JSON.stringify({ name, color, active }) }); await loadCategories(); await loadConversations(); toast("Categoria atualizada."); } catch (e) { toast(e.message, true); } });
 $("#category-manager-list").addEventListener("change", (event) => { if (event.target.classList.contains("managed-active")) event.target.closest("label").querySelector("span").textContent = event.target.checked ? "Ativa" : "Inativa"; });
 $("#toggle-finalized").addEventListener("click", async (event) => { const status = event.target.dataset.status === "FINALIZADO" ? "NOVO" : "FINALIZADO"; try { await api(`/api/conversations/${state.selectedId}`, { method:"PATCH", body:JSON.stringify({ status }) }); toast(status === "FINALIZADO" ? "Atendimento finalizado." : "Atendimento reaberto."); await openConversation(state.selectedId); } catch (e) { toast(e.message, true); } });
-$("#composer").addEventListener("submit", async (event) => { event.preventDefault(); const input = $("#message-input"); const text = input.value.trim(); if (!text) return; $("#send-button").disabled = true; try { await api(`/api/conversations/${state.selectedId}/messages`, { method:"POST", body:JSON.stringify({ text }) }); input.value = ""; await openConversation(state.selectedId); } catch (e) { toast(e.message, true); } finally { $("#send-button").disabled = false; input.focus(); } });
+let selectedImage = null;
+let attachmentUrl = null;
+function clearSelectedImage() {
+  selectedImage = null; $("#image-input").value = ""; $("#attachment-preview").hidden = true;
+  $("#message-input").maxLength = 4096;
+  if (attachmentUrl) URL.revokeObjectURL(attachmentUrl); attachmentUrl = null;
+}
+$("#image-input").addEventListener("change", (event) => {
+  const file = event.target.files[0];
+  if (!file) return clearSelectedImage();
+  if (!["image/jpeg", "image/png"].includes(file.type)) { clearSelectedImage(); return toast("Envie uma imagem JPG ou PNG.", true); }
+  if (file.size > 5 * 1024 * 1024) { clearSelectedImage(); return toast("A imagem deve ter no máximo 5 MB.", true); }
+  selectedImage = file; attachmentUrl = URL.createObjectURL(file); $("#attachment-thumb").src = attachmentUrl;
+  $("#message-input").maxLength = 1024;
+  $("#attachment-name").textContent = file.name; $("#attachment-preview").hidden = false; $("#message-input").focus();
+});
+$("#remove-attachment").addEventListener("click", clearSelectedImage);
+$("#composer").addEventListener("submit", async (event) => { event.preventDefault(); const input = $("#message-input"); const text = input.value.trim(); if (!text && !selectedImage) return; $("#send-button").disabled = true; try { if (selectedImage) { const form = new FormData(); form.append("image", selectedImage); if (text) form.append("caption", text); await api(`/api/conversations/${state.selectedId}/images`, { method:"POST", body:form }); clearSelectedImage(); } else { await api(`/api/conversations/${state.selectedId}/messages`, { method:"POST", body:JSON.stringify({ text }) }); } input.value = ""; await openConversation(state.selectedId); } catch (e) { toast(e.message, true); } finally { $("#send-button").disabled = false; input.focus(); } });
 $("#message-input").addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); $("#composer").requestSubmit(); } });
 $(".chat-header").addEventListener("click", (event) => { if (innerWidth <= 700 && event.offsetX < 45) $("#chat-panel").classList.remove("open"); });
 

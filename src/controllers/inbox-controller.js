@@ -1,5 +1,7 @@
 const inbox = require("../services/inbox-service");
-const { sendText } = require("../services/message-service");
+const prisma = require("../database/prisma");
+const { resolveImage } = require("../services/media-storage-service");
+const { sendImage, sendText } = require("../services/message-service");
 const inboxEvents = require("../realtime/inbox-events");
 
 function createInboxController(channel) {
@@ -52,6 +54,34 @@ function createInboxController(channel) {
         const result = await sendText({ conversationId: req.params.id, text, sentByUserId: req.user.id, channel });
         inboxEvents.publish();
         return res.status(201).json(result.message);
+      } catch (error) { return next(error); }
+    },
+    async replyImage(req, res, next) {
+      if (!req.file) return res.status(400).json({ error: "Selecione uma imagem JPG ou PNG." });
+      try {
+        const result = await sendImage({
+          conversationId: req.params.id, buffer: req.file.buffer,
+          mimeType: req.file.mimetype, fileName: req.file.originalname,
+          caption: req.body.caption, sentByUserId: req.user.id, channel,
+        });
+        inboxEvents.publish();
+        return res.status(201).json(result.message);
+      } catch (error) { return next(error); }
+    },
+    async media(req, res, next) {
+      try {
+        const message = await prisma.message.findUnique({
+          where: { id: req.params.messageId },
+          select: { mediaStorageKey: true, mediaMimeType: true, mediaFileName: true },
+        });
+        if (!message?.mediaStorageKey) return res.status(404).json({ error: "Imagem não encontrada." });
+        res.set({
+          "Content-Type": message.mediaMimeType,
+          "Content-Disposition": `inline; filename="${encodeURIComponent(message.mediaFileName || "imagem")}"`,
+          "Cache-Control": "private, max-age=3600",
+          "X-Content-Type-Options": "nosniff",
+        });
+        return res.sendFile(resolveImage(message.mediaStorageKey));
       } catch (error) { return next(error); }
     },
     async categories(_req, res, next) {

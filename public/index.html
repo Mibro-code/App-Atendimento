@@ -59,7 +59,9 @@
           <div id="notes-list" class="notes-list"></div>
         </aside>
         <form id="composer" class="composer">
-          <textarea id="message-input" rows="1" placeholder="Digite uma mensagem..." required></textarea>
+          <label class="attach-image" title="Anexar imagem" aria-label="Anexar imagem"><input id="image-input" type="file" accept="image/jpeg,image/png"><span>＋</span></label>
+          <div id="attachment-preview" class="attachment-preview" hidden><img id="attachment-thumb" alt="Prévia da imagem"><span id="attachment-name"></span><button id="remove-attachment" type="button" aria-label="Remover imagem">×</button></div>
+          <textarea id="message-input" rows="1" maxlength="4096" placeholder="Digite uma mensagem..."></textarea>
           <button id="send-button" type="submit">Enviar</button>
         </form>
       </div>

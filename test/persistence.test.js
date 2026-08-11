@@ -1,9 +1,15 @@
 require("dotenv").config();
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs/promises");
+const os = require("node:os");
+const path = require("node:path");
 const prisma = require("../src/database/prisma");
-const { saveIncoming, sendText } = require("../src/services/message-service");
+const { resolveImage } = require("../src/services/media-storage-service");
+const { saveIncoming, sendImage, sendText } = require("../src/services/message-service");
 const inbox = require("../src/services/inbox-service");
+const mediaTestDir = path.join(os.tmpdir(), `app-whats-media-test-${process.pid}`);
+process.env.MEDIA_STORAGE_DIR = mediaTestDir;
 
 test.before(async () => {
   await prisma.message.deleteMany();
@@ -16,6 +22,7 @@ test.after(async () => {
   await prisma.contact.deleteMany();
   await prisma.user.deleteMany({ where: { email: "teste@mibro.local" } });
   await prisma.category.deleteMany({ where: { code: { startsWith: "FINANCEIRO_TESTE" } } });
+  await fs.rm(mediaTestDir, { recursive: true, force: true });
   await prisma.$disconnect();
 });
 
@@ -94,4 +101,29 @@ test("salva notas no contato e mantém busca pelo nome", async () => {
   assert.equal(found[0].contact.name, "Cliente Teste");
   assert.equal(found[0].contact.notes[0].content, "Cliente prefere atendimento no período da tarde.");
   assert.equal(found[0].contact._count.notes, 1);
+});
+
+test("persiste imagens recebidas e enviadas com autoria", async () => {
+  const conversation = await prisma.conversation.findFirst();
+  const user = await prisma.user.findUnique({ where: { email: "teste@mibro.local" } });
+  const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.from("imagem-recebida")]);
+  const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from("imagem-enviada")]);
+  const incoming = await saveIncoming({
+    externalId: "wamid.test.image.in", contactExternalId: "5511999999999", phone: "5511999999999",
+    contactName: "Cliente Teste", type: "image", text: "Foto recebida", occurredAt: new Date(),
+    rawPayload: { image: { id: "media.in" } }, mediaBuffer: jpeg,
+    mediaMimeType: "image/jpeg", mediaFileName: "recebida.jpg",
+  });
+  assert.equal(incoming.message.type, "image");
+  assert.deepEqual(await fs.readFile(resolveImage(incoming.message.mediaStorageKey)), jpeg);
+
+  const channel = { sendImage: async () => ({ externalId: "wamid.test.image.out", mediaId: "media.out", data: { messages: [{ id: "wamid.test.image.out" }] } }) };
+  const outgoing = await sendImage({
+    conversationId: conversation.id, buffer: png, mimeType: "image/png",
+    fileName: "produto.png", caption: "Imagem enviada", sentByUserId: user.id, channel,
+  });
+  assert.equal(outgoing.message.direction, "ENVIADA");
+  assert.equal(outgoing.message.sentByUserId, user.id);
+  assert.equal(outgoing.message.mediaMimeType, "image/png");
+  assert.deepEqual(await fs.readFile(resolveImage(outgoing.message.mediaStorageKey)), png);
 });
