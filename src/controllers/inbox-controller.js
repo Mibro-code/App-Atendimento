@@ -77,7 +77,7 @@ function createInboxController(channel) {
         if (!message?.mediaStorageKey) return res.status(404).json({ error: "Mídia não encontrada." });
         res.set({
           "Content-Type": message.mediaMimeType,
-          "Content-Disposition": `inline; filename="${encodeURIComponent(message.mediaFileName || "imagem")}"`,
+          "Content-Disposition": `inline; filename="${encodeURIComponent(message.mediaFileName || "midia")}"`,
           "Cache-Control": "private, max-age=3600",
           "X-Content-Type-Options": "nosniff",
         });

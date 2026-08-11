@@ -156,3 +156,17 @@ test("persiste áudio recebido para reprodução no histórico", async () => {
   assert.equal(incoming.message.mediaFileName, "audio-media.ogg");
   assert.deepEqual(await fs.readFile(resolveMedia(incoming.message.mediaStorageKey)), audio);
 });
+
+test("persiste vídeo recebido para reprodução no histórico", async () => {
+  const video = Buffer.from("0000ftyp-video-mp4-de-teste");
+  const incoming = await saveIncoming({
+    externalId: "wamid.test.video.in", contactExternalId: "5511999999999", phone: "5511999999999",
+    contactName: "Cliente Teste", type: "video", text: "Vídeo recebido", occurredAt: new Date(),
+    rawPayload: { video: { id: "media.video" } }, mediaBuffer: video,
+    mediaMimeType: "video/mp4", mediaFileName: "produto.mp4",
+  });
+  assert.equal(incoming.message.type, "video");
+  assert.equal(incoming.message.mediaMimeType, "video/mp4");
+  assert.equal(incoming.message.mediaFileName, "produto.mp4");
+  assert.deepEqual(await fs.readFile(resolveMedia(incoming.message.mediaStorageKey)), video);
+});

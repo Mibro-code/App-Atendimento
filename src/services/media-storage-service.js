@@ -4,6 +4,7 @@ const path = require("node:path");
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 const MAX_AUDIO_SIZE = 16 * 1024 * 1024;
+const MAX_VIDEO_SIZE = 16 * 1024 * 1024;
 const mediaExtensions = new Map([
   ["image/jpeg", ".jpg"],
   ["image/png", ".png"],
@@ -12,6 +13,9 @@ const mediaExtensions = new Map([
   ["audio/mpeg", ".mp3"],
   ["audio/amr", ".amr"],
   ["audio/ogg", ".ogg"],
+  ["video/mp4", ".mp4"],
+  ["video/3gpp", ".3gp"],
+  ["video/3gp", ".3gp"],
 ]);
 
 function normalizeMimeType(value) {
@@ -52,12 +56,26 @@ function validateAudio({ buffer, mimeType }) {
   }
 }
 
+function validateVideo({ buffer, mimeType }) {
+  mimeType = normalizeMimeType(mimeType);
+  if (!Buffer.isBuffer(buffer) || !buffer.length) {
+    throw Object.assign(new Error("O vídeo está vazio."), { statusCode: 400 });
+  }
+  if (buffer.length > MAX_VIDEO_SIZE) {
+    throw Object.assign(new Error("O vídeo deve ter no máximo 16 MB."), { statusCode: 413 });
+  }
+  if (!mediaExtensions.has(mimeType) || !mimeType.startsWith("video/")) {
+    throw Object.assign(new Error("Formato de vídeo não suportado."), { statusCode: 400 });
+  }
+}
+
 function storageRoot() {
   return path.resolve(process.env.MEDIA_STORAGE_DIR || path.join(process.cwd(), "storage", "media"));
 }
 
 function safeFileName(value, mimeType) {
-  const fallback = `${mimeType.startsWith("audio/") ? "audio" : "imagem"}${mediaExtensions.get(mimeType)}`;
+  const mediaKind = mimeType.startsWith("audio/") ? "audio" : (mimeType.startsWith("video/") ? "video" : "imagem");
+  const fallback = `${mediaKind}${mediaExtensions.get(mimeType)}`;
   const name = path.basename(typeof value === "string" ? value : fallback)
     .replace(/[^a-zA-Z0-9._ -]/g, "_").slice(0, 120);
   return name || fallback;
@@ -66,6 +84,7 @@ function safeFileName(value, mimeType) {
 async function storeMedia({ buffer, mimeType, fileName, stableId, kind }) {
   mimeType = normalizeMimeType(mimeType);
   if (kind === "audio") validateAudio({ buffer, mimeType });
+  else if (kind === "video") validateVideo({ buffer, mimeType });
   else validateImage({ buffer, mimeType });
   const extension = mediaExtensions.get(mimeType);
   const identity = stableId
@@ -85,8 +104,12 @@ async function storeAudio(options) {
   return storeMedia({ ...options, kind: "audio" });
 }
 
+async function storeVideo(options) {
+  return storeMedia({ ...options, kind: "video" });
+}
+
 function resolveMedia(storageKey) {
-  if (!/^[a-f0-9]{32,64}\.(jpg|png|aac|m4a|mp3|amr|ogg)$/.test(storageKey || "")) {
+  if (!/^[a-f0-9]{32,64}\.(jpg|png|aac|m4a|mp3|amr|ogg|mp4|3gp)$/.test(storageKey || "")) {
     throw Object.assign(new Error("Mídia inválida."), { statusCode: 404 });
   }
   return path.join(storageRoot(), storageKey);
@@ -100,6 +123,6 @@ async function removeImage(storageKey) {
 }
 
 module.exports = {
-  MAX_AUDIO_SIZE, MAX_IMAGE_SIZE, normalizeMimeType, removeImage, resolveImage, resolveMedia,
-  storeAudio, storeImage, validateAudio, validateImage,
+  MAX_AUDIO_SIZE, MAX_IMAGE_SIZE, MAX_VIDEO_SIZE, normalizeMimeType, removeImage, resolveImage, resolveMedia,
+  storeAudio, storeImage, storeVideo, validateAudio, validateImage, validateVideo,
 };

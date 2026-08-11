@@ -1,6 +1,6 @@
 const prisma = require("../database/prisma");
 const { findOrCreateMetaConversation } = require("./conversation-service");
-const { removeImage, storeAudio, storeImage } = require("./media-storage-service");
+const { removeImage, storeAudio, storeImage, storeVideo } = require("./media-storage-service");
 const { formatTeamMessage } = require("./team-message-formatter");
 const statuses = { sent: "ENVIADA", delivered: "ENTREGUE", read: "LIDA", failed: "FALHOU" };
 
@@ -10,7 +10,7 @@ async function saveIncoming(event) {
       const existing = await tx.message.findUnique({ where: { externalId: event.externalId } });
       if (existing) return { message: existing, duplicate: true };
       const { conversation } = await findOrCreateMetaConversation(event, tx);
-      const mediaStore = event.type === "audio" ? storeAudio : storeImage;
+      const mediaStore = ({ audio: storeAudio, video: storeVideo })[event.type] || storeImage;
       const media = event.mediaBuffer ? await mediaStore({
         buffer: event.mediaBuffer, mimeType: event.mediaMimeType,
         fileName: event.mediaFileName, stableId: event.externalId,

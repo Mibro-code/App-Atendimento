@@ -14,6 +14,7 @@ const messagePreview = (message) => {
   if (!message) return "Conversa sem mensagens";
   if (message.type === "image") return message.text && message.text !== "[image]" ? `📷 ${message.text}` : "📷 Imagem";
   if (message.type === "audio") return "▶ Áudio";
+  if (message.type === "video") return message.text && message.text !== "[video]" ? `🎬 ${message.text}` : "🎬 Vídeo";
   return message.text || `[${message.type}]`;
 };
 
@@ -25,8 +26,12 @@ function messageContent(message) {
   if (message.type === "audio" && message.mediaStorageKey) {
     return `<audio class="message-audio" controls preload="metadata"><source src="${mediaUrl}" type="${escapeHtml(message.mediaMimeType || "audio/ogg")}">Seu navegador não conseguiu reproduzir este áudio.</audio><a class="audio-download" href="${mediaUrl}" download>Baixar áudio</a>`;
   }
+  if (message.type === "video" && message.mediaStorageKey) {
+    return `<video class="message-video" controls preload="metadata" playsinline><source src="${mediaUrl}" type="${escapeHtml(message.mediaMimeType || "video/mp4")}">Seu navegador não conseguiu reproduzir este vídeo.</video>${message.text && message.text !== "[video]" ? `<p>${escapeHtml(message.text)}</p>` : ""}<a class="media-download" href="${mediaUrl}" download>Baixar vídeo</a>`;
+  }
   if (message.type === "image") return "<p>[Imagem indisponível]</p>";
   if (message.type === "audio") return "<p>[Áudio indisponível]</p>";
+  if (message.type === "video") return "<p>[Vídeo indisponível]</p>";
   return `<p>${escapeHtml(message.text || `[${message.type}]`)}</p>`;
 }
 
@@ -128,7 +133,7 @@ async function openConversation(id, { refreshList = true } = {}) {
   $("#assignee-select").value = c.assignedUserId || "";
   $("#claim-conversation").hidden = c.assignedUserId === state.currentUser?.id;
   $("#toggle-finalized").textContent = c.status === "FINALIZADO" ? "Reabrir" : "Finalizar"; $("#toggle-finalized").dataset.status = c.status;
-  $("#messages").innerHTML = c.messages.map((m) => `<div class="message-row ${m.direction === "ENVIADA" ? "sent" : "received"}"><div class="bubble ${["image", "audio"].includes(m.type) ? `${m.type}-bubble` : ""}">${messageContent(m)}<footer>${m.sentByUser ? `<span class="author">${escapeHtml(m.sentByUser.name)}</span>` : ""}<span>${time(m.occurredAt)}</span></footer></div></div>`).join("");
+  $("#messages").innerHTML = c.messages.map((m) => `<div class="message-row ${m.direction === "ENVIADA" ? "sent" : "received"}"><div class="bubble ${["image", "audio", "video"].includes(m.type) ? `${m.type}-bubble` : ""}">${messageContent(m)}<footer>${m.sentByUser ? `<span class="author">${escapeHtml(m.sentByUser.name)}</span>` : ""}<span>${time(m.occurredAt)}</span></footer></div></div>`).join("");
   renderNotes(c.contact.notes || []);
   $("#messages").scrollTop = $("#messages").scrollHeight;
   if (refreshList) await loadConversations();

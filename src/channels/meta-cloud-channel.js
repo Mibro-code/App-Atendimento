@@ -35,7 +35,7 @@ class MetaCloudChannel {
       const contacts = new Map((value.contacts || []).map((item) => [item.wa_id, item]));
       for (const message of value.messages || []) {
         const contact = contacts.get(message.from) || value.contacts?.[0];
-        const media = message.type === "image" ? message.image : (message.type === "audio" ? message.audio : null);
+        const media = ({ image: message.image, audio: message.audio, video: message.video })[message.type] || null;
         events.push({
           kind: "message", externalId: message.id, contactExternalId: message.from,
           phone: message.from, contactName: contact?.profile?.name || message.from,
@@ -83,10 +83,12 @@ class MetaCloudChannel {
       const extension = ({
         "image/png": "png", "image/jpeg": "jpg", "audio/aac": "aac", "audio/mp4": "m4a",
         "audio/mpeg": "mp3", "audio/amr": "amr", "audio/ogg": "ogg",
+        "video/mp4": "mp4", "video/3gpp": "3gp", "video/3gp": "3gp",
       })[mimeType] || "bin";
+      const mediaKind = mimeType.startsWith("audio/") ? "audio" : (mimeType.startsWith("video/") ? "video" : "imagem");
       return {
         buffer: Buffer.from(media.data), mimeType,
-        fileName: `${mimeType.startsWith("audio/") ? "audio" : "imagem"}-${mediaId}.${extension}`,
+        fileName: `${mediaKind}-${mediaId}.${extension}`,
       };
     } catch (error) {
       throw this.providerFailure(error, "Não foi possível baixar a mídia recebida.");
