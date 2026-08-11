@@ -63,7 +63,7 @@ async function loadConversations() {
   document.querySelectorAll(".conversation-card").forEach((card) => card.addEventListener("click", () => openConversation(card.dataset.id)));
 }
 
-async function openConversation(id) {
+async function openConversation(id, { refreshList = true } = {}) {
   state.selectedId = id; await api(`/api/conversations/${id}/read`, { method:"POST" });
   const c = await api(`/api/conversations/${id}`);
   state.selectedContactId = c.contact.id;
@@ -76,7 +76,30 @@ async function openConversation(id) {
   $("#toggle-finalized").textContent = c.status === "FINALIZADO" ? "Reabrir" : "Finalizar"; $("#toggle-finalized").dataset.status = c.status;
   $("#messages").innerHTML = c.messages.map((m) => `<div class="message-row ${m.direction === "ENVIADA" ? "sent" : "received"}"><div class="bubble"><p>${escapeHtml(m.text || `[${m.type}]`)}</p><footer>${m.sentByUser ? `<span class="author">${escapeHtml(m.sentByUser.name)}</span>` : ""}<span>${time(m.occurredAt)}</span></footer></div></div>`).join("");
   renderNotes(c.contact.notes || []);
-  $("#messages").scrollTop = $("#messages").scrollHeight; await loadConversations();
+  $("#messages").scrollTop = $("#messages").scrollHeight;
+  if (refreshList) await loadConversations();
+}
+
+let realtimeRefreshTimer;
+let realtimeRefreshRunning = false;
+async function refreshInbox() {
+  if (realtimeRefreshRunning) return;
+  realtimeRefreshRunning = true;
+  try {
+    if (state.selectedId) await openConversation(state.selectedId, { refreshList:false });
+    await loadConversations();
+  } finally {
+    realtimeRefreshRunning = false;
+  }
+}
+
+function connectRealtime() {
+  const events = new EventSource("/api/events");
+  events.addEventListener("inbox.updated", () => {
+    clearTimeout(realtimeRefreshTimer);
+    realtimeRefreshTimer = setTimeout(() => refreshInbox().catch(() => {}), 120);
+  });
+  window.addEventListener("beforeunload", () => events.close(), { once:true });
 }
 
 function renderNotes(notes) {
@@ -98,5 +121,7 @@ $("#composer").addEventListener("submit", async (event) => { event.preventDefaul
 $("#message-input").addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); $("#composer").requestSubmit(); } });
 $(".chat-header").addEventListener("click", (event) => { if (innerWidth <= 700 && event.offsetX < 45) $("#chat-panel").classList.remove("open"); });
 
-Promise.all([loadCurrentUser(), loadCategories(), loadConversations()]).catch((error) => toast(error.message, true));
-setInterval(() => { if (!document.hidden) loadConversations().catch(() => {}); }, 5000);
+Promise.all([loadCurrentUser(), loadCategories(), loadConversations()])
+  .then(connectRealtime)
+  .catch((error) => toast(error.message, true));
+setInterval(() => { if (!document.hidden) refreshInbox().catch(() => {}); }, 30000);

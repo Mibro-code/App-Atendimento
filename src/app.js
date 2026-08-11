@@ -10,6 +10,7 @@ const { createInboxController } = require("./controllers/inbox-controller");
 const authController = require("./controllers/auth-controller");
 const { authenticate, requirePageAuth } = require("./middleware/auth");
 const verifyMetaSignature = require("./middleware/meta-signature");
+const inboxEvents = require("./realtime/inbox-events");
 
 function createApp({ channel = new MetaCloudChannel() } = {}) {
   const app = express();
@@ -34,10 +35,18 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   app.post("/webhook/whatsapp", verifyMetaSignature, async (req, res) => {
     try {
       const events = channel.parseWebhook(req.body);
+      let changed = false;
       for (const event of events) {
-        if (event.kind === "message") await saveIncoming(event);
-        if (event.kind === "status") await updateStatus(event);
+        if (event.kind === "message") {
+          const result = await saveIncoming(event);
+          if (!result.duplicate) changed = true;
+        }
+        if (event.kind === "status") {
+          const result = await updateStatus(event);
+          if (result?.count) changed = true;
+        }
       }
+      if (changed) inboxEvents.publish();
       return res.status(200).json({ received: true, processed: events.length });
     } catch (error) {
       console.error("Erro ao processar webhook:", error);
@@ -63,6 +72,7 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   app.get(["/", "/index.html"], requirePageAuth, (_req, res) => res.sendFile(path.join(process.cwd(), "public", "index.html")));
   app.use(express.static("public", { index: false }));
   app.use("/api", authenticate);
+  app.get("/api/events", inboxEvents.handle);
 
   app.get("/api/messages", async (_req, res, next) => {
     try {

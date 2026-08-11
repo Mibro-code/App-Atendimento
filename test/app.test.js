@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
 const { createApp } = require("../src/app");
 const prisma = require("../src/database/prisma");
+const inboxEvents = require("../src/realtime/inbox-events");
 
 test.before(async () => {
   await prisma.contactNote.deleteMany();
@@ -79,6 +80,18 @@ test("entrega o painel e as APIs básicas da caixa de entrada", async () => {
     const summary = await fetch(`${base}/api/conversations/summary`, { headers: { Cookie: cookie } });
     assert.equal(summary.status, 200);
     assert.equal(typeof (await summary.json()).total, "number");
+    assert.equal((await fetch(`${base}/api/events`)).status, 401);
+    const eventAbort = new AbortController();
+    const eventStream = await fetch(`${base}/api/events`, { headers: { Cookie: cookie }, signal: eventAbort.signal });
+    assert.equal(eventStream.status, 200);
+    assert.match(eventStream.headers.get("content-type"), /text\/event-stream/);
+    const eventReader = eventStream.body.getReader();
+    const firstEventChunk = await eventReader.read();
+    assert.match(new TextDecoder().decode(firstEventChunk.value), /connected/);
+    inboxEvents.publish();
+    const publishedEventChunk = await eventReader.read();
+    assert.match(new TextDecoder().decode(publishedEventChunk.value), /event: inbox\.updated/);
+    eventAbort.abort();
     const logout = await fetch(`${base}/api/auth/logout`, { method: "POST", headers: { Cookie: cookie } });
     assert.equal(logout.status, 204);
     assert.equal((await fetch(`${base}/api/conversations`, { headers: { Cookie: cookie } })).status, 401);
