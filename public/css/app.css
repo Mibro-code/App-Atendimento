@@ -6,7 +6,7 @@ button,input,select,textarea { font:inherit; }
 button { cursor:pointer; }
 .topbar { height:76px; padding:0 30px; display:flex; align-items:center; gap:24px; color:var(--ink); background:#fff; border-bottom:1px solid var(--line); }
 .brand { display:flex; align-items:center; gap:14px; font-weight:700; }
-.brand-word { color:var(--orange); font-size:29px; font-weight:800; letter-spacing:.08em; line-height:1; }
+.brand-logo { width:100px; height:auto; display:block; }
 .brand-divider { width:1px; height:26px; background:#dedede; }
 .brand small { color:#606060; font-size:12px; font-weight:500; letter-spacing:.01em; }
 .connection { margin-left:auto; color:#686868; font-size:12px; }.connection span { display:inline-block; width:8px; height:8px; margin-right:7px; border-radius:50%; background:#25d366; box-shadow:0 0 0 3px #e1f8e9; }
