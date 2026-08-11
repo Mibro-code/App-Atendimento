@@ -15,6 +15,7 @@ test.after(async () => {
   await prisma.conversation.deleteMany();
   await prisma.contact.deleteMany();
   await prisma.user.deleteMany({ where: { email: "teste@mibro.local" } });
+  await prisma.category.deleteMany({ where: { code: { startsWith: "FINANCEIRO_TESTE" } } });
   await prisma.$disconnect();
 });
 
@@ -49,12 +50,14 @@ test("registra mensagem enviada e o atendente autor", async () => {
 
 test("lista, pesquisa, classifica, lê, finaliza e reabre a conversa", async () => {
   const category = await prisma.category.findUnique({ where: { code: "SUPORTE" } });
+  const user = await prisma.user.findUnique({ where: { email: "teste@mibro.local" } });
   let conversation = await prisma.conversation.findFirst();
   conversation = await inbox.updateConversation(conversation.id, {
-    categoryId: category.id, status: "EM_ATENDIMENTO",
+    categoryId: category.id, assignedUserId: user.id,
   });
   assert.equal(conversation.category.code, "SUPORTE");
   assert.equal(conversation.status, "EM_ATENDIMENTO");
+  assert.equal(conversation.assignedUser.id, user.id);
 
   const result = await inbox.listConversations({ search: "Cliente", category: "SUPORTE", status: "EM_ATENDIMENTO" });
   assert.equal(result.length, 1);
@@ -66,6 +69,18 @@ test("lista, pesquisa, classifica, lê, finaliza e reabre a conversa", async () 
   assert.ok((await inbox.getConversation(conversation.id)).finalizedAt);
   await inbox.updateConversation(conversation.id, { status: "NOVO" });
   assert.equal((await inbox.getConversation(conversation.id)).finalizedAt, null);
+});
+
+test("cria e edita categorias com código único e cor validada", async () => {
+  const first = await inbox.createCategory({ name: "Financeiro Teste", color: "#EF5B2A" });
+  const second = await inbox.createCategory({ name: "Financeiro Teste", color: "#112233" });
+  assert.equal(first.code, "FINANCEIRO_TESTE");
+  assert.equal(second.code, "FINANCEIRO_TESTE_2");
+  assert.equal(first.color, "#ef5b2a");
+  const updated = await inbox.updateCategory(first.id, { name: "Financeiro", active: false });
+  assert.equal(updated.name, "Financeiro");
+  assert.equal(updated.active, false);
+  await assert.rejects(() => inbox.createCategory({ name: "Cor inválida", color: "laranja" }), /Cor da categoria inválida/);
 });
 
 test("salva notas no contato e mantém busca pelo nome", async () => {

@@ -31,6 +31,16 @@ function createInboxController(channel) {
       }
       catch (error) { return next(error); }
     },
+    async claim(req, res, next) {
+      try {
+        const conversation = await inbox.updateConversation(req.params.id, {
+          assignedUserId: req.user.id,
+          status: "EM_ATENDIMENTO",
+        });
+        inboxEvents.publish();
+        return res.json(conversation);
+      } catch (error) { return next(error); }
+    },
     async read(req, res, next) {
       try { return res.json(await inbox.markAsRead(req.params.id)); }
       catch (error) { return next(error); }
@@ -48,6 +58,13 @@ function createInboxController(channel) {
       try { return res.json(await inbox.listCategories()); }
       catch (error) { return next(error); }
     },
+    async createCategory(req, res, next) {
+      try {
+        const category = await inbox.createCategory(req.body);
+        inboxEvents.publish();
+        return res.status(201).json(category);
+      } catch (error) { return next(error); }
+    },
     async updateCategory(req, res, next) {
       try {
         const category = await inbox.updateCategory(req.params.id, req.body);
@@ -62,6 +79,10 @@ function createInboxController(channel) {
         inboxEvents.publish();
         return res.status(201).json(note);
       } catch (error) { return next(error); }
+    },
+    async users(_req, res, next) {
+      try { return res.json(await inbox.listUsers()); }
+      catch (error) { return next(error); }
     },
   };
 }

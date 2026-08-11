@@ -72,6 +72,12 @@ test("entrega o painel e as APIs básicas da caixa de entrada", async () => {
     const categories = await fetch(`${base}/api/categories`, { headers: { Cookie: cookie } });
     assert.equal(categories.status, 200);
     assert.equal((await categories.json()).length, 7);
+    const users = await fetch(`${base}/api/users`, { headers: { Cookie: cookie } });
+    assert.equal(users.status, 200);
+    assert.equal((await users.json())[0].email, "admin@teste.local");
+    const createdCategory = await fetch(`${base}/api/categories`, { method: "POST", headers: { Cookie: cookie, "Content-Type": "application/json" }, body: JSON.stringify({ name: "Categoria API Teste", color: "#ef5b2a" }) });
+    assert.equal(createdCategory.status, 201);
+    assert.equal((await createdCategory.json()).name, "Categoria API Teste");
     assert.equal((await fetch(`${base}/health`)).status, 200);
     const conversations = await fetch(`${base}/api/conversations`, { headers: { Cookie: cookie } });
     assert.equal(conversations.status, 200);
@@ -101,6 +107,7 @@ test("entrega o painel e as APIs básicas da caixa de entrada", async () => {
     assert.equal(login.status, 200);
   } finally {
     server.close();
+    await prisma.category.deleteMany({ where: { code: { startsWith: "CATEGORIA_API_TESTE" } } });
     await prisma.user.deleteMany({ where: { email: "admin@teste.local" } });
     await prisma.$disconnect();
   }

@@ -1,4 +1,4 @@
-const state = { conversations: [], categories: [], selectedId: null, selectedContactId: null, status: "", category: "", search: "" };
+const state = { conversations: [], categories: [], users: [], currentUser: null, selectedId: null, selectedContactId: null, status: "", category: "", search: "" };
 const $ = (selector) => document.querySelector(selector);
 const escapeHtml = (value = "") => String(value).replace(/[&<>'"]/g, (char) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" })[char]);
 const initials = (name = "?") => name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
@@ -8,7 +8,13 @@ const statusLabel = (value) => ({ NOVO:"Novo", EM_ATENDIMENTO:"Em atendimento", 
 async function loadCurrentUser() {
   const status = await api("/api/auth/status");
   if (!status.authenticated) return location.replace("/login.html");
+  state.currentUser = status.user;
   $("#current-user").textContent = status.user.name;
+}
+
+async function loadUsers() {
+  state.users = await api("/api/users");
+  $("#assignee-select").innerHTML = `<option value="">Sem responsável</option>` + state.users.map((user) => `<option value="${user.id}">${escapeHtml(user.name)}</option>`).join("");
 }
 
 async function api(path, options) {
@@ -21,11 +27,28 @@ function toast(message, error = false) { const el = $("#toast"); el.textContent 
 
 async function loadCategories() {
   state.categories = await api("/api/categories");
-  $("#category-filters").innerHTML = state.categories.filter((c) => c.active).map((c) => `<button class="filter" data-category="${c.code}"><span><i class="category-dot" style="background:${c.color || "#999"}"></i>${escapeHtml(c.name)}</span><strong data-category-count="${c.id}">0</strong></button>`).join("");
-  $("#category-select").innerHTML = `<option value="">Sem categoria</option>` + state.categories.filter((c) => c.active).map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("");
+  const activeCategories = state.categories.filter((c) => c.active);
+  if (state.category && !activeCategories.some((c) => c.code === state.category)) state.category = "";
+  $("#category-filters").innerHTML = activeCategories.map((c) => `<button class="filter" data-category="${c.code}"><span><i class="category-dot" style="background:${c.color || "#999"}"></i>${escapeHtml(c.name)}</span><strong data-category-count="${c.id}">0</strong></button>`).join("");
+  $("#category-select").innerHTML = `<option value="">Sem categoria</option>` + activeCategories.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("");
   document.querySelectorAll("[data-category]").forEach((button) => button.addEventListener("click", () => {
     document.querySelectorAll(".filter").forEach((item) => item.classList.remove("active")); button.classList.add("active"); state.category = button.dataset.category; state.status = ""; loadConversations();
   }));
+  document.querySelectorAll(".filter").forEach((item) => item.classList.remove("active"));
+  const selectedFilter = state.category
+    ? [...document.querySelectorAll("[data-category]")].find((item) => item.dataset.category === state.category)
+    : [...document.querySelectorAll("[data-status]")].find((item) => item.dataset.status === state.status);
+  selectedFilter?.classList.add("active");
+  renderCategoryManager();
+}
+
+function renderCategoryManager() {
+  $("#category-manager-list").innerHTML = state.categories.map((category) => `<form class="category-manager-row" data-category-id="${category.id}">
+    <input class="managed-color" type="color" value="${category.color || "#6b7280"}" aria-label="Cor de ${escapeHtml(category.name)}">
+    <input class="managed-name" maxlength="60" value="${escapeHtml(category.name)}" aria-label="Nome da categoria" required>
+    <label class="active-switch"><input class="managed-active" type="checkbox" ${category.active ? "checked" : ""}><span>${category.active ? "Ativa" : "Inativa"}</span></label>
+    <button type="submit">Salvar</button>
+  </form>`).join("");
 }
 
 async function loadConversations() {
@@ -56,7 +79,7 @@ async function loadConversations() {
       <span class="card-grip" aria-hidden="true"></span><span class="avatar">${escapeHtml(initials(name))}</span><span class="card-main">
       <span class="card-title"><strong>${escapeHtml(name)}</strong><small>${escapeHtml(c.contact.phone)}</small></span>
       <span class="preview">${escapeHtml(last?.text || "Conversa sem mensagens")}</span>
-      <span class="card-labels"><span class="category-label" style="color:${c.category?.color || "#666"};border-color:${c.category?.color || "#aaa"}">${escapeHtml(c.category?.name || "Sem categoria")}</span><span class="status-label">${escapeHtml(statusLabel(c.status))}</span></span>
+      <span class="card-labels"><span class="category-label" style="color:${c.category?.color || "#666"};border-color:${c.category?.color || "#aaa"}">${escapeHtml(c.category?.name || "Sem categoria")}</span><span class="status-label">${escapeHtml(statusLabel(c.status))}</span>${c.assignedUser ? `<span class="assignee-label">${escapeHtml(c.assignedUser.name)}</span>` : ""}</span>
       <span class="note-preview"><b>NOTA</b> ${escapeHtml(note?.content || "Sem notas para este contato")}${c.contact._count?.notes ? `<i>${c.contact._count.notes}</i>` : ""}</span></span>
       <span class="card-side"><span>${time(c.lastMessageAt)}</span>${c.unreadCount ? `<span class="unread">${c.unreadCount}</span>` : ""}</span></button>`;
   }).join("");
@@ -70,9 +93,13 @@ async function openConversation(id, { refreshList = true } = {}) {
   $("#empty-state").hidden = true; $("#chat-content").hidden = false; $("#chat-panel").classList.add("open");
   const name = c.contact.name || c.contact.phone;
   $("#contact-avatar").textContent = initials(name); $("#contact-name").textContent = name; $("#contact-phone").textContent = `+${c.contact.phone}`;
+  if (c.categoryId && ![...$("#category-select").options].some((option) => option.value === c.categoryId)) {
+    $("#category-select").add(new Option(`${c.category?.name || "Categoria"} (inativa)`, c.categoryId, false, false));
+  }
   $("#category-select").value = c.categoryId || "";
   $("#status-badge").className = "status-badge"; $("#status-badge").textContent = statusLabel(c.status);
-  $("#assignment").textContent = c.assignedUser ? `Responsável: ${c.assignedUser.name}` : "Sem atendente responsável";
+  $("#assignee-select").value = c.assignedUserId || "";
+  $("#claim-conversation").hidden = c.assignedUserId === state.currentUser?.id;
   $("#toggle-finalized").textContent = c.status === "FINALIZADO" ? "Reabrir" : "Finalizar"; $("#toggle-finalized").dataset.status = c.status;
   $("#messages").innerHTML = c.messages.map((m) => `<div class="message-row ${m.direction === "ENVIADA" ? "sent" : "received"}"><div class="bubble"><p>${escapeHtml(m.text || `[${m.type}]`)}</p><footer>${m.sentByUser ? `<span class="author">${escapeHtml(m.sentByUser.name)}</span>` : ""}<span>${time(m.occurredAt)}</span></footer></div></div>`).join("");
   renderNotes(c.contact.notes || []);
@@ -86,6 +113,7 @@ async function refreshInbox() {
   if (realtimeRefreshRunning) return;
   realtimeRefreshRunning = true;
   try {
+    await loadCategories();
     if (state.selectedId) await openConversation(state.selectedId, { refreshList:false });
     await loadConversations();
   } finally {
@@ -116,12 +144,20 @@ $("#notes-toggle").addEventListener("click", () => $("#notes-panel").classList.t
 $("#notes-close").addEventListener("click", () => $("#notes-panel").classList.remove("open"));
 $("#note-form").addEventListener("submit", async (event) => { event.preventDefault(); const input = $("#note-input"); const content = input.value.trim(); if (!content) return; try { await api(`/api/contacts/${state.selectedContactId}/notes`, { method:"POST", body:JSON.stringify({ content }) }); input.value = ""; toast("Nota adicionada ao contato."); await openConversation(state.selectedId); $("#notes-panel").classList.add("open"); } catch (e) { toast(e.message, true); } });
 $("#category-select").addEventListener("change", async (event) => { try { await api(`/api/conversations/${state.selectedId}`, { method:"PATCH", body:JSON.stringify({ categoryId:event.target.value || null }) }); toast("Categoria atualizada."); await openConversation(state.selectedId); } catch (e) { toast(e.message, true); } });
+$("#assignee-select").addEventListener("change", async (event) => { try { await api(`/api/conversations/${state.selectedId}`, { method:"PATCH", body:JSON.stringify({ assignedUserId:event.target.value || null }) }); toast(event.target.value ? "Responsável atualizado." : "Conversa sem responsável."); await openConversation(state.selectedId); } catch (e) { toast(e.message, true); } });
+$("#claim-conversation").addEventListener("click", async () => { try { await api(`/api/conversations/${state.selectedId}/claim`, { method:"POST" }); toast("Conversa atribuída a você."); await openConversation(state.selectedId); } catch (e) { toast(e.message, true); } });
+$("#manage-categories").addEventListener("click", () => { renderCategoryManager(); $("#category-dialog").showModal(); });
+$("#close-categories").addEventListener("click", () => $("#category-dialog").close());
+$("#category-dialog").addEventListener("click", (event) => { if (event.target === $("#category-dialog")) $("#category-dialog").close(); });
+$("#category-form").addEventListener("submit", async (event) => { event.preventDefault(); const name = $("#category-name").value.trim(); const color = $("#category-color").value; try { await api("/api/categories", { method:"POST", body:JSON.stringify({ name, color }) }); $("#category-name").value = ""; await loadCategories(); await loadConversations(); toast("Categoria criada."); } catch (e) { toast(e.message, true); } });
+$("#category-manager-list").addEventListener("submit", async (event) => { event.preventDefault(); const row = event.target.closest("[data-category-id]"); const name = row.querySelector(".managed-name").value.trim(); const color = row.querySelector(".managed-color").value; const active = row.querySelector(".managed-active").checked; try { await api(`/api/categories/${row.dataset.categoryId}`, { method:"PATCH", body:JSON.stringify({ name, color, active }) }); await loadCategories(); await loadConversations(); toast("Categoria atualizada."); } catch (e) { toast(e.message, true); } });
+$("#category-manager-list").addEventListener("change", (event) => { if (event.target.classList.contains("managed-active")) event.target.closest("label").querySelector("span").textContent = event.target.checked ? "Ativa" : "Inativa"; });
 $("#toggle-finalized").addEventListener("click", async (event) => { const status = event.target.dataset.status === "FINALIZADO" ? "NOVO" : "FINALIZADO"; try { await api(`/api/conversations/${state.selectedId}`, { method:"PATCH", body:JSON.stringify({ status }) }); toast(status === "FINALIZADO" ? "Atendimento finalizado." : "Atendimento reaberto."); await openConversation(state.selectedId); } catch (e) { toast(e.message, true); } });
 $("#composer").addEventListener("submit", async (event) => { event.preventDefault(); const input = $("#message-input"); const text = input.value.trim(); if (!text) return; $("#send-button").disabled = true; try { await api(`/api/conversations/${state.selectedId}/messages`, { method:"POST", body:JSON.stringify({ text }) }); input.value = ""; await openConversation(state.selectedId); } catch (e) { toast(e.message, true); } finally { $("#send-button").disabled = false; input.focus(); } });
 $("#message-input").addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); $("#composer").requestSubmit(); } });
 $(".chat-header").addEventListener("click", (event) => { if (innerWidth <= 700 && event.offsetX < 45) $("#chat-panel").classList.remove("open"); });
 
-Promise.all([loadCurrentUser(), loadCategories(), loadConversations()])
+Promise.all([loadCurrentUser(), loadUsers(), loadCategories(), loadConversations()])
   .then(connectRealtime)
   .catch((error) => toast(error.message, true));
 setInterval(() => { if (!document.hidden) refreshInbox().catch(() => {}); }, 30000);

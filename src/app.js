@@ -105,10 +105,13 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   app.get("/api/conversations/summary", inbox.summary);
   app.get("/api/conversations/:id", inbox.detail);
   app.patch("/api/conversations/:id", inbox.update);
+  app.post("/api/conversations/:id/claim", inbox.claim);
   app.post("/api/conversations/:id/read", inbox.read);
   app.post("/api/conversations/:id/messages", inbox.reply);
   app.get("/api/categories", inbox.categories);
+  app.post("/api/categories", inbox.createCategory);
   app.patch("/api/categories/:id", inbox.updateCategory);
+  app.get("/api/users", inbox.users);
   app.post("/api/contacts/:contactId/notes", inbox.addNote);
 
   app.use((error, _req, res, _next) => {

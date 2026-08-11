@@ -24,7 +24,7 @@
         <button class="filter" data-status="AGUARDANDO_CLIENTE"><span>Aguardando cliente</span><strong id="count-waiting">0</strong></button>
         <button class="filter" data-status="BOT"><span>Bot</span><strong id="count-bot">0</strong></button>
         <button class="filter" data-status="FINALIZADO"><span>Finalizados</span><strong id="count-finalized">0</strong></button>
-        <p class="nav-title categories-title">CATEGORIAS</p>
+        <div class="categories-heading"><p class="nav-title categories-title">CATEGORIAS</p><button id="manage-categories" type="button" title="Criar e editar categorias" aria-label="Gerenciar categorias">+</button></div>
         <div id="category-filters"></div>
       </nav>
     </aside>
@@ -46,7 +46,11 @@
             <button id="toggle-finalized" class="secondary-action"></button>
           </div>
         </header>
-        <div class="conversation-meta"><span id="status-badge"></span><span id="assignment">Sem atendente responsável</span></div>
+        <div class="conversation-meta">
+          <span id="status-badge"></span>
+          <label class="assignee-control"><span>Responsável</span><select id="assignee-select" aria-label="Atendente responsável"><option value="">Sem responsável</option></select></label>
+          <button id="claim-conversation" class="claim-action" type="button">Assumir conversa</button>
+        </div>
         <div id="messages" class="messages"></div>
         <aside id="notes-panel" class="notes-panel" aria-label="Notas do contato">
           <div class="notes-header"><div><span>CONTATO</span><h3>Notas internas</h3></div><button id="notes-close" type="button">×</button></div>
@@ -61,6 +65,16 @@
       </div>
     </section>
   </main>
+  <dialog id="category-dialog" class="category-dialog">
+    <div class="dialog-header"><div><span>ORGANIZAÇÃO</span><h2>Categorias</h2><p>Crie seções e ajuste como elas aparecem no atendimento.</p></div><button id="close-categories" type="button" aria-label="Fechar">×</button></div>
+    <form id="category-form" class="category-create-form">
+      <label><span>Nome da categoria</span><input id="category-name" maxlength="60" placeholder="Ex.: Financeiro" required></label>
+      <label class="color-field"><span>Cor</span><input id="category-color" type="color" value="#ef5b2a"></label>
+      <button type="submit">Criar categoria</button>
+    </form>
+    <div class="category-manager-title"><strong>Categorias existentes</strong><small>Desative uma categoria para ocultá-la dos novos atendimentos.</small></div>
+    <div id="category-manager-list" class="category-manager-list"></div>
+  </dialog>
   <div id="toast" class="toast" role="status"></div>
   <script src="/js/app.js"></script>
 </body>
