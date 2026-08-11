@@ -93,6 +93,10 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   app.post("/api/auth/logout", authController.logout);
 
   app.get(["/", "/index.html"], requirePageAuth, (_req, res) => res.sendFile(path.join(process.cwd(), "public", "index.html")));
+  app.get("/service-worker.js", (_req, res) => {
+    res.set("Cache-Control", "no-cache, no-store, must-revalidate");
+    return res.sendFile(path.join(process.cwd(), "public", "service-worker.js"));
+  });
   app.use(express.static("public", { index: false }));
   app.use("/api", authenticate);
   app.get("/api/events", inboxEvents.handle);

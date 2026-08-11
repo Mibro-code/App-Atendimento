@@ -3,6 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ef5b2a">
+  <meta name="application-name" content="Mibro Atendimento">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="/assets/app-icon-192.png">
+  <link rel="apple-touch-icon" href="/assets/app-icon-192.png">
   <title>Mibro • Central de Atendimento</title>
   <script>try{const saved=localStorage.getItem("mibro-theme");document.documentElement.dataset.theme=saved||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch{}</script>
   <link rel="stylesheet" href="/css/app.css">
@@ -11,6 +16,7 @@
   <header class="topbar">
     <div class="brand"><img class="brand-logo" src="/assets/mibro-logo.png" alt="Mibro"><span class="brand-divider"></span><small>Central de Atendimento</small></div>
     <div class="connection"><span></span> WhatsApp conectado</div>
+    <button id="install-app" class="install-app" type="button" hidden>Instalar aplicativo</button>
     <button id="team-button" class="team-button" type="button" hidden>Equipe</button>
     <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Usar tema escuro" title="Usar tema escuro"><span id="theme-icon" aria-hidden="true">☾</span></button>
     <button id="user-button" class="user-button" type="button"><span id="current-user">Usuário</span> • Sair</button>
@@ -109,7 +115,9 @@
       </form>
     </div>
   </dialog>
+  <aside id="update-banner" class="update-banner" hidden><span><b>Nova versão disponível</b><small>Atualize para receber as melhorias do atendimento.</small></span><button id="update-later" type="button">Depois</button><button id="apply-update" type="button">Atualizar agora</button></aside>
   <div id="toast" class="toast" role="status"></div>
   <script src="/js/app.js"></script>
+  <script src="/js/pwa.js"></script>
 </body>
 </html>

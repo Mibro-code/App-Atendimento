@@ -60,6 +60,16 @@ test("entrega o painel e as APIs básicas da caixa de entrada", async () => {
     const protectedPage = await fetch(base, { redirect: "manual" });
     assert.equal(protectedPage.status, 302);
     assert.equal(protectedPage.headers.get("location"), "/login.html");
+    const manifestResponse = await fetch(`${base}/manifest.webmanifest`);
+    assert.equal(manifestResponse.status, 200);
+    const manifest = await manifestResponse.json();
+    assert.equal(manifest.display, "standalone");
+    assert.deepEqual(manifest.icons.map(({ sizes }) => sizes), ["192x192", "512x512"]);
+    const serviceWorker = await fetch(`${base}/service-worker.js`);
+    assert.equal(serviceWorker.status, 200);
+    assert.match(serviceWorker.headers.get("cache-control"), /no-cache/);
+    assert.doesNotMatch(await serviceWorker.text(), /"\/api\//);
+    assert.equal((await fetch(`${base}/assets/app-icon-192.png`)).status, 200);
     assert.equal((await fetch(`${base}/api/conversations`)).status, 401);
     const setup = await fetch(`${base}/api/auth/setup`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "Administrador Teste", email: "admin@teste.local", password: "senha-segura-123" }) });
     assert.equal(setup.status, 201);
@@ -68,7 +78,10 @@ test("entrega o painel e as APIs básicas da caixa de entrada", async () => {
     const cookie = setup.headers.get("set-cookie").split(";")[0];
     const page = await fetch(base, { headers: { Cookie: cookie } });
     assert.equal(page.status, 200);
-    assert.match(await page.text(), /Central de Atendimento/);
+    const pageHtml = await page.text();
+    assert.match(pageHtml, /Central de Atendimento/);
+    assert.match(pageHtml, /manifest\.webmanifest/);
+    assert.match(pageHtml, /Atualizar agora/);
     const categories = await fetch(`${base}/api/categories`, { headers: { Cookie: cookie } });
     assert.equal(categories.status, 200);
     assert.equal((await categories.json()).length, 7);
