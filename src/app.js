@@ -137,6 +137,7 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   app.patch("/api/categories/:id", inbox.updateCategory);
   app.get("/api/users", inbox.users);
   app.post("/api/contacts/:contactId/notes", inbox.addNote);
+  app.patch("/api/contacts/:contactId/notes/:noteId", inbox.pinNote);
 
   app.use((error, _req, res, _next) => {
     if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {

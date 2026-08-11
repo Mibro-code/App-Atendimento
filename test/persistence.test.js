@@ -143,13 +143,19 @@ test("salva notas no contato e mantém busca pelo nome", async () => {
   const conversation = await prisma.conversation.findFirst({ include: { contact: true } });
   const note = await inbox.addContactNote(conversation.contactId, { content: "Cliente prefere atendimento no período da tarde." });
   assert.equal(note.content, "Cliente prefere atendimento no período da tarde.");
+  const newerNote = await inbox.addContactNote(conversation.contactId, { content: "Nota criada depois." });
+  const pinned = await inbox.setContactNotePinned(conversation.contactId, note.id, { pinned: true });
+  assert.equal(pinned.pinned, true);
   const detail = await inbox.getConversation(conversation.id);
-  assert.equal(detail.contact.notes.length, 1);
+  assert.equal(detail.contact.notes.length, 2);
+  assert.equal(detail.contact.notes[0].id, note.id);
+  assert.equal(detail.contact.notes[0].pinned, true);
+  assert.equal(detail.contact.notes[1].id, newerNote.id);
   const found = await inbox.listConversations({ search: "Cliente Teste" });
   assert.equal(found.length, 1);
   assert.equal(found[0].contact.name, "Cliente Teste");
   assert.equal(found[0].contact.notes[0].content, "Cliente prefere atendimento no período da tarde.");
-  assert.equal(found[0].contact._count.notes, 1);
+  assert.equal(found[0].contact._count.notes, 2);
 });
 
 test("persiste imagens recebidas e enviadas com autoria", async () => {

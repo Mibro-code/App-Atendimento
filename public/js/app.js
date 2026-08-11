@@ -271,7 +271,7 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
   });
   const messageItems = c.messages.map((message) => JSON.stringify([message.id, message.direction, message.type, message.text, message.occurredAt, message.mediaStorageKey, message.mediaMimeType, message.sentByUser?.id, message.sentByUser?.name]));
   const messagesSignature = JSON.stringify(messageItems);
-  const notesSignature = JSON.stringify((c.contact.notes || []).map((note) => [note.id, note.content, note.createdAt, note.updatedAt, note.author?.name]));
+  const notesSignature = JSON.stringify((c.contact.notes || []).map((note) => [note.id, note.content, note.pinned, note.createdAt, note.updatedAt, note.author?.name]));
   state.selectedContactId = c.contact.id;
   $("#empty-state").hidden = true; $("#chat-content").hidden = false; $("#chat-panel").classList.add("open");
   if (headerSignature !== state.selectedHeaderSignature) {
@@ -339,7 +339,7 @@ function connectRealtime() {
 }
 
 function renderNotes(notes) {
-  $("#notes-list").innerHTML = notes.length ? notes.map((note) => `<article class="note"><p>${escapeHtml(note.content)}</p><footer>${escapeHtml(note.author?.name || "Equipe")} • ${new Intl.DateTimeFormat("pt-BR", { dateStyle:"short", timeStyle:"short" }).format(new Date(note.createdAt))}</footer></article>`).join("") : `<div class="notes-empty">Nenhuma nota adicionada.</div>`;
+  $("#notes-list").innerHTML = notes.length ? notes.map((note) => `<article class="note ${note.pinned ? "pinned" : ""}"><div class="note-heading">${note.pinned ? `<span class="pinned-label">📌 FIXADA</span>` : `<span></span>`}<button class="pin-note" type="button" data-note-id="${escapeHtml(note.id)}" data-pinned="${note.pinned}" title="${note.pinned ? "Desafixar nota" : "Fixar esta nota no topo"}">${note.pinned ? "Desafixar" : "📌 Fixar"}</button></div><p>${escapeHtml(note.content)}</p><footer>${escapeHtml(note.author?.name || "Equipe")} • ${new Intl.DateTimeFormat("pt-BR", { dateStyle:"short", timeStyle:"short" }).format(new Date(note.createdAt))}</footer></article>`).join("") : `<div class="notes-empty">Nenhuma nota adicionada.</div>`;
 }
 
 $("#conversation-list").addEventListener("click", (event) => {
@@ -361,6 +361,7 @@ $("#user-button").addEventListener("click", async () => { await api("/api/auth/l
 $("#notes-toggle").addEventListener("click", () => $("#notes-panel").classList.toggle("open"));
 $("#notes-close").addEventListener("click", () => $("#notes-panel").classList.remove("open"));
 $("#note-form").addEventListener("submit", async (event) => { event.preventDefault(); const input = $("#note-input"); const content = input.value.trim(); if (!content) return; try { await api(`/api/contacts/${state.selectedContactId}/notes`, { method:"POST", body:JSON.stringify({ content }) }); input.value = ""; toast("Nota adicionada ao contato."); await openConversation(state.selectedId); $("#notes-panel").classList.add("open"); } catch (e) { toast(e.message, true); } });
+$("#notes-list").addEventListener("click", async (event) => { const button = event.target.closest(".pin-note"); if (!button) return; button.disabled = true; const pinned = button.dataset.pinned !== "true"; try { await api(`/api/contacts/${state.selectedContactId}/notes/${button.dataset.noteId}`, { method:"PATCH", body:JSON.stringify({ pinned }) }); toast(pinned ? "Nota fixada no topo." : "Nota desafixada."); await openConversation(state.selectedId); $("#notes-panel").classList.add("open"); } catch (e) { button.disabled = false; toast(e.message, true); } });
 async function updateConversationCategory(categoryId) {
   try {
     await api(`/api/conversations/${state.selectedId}`, { method:"PATCH", body:JSON.stringify({ categoryId:categoryId || null }) });

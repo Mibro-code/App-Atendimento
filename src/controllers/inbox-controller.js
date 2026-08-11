@@ -123,6 +123,13 @@ function createInboxController(channel) {
         return res.status(201).json(note);
       } catch (error) { return next(error); }
     },
+    async pinNote(req, res, next) {
+      try {
+        const note = await inbox.setContactNotePinned(req.params.contactId, req.params.noteId, req.body);
+        inboxEvents.publish();
+        return res.json(note);
+      } catch (error) { return next(error); }
+    },
     async users(_req, res, next) {
       try { return res.json(await inbox.listUsers()); }
       catch (error) { return next(error); }

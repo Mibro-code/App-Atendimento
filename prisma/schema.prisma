@@ -61,6 +61,7 @@ model ContactNote {
   contactId String
   authorId  String?
   content   String
+  pinned    Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   contact   Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)

@@ -43,7 +43,7 @@ async function listConversations({ search, category, status }) {
     include: {
       contact: {
         include: {
-          notes: { orderBy: { createdAt: "desc" }, take: 1 },
+          notes: { orderBy: [{ pinned: "desc" }, { createdAt: "desc" }], take: 1 },
           _count: { select: { notes: true } },
         },
       },
@@ -69,7 +69,7 @@ async function getConversation(id) {
         include: {
           notes: {
             include: { author: { select: { id: true, name: true } } },
-            orderBy: { createdAt: "desc" },
+            orderBy: [{ pinned: "desc" }, { createdAt: "desc" }],
           },
         },
       },
@@ -107,6 +107,26 @@ async function addContactNote(contactId, { content, authorId }) {
     if (error.code === "P2003") throw Object.assign(new Error("Contato não encontrado."), { statusCode: 404 });
     throw error;
   }
+}
+
+async function setContactNotePinned(contactId, noteId, { pinned }) {
+  if (typeof pinned !== "boolean") {
+    throw Object.assign(new Error("Informe se a nota deve ser fixada."), { statusCode: 400 });
+  }
+  const note = await prisma.contactNote.findFirst({ where: { id: noteId, contactId } });
+  if (!note) throw Object.assign(new Error("Nota não encontrada."), { statusCode: 404 });
+  return prisma.$transaction(async (transaction) => {
+    if (pinned) {
+      await transaction.contactNote.updateMany({
+        where: { contactId, id: { not: noteId }, pinned: true },
+        data: { pinned: false },
+      });
+    }
+    return transaction.contactNote.update({
+      where: { id: noteId }, data: { pinned },
+      include: { author: { select: { id: true, name: true } } },
+    });
+  });
 }
 
 async function updateConversation(id, { categoryId, status, assignedUserId }) {
@@ -239,5 +259,5 @@ async function listUsers() {
 
 module.exports = {
   addContactNote, conversationStatuses, createCategory, getConversation, getConversationSummary, listCategories,
-  listConversations, listUsers, markAsRead, updateCategory, updateConversation,
+  listConversations, listUsers, markAsRead, setContactNotePinned, updateCategory, updateConversation,
 };
