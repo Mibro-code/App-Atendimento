@@ -3,6 +3,7 @@ const state = {
   selectedId: null, selectedContactId: null, status: "", category: "", search: "",
   categorySignature: "", listSignature: "", selectedHeaderSignature: "",
   selectedMessagesSignature: "", selectedNotesSignature: "", selectedMessageItems: [],
+  expandedCategories: new Set(),
 };
 const $ = (selector) => document.querySelector(selector);
 const escapeHtml = (value = "") => String(value).replace(/[&<>'"]/g, (char) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" })[char]);
@@ -15,6 +16,13 @@ function orderedCategories(categories) {
   const nested = roots.flatMap((root) => [root, ...categories.filter((category) => category.parentId === root.id)]);
   const included = new Set(nested.map((category) => category.id));
   return [...nested, ...categories.filter((category) => !included.has(category.id))];
+}
+function populateSubcategorySelect(parentId, selectedId = "") {
+  const select = $("#subcategory-select");
+  const children = state.categories.filter((category) => category.active && category.parentId === parentId);
+  select.innerHTML = `<option value="">Subcategoria (opcional)</option>` + children.map((category) => `<option value="${category.id}">${escapeHtml(category.name)}</option>`).join("");
+  select.hidden = !parentId || !children.length;
+  if (children.some((category) => category.id === selectedId)) select.value = selectedId;
 }
 function deliveryStatus(status) {
   return ({
@@ -147,7 +155,8 @@ async function api(path, options) {
 function toast(message, error = false) { const el = $("#toast"); el.textContent = message; el.className = `toast show${error ? " error" : ""}`; setTimeout(() => el.className = "toast", 2600); }
 
 async function loadCategories() {
-  const previousSelectedCategory = $("#category-select").value;
+  const previousPrimaryCategory = $("#category-select").value;
+  const previousSubcategory = $("#subcategory-select").value;
   const categories = await api("/api/categories");
   const signature = JSON.stringify(categories.map((category) => [category.id, category.parentId, category.parent?.name, category.code, category.name, category.color, category.active, category.displayOrder]));
   state.categories = categories;
@@ -157,12 +166,26 @@ async function loadCategories() {
   const activeIds = new Set(state.categories.filter((category) => category.active).map((category) => category.id));
   const activeCategories = orderedCategories(state.categories.filter((category) => category.active && (!category.parentId || activeIds.has(category.parentId))));
   if (state.category && !activeCategories.some((c) => c.code === state.category)) state.category = "";
-  $("#category-filters").innerHTML = activeCategories.map((c) => `<button class="filter ${c.parentId ? "subcategory-filter" : ""}" data-category="${c.code}"><span><i class="category-dot" style="background:${c.color || "#999"}"></i>${c.parentId ? "↳ " : ""}${escapeHtml(c.name)}</span><strong data-category-count="${c.id}">0</strong></button>`).join("");
-  $("#category-select").innerHTML = `<option value="">Sem categoria</option>` + activeCategories.map((c) => `<option value="${c.id}">${escapeHtml(categoryLabel(c))}</option>`).join("");
   const roots = activeCategories.filter((category) => !category.parentId);
+  $("#category-filters").innerHTML = roots.map((root) => {
+    const children = activeCategories.filter((category) => category.parentId === root.id);
+    const expanded = state.expandedCategories.has(root.id);
+    return `<div class="category-filter-group"><button class="filter category-parent-filter" data-category="${root.code}" data-category-group="${root.id}" aria-expanded="${expanded}"><span><i class="category-dot" style="background:${root.color || "#999"}"></i>${escapeHtml(root.name)}${children.length ? `<i class="category-chevron" aria-hidden="true">${expanded ? "⌃" : "⌄"}</i>` : ""}</span><strong data-category-count="${root.id}">0</strong></button>${children.length ? `<div class="subcategory-filters" data-category-children="${root.id}" ${expanded ? "" : "hidden"}>${children.map((child) => `<button class="filter subcategory-filter" data-category="${child.code}"><span><i class="category-dot" style="background:${child.color || root.color || "#999"}"></i>↳ ${escapeHtml(child.name)}</span><strong data-category-count="${child.id}">0</strong></button>`).join("")}</div>` : ""}</div>`;
+  }).join("");
+  $("#category-select").innerHTML = `<option value="">Sem categoria</option>` + roots.map((category) => `<option value="${category.id}">${escapeHtml(category.name)}</option>`).join("");
   $("#category-parent").innerHTML = `<option value="">Categoria principal</option>` + roots.map((category) => `<option value="${category.id}">${escapeHtml(category.name)}</option>`).join("");
-  if ([...$("#category-select").options].some((option) => option.value === previousSelectedCategory)) $("#category-select").value = previousSelectedCategory;
+  if ([...$("#category-select").options].some((option) => option.value === previousPrimaryCategory)) $("#category-select").value = previousPrimaryCategory;
+  populateSubcategorySelect($("#category-select").value, previousSubcategory);
   document.querySelectorAll("[data-category]").forEach((button) => button.addEventListener("click", () => {
+    if (button.dataset.categoryGroup) {
+      const groupId = button.dataset.categoryGroup; const children = document.querySelector(`[data-category-children="${groupId}"]`);
+      if (children) {
+        children.hidden = !children.hidden;
+        button.setAttribute("aria-expanded", String(!children.hidden));
+        button.querySelector(".category-chevron").textContent = children.hidden ? "⌄" : "⌃";
+        if (children.hidden) state.expandedCategories.delete(groupId); else state.expandedCategories.add(groupId);
+      }
+    }
     document.querySelectorAll(".filter").forEach((item) => item.classList.remove("active")); button.classList.add("active"); state.category = button.dataset.category; state.status = ""; loadConversations();
   }));
   document.querySelectorAll(".filter").forEach((item) => item.classList.remove("active"));
@@ -170,6 +193,13 @@ async function loadCategories() {
     ? [...document.querySelectorAll("[data-category]")].find((item) => item.dataset.category === state.category)
     : [...document.querySelectorAll("[data-status]")].find((item) => item.dataset.status === state.status);
   selectedFilter?.classList.add("active");
+  if (selectedFilter?.closest(".subcategory-filters")) {
+    const children = selectedFilter.closest(".subcategory-filters"); const groupId = children.dataset.categoryChildren;
+    children.hidden = false; state.expandedCategories.add(groupId);
+    const parentButton = document.querySelector(`[data-category-group="${groupId}"]`);
+    parentButton?.setAttribute("aria-expanded", "true");
+    if (parentButton?.querySelector(".category-chevron")) parentButton.querySelector(".category-chevron").textContent = "⌃";
+  }
   renderCategoryManager();
 }
 
@@ -248,10 +278,18 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
     state.selectedHeaderSignature = headerSignature;
     const name = c.contact.name || c.contact.phone;
     $("#contact-avatar").textContent = initials(name); $("#contact-name").textContent = name; $("#contact-phone").textContent = `+${c.contact.phone}`;
-    if (c.categoryId && ![...$("#category-select").options].some((option) => option.value === c.categoryId)) {
-      $("#category-select").add(new Option(`${categoryLabel(c.category)} (inativa)`, c.categoryId, false, false));
+    const primaryCategory = c.category?.parent || (c.category && !c.category.parentId ? c.category : null);
+    const primaryId = primaryCategory?.id || "";
+    if (primaryId && ![...$("#category-select").options].some((option) => option.value === primaryId)) {
+      $("#category-select").add(new Option(`${primaryCategory.name || "Categoria"} (inativa)`, primaryId, false, false));
     }
-    $("#category-select").value = c.categoryId || "";
+    $("#category-select").value = primaryId;
+    const selectedSubcategory = c.category?.parentId ? c.categoryId : "";
+    populateSubcategorySelect(primaryId, selectedSubcategory);
+    if (selectedSubcategory && ![...$("#subcategory-select").options].some((option) => option.value === selectedSubcategory)) {
+      $("#subcategory-select").add(new Option(`${c.category.name} (inativa)`, selectedSubcategory, false, true));
+      $("#subcategory-select").hidden = false;
+    }
     $("#status-badge").className = "status-badge"; $("#status-badge").textContent = statusLabel(c.status);
     $("#assignee-select").value = c.assignedUserId || "";
     $("#claim-conversation").hidden = c.assignedUserId === state.currentUser?.id;
@@ -323,7 +361,20 @@ $("#user-button").addEventListener("click", async () => { await api("/api/auth/l
 $("#notes-toggle").addEventListener("click", () => $("#notes-panel").classList.toggle("open"));
 $("#notes-close").addEventListener("click", () => $("#notes-panel").classList.remove("open"));
 $("#note-form").addEventListener("submit", async (event) => { event.preventDefault(); const input = $("#note-input"); const content = input.value.trim(); if (!content) return; try { await api(`/api/contacts/${state.selectedContactId}/notes`, { method:"POST", body:JSON.stringify({ content }) }); input.value = ""; toast("Nota adicionada ao contato."); await openConversation(state.selectedId); $("#notes-panel").classList.add("open"); } catch (e) { toast(e.message, true); } });
-$("#category-select").addEventListener("change", async (event) => { try { await api(`/api/conversations/${state.selectedId}`, { method:"PATCH", body:JSON.stringify({ categoryId:event.target.value || null }) }); toast("Categoria atualizada."); await openConversation(state.selectedId); } catch (e) { toast(e.message, true); } });
+async function updateConversationCategory(categoryId) {
+  try {
+    await api(`/api/conversations/${state.selectedId}`, { method:"PATCH", body:JSON.stringify({ categoryId:categoryId || null }) });
+    toast("Categoria atualizada."); await openConversation(state.selectedId);
+  } catch (e) { toast(e.message, true); await openConversation(state.selectedId, { markRead:false }); }
+}
+$("#category-select").addEventListener("change", async (event) => {
+  const primaryId = event.target.value;
+  populateSubcategorySelect(primaryId);
+  await updateConversationCategory(primaryId);
+});
+$("#subcategory-select").addEventListener("change", async (event) => {
+  await updateConversationCategory(event.target.value || $("#category-select").value);
+});
 $("#assignee-select").addEventListener("change", async (event) => { try { await api(`/api/conversations/${state.selectedId}`, { method:"PATCH", body:JSON.stringify({ assignedUserId:event.target.value || null }) }); toast(event.target.value ? "Responsável atualizado." : "Conversa sem responsável."); await openConversation(state.selectedId); } catch (e) { toast(e.message, true); } });
 $("#claim-conversation").addEventListener("click", async () => { try { await api(`/api/conversations/${state.selectedId}/claim`, { method:"POST" }); toast("Conversa atribuída a você."); await openConversation(state.selectedId); } catch (e) { toast(e.message, true); } });
 $("#manage-categories").addEventListener("click", () => { renderCategoryManager(); $("#category-dialog").showModal(); });
