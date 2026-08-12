@@ -40,6 +40,10 @@ function categoryLabelForHistory(category) {
   return category?.parent ? `${category.parent.name}: ${category.name}` : category?.name;
 }
 
+function categorySectorId(category) {
+  return category?.parentId || category?.id || null;
+}
+
 async function listConversations({ search, category, status, assignedUser, activeOnly }, viewer) {
   const where = {};
   if (status) where.status = status;
@@ -297,13 +301,17 @@ async function updateConversation(id, { categoryId, status, assignedUserId }, vi
   if (status && !conversationStatuses.has(status)) {
     throw Object.assign(new Error("Status inválido."), { statusCode: 400 });
   }
+  let targetCategory = currentSnapshot.category;
   if (categoryId) {
-    const category = await prisma.category.findFirst({ where: { id: categoryId, active: true } });
-    if (!category) throw Object.assign(new Error("Categoria não encontrada ou inativa."), { statusCode: 400 });
+    targetCategory = await prisma.category.findFirst({
+      where: { id: categoryId, active: true }, include: { parent: true },
+    });
+    if (!targetCategory) throw Object.assign(new Error("Categoria não encontrada ou inativa."), { statusCode: 400 });
     if (!(await authorization.canAccessCategory(viewer, categoryId))) {
       throw authorization.forbidden("Você não possui acesso à categoria selecionada.");
     }
   }
+  if (categoryId === null) targetCategory = null;
   if (categoryId === null && !(await authorization.canAccessCategory(viewer, null))) {
     throw authorization.forbidden("Você não pode remover a categoria desta conversa.");
   }
@@ -321,6 +329,9 @@ async function updateConversation(id, { categoryId, status, assignedUserId }, vi
   const data = {};
   if (categoryId !== undefined) data.categoryId = categoryId || null;
   if (assignedUserId !== undefined) data.assignedUserId = assignedUserId || null;
+  const sectorChanged = categoryId !== undefined
+    && categorySectorId(currentSnapshot.category) !== categorySectorId(targetCategory);
+  if (sectorChanged && assignedUserId === undefined) data.assignedUserId = null;
   if (status) {
     data.status = status;
     data.finalizedAt = status === "FINALIZADO" ? new Date() : null;
@@ -338,14 +349,14 @@ async function updateConversation(id, { categoryId, status, assignedUserId }, vi
       });
       const activities = [];
       if (categoryId !== undefined && currentSnapshot.categoryId !== updated.categoryId
-        && currentSnapshot.assignedUserId !== viewer.id) {
+        && (sectorChanged || currentSnapshot.assignedUserId !== viewer.id)) {
         activities.push(activityRecord(id, viewer.id, "CATEGORY_CHANGED", {
           from: currentSnapshot.category ? categoryLabelForHistory(currentSnapshot.category) : "Sem categoria",
           to: updated.category ? categoryLabelForHistory(updated.category) : "Sem categoria",
           fromCategoryId: currentSnapshot.categoryId, toCategoryId: updated.categoryId,
         }));
       }
-      if (assignedUserId !== undefined && currentSnapshot.assignedUserId !== updated.assignedUserId) {
+      if (currentSnapshot.assignedUserId !== updated.assignedUserId) {
         const action = !updated.assignedUserId ? "ASSIGNEE_REMOVED"
           : !currentSnapshot.assignedUserId && updated.assignedUserId === viewer.id ? "CONVERSATION_CLAIMED"
             : "CONVERSATION_TRANSFERRED";

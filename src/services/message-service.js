@@ -46,6 +46,31 @@ async function updateStatus(event) {
   return prisma.message.updateMany({ where: { externalId: event.externalId }, data: { status: statuses[event.status] } });
 }
 
+async function updateConversationAfterSending({ conversationId, sentByUserId, occurredAt }) {
+  return prisma.$transaction(async (transaction) => {
+    await transaction.conversation.update({ where: { id: conversationId }, data: {
+      lastMessageAt: occurredAt, status: "EM_ATENDIMENTO", finalizedAt: null,
+    } });
+    if (!sentByUserId) return false;
+    const claimed = await transaction.conversation.updateMany({
+      where: { id: conversationId, assignedUserId: null },
+      data: { assignedUserId: sentByUserId },
+    });
+    if (!claimed.count) return false;
+    const sender = await transaction.user.findUnique({
+      where: { id: sentByUserId }, select: { name: true },
+    });
+    await transaction.conversationActivity.create({ data: {
+      conversationId, actorUserId: sentByUserId, action: "CONVERSATION_CLAIMED",
+      details: {
+        from: "Sem responsável", to: sender?.name || "Atendente",
+        fromUserId: null, toUserId: sentByUserId, automatic: true,
+      },
+    } });
+    return true;
+  });
+}
+
 async function sendText({ conversationId, text, sentByUserId, channel }) {
   const conversation = await prisma.conversation.findUnique({ where: { id: conversationId }, include: { contact: true, category: { include: { parent: true } } } });
   if (!conversation) throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
@@ -59,9 +84,7 @@ async function sendText({ conversationId, text, sentByUserId, channel }) {
     conversationId, externalId: result.externalId, channel: conversation.channel, direction: "ENVIADA",
     status: "ENVIADA", type: "text", text, occurredAt, sentByUserId: sentByUserId || null, rawPayload: result.data,
   } });
-  await prisma.conversation.update({ where: { id: conversationId }, data: {
-    lastMessageAt: occurredAt, status: "EM_ATENDIMENTO", finalizedAt: null,
-  } });
+  await updateConversationAfterSending({ conversationId, sentByUserId, occurredAt });
   return { message, providerData: result.data };
 }
 
@@ -92,9 +115,7 @@ async function sendImage({ conversationId, buffer, mimeType, fileName, caption, 
     occurredAt, sentByUserId: sentByUserId || null,
     rawPayload: { message: result.data, mediaId: result.mediaId },
   } });
-  await prisma.conversation.update({ where: { id: conversationId }, data: {
-    lastMessageAt: occurredAt, status: "EM_ATENDIMENTO", finalizedAt: null,
-  } });
+  await updateConversationAfterSending({ conversationId, sentByUserId, occurredAt });
   return { message, providerData: result.data };
 }
 

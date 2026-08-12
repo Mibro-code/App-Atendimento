@@ -25,6 +25,7 @@ test.after(async () => {
   await prisma.category.deleteMany({ where: { OR: [
     { code: { startsWith: "FINANCEIRO_TESTE" } },
     { code: { startsWith: "SUPORTE_VIP_TESTE" } },
+    { code: { startsWith: "SUPORTE_FILHO_RESPONSAVEL_TESTE" } },
   ] } });
   await fs.rm(mediaTestDir, { recursive: true, force: true });
   await prisma.$disconnect();
@@ -64,7 +65,12 @@ test("registra mensagem enviada e o atendente autor", async () => {
   assert.equal(result.message.direction, "ENVIADA");
   assert.equal(result.message.sentByUserId, user.id);
   assert.equal(await prisma.message.count(), 2);
-  assert.equal((await prisma.conversation.findUnique({ where: { id: conversation.id } })).status, "EM_ATENDIMENTO");
+  const updatedConversation = await prisma.conversation.findUnique({ where: { id: conversation.id } });
+  assert.equal(updatedConversation.status, "EM_ATENDIMENTO");
+  assert.equal(updatedConversation.assignedUserId, user.id);
+  assert.equal(await prisma.conversationActivity.count({
+    where: { conversationId: conversation.id, action: "CONVERSATION_CLAIMED", actorUserId: user.id },
+  }), 1);
 });
 
 test("lista, pesquisa, classifica, lê, finaliza e reabre a conversa", async () => {
@@ -221,11 +227,19 @@ test("fixa conversas por conta, restringe exclusão de notas e registra o histó
   assert.equal(activeAssignments.some(({ id }) => id === conversation.id), false);
   await inbox.updateConversation(conversation.id, { status: "NOVO", assignedUserId: master.id }, { id: master.id, role: "ADMIN" });
   const commercial = await prisma.category.findUnique({ where: { code: "COMERCIAL" } });
+  const supportChild = await inbox.createCategory({
+    name: "Suporte Filho Responsavel Teste", parentId: support.id,
+  }, { id: master.id, role: "ADMIN" });
   const categoryActivitiesBefore = await prisma.conversationActivity.count({ where: { conversationId: conversation.id, action: "CATEGORY_CHANGED" } });
+  await inbox.updateConversation(conversation.id, { categoryId: supportChild.id }, { id: master.id, role: "ADMIN" });
+  assert.equal((await prisma.conversation.findUnique({ where: { id: conversation.id } })).assignedUserId, master.id);
   await inbox.updateConversation(conversation.id, { categoryId: commercial.id }, { id: master.id, role: "ADMIN" });
+  assert.equal((await prisma.conversation.findUnique({ where: { id: conversation.id } })).assignedUserId, null);
   await inbox.updateConversation(conversation.id, { categoryId: support.id }, { id: master.id, role: "ADMIN" });
   const categoryActivitiesAfter = await prisma.conversationActivity.count({ where: { conversationId: conversation.id, action: "CATEGORY_CHANGED" } });
-  assert.equal(categoryActivitiesAfter, categoryActivitiesBefore);
+  assert.equal(categoryActivitiesAfter, categoryActivitiesBefore + 2);
+  assert.ok((await inbox.getConversation(conversation.id, { id: master.id, role: "ADMIN" })).activities
+    .some(({ action, details }) => action === "ASSIGNEE_REMOVED" && details.fromUserId === master.id));
   await prisma.user.delete({ where: { id: handoffAgent.id } });
   await prisma.user.delete({ where: { id: otherMaster.id } });
 });
@@ -233,6 +247,7 @@ test("fixa conversas por conta, restringe exclusão de notas e registra o histó
 test("persiste imagens recebidas e enviadas com autoria", async () => {
   const conversation = await prisma.conversation.findFirst();
   const user = await prisma.user.findUnique({ where: { email: "teste@mibro.local" } });
+  await prisma.conversation.update({ where: { id: conversation.id }, data: { assignedUserId: null } });
   const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.from("imagem-recebida")]);
   const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from("imagem-enviada")]);
   const incoming = await saveIncoming({
@@ -254,6 +269,7 @@ test("persiste imagens recebidas e enviadas com autoria", async () => {
   assert.equal(outgoing.message.sentByUserId, user.id);
   assert.equal(outgoing.message.mediaMimeType, "image/png");
   assert.equal(outgoing.message.text, "Imagem enviada");
+  assert.equal((await prisma.conversation.findUnique({ where: { id: conversation.id } })).assignedUserId, user.id);
   assert.equal(providerCaption, "[*Suporte*]\n\nImagem enviada");
   assert.deepEqual(await fs.readFile(resolveImage(outgoing.message.mediaStorageKey)), png);
 });
