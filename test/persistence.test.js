@@ -244,6 +244,48 @@ test("fixa conversas por conta, restringe exclusão de notas e registra o histó
   await prisma.user.delete({ where: { id: otherMaster.id } });
 });
 
+test("permite ao atendente autorizado transferir setores e oculta mensagens anteriores", async () => {
+  const conversation = await prisma.conversation.findFirst();
+  await prisma.message.updateMany({
+    where: { conversationId: conversation.id }, data: { occurredAt: new Date(Date.now() - 1000) },
+  });
+  const support = await prisma.category.findUnique({ where: { code: "SUPORTE" } });
+  const commercial = await prisma.category.findUnique({ where: { code: "COMERCIAL" } });
+  await inbox.updateConversation(conversation.id, { categoryId: support.id, assignedUserId: null }, masterViewer);
+  const transferAgent = await prisma.user.create({
+    data: {
+      name: "Atendente Comercial", email: "transferencia-setor@mibro.local", role: "ATENDENTE",
+      canTransferConversations: true, canViewPreviousMessages: false,
+      categoryAccess: { create: [{ categoryId: commercial.id }] },
+    },
+  });
+  const viewer = {
+    id: transferAgent.id, role: "ATENDENTE", canTransferConversations: true,
+    canViewPreviousMessages: false,
+  };
+
+  await inbox.updateConversation(conversation.id, { categoryId: commercial.id }, masterViewer);
+  const sectorLimited = await inbox.getConversation(conversation.id, viewer);
+  assert.equal(sectorLimited.messageHistoryLimited, true);
+  assert.equal(sectorLimited.messages.length, 0);
+
+  await inbox.updateConversation(conversation.id, { assignedUserId: transferAgent.id }, masterViewer);
+  const visibleMessage = await prisma.message.create({ data: {
+    conversationId: conversation.id, direction: "RECEBIDA", status: "RECEBIDA", type: "text",
+    text: "Mensagem recebida depois do encaminhamento", occurredAt: new Date(Date.now() + 1000),
+  } });
+  const assignedLimited = await inbox.getConversation(conversation.id, viewer);
+  assert.equal(assignedLimited.messageHistoryLimited, true);
+  assert.deepEqual(assignedLimited.messages.map(({ id }) => id), [visibleMessage.id]);
+
+  const categories = await inbox.listCategories(viewer);
+  assert.equal(categories.find(({ id }) => id === support.id).selectable, true);
+  const moved = await inbox.updateConversation(conversation.id, { categoryId: support.id }, viewer);
+  assert.equal(moved.categoryId, support.id);
+  assert.equal(moved.assignedUserId, null);
+  await prisma.user.delete({ where: { id: transferAgent.id } });
+});
+
 test("persiste imagens recebidas e enviadas com autoria", async () => {
   const conversation = await prisma.conversation.findFirst();
   const user = await prisma.user.findUnique({ where: { email: "teste@mibro.local" } });

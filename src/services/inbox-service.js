@@ -155,12 +155,27 @@ async function getConversation(id, viewer) {
   });
   if (!access) return null;
   let messagesSince = null;
-  if (!authorization.isMaster(viewer) && !viewer.canViewPreviousMessages && access.assignedUserId === viewer.id) {
+  if (!authorization.isMaster(viewer) && !viewer.canViewPreviousMessages) {
     const transfers = await prisma.conversationActivity.findMany({
-      where: { conversationId: id, action: "CONVERSATION_TRANSFERRED" },
+      where: { conversationId: id, action: { in: ["CONVERSATION_TRANSFERRED", "CATEGORY_CHANGED"] } },
       select: { createdAt: true, details: true }, orderBy: { createdAt: "desc" }, take: 100,
     });
-    messagesSince = transfers.find((activity) => activity.details?.toUserId === viewer.id)?.createdAt || null;
+    const categoryIds = [...new Set(transfers.flatMap(({ details }) => [
+      details?.fromCategoryId, details?.toCategoryId,
+    ]).filter(Boolean))];
+    const categories = categoryIds.length ? await prisma.category.findMany({
+      where: { id: { in: categoryIds } }, select: { id: true, parentId: true },
+    }) : [];
+    const categorySectors = new Map(categories.map((category) => [category.id, category.parentId || category.id]));
+    const allowedCategoryIds = new Set(await authorization.allowedCategoryIds(viewer));
+    messagesSince = transfers.find((activity) => {
+      if (activity.details?.toUserId === viewer.id) return true;
+      const fromCategoryId = activity.details?.fromCategoryId || null;
+      const toCategoryId = activity.details?.toCategoryId || null;
+      if (!allowedCategoryIds.has(toCategoryId)) return false;
+      return (categorySectors.get(fromCategoryId) || fromCategoryId)
+        !== (categorySectors.get(toCategoryId) || toCategoryId);
+    })?.createdAt || null;
   }
   return prisma.conversation.findFirst({
     where: { AND: [{ id }, scope] },
@@ -307,12 +322,13 @@ async function updateConversation(id, { categoryId, status, assignedUserId }, vi
       where: { id: categoryId, active: true }, include: { parent: true },
     });
     if (!targetCategory) throw Object.assign(new Error("Categoria não encontrada ou inativa."), { statusCode: 400 });
-    if (!(await authorization.canAccessCategory(viewer, categoryId))) {
+    if (!authorization.canTransfer(viewer) && !(await authorization.canAccessCategory(viewer, categoryId))) {
       throw authorization.forbidden("Você não possui acesso à categoria selecionada.");
     }
   }
   if (categoryId === null) targetCategory = null;
-  if (categoryId === null && !(await authorization.canAccessCategory(viewer, null))) {
+  if (categoryId === null && !authorization.canTransfer(viewer)
+    && !(await authorization.canAccessCategory(viewer, null))) {
     throw authorization.forbidden("Você não pode remover a categoria desta conversa.");
   }
   if (assignedUserId) {
@@ -354,6 +370,7 @@ async function updateConversation(id, { categoryId, status, assignedUserId }, vi
           from: currentSnapshot.category ? categoryLabelForHistory(currentSnapshot.category) : "Sem categoria",
           to: updated.category ? categoryLabelForHistory(updated.category) : "Sem categoria",
           fromCategoryId: currentSnapshot.categoryId, toCategoryId: updated.categoryId,
+          sectorChanged,
         }));
       }
       if (currentSnapshot.assignedUserId !== updated.assignedUserId) {
@@ -425,7 +442,7 @@ async function markAsRead(id, { channel } = {}) {
 async function listCategories(viewer) {
   let where;
   let selectableIds = null;
-  if (!authorization.isMaster(viewer) && !viewer.canManageCategories) {
+  if (!authorization.isMaster(viewer) && !viewer.canManageCategories && !authorization.canTransfer(viewer)) {
     const categoryIds = await authorization.allowedCategoryIds(viewer);
     selectableIds = new Set(categoryIds);
     where = { OR: [
