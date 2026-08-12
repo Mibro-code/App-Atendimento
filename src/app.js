@@ -52,11 +52,12 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
       let changed = false;
       for (const event of events) {
         if (event.kind === "message") {
-          if (["image", "audio", "video"].includes(event.type) && event.mediaId) {
+          if (["image", "audio", "video", "sticker"].includes(event.type) && event.mediaId) {
             const existing = await prisma.message.findUnique({ where: { externalId: event.externalId }, select: { id: true } });
             if (existing) continue;
             const media = await channel.downloadMedia(event.mediaId, {
-              maxSize: event.type === "image" ? 5 * 1024 * 1024 : 16 * 1024 * 1024,
+              maxSize: event.type === "sticker" ? 500 * 1024
+                : (event.type === "image" ? 5 * 1024 * 1024 : 16 * 1024 * 1024),
             });
             event.mediaBuffer = media.buffer;
             event.mediaMimeType = media.mimeType;
@@ -64,7 +65,7 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
           }
           const result = await saveIncoming(event);
           if (!result.duplicate) {
-            await handleIncomingTriage(event, result.message, channel);
+            if (event.type !== "reaction") await handleIncomingTriage(event, result.message, channel);
             changed = true;
           }
         }

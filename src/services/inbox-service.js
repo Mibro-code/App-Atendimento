@@ -76,7 +76,7 @@ async function listConversations({ search, category, status, assignedUser, activ
       },
       category: { include: { parent: true } },
       assignedUser: { select: { id: true, name: true, email: true } },
-      messages: { orderBy: { occurredAt: "desc" }, take: 1 },
+      messages: { where: { type: { not: "reaction" } }, orderBy: { occurredAt: "desc" }, take: 1 },
       pins: { where: { userId: viewer.id }, select: { createdAt: true }, take: 1 },
     },
     orderBy: [{ lastMessageAt: "desc" }, { createdAt: "desc" }],
@@ -104,7 +104,7 @@ async function getUserAlerts({ since }, viewer) {
   const [messages, activities] = await Promise.all([
     prisma.message.findMany({
       where: {
-        occurredAt: { gt: occurredAfter, lte: checkedAt }, direction: "RECEBIDA",
+        occurredAt: { gt: occurredAfter, lte: checkedAt }, direction: "RECEBIDA", type: { not: "reaction" },
         conversation: { is: waitingForViewer },
       },
       include: { conversation: { include: { contact: true, category: { include: { parent: true } } } } },

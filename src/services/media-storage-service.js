@@ -3,11 +3,13 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+const MAX_STICKER_SIZE = 500 * 1024;
 const MAX_AUDIO_SIZE = 16 * 1024 * 1024;
 const MAX_VIDEO_SIZE = 16 * 1024 * 1024;
 const mediaExtensions = new Map([
   ["image/jpeg", ".jpg"],
   ["image/png", ".png"],
+  ["image/webp", ".webp"],
   ["audio/aac", ".aac"],
   ["audio/mp4", ".m4a"],
   ["audio/mpeg", ".mp3"],
@@ -56,6 +58,22 @@ function validateAudio({ buffer, mimeType }) {
   }
 }
 
+function validateSticker({ buffer, mimeType }) {
+  mimeType = normalizeMimeType(mimeType);
+  if (!Buffer.isBuffer(buffer) || !buffer.length) {
+    throw Object.assign(new Error("A figurinha está vazia."), { statusCode: 400 });
+  }
+  if (buffer.length > MAX_STICKER_SIZE) {
+    throw Object.assign(new Error("A figurinha deve ter no máximo 500 KB."), { statusCode: 413 });
+  }
+  const validWebp = mimeType === "image/webp" && buffer.length >= 12
+    && buffer.subarray(0, 4).toString("ascii") === "RIFF"
+    && buffer.subarray(8, 12).toString("ascii") === "WEBP";
+  if (!validWebp) {
+    throw Object.assign(new Error("A figurinha não contém um arquivo WebP válido."), { statusCode: 400 });
+  }
+}
+
 function validateVideo({ buffer, mimeType }) {
   mimeType = normalizeMimeType(mimeType);
   if (!Buffer.isBuffer(buffer) || !buffer.length) {
@@ -74,7 +92,8 @@ function storageRoot() {
 }
 
 function safeFileName(value, mimeType) {
-  const mediaKind = mimeType.startsWith("audio/") ? "audio" : (mimeType.startsWith("video/") ? "video" : "imagem");
+  const mediaKind = mimeType === "image/webp" ? "figurinha"
+    : (mimeType.startsWith("audio/") ? "audio" : (mimeType.startsWith("video/") ? "video" : "imagem"));
   const fallback = `${mediaKind}${mediaExtensions.get(mimeType)}`;
   const name = path.basename(typeof value === "string" ? value : fallback)
     .replace(/[^a-zA-Z0-9._ -]/g, "_").slice(0, 120);
@@ -85,6 +104,7 @@ async function storeMedia({ buffer, mimeType, fileName, stableId, kind }) {
   mimeType = normalizeMimeType(mimeType);
   if (kind === "audio") validateAudio({ buffer, mimeType });
   else if (kind === "video") validateVideo({ buffer, mimeType });
+  else if (kind === "sticker") validateSticker({ buffer, mimeType });
   else validateImage({ buffer, mimeType });
   const extension = mediaExtensions.get(mimeType);
   const identity = stableId
@@ -108,8 +128,12 @@ async function storeVideo(options) {
   return storeMedia({ ...options, kind: "video" });
 }
 
+async function storeSticker(options) {
+  return storeMedia({ ...options, kind: "sticker" });
+}
+
 function resolveMedia(storageKey) {
-  if (!/^[a-f0-9]{32,64}\.(jpg|png|aac|m4a|mp3|amr|ogg|mp4|3gp)$/.test(storageKey || "")) {
+  if (!/^[a-f0-9]{32,64}\.(jpg|png|webp|aac|m4a|mp3|amr|ogg|mp4|3gp)$/.test(storageKey || "")) {
     throw Object.assign(new Error("Mídia inválida."), { statusCode: 404 });
   }
   return path.join(storageRoot(), storageKey);
@@ -123,6 +147,6 @@ async function removeImage(storageKey) {
 }
 
 module.exports = {
-  MAX_AUDIO_SIZE, MAX_IMAGE_SIZE, MAX_VIDEO_SIZE, normalizeMimeType, removeImage, resolveImage, resolveMedia,
-  storeAudio, storeImage, storeVideo, validateAudio, validateImage, validateVideo,
+  MAX_AUDIO_SIZE, MAX_IMAGE_SIZE, MAX_STICKER_SIZE, MAX_VIDEO_SIZE, normalizeMimeType, removeImage, resolveImage, resolveMedia,
+  storeAudio, storeImage, storeSticker, storeVideo, validateAudio, validateImage, validateSticker, validateVideo,
 };

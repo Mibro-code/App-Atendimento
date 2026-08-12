@@ -1,6 +1,6 @@
 const prisma = require("../database/prisma");
 const { findOrCreateMetaConversation } = require("./conversation-service");
-const { removeImage, storeAudio, storeImage, storeVideo } = require("./media-storage-service");
+const { removeImage, storeAudio, storeImage, storeSticker, storeVideo } = require("./media-storage-service");
 const { formatTeamMessage } = require("./team-message-formatter");
 const statuses = { sent: "ENVIADA", delivered: "ENTREGUE", read: "LIDA", failed: "FALHOU" };
 const closingMessage = "Agradecemos pelo seu contato. Se precisar de qualquer ajuda, estamos à disposição. Você pode voltar a falar conosco quando quiser.";
@@ -11,7 +11,7 @@ async function saveIncoming(event) {
       const existing = await tx.message.findUnique({ where: { externalId: event.externalId } });
       if (existing) return { message: existing, duplicate: true };
       const { conversation } = await findOrCreateMetaConversation(event, tx);
-      const mediaStore = ({ audio: storeAudio, video: storeVideo })[event.type] || storeImage;
+      const mediaStore = ({ audio: storeAudio, video: storeVideo, sticker: storeSticker })[event.type] || storeImage;
       const media = event.mediaBuffer ? await mediaStore({
         buffer: event.mediaBuffer, mimeType: event.mediaMimeType,
         fileName: event.mediaFileName, stableId: event.externalId,
@@ -23,15 +23,19 @@ async function saveIncoming(event) {
         mediaFileName: media?.fileName, mediaSize: media?.size,
         occurredAt: event.occurredAt, rawPayload: event.rawPayload,
       } });
-      await tx.conversation.update({ where: { id: conversation.id }, data: {
-        unreadCount: { increment: 1 }, lastMessageAt: event.occurredAt,
-        categoryId: conversation.status === "FINALIZADO" ? null : conversation.categoryId,
-        assignedUserId: conversation.status === "FINALIZADO" ? null : conversation.assignedUserId,
-        status: conversation.status === "FINALIZADO" || conversation.status === "NOVO" ? "NOVO"
-          : conversation.status === "BOT" ? "BOT"
-            : "AGUARDANDO_RESPOSTA",
-        finalizedAt: conversation.status === "FINALIZADO" ? null : conversation.finalizedAt,
-      } });
+      if (event.type !== "reaction") {
+        await tx.conversation.update({ where: { id: conversation.id }, data: {
+          unreadCount: { increment: 1 }, lastMessageAt: event.occurredAt,
+        } });
+        await tx.conversation.updateMany({
+          where: { id: conversation.id, status: "FINALIZADO" },
+          data: { categoryId: null, assignedUserId: null, status: "NOVO", finalizedAt: null },
+        });
+        await tx.conversation.updateMany({
+          where: { id: conversation.id, status: { in: ["EM_ATENDIMENTO", "AGUARDANDO_RESPOSTA"] } },
+          data: { status: "AGUARDANDO_RESPOSTA" },
+        });
+      }
       return { message, duplicate: false };
     });
   } catch (error) {

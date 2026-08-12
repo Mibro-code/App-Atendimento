@@ -87,6 +87,7 @@ const messagePreview = (message) => {
   if (message.type === "image") return message.text && message.text !== "[image]" ? `📷 ${message.text}` : "📷 Imagem";
   if (message.type === "audio") return "▶ Áudio";
   if (message.type === "video") return message.text && message.text !== "[video]" ? `🎬 ${message.text}` : "🎬 Vídeo";
+  if (message.type === "sticker") return "💟 Figurinha";
   return message.text || `[${message.type}]`;
 };
 
@@ -155,15 +156,33 @@ function messageContent(message) {
   if (message.type === "video" && message.mediaStorageKey) {
     return `<video class="message-video" controls preload="metadata" playsinline><source src="${mediaUrl}" type="${escapeHtml(message.mediaMimeType || "video/mp4")}">Seu navegador não conseguiu reproduzir este vídeo.</video>${message.text && message.text !== "[video]" ? `<p>${escapeHtml(message.text)}</p>` : ""}<a class="media-download" href="${mediaUrl}" download>Baixar vídeo</a>`;
   }
+  if (message.type === "sticker" && message.mediaStorageKey) {
+    return `<img class="message-sticker" src="${mediaUrl}" alt="Figurinha recebida" loading="lazy">`;
+  }
   if (message.type === "image") return "<p>[Imagem indisponível]</p>";
   if (message.type === "audio") return "<p>[Áudio indisponível]</p>";
   if (message.type === "video") return "<p>[Vídeo indisponível]</p>";
+  if (message.type === "sticker") return "<p>[Figurinha indisponível]</p>";
   return `<p>${escapeHtml(message.text || `[${message.type}]`)}</p>`;
 }
 
 function messageRowMarkup(message) {
   const [symbol, label, statusClass] = deliveryStatus(message.status);
-  return `<div class="message-row ${message.direction === "ENVIADA" ? "sent" : "received"}" data-message-id="${escapeHtml(message.id)}"><div class="bubble ${["image", "audio", "video"].includes(message.type) ? `${message.type}-bubble` : ""}">${messageContent(message)}<footer>${message.sentByUser ? `<span class="author">${escapeHtml(message.sentByUser.name)}</span>` : ""}<span>${time(message.occurredAt)}</span>${message.direction === "ENVIADA" ? `<span class="delivery-status ${statusClass}" title="${label}" aria-label="${label}">${symbol}</span>` : ""}</footer></div></div>`;
+  return `<div class="message-row ${message.direction === "ENVIADA" ? "sent" : "received"}" data-message-id="${escapeHtml(message.id)}"><div class="bubble ${["image", "audio", "video", "sticker"].includes(message.type) ? `${message.type}-bubble` : ""} ${message.reactionEmoji ? "has-reaction" : ""}">${messageContent(message)}<footer>${message.sentByUser ? `<span class="author">${escapeHtml(message.sentByUser.name)}</span>` : ""}<span>${time(message.occurredAt)}</span>${message.direction === "ENVIADA" ? `<span class="delivery-status ${statusClass}" title="${label}" aria-label="${label}">${symbol}</span>` : ""}</footer>${message.reactionEmoji ? `<span class="message-reaction" title="Reação do cliente">${escapeHtml(message.reactionEmoji)}</span>` : ""}</div></div>`;
+}
+
+function messagesWithReactions(messages) {
+  const reactions = new Map();
+  for (const message of messages) {
+    if (message.type !== "reaction") continue;
+    const targetId = message.rawPayload?.reaction?.message_id;
+    const emoji = message.rawPayload?.reaction?.emoji ?? message.text ?? "";
+    if (!targetId) continue;
+    if (emoji) reactions.set(targetId, emoji); else reactions.delete(targetId);
+  }
+  return messages
+    .filter((message) => message.type !== "reaction")
+    .map((message) => ({ ...message, reactionEmoji: reactions.get(message.externalId) || "" }));
 }
 
 function syncMessageStatuses(messages) {
@@ -366,7 +385,9 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
     contact: [c.contact.id, c.contact.name, c.contact.phone],
     messageHistoryLimited: c.messageHistoryLimited,
   });
-  const messageItems = c.messages.map((message) => JSON.stringify([message.id, message.direction, message.type, message.text, message.occurredAt, message.mediaStorageKey, message.mediaMimeType, message.sentByUser?.id, message.sentByUser?.name]));
+  const displayMessages = messagesWithReactions(c.messages);
+  const hasReactionEvents = displayMessages.length !== c.messages.length;
+  const messageItems = displayMessages.map((message) => JSON.stringify([message.id, message.externalId, message.direction, message.type, message.text, message.occurredAt, message.mediaStorageKey, message.mediaMimeType, message.reactionEmoji, message.sentByUser?.id, message.sentByUser?.name]));
   const messagesSignature = JSON.stringify([c.messageHistoryLimited, messageItems]);
   const notesSignature = JSON.stringify((c.contact.notes || []).map((note) => [note.id, note.content, note.pinned, note.createdAt, note.updatedAt, note.author?.name]));
   const activitiesSignature = JSON.stringify((c.activities || []).map((activity) => [activity.id, activity.action, activity.details, activity.createdAt, activity.actorUser?.name]));
@@ -404,17 +425,17 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
   }
   if (messagesSignature !== state.selectedMessagesSignature) {
     state.selectedMessagesSignature = messagesSignature;
-    const canAppend = !changedConversation && state.selectedMessageItems.length <= messageItems.length
+    const canAppend = !hasReactionEvents && !changedConversation && state.selectedMessageItems.length <= messageItems.length
       && state.selectedMessageItems.every((item, index) => item === messageItems[index]);
     if (canAppend) {
-      $("#messages").insertAdjacentHTML("beforeend", c.messages.slice(state.selectedMessageItems.length).map(messageRowMarkup).join(""));
+      $("#messages").insertAdjacentHTML("beforeend", displayMessages.slice(state.selectedMessageItems.length).map(messageRowMarkup).join(""));
     } else {
-      $("#messages").innerHTML = `${c.messageHistoryLimited ? `<div class="limited-history-notice">As mensagens anteriores ao encaminhamento estão ocultas para esta conta.</div>` : ""}${c.messages.map(messageRowMarkup).join("")}`;
+      $("#messages").innerHTML = `${c.messageHistoryLimited ? `<div class="limited-history-notice">As mensagens anteriores ao encaminhamento estão ocultas para esta conta.</div>` : ""}${displayMessages.map(messageRowMarkup).join("")}`;
     }
     state.selectedMessageItems = messageItems;
     $("#messages").scrollTop = $("#messages").scrollHeight;
   }
-  syncMessageStatuses(c.messages);
+  syncMessageStatuses(displayMessages);
   if (notesSignature !== state.selectedNotesSignature) {
     state.selectedNotesSignature = notesSignature;
     renderNotes(c.contact.notes || []);
