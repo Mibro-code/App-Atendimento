@@ -1,9 +1,12 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const categories = [
-  ["ATACADO", "Atacado", "#7c3aed"], ["SUPORTE", "Suporte", "#2563eb"],
-  ["GARANTIA", "Garantia", "#dc2626"], ["PEDIDOS", "Pedidos", "#d97706"],
+  ["ATENDIMENTO", "Atendimento", "#0f766e"],
+  ["SUPORTE", "Suporte", "#2563eb"],
   ["COMERCIAL", "Comercial", "#059669"],
+  ["PARCERIAS", "Parcerias", "#7c3aed"],
+  ["ATACADO", "Atacado", "#7c3aed"],
+  ["GARANTIA", "Garantia", "#dc2626"], ["PEDIDOS", "Pedidos", "#d97706"],
   ["TROCAS_DEVOLUCOES", "Trocas e devoluções", "#db2777"], ["OUTROS", "Outros", "#6b7280"],
 ];
 async function main() {

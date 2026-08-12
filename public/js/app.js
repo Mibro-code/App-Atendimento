@@ -472,6 +472,7 @@ function activityText(activity) {
     NOTE_DELETED: `apagou uma nota${details.preview ? `: “${details.preview}”` : ""}`,
     NOTE_PINNED: `fixou uma nota${details.preview ? `: “${details.preview}”` : ""}`,
     NOTE_UNPINNED: `desafixou uma nota${details.preview ? `: “${details.preview}”` : ""}`,
+    BOT_TRIAGE_COMPLETED: `Bot encaminhou a conversa para ${details.categoryName || "o setor selecionado"}`,
   })[activity.action] || "realizou uma atualização na conversa";
 }
 
@@ -483,7 +484,16 @@ const roleLabel = (role) => ({ ADMIN:"Master", SUPERVISOR:"Supervisor", ATENDENT
 
 function renderTeamCategoryAccess(selectedIds = []) {
   const selected = new Set(selectedIds);
-  $("#team-category-access").innerHTML = `<div class="team-category-list">${orderedCategories(state.categories.filter((category) => category.active)).map((category) => `<label class="team-category-option ${category.parentId ? "child" : ""}"><input type="checkbox" value="${escapeHtml(category.id)}" ${selected.has(category.id) ? "checked" : ""}><i class="category-dot" style="background:${category.color || "#999"}"></i><span>${category.parentId ? "↳ " : ""}${escapeHtml(category.name)}</span></label>`).join("")}</div>`;
+  const active = state.categories.filter((category) => category.active);
+  const roots = active.filter((category) => !category.parentId);
+  $("#team-category-access").innerHTML = `<div class="team-category-groups">${roots.map((root) => {
+    const children = active.filter((category) => category.parentId === root.id);
+    const rootSelected = selected.has(root.id);
+    return `<section class="team-category-group" data-category-group="${escapeHtml(root.id)}">
+      <label class="team-category-option root"><input class="team-category-root" type="checkbox" value="${escapeHtml(root.id)}" ${rootSelected ? "checked" : ""}><i class="category-dot" style="background:${root.color || "#999"}"></i><span><b>${escapeHtml(root.name)}</b><small>${children.length ? `${children.length} subcategoria${children.length === 1 ? "" : "s"}` : "Categoria principal"}</small></span></label>
+      ${children.length ? `<div class="team-subcategory-list">${children.map((child) => `<label class="team-category-option child"><input type="checkbox" value="${escapeHtml(child.id)}" ${rootSelected || selected.has(child.id) ? "checked" : ""} ${rootSelected ? "disabled" : ""}><i class="category-dot" style="background:${child.color || root.color || "#999"}"></i><span>${escapeHtml(child.name)}</span></label>`).join("")}</div>` : ""}
+    </section>`;
+  }).join("")}</div>`;
 }
 
 function syncMasterForm() {
@@ -579,6 +589,14 @@ $("#team-dialog").addEventListener("click", (event) => { if (event.target === $(
 $("#new-team-user").addEventListener("click", resetTeamForm);
 $("#cancel-team-edit").addEventListener("click", resetTeamForm);
 $("#team-role").addEventListener("change", syncMasterForm);
+$("#team-category-access").addEventListener("change", (event) => {
+  if (!event.target.classList.contains("team-category-root")) return;
+  const group = event.target.closest(".team-category-group");
+  group.querySelectorAll(".team-subcategory-list input").forEach((input) => {
+    input.checked = event.target.checked;
+    input.disabled = event.target.checked;
+  });
+});
 $("#team-user-list").addEventListener("click", (event) => {
   const edit = event.target.closest("[data-edit-user]");
   if (edit) return editTeamUser(edit.dataset.editUser);
@@ -596,7 +614,7 @@ $("#team-form").addEventListener("submit", async (event) => {
     canViewTeamActivity: $("#permission-team").checked,
     canViewConversationHistory: $("#permission-history").checked,
     canViewPreviousMessages: $("#permission-previous-messages").checked,
-    categoryIds: [...document.querySelectorAll("#team-category-access input:checked")].map((input) => input.value),
+    categoryIds: [...document.querySelectorAll("#team-category-access input:checked:not(:disabled)")].map((input) => input.value),
   };
   if (password) body.password = password;
   if (state.editingUserId) body.active = $("#team-active").checked;

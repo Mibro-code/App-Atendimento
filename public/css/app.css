@@ -217,3 +217,27 @@ html[data-theme="dark"] .notification-button[data-enabled="true"] { border-color
 html[data-theme="dark"] .filter.attention { color:#fff; background:#b42318; }
 .limited-history-notice { width:fit-content; max-width:90%; margin:0 auto 16px; padding:8px 12px; border:1px solid #ef5b2a55; border-radius:15px; color:#8a4a34; background:#fff6f2; font-size:10px; text-align:center; }
 html[data-theme="dark"] .limited-history-notice { border-color:#75402f; color:#efb7a3; background:#30231f; }
+
+/* Categorias da equipe agrupadas e rodape sempre acessivel. */
+.team-dialog { display:flex; flex-direction:column; }
+.team-dialog > .dialog-header { flex:none; }
+.team-dialog .team-layout { height:auto; min-height:0; flex:1; }
+.team-dialog .team-form { scroll-padding-bottom:90px; }
+.team-dialog .team-form-actions { z-index:3; bottom:0; box-shadow:0 -10px 20px #ffffffee; }
+.team-category-groups { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.team-category-group { overflow:hidden; border:1px solid #e3e6e9; border-radius:10px; background:#fafafa; }
+.team-category-option.root { min-height:48px; border-radius:0; background:#f1f3f5; }
+.team-category-option.root > span { min-width:0; }
+.team-category-option.root b,.team-category-option.root small { display:block; }
+.team-category-option.root b { color:#303740; font-size:10px; }
+.team-category-option.root small { margin-top:2px; color:#8a929b; font-size:8px; font-weight:400; }
+.team-subcategory-list { padding:5px; display:flex; flex-direction:column; gap:4px; }
+.team-subcategory-list .team-category-option { min-height:34px; padding:7px 9px; background:#fff; }
+.team-subcategory-list input:disabled { opacity:.65; }
+.team-subcategory-list input:disabled ~ span { color:#89919a; }
+html[data-theme="dark"] .team-dialog .team-form-actions { box-shadow:0 -10px 20px #1b1e23ee; }
+html[data-theme="dark"] .team-category-group { border-color:#353a42; background:#20242a; }
+html[data-theme="dark"] .team-category-option.root { background:#292e35; }
+html[data-theme="dark"] .team-category-option.root b { color:#edf0f3; }
+html[data-theme="dark"] .team-subcategory-list .team-category-option { background:#24282e; }
+@media (max-width:800px) { .team-category-groups { grid-template-columns:1fr; }.team-dialog .team-layout { flex:none; min-height:100%; } }
