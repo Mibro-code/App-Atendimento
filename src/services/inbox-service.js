@@ -146,12 +146,25 @@ function messagePreviewForAlert(message) {
 async function getConversation(id, viewer) {
   const scope = await authorization.conversationScope(viewer);
   const canViewHistory = authorization.isMaster(viewer) || Boolean(viewer.canViewConversationHistory);
+  const access = await prisma.conversation.findFirst({
+    where: { AND: [{ id }, scope] }, select: { id: true, assignedUserId: true },
+  });
+  if (!access) return null;
+  let messagesSince = null;
+  if (!authorization.isMaster(viewer) && !viewer.canViewPreviousMessages && access.assignedUserId === viewer.id) {
+    const transfers = await prisma.conversationActivity.findMany({
+      where: { conversationId: id, action: "CONVERSATION_TRANSFERRED" },
+      select: { createdAt: true, details: true }, orderBy: { createdAt: "desc" }, take: 100,
+    });
+    messagesSince = transfers.find((activity) => activity.details?.toUserId === viewer.id)?.createdAt || null;
+  }
   return prisma.conversation.findFirst({
     where: { AND: [{ id }, scope] },
     include: {
       category: { include: { parent: true } },
       assignedUser: { select: { id: true, name: true, email: true } },
       messages: {
+        where: messagesSince ? { occurredAt: { gte: messagesSince } } : undefined,
         include: { sentByUser: { select: { id: true, name: true } } },
         orderBy: { occurredAt: "asc" },
       },
@@ -173,7 +186,7 @@ async function getConversation(id, viewer) {
   }).then((conversation) => {
     if (!conversation) return null;
     const { pins, ...result } = conversation;
-    return { ...result, isPinned: pins.length > 0, canViewHistory };
+    return { ...result, isPinned: pins.length > 0, canViewHistory, messageHistoryLimited: Boolean(messagesSince) };
   });
 }
 
@@ -324,7 +337,8 @@ async function updateConversation(id, { categoryId, status, assignedUserId }, vi
         include: { contact: true, category: { include: { parent: true } }, assignedUser: { select: { id: true, name: true, email: true } } },
       });
       const activities = [];
-      if (categoryId !== undefined && currentSnapshot.categoryId !== updated.categoryId) {
+      if (categoryId !== undefined && currentSnapshot.categoryId !== updated.categoryId
+        && currentSnapshot.assignedUserId !== viewer.id) {
         activities.push(activityRecord(id, viewer.id, "CATEGORY_CHANGED", {
           from: currentSnapshot.category ? categoryLabelForHistory(currentSnapshot.category) : "Sem categoria",
           to: updated.category ? categoryLabelForHistory(updated.category) : "Sem categoria",

@@ -20,6 +20,7 @@ function publicUser(user) {
     canTransferConversations: user.role === "ADMIN" || user.canTransferConversations,
     canViewTeamActivity: user.role === "ADMIN" || user.canViewTeamActivity,
     canViewConversationHistory: user.role === "ADMIN" || user.canViewConversationHistory,
+    canViewPreviousMessages: user.role === "ADMIN" || user.canViewPreviousMessages,
   };
 }
 

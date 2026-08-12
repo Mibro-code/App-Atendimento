@@ -319,9 +319,10 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
     isPinned: c.isPinned,
     canViewHistory: c.canViewHistory,
     contact: [c.contact.id, c.contact.name, c.contact.phone],
+    messageHistoryLimited: c.messageHistoryLimited,
   });
   const messageItems = c.messages.map((message) => JSON.stringify([message.id, message.direction, message.type, message.text, message.occurredAt, message.mediaStorageKey, message.mediaMimeType, message.sentByUser?.id, message.sentByUser?.name]));
-  const messagesSignature = JSON.stringify(messageItems);
+  const messagesSignature = JSON.stringify([c.messageHistoryLimited, messageItems]);
   const notesSignature = JSON.stringify((c.contact.notes || []).map((note) => [note.id, note.content, note.pinned, note.createdAt, note.updatedAt, note.author?.name]));
   const activitiesSignature = JSON.stringify((c.activities || []).map((activity) => [activity.id, activity.action, activity.details, activity.createdAt, activity.actorUser?.name]));
   state.selectedContactId = c.contact.id;
@@ -361,7 +362,7 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
     if (canAppend) {
       $("#messages").insertAdjacentHTML("beforeend", c.messages.slice(state.selectedMessageItems.length).map(messageRowMarkup).join(""));
     } else {
-      $("#messages").innerHTML = c.messages.map(messageRowMarkup).join("");
+      $("#messages").innerHTML = `${c.messageHistoryLimited ? `<div class="limited-history-notice">As mensagens anteriores ao encaminhamento estão ocultas para esta conta.</div>` : ""}${c.messages.map(messageRowMarkup).join("")}`;
     }
     state.selectedMessageItems = messageItems;
     $("#messages").scrollTop = $("#messages").scrollHeight;
@@ -469,6 +470,7 @@ function editTeamUser(userId) {
   $("#permission-transfer").checked = user.canTransferConversations;
   $("#permission-team").checked = user.canViewTeamActivity;
   $("#permission-history").checked = user.canViewConversationHistory;
+  $("#permission-previous-messages").checked = user.canViewPreviousMessages;
   $("#team-form-eyebrow").textContent = "EDITAR CONTA";
   $("#team-form-title").textContent = user.name;
   renderTeamCategoryAccess(user.categoryAccess.map((access) => access.categoryId));
@@ -532,6 +534,7 @@ $("#team-form").addEventListener("submit", async (event) => {
     canTransferConversations: $("#permission-transfer").checked,
     canViewTeamActivity: $("#permission-team").checked,
     canViewConversationHistory: $("#permission-history").checked,
+    canViewPreviousMessages: $("#permission-previous-messages").checked,
     categoryIds: [...document.querySelectorAll("#team-category-access input:checked")].map((input) => input.value),
   };
   if (password) body.password = password;

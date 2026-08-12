@@ -193,10 +193,40 @@ test("fixa conversas por conta, restringe exclusão de notas e registra o histó
   const targetAlerts = await inbox.getUserAlerts({ since: alertStart }, { id: otherMaster.id, role: "ADMIN" });
   assert.ok(targetAlerts.alerts.some(({ title, conversationId }) => title === "Conversa transferida para você" && conversationId === conversation.id));
 
+  const support = await prisma.category.findUnique({ where: { code: "SUPORTE" } });
+  const handoffAgent = await prisma.user.create({
+    data: {
+      name: "Atendente Encaminhado", email: "encaminhado@mibro.local", role: "ATENDENTE",
+      categoryAccess: { create: [{ categoryId: support.id }] },
+    },
+  });
+  await inbox.updateConversation(conversation.id, { assignedUserId: handoffAgent.id }, { id: master.id, role: "ADMIN" });
+  const afterTransferMessage = await prisma.message.create({ data: {
+    conversationId: conversation.id, direction: "RECEBIDA", status: "RECEBIDA", type: "text",
+    text: "Mensagem posterior ao encaminhamento", occurredAt: new Date(Date.now() + 1000),
+  } });
+  const limitedDetail = await inbox.getConversation(conversation.id, {
+    id: handoffAgent.id, role: "ATENDENTE", canViewPreviousMessages: false,
+  });
+  assert.equal(limitedDetail.messageHistoryLimited, true);
+  assert.deepEqual(limitedDetail.messages.map(({ id }) => id), [afterTransferMessage.id]);
+  const fullDetail = await inbox.getConversation(conversation.id, {
+    id: handoffAgent.id, role: "ATENDENTE", canViewPreviousMessages: true,
+  });
+  assert.equal(fullDetail.messageHistoryLimited, false);
+  assert.ok(fullDetail.messages.length > limitedDetail.messages.length);
+
   await inbox.updateConversation(conversation.id, { status: "FINALIZADO" }, { id: master.id, role: "ADMIN" });
-  const activeAssignments = await inbox.listConversations({ assignedUser: otherMaster.id, activeOnly: "true" }, { id: master.id, role: "ADMIN" });
+  const activeAssignments = await inbox.listConversations({ assignedUser: handoffAgent.id, activeOnly: "true" }, { id: master.id, role: "ADMIN" });
   assert.equal(activeAssignments.some(({ id }) => id === conversation.id), false);
   await inbox.updateConversation(conversation.id, { status: "NOVO", assignedUserId: master.id }, { id: master.id, role: "ADMIN" });
+  const commercial = await prisma.category.findUnique({ where: { code: "COMERCIAL" } });
+  const categoryActivitiesBefore = await prisma.conversationActivity.count({ where: { conversationId: conversation.id, action: "CATEGORY_CHANGED" } });
+  await inbox.updateConversation(conversation.id, { categoryId: commercial.id }, { id: master.id, role: "ADMIN" });
+  await inbox.updateConversation(conversation.id, { categoryId: support.id }, { id: master.id, role: "ADMIN" });
+  const categoryActivitiesAfter = await prisma.conversationActivity.count({ where: { conversationId: conversation.id, action: "CATEGORY_CHANGED" } });
+  assert.equal(categoryActivitiesAfter, categoryActivitiesBefore);
+  await prisma.user.delete({ where: { id: handoffAgent.id } });
   await prisma.user.delete({ where: { id: otherMaster.id } });
 });
 

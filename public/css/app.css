@@ -211,3 +211,5 @@ html[data-theme="dark"] .delete-note { border-color:#6d3b38; color:#ef9e97; back
 html[data-theme="dark"] .notification-button { border-color:#383d45; color:#e7e9ec; background:#20242a; }
 html[data-theme="dark"] .notification-button[data-enabled="true"] { border-color:#345d43; color:#87d7a4; background:#1d3024; }
 html[data-theme="dark"] .filter.attention { color:#ffd9cb; background:#38251f; }
+.limited-history-notice { width:fit-content; max-width:90%; margin:0 auto 16px; padding:8px 12px; border:1px solid #ef5b2a55; border-radius:15px; color:#8a4a34; background:#fff6f2; font-size:10px; text-align:center; }
+html[data-theme="dark"] .limited-history-notice { border-color:#75402f; color:#efb7a3; background:#30231f; }

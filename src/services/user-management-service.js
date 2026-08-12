@@ -6,6 +6,7 @@ const manageableRoles = new Set(["ADMIN", "SUPERVISOR", "ATENDENTE"]);
 const booleanPermissions = [
   "canViewUncategorized", "canManageCategories", "canTransferConversations", "canViewTeamActivity",
   "canViewConversationHistory",
+  "canViewPreviousMessages",
 ];
 
 function validateName(value) {
@@ -51,6 +52,7 @@ const publicSelection = {
   canViewUncategorized: true, canManageCategories: true,
   canTransferConversations: true, canViewTeamActivity: true,
   canViewConversationHistory: true,
+  canViewPreviousMessages: true,
   categoryAccess: { include: { category: { select: { id: true, name: true, parentId: true, color: true } } } },
   _count: { select: { assignedConversations: true, sentMessages: true } },
 };

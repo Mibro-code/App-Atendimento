@@ -134,6 +134,7 @@ model User {
   canTransferConversations   Boolean                @default(false)
   canViewTeamActivity        Boolean                @default(false)
   canViewConversationHistory Boolean                @default(false)
+  canViewPreviousMessages    Boolean                @default(false)
   createdAt                  DateTime               @default(now())
   updatedAt                  DateTime               @updatedAt
   assignedConversations      Conversation[]         @relation("AssignedConversations")
