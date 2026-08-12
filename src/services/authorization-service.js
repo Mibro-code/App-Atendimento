@@ -10,9 +10,9 @@ async function allowedCategoryIds(user) {
   if (isMaster(user)) return null;
   const access = await prisma.userCategoryAccess.findMany({
     where: { userId: user.id },
-    include: { category: { select: { id: true, children: { select: { id: true } } } } },
+    select: { categoryId: true },
   });
-  return [...new Set(access.flatMap(({ category }) => [category.id, ...category.children.map(({ id }) => id)]))];
+  return access.map(({ categoryId }) => categoryId);
 }
 
 async function conversationScope(user) {
