@@ -96,11 +96,16 @@ async function getUserAlerts({ since }, viewer) {
   const checkedAt = new Date();
   const occurredAfter = alertSince(since);
   const scope = await authorization.conversationScope(viewer);
+  const waitingForViewer = {
+    AND: [scope, { status: "AGUARDANDO_RESPOSTA" }, {
+      OR: [{ assignedUserId: null }, { assignedUserId: viewer.id }],
+    }],
+  };
   const [messages, activities] = await Promise.all([
     prisma.message.findMany({
       where: {
         occurredAt: { gt: occurredAfter, lte: checkedAt }, direction: "RECEBIDA",
-        conversation: { is: scope },
+        conversation: { is: waitingForViewer },
       },
       include: { conversation: { include: { contact: true, category: { include: { parent: true } } } } },
       orderBy: { occurredAt: "asc" }, take: 30,
@@ -211,7 +216,7 @@ async function getConversation(id, viewer) {
 
 async function getConversationSummary(viewer) {
   const scope = await authorization.conversationScope(viewer);
-  const [total, statuses, categories] = await Promise.all([
+  const [total, statuses, categories, attentionWaiting] = await Promise.all([
     prisma.conversation.count({ where: scope }),
     prisma.conversation.groupBy({ by: ["status"], where: scope, _count: { _all: true } }),
     prisma.conversation.groupBy({
@@ -219,9 +224,15 @@ async function getConversationSummary(viewer) {
       where: { AND: [{ categoryId: { not: null } }, scope] },
       _count: { _all: true },
     }),
+    prisma.conversation.count({
+      where: { AND: [scope, { status: "AGUARDANDO_RESPOSTA" }, {
+        OR: [{ assignedUserId: null }, { assignedUserId: viewer.id }],
+      }] },
+    }),
   ]);
   return {
     total,
+    attentionWaiting,
     statuses: Object.fromEntries(statuses.map((item) => [item.status, item._count._all])),
     categories: Object.fromEntries(categories.map((item) => [item.categoryId, item._count._all])),
   };

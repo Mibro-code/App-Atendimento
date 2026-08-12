@@ -53,14 +53,9 @@ function closeConversationView() {
   $("#chat-panel").classList.remove("open");
   $("#confirm-category").disabled = true;
 }
-function syncWaitingAlert(count) {
+function syncWaitingAttention(count) {
   const waitingCount = Number(count) || 0;
   waitingAlertCount = waitingCount;
-  const alert = $("#waiting-alert");
-  alert.hidden = waitingCount === 0;
-  alert.textContent = waitingCount === 1
-    ? "⚠ 1 cliente aguardando resposta — atender agora"
-    : `⚠ ${waitingCount} clientes aguardando resposta — atender agora`;
   if (waitingCount && !waitingTitleTimer) {
     let warningVisible = false;
     waitingTitleTimer = setInterval(() => {
@@ -328,8 +323,8 @@ async function loadConversations() {
   $("#count-new").textContent = summary.statuses.NOVO || 0;
   $("#count-in-progress").textContent = summary.statuses.EM_ATENDIMENTO || 0;
   $("#count-waiting").textContent = summary.statuses.AGUARDANDO_RESPOSTA || 0;
-  document.querySelector('[data-status="AGUARDANDO_RESPOSTA"]').classList.toggle("attention", Boolean(summary.statuses.AGUARDANDO_RESPOSTA));
-  syncWaitingAlert(summary.statuses.AGUARDANDO_RESPOSTA);
+  document.querySelector('[data-status="AGUARDANDO_RESPOSTA"]').classList.toggle("attention", Boolean(summary.attentionWaiting));
+  syncWaitingAttention(summary.attentionWaiting);
   $("#count-bot").textContent = summary.statuses.BOT || 0;
   $("#count-finalized").textContent = summary.statuses.FINALIZADO || 0;
   document.querySelectorAll("[data-category-count]").forEach((counter) => {
@@ -558,15 +553,6 @@ $("#conversation-list").addEventListener("click", (event) => {
 document.querySelectorAll("[data-status]").forEach((button) => button.addEventListener("click", () => {
   document.querySelectorAll(".filter").forEach((item) => item.classList.remove("active")); button.classList.add("active"); state.status = button.dataset.status; state.category = ""; loadConversations();
 }));
-$("#waiting-alert").addEventListener("click", () => {
-  state.status = "AGUARDANDO_RESPOSTA";
-  state.category = "";
-  state.assignedUser = "";
-  state.assignedUserActiveOnly = false;
-  document.querySelectorAll(".filter").forEach((item) => item.classList.remove("active"));
-  document.querySelector('[data-status="AGUARDANDO_RESPOSTA"]').classList.add("active");
-  loadConversations();
-});
 let searchTimer; $("#search").addEventListener("input", (event) => { clearTimeout(searchTimer); state.search = event.target.value.trim(); searchTimer = setTimeout(loadConversations, 250); });
 $("#refresh").addEventListener("click", loadConversations);
 $("#clear-team-filter").addEventListener("click", () => { state.assignedUser = ""; state.assignedUserActiveOnly = false; loadConversations(); });

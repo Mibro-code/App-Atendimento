@@ -199,6 +199,35 @@ test("fixa conversas por conta, restringe exclusão de notas e registra o histó
   const targetAlerts = await inbox.getUserAlerts({ since: alertStart }, { id: otherMaster.id, role: "ADMIN" });
   assert.ok(targetAlerts.alerts.some(({ title, conversationId }) => title === "Conversa transferida para você" && conversationId === conversation.id));
 
+  await prisma.conversation.update({
+    where: { id: conversation.id },
+    data: { status: "AGUARDANDO_RESPOSTA", assignedUserId: otherMaster.id },
+  });
+  const assignedAlertStart = new Date(Date.now() - 1000).toISOString();
+  const assignedMessage = await prisma.message.create({ data: {
+    conversationId: conversation.id, externalId: "wamid.alert.assigned", direction: "RECEBIDA",
+    status: "RECEBIDA", type: "text", text: "Resposta para o responsável", occurredAt: new Date(),
+  } });
+  const assignedAlerts = await inbox.getUserAlerts({ since: assignedAlertStart }, { id: otherMaster.id, role: "ADMIN" });
+  const unrelatedAlerts = await inbox.getUserAlerts({ since: assignedAlertStart }, { id: master.id, role: "ADMIN" });
+  assert.ok(assignedAlerts.alerts.some(({ id }) => id === `message:${assignedMessage.id}`));
+  assert.ok(!unrelatedAlerts.alerts.some(({ id }) => id === `message:${assignedMessage.id}`));
+  assert.equal((await inbox.getConversationSummary({ id: otherMaster.id, role: "ADMIN" })).attentionWaiting, 1);
+  assert.equal((await inbox.getConversationSummary({ id: master.id, role: "ADMIN" })).attentionWaiting, 0);
+
+  await prisma.conversation.update({ where: { id: conversation.id }, data: { assignedUserId: null } });
+  const openAlertStart = new Date(Date.now() - 1000).toISOString();
+  const openMessage = await prisma.message.create({ data: {
+    conversationId: conversation.id, externalId: "wamid.alert.unassigned", direction: "RECEBIDA",
+    status: "RECEBIDA", type: "text", text: "Resposta sem responsável", occurredAt: new Date(),
+  } });
+  const openAlertsForMaster = await inbox.getUserAlerts({ since: openAlertStart }, { id: master.id, role: "ADMIN" });
+  const openAlertsForOther = await inbox.getUserAlerts({ since: openAlertStart }, { id: otherMaster.id, role: "ADMIN" });
+  assert.ok(openAlertsForMaster.alerts.some(({ id }) => id === `message:${openMessage.id}`));
+  assert.ok(openAlertsForOther.alerts.some(({ id }) => id === `message:${openMessage.id}`));
+  assert.equal((await inbox.getConversationSummary({ id: master.id, role: "ADMIN" })).attentionWaiting, 1);
+  assert.equal((await inbox.getConversationSummary({ id: otherMaster.id, role: "ADMIN" })).attentionWaiting, 1);
+
   const support = await prisma.category.findUnique({ where: { code: "SUPORTE" } });
   const handoffAgent = await prisma.user.create({
     data: {
