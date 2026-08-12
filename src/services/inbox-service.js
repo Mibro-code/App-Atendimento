@@ -145,6 +145,7 @@ function messagePreviewForAlert(message) {
 
 async function getConversation(id, viewer) {
   const scope = await authorization.conversationScope(viewer);
+  const canViewHistory = authorization.isMaster(viewer) || Boolean(viewer.canViewConversationHistory);
   return prisma.conversation.findFirst({
     where: { AND: [{ id }, scope] },
     include: {
@@ -163,16 +164,16 @@ async function getConversation(id, viewer) {
         },
       },
       pins: { where: { userId: viewer.id }, select: { createdAt: true }, take: 1 },
-      activities: {
+      activities: canViewHistory ? {
         include: { actorUser: { select: { id: true, name: true } } },
         orderBy: { createdAt: "desc" },
         take: 100,
-      },
+      } : false,
     },
   }).then((conversation) => {
     if (!conversation) return null;
     const { pins, ...result } = conversation;
-    return { ...result, isPinned: pins.length > 0 };
+    return { ...result, isPinned: pins.length > 0, canViewHistory };
   });
 }
 

@@ -5,6 +5,7 @@ const authorization = require("./authorization-service");
 const manageableRoles = new Set(["ADMIN", "SUPERVISOR", "ATENDENTE"]);
 const booleanPermissions = [
   "canViewUncategorized", "canManageCategories", "canTransferConversations", "canViewTeamActivity",
+  "canViewConversationHistory",
 ];
 
 function validateName(value) {
@@ -49,6 +50,7 @@ const publicSelection = {
   id: true, name: true, email: true, role: true, active: true, createdAt: true, updatedAt: true,
   canViewUncategorized: true, canManageCategories: true,
   canTransferConversations: true, canViewTeamActivity: true,
+  canViewConversationHistory: true,
   categoryAccess: { include: { category: { select: { id: true, name: true, parentId: true, color: true } } } },
   _count: { select: { assignedConversations: true, sentMessages: true } },
 };

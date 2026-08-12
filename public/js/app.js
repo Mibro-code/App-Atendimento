@@ -142,6 +142,7 @@ async function loadCurrentUser() {
   $("#team-button").hidden = !status.user.isMaster && !status.user.canViewTeamActivity;
   $("#manage-categories").hidden = !status.user.canManageCategories;
   $("#assignee-select").disabled = !status.user.canTransferConversations;
+  $("#history-toggle").hidden = !status.user.canViewConversationHistory;
   configureNotificationButton();
   const cursorKey = `mibro-alert-cursor:${status.user.id}`;
   let storedCursor = null;
@@ -316,6 +317,7 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
     assignedUserId: c.assignedUserId,
     assignedUser: c.assignedUser && [c.assignedUser.id, c.assignedUser.name],
     isPinned: c.isPinned,
+    canViewHistory: c.canViewHistory,
     contact: [c.contact.id, c.contact.name, c.contact.phone],
   });
   const messageItems = c.messages.map((message) => JSON.stringify([message.id, message.direction, message.type, message.text, message.occurredAt, message.mediaStorageKey, message.mediaMimeType, message.sentByUser?.id, message.sentByUser?.name]));
@@ -349,6 +351,8 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
     $("#toggle-finalized").textContent = c.status === "FINALIZADO" ? "Reabrir" : "Finalizar"; $("#toggle-finalized").dataset.status = c.status;
     $("#pin-conversation").textContent = c.isPinned ? "★ Fixada" : "☆ Fixar";
     $("#pin-conversation").dataset.pinned = String(Boolean(c.isPinned));
+    $("#history-toggle").hidden = !c.canViewHistory;
+    if (!c.canViewHistory) $("#history-panel").classList.remove("open");
   }
   if (messagesSignature !== state.selectedMessagesSignature) {
     state.selectedMessagesSignature = messagesSignature;
@@ -464,6 +468,7 @@ function editTeamUser(userId) {
   $("#permission-categories").checked = user.canManageCategories;
   $("#permission-transfer").checked = user.canTransferConversations;
   $("#permission-team").checked = user.canViewTeamActivity;
+  $("#permission-history").checked = user.canViewConversationHistory;
   $("#team-form-eyebrow").textContent = "EDITAR CONTA";
   $("#team-form-title").textContent = user.name;
   renderTeamCategoryAccess(user.categoryAccess.map((access) => access.categoryId));
@@ -526,6 +531,7 @@ $("#team-form").addEventListener("submit", async (event) => {
     canManageCategories: $("#permission-categories").checked,
     canTransferConversations: $("#permission-transfer").checked,
     canViewTeamActivity: $("#permission-team").checked,
+    canViewConversationHistory: $("#permission-history").checked,
     categoryIds: [...document.querySelectorAll("#team-category-access input:checked")].map((input) => input.value),
   };
   if (password) body.password = password;
