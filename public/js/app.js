@@ -473,6 +473,7 @@ function activityText(activity) {
     NOTE_PINNED: `fixou uma nota${details.preview ? `: “${details.preview}”` : ""}`,
     NOTE_UNPINNED: `desafixou uma nota${details.preview ? `: “${details.preview}”` : ""}`,
     BOT_TRIAGE_COMPLETED: `Bot encaminhou a conversa para ${details.categoryName || "o setor selecionado"}`,
+    AUTO_FINALIZED_INACTIVITY: `Sistema finalizou a conversa após ${details.inactivityMinutes || 15} minutos sem resposta do cliente`,
   })[activity.action] || "realizou uma atualização na conversa";
 }
 
