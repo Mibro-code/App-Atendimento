@@ -7,6 +7,7 @@ const { rateLimit } = require("express-rate-limit");
 const prisma = require("./database/prisma");
 const MetaCloudChannel = require("./channels/meta-cloud-channel");
 const { saveIncoming, updateStatus, sendTextToPhone } = require("./services/message-service");
+const { handleIncomingTriage } = require("./services/triage-bot-service");
 const { createInboxController } = require("./controllers/inbox-controller");
 const authController = require("./controllers/auth-controller");
 const { authenticate, requirePageAuth } = require("./middleware/auth");
@@ -62,7 +63,10 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
             event.mediaFileName = media.fileName;
           }
           const result = await saveIncoming(event);
-          if (!result.duplicate) changed = true;
+          if (!result.duplicate) {
+            await handleIncomingTriage(event, result.message, channel);
+            changed = true;
+          }
         }
         if (event.kind === "status") {
           const result = await updateStatus(event);

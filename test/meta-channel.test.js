@@ -30,6 +30,22 @@ test("interpreta todas as mensagens e status de um webhook", () => {
   assert.equal(events[4].kind, "status");
 });
 
+test("interpreta a escolha de uma lista interativa", () => {
+  const channel = new MetaCloudChannel();
+  const [event] = channel.parseWebhook({ entry: [{ changes: [{ value: {
+    messages: [{ id: "wamid.list", from: "5511999999999", type: "interactive", timestamp: "1700000000",
+      interactive: { type: "list_reply", list_reply: { id: "triage_category:cat-1", title: "Suporte" } } }],
+  } }] }] });
+  assert.equal(event.text, "Suporte");
+  assert.equal(event.interactiveReplyId, "triage_category:cat-1");
+  const [buttonEvent] = channel.parseWebhook({ entry: [{ changes: [{ value: {
+    messages: [{ id: "wamid.button", from: "5511999999999", type: "interactive", timestamp: "1700000001",
+      interactive: { type: "button_reply", button_reply: { id: "triage_category:cat-2", title: "Comercial" } } }],
+  } }] }] });
+  assert.equal(buttonEvent.text, "Comercial");
+  assert.equal(buttonEvent.interactiveReplyId, "triage_category:cat-2");
+});
+
 test("baixa e envia imagens usando os endpoints de mídia da Meta", async () => {
   const previousEnv = {
     GRAPH_VERSION: process.env.GRAPH_VERSION,
@@ -74,6 +90,37 @@ test("baixa e envia imagens usando os endpoints de mídia da Meta", async () => 
     axios.get = previousGet;
     axios.post = previousPost;
     axios.put = previousPut;
+    for (const [key, value] of Object.entries(previousEnv)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
+});
+
+test("envia lista interativa de setores", async () => {
+  const previousEnv = {
+    GRAPH_VERSION: process.env.GRAPH_VERSION,
+    PHONE_NUMBER_ID: process.env.PHONE_NUMBER_ID,
+    WHATSAPP_TOKEN: process.env.WHATSAPP_TOKEN,
+  };
+  const previousPost = axios.post;
+  process.env.GRAPH_VERSION = "v-test";
+  process.env.PHONE_NUMBER_ID = "phone-test";
+  process.env.WHATSAPP_TOKEN = "token-test";
+  let sentBody;
+  axios.post = async (_url, body) => {
+    sentBody = body;
+    return { data: { messages: [{ id: "wamid.list.sent" }] } };
+  };
+  try {
+    const result = await new MetaCloudChannel().sendList("5511999999999", {
+      body: "Escolha o setor", button: "Ver setores",
+      rows: [{ id: "triage_category:cat-1", title: "Suporte" }],
+    });
+    assert.equal(result.externalId, "wamid.list.sent");
+    assert.equal(sentBody.type, "interactive");
+    assert.equal(sentBody.interactive.action.sections[0].rows[0].title, "Suporte");
+  } finally {
+    axios.post = previousPost;
     for (const [key, value] of Object.entries(previousEnv)) {
       if (value === undefined) delete process.env[key]; else process.env[key] = value;
     }

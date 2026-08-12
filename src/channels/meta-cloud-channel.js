@@ -36,11 +36,14 @@ class MetaCloudChannel {
       for (const message of value.messages || []) {
         const contact = contacts.get(message.from) || value.contacts?.[0];
         const media = ({ image: message.image, audio: message.audio, video: message.video })[message.type] || null;
+        const interactiveReply = message.interactive?.button_reply || message.interactive?.list_reply || null;
         events.push({
           kind: "message", externalId: message.id, contactExternalId: message.from,
           phone: message.from, contactName: contact?.profile?.name || message.from,
           type: message.type,
-          text: message.type === "text" ? message.text?.body : (media?.caption || `[${message.type}]`),
+          text: message.type === "text" ? message.text?.body
+            : interactiveReply?.title || media?.caption || `[${message.type}]`,
+          interactiveReplyId: interactiveReply?.id || null,
           mediaId: media?.id, mediaMimeType: media?.mime_type,
           occurredAt: new Date(Number(message.timestamp) * 1000), rawPayload: message,
         });
@@ -62,6 +65,25 @@ class MetaCloudChannel {
       return { externalId: response.data?.messages?.[0]?.id, data: response.data };
     } catch (error) {
       throw this.providerFailure(error, "A Meta não aceitou o envio da mensagem.");
+    }
+  }
+
+  async sendList(to, { body, button, rows }) {
+    this.assertConfigured();
+    if (!Array.isArray(rows) || rows.length < 1 || rows.length > 10) {
+      throw Object.assign(new Error("A lista interativa deve ter entre 1 e 10 opções."), { statusCode: 400 });
+    }
+    try {
+      const response = await axios.post(this.apiUrl(`${process.env.PHONE_NUMBER_ID}/messages`), {
+        messaging_product: "whatsapp", recipient_type: "individual", to, type: "interactive",
+        interactive: {
+          type: "list", body: { text: body },
+          action: { button, sections: [{ title: "Setores", rows }] },
+        },
+      }, { headers: { ...this.authHeaders(), "Content-Type": "application/json" } });
+      return { externalId: response.data?.messages?.[0]?.id, data: response.data };
+    } catch (error) {
+      throw this.providerFailure(error, "A Meta não aceitou o envio da lista de setores.");
     }
   }
 

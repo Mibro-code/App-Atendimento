@@ -84,7 +84,7 @@ test("entrega o painel e as APIs básicas da caixa de entrada", async () => {
     assert.match(pageHtml, /Atualizar agora/);
     const categories = await fetch(`${base}/api/categories`, { headers: { Cookie: cookie } });
     assert.equal(categories.status, 200);
-    assert.equal((await categories.json()).length, 7);
+    assert.equal((await categories.json()).length, 9);
     const users = await fetch(`${base}/api/users`, { headers: { Cookie: cookie } });
     assert.equal(users.status, 200);
     assert.equal((await users.json())[0].email, "admin@teste.local");
