@@ -187,6 +187,16 @@ test("fixa conversas por conta, restringe exclusão de notas e registra o histó
   assert.ok(detail.activities.some(({ action }) => action === "NOTE_ADDED"));
   assert.ok(detail.activities.some(({ action }) => action === "NOTE_DELETED"));
   assert.equal(detail.isPinned, true);
+
+  const alertStart = new Date(Date.now() - 1000).toISOString();
+  await inbox.updateConversation(conversation.id, { assignedUserId: otherMaster.id }, { id: master.id, role: "ADMIN" });
+  const targetAlerts = await inbox.getUserAlerts({ since: alertStart }, { id: otherMaster.id, role: "ADMIN" });
+  assert.ok(targetAlerts.alerts.some(({ title, conversationId }) => title === "Conversa transferida para você" && conversationId === conversation.id));
+
+  await inbox.updateConversation(conversation.id, { status: "FINALIZADO" }, { id: master.id, role: "ADMIN" });
+  const activeAssignments = await inbox.listConversations({ assignedUser: otherMaster.id, activeOnly: "true" }, { id: master.id, role: "ADMIN" });
+  assert.equal(activeAssignments.some(({ id }) => id === conversation.id), false);
+  await inbox.updateConversation(conversation.id, { status: "NOVO", assignedUserId: master.id }, { id: master.id, role: "ADMIN" });
   await prisma.user.delete({ where: { id: otherMaster.id } });
 });
 

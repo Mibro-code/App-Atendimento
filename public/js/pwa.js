@@ -109,6 +109,14 @@
   window.addEventListener("load", async () => {
     try {
       registration = await navigator.serviceWorker.register("/service-worker.js", { scope: "/" });
+      window.mibroNotify = async (title, options = {}) => {
+        if (typeof Notification === "undefined" || Notification.permission !== "granted") return false;
+        const activeRegistration = registration || await navigator.serviceWorker.ready;
+        await activeRegistration.showNotification(title, {
+          icon: "/assets/app-icon-192.png", badge: "/assets/app-icon-192.png", ...options,
+        });
+        return true;
+      };
       if (checkUpdateButton) checkUpdateButton.hidden = false;
       if (registration.waiting && navigator.serviceWorker.controller) showUpdate();
       registration.addEventListener("updatefound", () => {

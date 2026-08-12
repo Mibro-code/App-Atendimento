@@ -4,6 +4,7 @@ const state = {
   categorySignature: "", listSignature: "", selectedHeaderSignature: "",
   selectedMessagesSignature: "", selectedNotesSignature: "", selectedActivitiesSignature: "", selectedMessageItems: [],
   expandedCategories: new Set(), adminUsers: [], editingUserId: null, assignedUser: "",
+  assignedUserActiveOnly: false, alertCursor: null, checkingAlerts: false,
 };
 const $ = (selector) => document.querySelector(selector);
 const escapeHtml = (value = "") => String(value).replace(/[&<>'"]/g, (char) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" })[char]);
@@ -141,6 +142,12 @@ async function loadCurrentUser() {
   $("#team-button").hidden = !status.user.isMaster && !status.user.canViewTeamActivity;
   $("#manage-categories").hidden = !status.user.canManageCategories;
   $("#assignee-select").disabled = !status.user.canTransferConversations;
+  configureNotificationButton();
+  const cursorKey = `mibro-alert-cursor:${status.user.id}`;
+  let storedCursor = null;
+  try { storedCursor = localStorage.getItem(cursorKey); } catch {}
+  state.alertCursor = storedCursor && !Number.isNaN(new Date(storedCursor).getTime()) ? storedCursor : new Date().toISOString();
+  try { localStorage.setItem(cursorKey, state.alertCursor); } catch {}
 }
 
 async function loadUsers() {
@@ -157,6 +164,37 @@ async function api(path, options) {
   return data;
 }
 function toast(message, error = false) { const el = $("#toast"); el.textContent = message; el.className = `toast show${error ? " error" : ""}`; setTimeout(() => el.className = "toast", 2600); }
+
+function configureNotificationButton() {
+  const button = $("#enable-notifications");
+  if (!("Notification" in window)) return;
+  button.hidden = false;
+  const granted = Notification.permission === "granted";
+  button.textContent = granted ? "🔔 Alertas ativos" : "🔔 Ativar alertas";
+  button.dataset.enabled = String(granted);
+}
+
+async function checkAlerts() {
+  if (!state.currentUser || !state.alertCursor || state.checkingAlerts) return;
+  state.checkingAlerts = true;
+  try {
+    const result = await api(`/api/alerts?since=${encodeURIComponent(state.alertCursor)}`);
+    state.alertCursor = result.checkedAt;
+    try { localStorage.setItem(`mibro-alert-cursor:${state.currentUser.id}`, state.alertCursor); } catch {}
+    if (!result.alerts?.length) return;
+    const latest = result.alerts[result.alerts.length - 1];
+    toast(result.alerts.length === 1 ? `${latest.title}: ${latest.text}` : `${result.alerts.length} novos alertas de atendimento.`);
+    if (document.hidden && typeof window.mibroNotify === "function") {
+      for (const alert of result.alerts.slice(-3)) {
+        await window.mibroNotify(alert.title, {
+          body: alert.text, tag: alert.id, data: { url: `/?conversation=${encodeURIComponent(alert.conversationId)}` },
+        });
+      }
+    }
+  } catch (error) {
+    console.warn("Não foi possível consultar os alertas.", error);
+  } finally { state.checkingAlerts = false; }
+}
 
 async function loadCategories() {
   const previousPrimaryCategory = $("#category-select").value;
@@ -227,18 +265,20 @@ async function loadConversations() {
   if (state.status) params.set("status", state.status);
   if (state.category) params.set("category", state.category);
   if (state.assignedUser) params.set("assignedUser", state.assignedUser);
+  if (state.assignedUserActiveOnly) params.set("activeOnly", "true");
   const [conversations, summary] = await Promise.all([
     api(`/api/conversations?${params}`),
     api("/api/conversations/summary"),
   ]);
   state.conversations = conversations;
   const filteredUser = state.adminUsers.find((user) => user.id === state.assignedUser);
-  $("#list-summary").textContent = `${state.conversations.length} atendimento${state.conversations.length === 1 ? "" : "s"}${filteredUser ? ` • ${filteredUser.name}` : ""}`;
+  $("#list-summary").textContent = `${state.conversations.length} atendimento${state.conversations.length === 1 ? "" : "s"}${filteredUser ? ` ativo${state.conversations.length === 1 ? "" : "s"} • ${filteredUser.name}` : ""}`;
   $("#clear-team-filter").hidden = !state.assignedUser;
   $("#count-all").textContent = summary.total || 0;
   $("#count-new").textContent = summary.statuses.NOVO || 0;
   $("#count-in-progress").textContent = summary.statuses.EM_ATENDIMENTO || 0;
   $("#count-waiting").textContent = summary.statuses.AGUARDANDO_RESPOSTA || 0;
+  document.querySelector('[data-status="AGUARDANDO_RESPOSTA"]').classList.toggle("attention", Boolean(summary.statuses.AGUARDANDO_RESPOSTA));
   $("#count-bot").textContent = summary.statuses.BOT || 0;
   $("#count-finalized").textContent = summary.statuses.FINALIZADO || 0;
   document.querySelectorAll("[data-category-count]").forEach((counter) => {
@@ -343,6 +383,7 @@ async function refreshInbox() {
     await loadCategories();
     if (state.selectedId) await openConversation(state.selectedId, { refreshList:false, markRead:false });
     await loadConversations();
+    await checkAlerts();
   } finally {
     realtimeRefreshRunning = false;
   }
@@ -449,7 +490,14 @@ document.querySelectorAll("[data-status]").forEach((button) => button.addEventLi
 }));
 let searchTimer; $("#search").addEventListener("input", (event) => { clearTimeout(searchTimer); state.search = event.target.value.trim(); searchTimer = setTimeout(loadConversations, 250); });
 $("#refresh").addEventListener("click", loadConversations);
-$("#clear-team-filter").addEventListener("click", () => { state.assignedUser = ""; loadConversations(); });
+$("#clear-team-filter").addEventListener("click", () => { state.assignedUser = ""; state.assignedUserActiveOnly = false; loadConversations(); });
+$("#enable-notifications").addEventListener("click", async () => {
+  if (!("Notification" in window)) return toast("Este dispositivo não oferece notificações do navegador.", true);
+  if (Notification.permission === "granted") return toast("Os alertas do sistema já estão ativos.");
+  const permission = await Notification.requestPermission();
+  configureNotificationButton();
+  toast(permission === "granted" ? "Notificações ativadas." : "As notificações não foram autorizadas.", permission !== "granted");
+});
 $("#theme-toggle").addEventListener("click", () => {
   const theme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
   document.documentElement.dataset.theme = theme;
@@ -467,7 +515,7 @@ $("#team-user-list").addEventListener("click", (event) => {
   const edit = event.target.closest("[data-edit-user]");
   if (edit) return editTeamUser(edit.dataset.editUser);
   const view = event.target.closest("[data-view-user]");
-  if (view) { state.assignedUser = view.dataset.viewUser; state.status = ""; state.category = ""; $("#team-dialog").close(); loadConversations(); }
+  if (view) { state.assignedUser = view.dataset.viewUser; state.assignedUserActiveOnly = true; state.status = ""; state.category = ""; $("#team-dialog").close(); loadConversations(); }
 });
 $("#team-form").addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -586,6 +634,14 @@ loadCurrentUser()
   .then(() => Promise.all([loadUsers(), loadCategories()]))
   .then(loadAdminUsers)
   .then(loadConversations)
+  .then(async () => {
+    const requestedConversation = new URLSearchParams(location.search).get("conversation");
+    if (requestedConversation) {
+      history.replaceState({}, "", "/");
+      try { await openConversation(requestedConversation); } catch {}
+    }
+    await checkAlerts();
+  })
   .then(connectRealtime)
   .catch((error) => toast(error.message, true));
-setInterval(() => { if (!document.hidden) refreshInbox().catch(() => {}); }, 30000);
+setInterval(() => { (document.hidden ? checkAlerts() : refreshInbox()).catch(() => {}); }, 30000);

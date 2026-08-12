@@ -40,9 +40,10 @@ function categoryLabelForHistory(category) {
   return category?.parent ? `${category.parent.name}: ${category.name}` : category?.name;
 }
 
-async function listConversations({ search, category, status, assignedUser }, viewer) {
+async function listConversations({ search, category, status, assignedUser, activeOnly }, viewer) {
   const where = {};
   if (status) where.status = status;
+  else if (activeOnly === "true") where.status = { not: "FINALIZADO" };
   if (category) where.category = { OR: [
     { code: category },
     { parent: { is: { code: category } } },
@@ -78,6 +79,68 @@ async function listConversations({ search, category, status, assignedUser }, vie
   }).then((conversations) => conversations
     .map(({ pins, ...conversation }) => ({ ...conversation, isPinned: pins.length > 0 }))
     .sort((left, right) => Number(right.isPinned) - Number(left.isPinned)));
+}
+
+function alertSince(value) {
+  const parsed = value ? new Date(value) : new Date();
+  const minimum = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  if (Number.isNaN(parsed.getTime())) throw Object.assign(new Error("Data inicial inválida."), { statusCode: 400 });
+  return parsed < minimum ? minimum : parsed;
+}
+
+async function getUserAlerts({ since }, viewer) {
+  const checkedAt = new Date();
+  const occurredAfter = alertSince(since);
+  const scope = await authorization.conversationScope(viewer);
+  const [messages, activities] = await Promise.all([
+    prisma.message.findMany({
+      where: {
+        occurredAt: { gt: occurredAfter, lte: checkedAt }, direction: "RECEBIDA",
+        conversation: { is: scope },
+      },
+      include: { conversation: { include: { contact: true, category: { include: { parent: true } } } } },
+      orderBy: { occurredAt: "asc" }, take: 30,
+    }),
+    prisma.conversationActivity.findMany({
+      where: {
+        createdAt: { gt: occurredAfter, lte: checkedAt },
+        action: { in: ["CATEGORY_CHANGED", "CONVERSATION_TRANSFERRED"] },
+        conversation: { is: scope },
+      },
+      include: { conversation: { include: { contact: true, category: { include: { parent: true } } } } },
+      orderBy: { createdAt: "asc" }, take: 30,
+    }),
+  ]);
+  const incoming = messages.map((message) => ({
+    id: `message:${message.id}`, conversationId: message.conversationId,
+    title: "Cliente aguardando resposta",
+    text: `${message.conversation.contact.name || message.conversation.contact.phone}: ${messagePreviewForAlert(message)}`,
+    createdAt: message.occurredAt,
+  }));
+  const changes = activities.filter((activity) => {
+    if (activity.actorUserId === viewer.id) return false;
+    if (activity.action === "CONVERSATION_TRANSFERRED") return activity.details?.toUserId === viewer.id;
+    return true;
+  }).map((activity) => ({
+    id: `activity:${activity.id}`, conversationId: activity.conversationId,
+    title: activity.action === "CONVERSATION_TRANSFERRED" ? "Conversa transferida para você" : "Nova conversa na sua área",
+    text: `${activity.conversation.contact.name || activity.conversation.contact.phone} • ${categoryLabelForHistory(activity.conversation.category) || "Sem categoria"}`,
+    createdAt: activity.createdAt,
+  }));
+  return {
+    checkedAt,
+    alerts: [...incoming, ...changes]
+      .sort((left, right) => new Date(left.createdAt) - new Date(right.createdAt))
+      .slice(-30),
+  };
+}
+
+function messagePreviewForAlert(message) {
+  if (message.type === "image") return "enviou uma imagem";
+  if (message.type === "audio") return "enviou um áudio";
+  if (message.type === "video") return "enviou um vídeo";
+  const text = message.text?.trim() || "enviou uma mensagem";
+  return text.length > 90 ? `${text.slice(0, 87)}...` : text;
 }
 
 async function getConversation(id, viewer) {
@@ -264,6 +327,7 @@ async function updateConversation(id, { categoryId, status, assignedUserId }, vi
         activities.push(activityRecord(id, viewer.id, "CATEGORY_CHANGED", {
           from: currentSnapshot.category ? categoryLabelForHistory(currentSnapshot.category) : "Sem categoria",
           to: updated.category ? categoryLabelForHistory(updated.category) : "Sem categoria",
+          fromCategoryId: currentSnapshot.categoryId, toCategoryId: updated.categoryId,
         }));
       }
       if (assignedUserId !== undefined && currentSnapshot.assignedUserId !== updated.assignedUserId) {
@@ -273,6 +337,7 @@ async function updateConversation(id, { categoryId, status, assignedUserId }, vi
         activities.push(activityRecord(id, viewer.id, action, {
           from: currentSnapshot.assignedUser?.name || "Sem responsável",
           to: updated.assignedUser?.name || "Sem responsável",
+          fromUserId: currentSnapshot.assignedUserId, toUserId: updated.assignedUserId,
         }));
       }
       if (status && currentSnapshot.status !== updated.status) {
@@ -415,7 +480,7 @@ async function listUsers(viewer) {
 }
 
 module.exports = {
-  addContactNote, conversationStatuses, createCategory, deleteContactNote, getConversation, getConversationSummary, listCategories,
+  addContactNote, conversationStatuses, createCategory, deleteContactNote, getConversation, getConversationSummary, getUserAlerts, listCategories,
   listConversations, listUsers, markAsRead, recordConversationActivity, setContactNotePinned, setConversationPinned,
   updateCategory, updateConversation,
 };

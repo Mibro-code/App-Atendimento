@@ -196,3 +196,18 @@ html[data-theme="dark"] .history-item { border-color:#30343b; }
 html[data-theme="dark"] .history-item p { color:#b8bec6; }
 html[data-theme="dark"] .history-dot { border-color:#1b1e23; }
 html[data-theme="dark"] .delete-note { border-color:#6d3b38; color:#ef9e97; background:#292326; }
+
+/* Alertas por conta e categoria. */
+.notification-button { height:38px; padding:0 13px; border:1px solid #dedede; border-radius:19px; color:#555; background:#fff; font-size:10px; font-weight:800; white-space:nowrap; }
+.notification-button:hover { border-color:var(--orange); color:var(--orange); }
+.notification-button[data-enabled="true"] { border-color:#b8dfc7; color:#18743c; background:#effaf3; }
+.filter.attention { position:relative; color:#b43b17; background:#fff2ec; font-weight:800; animation:waiting-attention 1.35s ease-in-out infinite; }
+.filter.attention strong { color:#fff; background:var(--orange); }
+.filter.attention.active { color:#fff; background:var(--orange); }
+.filter.attention.active strong { color:var(--orange); background:#fff; }
+@keyframes waiting-attention { 0%,100% { box-shadow:inset 0 0 0 1px transparent; } 50% { box-shadow:inset 0 0 0 2px #ef5b2a99,0 0 12px #ef5b2a22; } }
+@media (prefers-reduced-motion:reduce) { .filter.attention { animation:none; box-shadow:inset 0 0 0 2px #ef5b2a88; } }
+@media (max-width:800px) { .notification-button { width:38px; padding:0; overflow:hidden; font-size:0; }.notification-button::before { content:'🔔'; font-size:15px; } }
+html[data-theme="dark"] .notification-button { border-color:#383d45; color:#e7e9ec; background:#20242a; }
+html[data-theme="dark"] .notification-button[data-enabled="true"] { border-color:#345d43; color:#87d7a4; background:#1d3024; }
+html[data-theme="dark"] .filter.attention { color:#ffd9cb; background:#38251f; }

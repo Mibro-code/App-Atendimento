@@ -1,5 +1,5 @@
 // Altere este identificador em toda publicação que modificar arquivos estáticos.
-const CACHE_NAME = "mibro-shell-20260812-2";
+const CACHE_NAME = "mibro-shell-20260812-3";
 const STATIC_ASSETS = [
   "/manifest.webmanifest",
   "/css/app.css",
@@ -26,6 +26,19 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("message", (event) => {
   if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url || "/";
+  event.waitUntil(clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (windows) => {
+    const existing = windows[0];
+    if (existing) {
+      await existing.navigate(targetUrl);
+      return existing.focus();
+    }
+    return clients.openWindow(targetUrl);
+  }));
 });
 
 self.addEventListener("fetch", (event) => {

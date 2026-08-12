@@ -131,6 +131,9 @@ test("entrega o painel e as APIs básicas da caixa de entrada", async () => {
     const summary = await fetch(`${base}/api/conversations/summary`, { headers: { Cookie: cookie } });
     assert.equal(summary.status, 200);
     assert.equal(typeof (await summary.json()).total, "number");
+    const alerts = await fetch(`${base}/api/alerts?since=${encodeURIComponent(new Date().toISOString())}`, { headers: { Cookie: cookie } });
+    assert.equal(alerts.status, 200);
+    assert.ok(Array.isArray((await alerts.json()).alerts));
     assert.equal((await fetch(`${base}/api/events`)).status, 401);
     const eventAbort = new AbortController();
     const eventStream = await fetch(`${base}/api/events`, { headers: { Cookie: cookie }, signal: eventAbort.signal });

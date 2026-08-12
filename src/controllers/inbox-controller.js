@@ -26,6 +26,10 @@ function createInboxController(channel) {
       try { return res.json(await inbox.getConversationSummary(req.user)); }
       catch (error) { return next(error); }
     },
+    async alerts(req, res, next) {
+      try { return res.json(await inbox.getUserAlerts(req.query, req.user)); }
+      catch (error) { return next(error); }
+    },
     async update(req, res, next) {
       try {
         const conversation = await inbox.updateConversation(req.params.id, req.body, req.user);
