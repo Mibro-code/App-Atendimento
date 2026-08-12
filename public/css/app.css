@@ -205,12 +205,10 @@ html[data-theme="dark"] .delete-note { border-color:#6d3b38; color:#ef9e97; back
 .notification-button[data-enabled="true"] { border-color:#b8dfc7; color:#18743c; background:#effaf3; }
 .filter.attention { position:relative; color:#fff; background:#c92a1d; font-weight:900; animation:waiting-attention .8s ease-in-out infinite; }
 .filter.attention strong { min-width:27px; height:27px; border-radius:14px; color:#b42318; background:#fff; font-size:12px; }
-.filter.attention.active { color:#fff; background:var(--orange); }
-.filter.attention.active strong { color:var(--orange); background:#fff; }
+.filter.attention.active { color:#fff; background:#b42318; }
+.filter.attention.active strong { color:#b42318; background:#fff; }
 @keyframes waiting-attention { 0%,100% { box-shadow:0 0 0 0 #d92d2088; transform:scale(1); } 50% { box-shadow:0 0 0 7px #d92d2000,0 5px 18px #b4231844; transform:scale(1.025); } }
-.waiting-alert { position:fixed; z-index:30; top:84px; left:50%; min-height:44px; padding:0 22px; transform:translateX(-50%); border:2px solid #fff; border-radius:24px; color:#fff; background:#c92a1d; box-shadow:0 8px 28px #7a1c1599; font-size:13px; font-weight:900; letter-spacing:.01em; animation:waiting-banner .8s ease-in-out infinite; }.waiting-alert:hover { background:#a91f16; }.waiting-alert[hidden] { display:none; }
-@keyframes waiting-banner { 0%,100% { transform:translateX(-50%) scale(1); } 50% { transform:translateX(-50%) scale(1.055); box-shadow:0 10px 34px #7a1c15bb,0 0 0 7px #d92d2022; } }
-@media (prefers-reduced-motion:reduce) { .filter.attention,.waiting-alert { animation:none; }.filter.attention { box-shadow:inset 0 0 0 3px #fff; } }
+@media (prefers-reduced-motion:reduce) { .filter.attention { animation:none; box-shadow:inset 0 0 0 3px #fff; } }
 @media (max-width:800px) { .notification-button { width:38px; padding:0; overflow:hidden; font-size:0; }.notification-button::before { content:'🔔'; font-size:15px; } }
 html[data-theme="dark"] .notification-button { border-color:#383d45; color:#e7e9ec; background:#20242a; }
 html[data-theme="dark"] .notification-button[data-enabled="true"] { border-color:#345d43; color:#87d7a4; background:#1d3024; }
