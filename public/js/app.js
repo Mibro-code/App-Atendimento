@@ -1,6 +1,6 @@
 const state = {
   conversations: [], categories: [], users: [], currentUser: null,
-  selectedId: null, selectedContactId: null, status: "", category: "", search: "",
+  selectedId: null, selectedContactId: null, selectedCategoryId: "", status: "", category: "", search: "",
   categorySignature: "", listSignature: "", selectedHeaderSignature: "",
   selectedMessagesSignature: "", selectedNotesSignature: "", selectedActivitiesSignature: "", selectedMessageItems: [],
   expandedCategories: new Set(), adminUsers: [], editingUserId: null, assignedUser: "",
@@ -24,6 +24,31 @@ function populateSubcategorySelect(parentId, selectedId = "") {
   select.innerHTML = `<option value="">Subcategoria (opcional)</option>` + children.map((category) => `<option value="${category.id}">${escapeHtml(category.name)}</option>`).join("");
   select.hidden = !parentId || !children.length;
   if (children.some((category) => category.id === selectedId)) select.value = selectedId;
+}
+function pendingCategoryId() {
+  return $("#subcategory-select").value || $("#category-select").value || "";
+}
+function syncCategoryConfirmation() {
+  const primaryOption = $("#category-select").selectedOptions[0];
+  const unavailableRoot = !$("#subcategory-select").value && primaryOption?.dataset.selectable === "false";
+  $("#confirm-category").disabled = !state.selectedId || unavailableRoot
+    || pendingCategoryId() === state.selectedCategoryId;
+}
+function closeConversationView() {
+  state.selectedId = null;
+  state.selectedContactId = null;
+  state.selectedCategoryId = "";
+  state.selectedHeaderSignature = "";
+  state.selectedMessagesSignature = "";
+  state.selectedNotesSignature = "";
+  state.selectedActivitiesSignature = "";
+  state.selectedMessageItems = [];
+  $("#notes-panel").classList.remove("open");
+  $("#history-panel").classList.remove("open");
+  $("#chat-content").hidden = true;
+  $("#empty-state").hidden = false;
+  $("#chat-panel").classList.remove("open");
+  $("#confirm-category").disabled = true;
 }
 function deliveryStatus(status) {
   return ({
@@ -343,6 +368,8 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
       $("#subcategory-select").add(new Option(`${c.category.name} (inativa)`, selectedSubcategory, false, true));
       $("#subcategory-select").hidden = false;
     }
+    state.selectedCategoryId = c.categoryId || "";
+    syncCategoryConfirmation();
     $("#status-badge").className = "status-badge"; $("#status-badge").textContent = statusLabel(c.status);
     if (c.assignedUserId && ![...$("#assignee-select").options].some((option) => option.value === c.assignedUserId)) {
       $("#assignee-select").add(new Option(c.assignedUser?.name || "Outro atendente", c.assignedUserId));
@@ -579,21 +606,28 @@ $("#pin-conversation").addEventListener("click", async (event) => {
   } catch (e) { toast(e.message, true); }
   finally { event.currentTarget.disabled = false; }
 });
-async function updateConversationCategory(categoryId) {
+async function confirmConversationCategory() {
+  const button = $("#confirm-category");
+  const categoryId = pendingCategoryId();
+  if (button.disabled) return;
+  button.disabled = true;
   try {
     await api(`/api/conversations/${state.selectedId}`, { method:"PATCH", body:JSON.stringify({ categoryId:categoryId || null }) });
-    toast("Categoria atualizada."); await openConversation(state.selectedId);
-  } catch (e) { toast(e.message, true); await openConversation(state.selectedId, { markRead:false }); }
+    toast("Conversa transferida para a categoria selecionada.");
+    closeConversationView();
+    await loadConversations();
+  } catch (e) {
+    toast(e.message, true);
+    await openConversation(state.selectedId, { markRead:false });
+  } finally { syncCategoryConfirmation(); }
 }
-$("#category-select").addEventListener("change", async (event) => {
+$("#category-select").addEventListener("change", (event) => {
   const primaryId = event.target.value;
   populateSubcategorySelect(primaryId);
-  const option = event.target.selectedOptions[0];
-  if (!primaryId || option?.dataset.selectable !== "false") await updateConversationCategory(primaryId);
+  syncCategoryConfirmation();
 });
-$("#subcategory-select").addEventListener("change", async (event) => {
-  await updateConversationCategory(event.target.value || $("#category-select").value);
-});
+$("#subcategory-select").addEventListener("change", syncCategoryConfirmation);
+$("#confirm-category").addEventListener("click", confirmConversationCategory);
 $("#assignee-select").addEventListener("change", async (event) => { try { await api(`/api/conversations/${state.selectedId}`, { method:"PATCH", body:JSON.stringify({ assignedUserId:event.target.value || null }) }); toast(event.target.value ? "Responsável atualizado." : "Conversa sem responsável."); await openConversation(state.selectedId); } catch (e) { toast(e.message, true); } });
 $("#claim-conversation").addEventListener("click", async () => { try { await api(`/api/conversations/${state.selectedId}/claim`, { method:"POST" }); toast("Conversa atribuída a você."); await openConversation(state.selectedId); } catch (e) { toast(e.message, true); } });
 $("#manage-categories").addEventListener("click", () => { renderCategoryManager(); $("#category-dialog").showModal(); });
