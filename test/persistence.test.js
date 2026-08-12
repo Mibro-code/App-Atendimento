@@ -51,6 +51,7 @@ test("registra mensagem enviada e o atendente autor", async () => {
     where: { email: "teste@mibro.local" }, update: { role: "ADMIN" },
     create: { name: "Atendente Teste", email: "teste@mibro.local", role: "ADMIN" },
   });
+  masterViewer.id = user.id;
   const category = await prisma.category.findUnique({ where: { code: "SUPORTE" } });
   let conversation = await prisma.conversation.findFirst();
   conversation = await inbox.updateConversation(conversation.id, { categoryId: category.id }, masterViewer);
@@ -156,6 +157,37 @@ test("salva notas no contato e mantém busca pelo nome", async () => {
   assert.equal(found[0].contact.name, "Cliente Teste");
   assert.equal(found[0].contact.notes[0].content, "Cliente prefere atendimento no período da tarde.");
   assert.equal(found[0].contact._count.notes, 2);
+});
+
+test("fixa conversas por conta, restringe exclusão de notas e registra o histórico", async () => {
+  const conversation = await prisma.conversation.findFirst({ include: { contact: true } });
+  const master = await prisma.user.findUnique({ where: { email: "teste@mibro.local" } });
+  const otherMaster = await prisma.user.create({
+    data: { name: "Outro Master", email: "outro-master@mibro.local", role: "ADMIN" },
+  });
+  const attendantViewer = { id: "atendente-sem-permissao", role: "ATENDENTE" };
+
+  await inbox.setConversationPinned(conversation.id, { pinned: true }, { id: master.id, role: "ADMIN" });
+  const masterList = await inbox.listConversations({}, { id: master.id, role: "ADMIN" });
+  const otherList = await inbox.listConversations({}, { id: otherMaster.id, role: "ADMIN" });
+  assert.equal(masterList.find(({ id }) => id === conversation.id).isPinned, true);
+  assert.equal(otherList.find(({ id }) => id === conversation.id).isPinned, false);
+
+  const note = await inbox.addContactNote(conversation.contactId, {
+    content: "Nota que será removida pelo Master.", authorId: master.id, conversationId: conversation.id,
+  }, { id: master.id, role: "ADMIN" });
+  await assert.rejects(
+    () => inbox.deleteContactNote(conversation.contactId, note.id, { conversationId: conversation.id }, attendantViewer),
+    /Somente uma conta Master/,
+  );
+  await inbox.deleteContactNote(conversation.contactId, note.id, { conversationId: conversation.id }, { id: master.id, role: "ADMIN" });
+  assert.equal(await prisma.contactNote.count({ where: { id: note.id } }), 0);
+
+  const detail = await inbox.getConversation(conversation.id, { id: master.id, role: "ADMIN" });
+  assert.ok(detail.activities.some(({ action }) => action === "NOTE_ADDED"));
+  assert.ok(detail.activities.some(({ action }) => action === "NOTE_DELETED"));
+  assert.equal(detail.isPinned, true);
+  await prisma.user.delete({ where: { id: otherMaster.id } });
 });
 
 test("persiste imagens recebidas e enviadas com autoria", async () => {

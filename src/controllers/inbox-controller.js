@@ -38,10 +38,16 @@ function createInboxController(channel) {
       try {
         const conversation = await inbox.updateConversation(req.params.id, {
           assignedUserId: req.user.id,
-          status: "EM_ATENDIMENTO",
         }, req.user);
         inboxEvents.publish();
         return res.json(conversation);
+      } catch (error) { return next(error); }
+    },
+    async pinConversation(req, res, next) {
+      try {
+        const result = await inbox.setConversationPinned(req.params.id, req.body, req.user);
+        inboxEvents.publish();
+        return res.json(result);
       } catch (error) { return next(error); }
     },
     async read(req, res, next) {
@@ -81,6 +87,10 @@ function createInboxController(channel) {
         await authorization.assertCanViewConversation(req.user, req.params.id);
         const result = await finalizeConversation({
           conversationId: req.params.id, sentByUserId: req.user.id, channel,
+        });
+        if (!result.alreadyFinalized) await inbox.recordConversationActivity({
+          conversationId: req.params.id, actorUserId: req.user.id,
+          action: "STATUS_CHANGED", details: { from: result.previousStatus, to: "FINALIZADO" },
         });
         inboxEvents.publish();
         return res.json(result);
@@ -134,6 +144,13 @@ function createInboxController(channel) {
         const note = await inbox.setContactNotePinned(req.params.contactId, req.params.noteId, req.body, req.user);
         inboxEvents.publish();
         return res.json(note);
+      } catch (error) { return next(error); }
+    },
+    async deleteNote(req, res, next) {
+      try {
+        const result = await inbox.deleteContactNote(req.params.contactId, req.params.noteId, req.body, req.user);
+        inboxEvents.publish();
+        return res.json(result);
       } catch (error) { return next(error); }
     },
     async users(req, res, next) {

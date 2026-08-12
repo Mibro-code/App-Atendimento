@@ -1,5 +1,5 @@
 // Altere este identificador em toda publicação que modificar arquivos estáticos.
-const CACHE_NAME = "mibro-shell-20260811-4";
+const CACHE_NAME = "mibro-shell-20260812-1";
 const STATIC_ASSETS = [
   "/manifest.webmanifest",
   "/css/app.css",

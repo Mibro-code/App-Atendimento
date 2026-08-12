@@ -72,21 +72,23 @@ model ContactNote {
 }
 
 model Conversation {
-  id             String             @id @default(cuid())
+  id             String                 @id @default(cuid())
   contactId      String
-  channel        Channel            @default(META)
+  channel        Channel                @default(META)
   categoryId     String?
   assignedUserId String?
-  status         ConversationStatus @default(NOVO)
-  unreadCount    Int                @default(0)
+  status         ConversationStatus     @default(NOVO)
+  unreadCount    Int                    @default(0)
   lastMessageAt  DateTime?
   finalizedAt    DateTime?
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-  contact        Contact            @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  category       Category?          @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  assignedUser   User?              @relation("AssignedConversations", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  contact        Contact                @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  category       Category?              @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  assignedUser   User?                  @relation("AssignedConversations", fields: [assignedUserId], references: [id], onDelete: SetNull)
   messages       Message[]
+  activities     ConversationActivity[]
+  pins           ConversationPin[]
 
   @@unique([contactId, channel])
   @@index([status, lastMessageAt])
@@ -120,23 +122,50 @@ model Message {
 }
 
 model User {
-  id                       String               @id @default(cuid())
+  id                       String                 @id @default(cuid())
   name                     String
-  email                    String               @unique
+  email                    String                 @unique
   passwordHash             String?
-  role                     UserRole             @default(ATENDENTE)
-  active                   Boolean              @default(true)
-  sessionVersion           Int                  @default(0)
-  canViewUncategorized     Boolean              @default(false)
-  canManageCategories      Boolean              @default(false)
-  canTransferConversations Boolean              @default(false)
-  canViewTeamActivity      Boolean              @default(false)
-  createdAt                DateTime             @default(now())
-  updatedAt                DateTime             @updatedAt
-  assignedConversations    Conversation[]       @relation("AssignedConversations")
-  sentMessages             Message[]            @relation("SentMessages")
-  contactNotes             ContactNote[]        @relation("ContactNotes")
+  role                     UserRole               @default(ATENDENTE)
+  active                   Boolean                @default(true)
+  sessionVersion           Int                    @default(0)
+  canViewUncategorized     Boolean                @default(false)
+  canManageCategories      Boolean                @default(false)
+  canTransferConversations Boolean                @default(false)
+  canViewTeamActivity      Boolean                @default(false)
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
+  assignedConversations    Conversation[]         @relation("AssignedConversations")
+  sentMessages             Message[]              @relation("SentMessages")
+  contactNotes             ContactNote[]          @relation("ContactNotes")
   categoryAccess           UserCategoryAccess[]
+  conversationPins         ConversationPin[]
+  conversationActivities   ConversationActivity[] @relation("ConversationActivityActor")
+}
+
+model ConversationPin {
+  userId         String
+  conversationId String
+  createdAt      DateTime     @default(now())
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@id([userId, conversationId])
+  @@index([conversationId])
+}
+
+model ConversationActivity {
+  id             String       @id @default(cuid())
+  conversationId String
+  actorUserId    String?
+  action         String
+  details        Json?
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  actorUser      User?        @relation("ConversationActivityActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, createdAt])
+  @@index([actorUserId])
 }
 
 model Category {

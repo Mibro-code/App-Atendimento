@@ -108,7 +108,7 @@ async function finalizeConversation({ conversationId, sentByUserId, channel }) {
   const conversation = await prisma.conversation.update({ where: { id: conversationId }, data: {
     status: "FINALIZADO", finalizedAt: new Date(),
   } });
-  return { conversation, message: result.message, providerData: result.providerData, alreadyFinalized: false };
+  return { conversation, message: result.message, providerData: result.providerData, alreadyFinalized: false, previousStatus: current.status };
 }
 
 async function sendTextToPhone({ phone, text, channel }) {

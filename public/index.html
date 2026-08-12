@@ -51,7 +51,9 @@
           <div class="contact-avatar" id="contact-avatar"></div>
           <div class="contact-info"><h2 id="contact-name"></h2><p id="contact-phone"></p></div>
           <div class="chat-actions">
+            <button id="pin-conversation" class="secondary-action" type="button" title="Fixar esta conversa somente para minha conta">☆ Fixar</button>
             <button id="notes-toggle" class="secondary-action" type="button">Notas</button>
+            <button id="history-toggle" class="secondary-action" type="button">Histórico</button>
             <select id="category-select" aria-label="Categoria principal"></select>
             <select id="subcategory-select" aria-label="Subcategoria" hidden></select>
             <button id="toggle-finalized" class="secondary-action"></button>
@@ -68,6 +70,11 @@
           <p class="notes-help">Informações visíveis apenas para a equipe.</p>
           <form id="note-form"><textarea id="note-input" maxlength="2000" placeholder="Ex.: Cliente prefere contato à tarde" required></textarea><button type="submit">Adicionar nota</button></form>
           <div id="notes-list" class="notes-list"></div>
+        </aside>
+        <aside id="history-panel" class="history-panel" aria-label="Histórico de ações da conversa">
+          <div class="notes-header"><div><span>AUDITORIA</span><h3>Histórico de ações</h3></div><button id="history-close" type="button">×</button></div>
+          <p class="notes-help">Registro de alterações realizadas pela equipe nesta conversa.</p>
+          <div id="history-list" class="history-list"></div>
         </aside>
         <form id="composer" class="composer">
           <label class="attach-image" title="Anexar imagem" aria-label="Anexar imagem"><input id="image-input" type="file" accept="image/jpeg,image/png"><span>＋</span></label>

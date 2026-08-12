@@ -26,6 +26,20 @@ function categoryCode(name) {
     .toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 50) || "CATEGORIA";
 }
 
+function activityRecord(conversationId, actorUserId, action, details) {
+  return { conversationId, actorUserId: actorUserId || null, action, details: details || undefined };
+}
+
+async function recordConversationActivity({ conversationId, actorUserId, action, details }, client = prisma) {
+  return client.conversationActivity.create({
+    data: activityRecord(conversationId, actorUserId, action, details),
+  });
+}
+
+function categoryLabelForHistory(category) {
+  return category?.parent ? `${category.parent.name}: ${category.name}` : category?.name;
+}
+
 async function listConversations({ search, category, status, assignedUser }, viewer) {
   const where = {};
   if (status) where.status = status;
@@ -58,9 +72,12 @@ async function listConversations({ search, category, status, assignedUser }, vie
       category: { include: { parent: true } },
       assignedUser: { select: { id: true, name: true, email: true } },
       messages: { orderBy: { occurredAt: "desc" }, take: 1 },
+      pins: { where: { userId: viewer.id }, select: { createdAt: true }, take: 1 },
     },
     orderBy: [{ lastMessageAt: "desc" }, { createdAt: "desc" }],
-  });
+  }).then((conversations) => conversations
+    .map(({ pins, ...conversation }) => ({ ...conversation, isPinned: pins.length > 0 }))
+    .sort((left, right) => Number(right.isPinned) - Number(left.isPinned)));
 }
 
 async function getConversation(id, viewer) {
@@ -82,7 +99,17 @@ async function getConversation(id, viewer) {
           },
         },
       },
+      pins: { where: { userId: viewer.id }, select: { createdAt: true }, take: 1 },
+      activities: {
+        include: { actorUser: { select: { id: true, name: true } } },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      },
     },
+  }).then((conversation) => {
+    if (!conversation) return null;
+    const { pins, ...result } = conversation;
+    return { ...result, isPinned: pins.length > 0 };
   });
 }
 
@@ -104,15 +131,26 @@ async function getConversationSummary(viewer) {
   };
 }
 
-async function addContactNote(contactId, { content, authorId }, viewer) {
+async function addContactNote(contactId, { content, authorId, conversationId }, viewer) {
   await authorization.assertCanAccessContact(viewer, contactId);
+  if (conversationId) {
+    const conversation = await prisma.conversation.findFirst({ where: { id: conversationId, contactId }, select: { id: true } });
+    if (!conversation) throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
+  }
   const text = content?.trim();
   if (!text) throw Object.assign(new Error("A nota não pode ficar vazia."), { statusCode: 400 });
   if (text.length > 2000) throw Object.assign(new Error("A nota deve ter no máximo 2.000 caracteres."), { statusCode: 400 });
   try {
-    return await prisma.contactNote.create({
-      data: { contactId, content: text, authorId: authorId || null },
-      include: { author: { select: { id: true, name: true } } },
+    return await prisma.$transaction(async (transaction) => {
+      const note = await transaction.contactNote.create({
+        data: { contactId, content: text, authorId: authorId || null },
+        include: { author: { select: { id: true, name: true } } },
+      });
+      if (conversationId) await recordConversationActivity({
+        conversationId, actorUserId: authorId, action: "NOTE_ADDED",
+        details: { preview: text.slice(0, 120) },
+      }, transaction);
+      return note;
     });
   } catch (error) {
     if (error.code === "P2003") throw Object.assign(new Error("Contato não encontrado."), { statusCode: 404 });
@@ -120,13 +158,36 @@ async function addContactNote(contactId, { content, authorId }, viewer) {
   }
 }
 
-async function setContactNotePinned(contactId, noteId, { pinned }, viewer) {
+async function deleteContactNote(contactId, noteId, { conversationId }, viewer) {
+  authorization.assertMaster(viewer);
+  await authorization.assertCanAccessContact(viewer, contactId);
+  const note = await prisma.contactNote.findFirst({ where: { id: noteId, contactId } });
+  if (!note) throw Object.assign(new Error("Nota não encontrada."), { statusCode: 404 });
+  const conversation = await prisma.conversation.findFirst({
+    where: { id: conversationId, contactId }, select: { id: true },
+  });
+  if (!conversation) throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
+  return prisma.$transaction(async (transaction) => {
+    await transaction.contactNote.delete({ where: { id: noteId } });
+    await recordConversationActivity({
+      conversationId, actorUserId: viewer.id, action: "NOTE_DELETED",
+      details: { preview: note.content.slice(0, 120), wasPinned: note.pinned },
+    }, transaction);
+    return { deleted: true };
+  });
+}
+
+async function setContactNotePinned(contactId, noteId, { pinned, conversationId }, viewer) {
   await authorization.assertCanAccessContact(viewer, contactId);
   if (typeof pinned !== "boolean") {
     throw Object.assign(new Error("Informe se a nota deve ser fixada."), { statusCode: 400 });
   }
   const note = await prisma.contactNote.findFirst({ where: { id: noteId, contactId } });
   if (!note) throw Object.assign(new Error("Nota não encontrada."), { statusCode: 404 });
+  if (conversationId) {
+    const conversation = await prisma.conversation.findFirst({ where: { id: conversationId, contactId }, select: { id: true } });
+    if (!conversation) throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
+  }
   return prisma.$transaction(async (transaction) => {
     if (pinned) {
       await transaction.contactNote.updateMany({
@@ -134,15 +195,28 @@ async function setContactNotePinned(contactId, noteId, { pinned }, viewer) {
         data: { pinned: false },
       });
     }
-    return transaction.contactNote.update({
+    const updated = await transaction.contactNote.update({
       where: { id: noteId }, data: { pinned },
       include: { author: { select: { id: true, name: true } } },
     });
+    if (conversationId) await recordConversationActivity({
+      conversationId, actorUserId: viewer.id, action: pinned ? "NOTE_PINNED" : "NOTE_UNPINNED",
+      details: { preview: note.content.slice(0, 120) },
+    }, transaction);
+    return updated;
   });
 }
 
 async function updateConversation(id, { categoryId, status, assignedUserId }, viewer) {
   const currentAccess = await authorization.assertCanViewConversation(viewer, id);
+  const currentSnapshot = await prisma.conversation.findUnique({
+    where: { id },
+    include: {
+      category: { include: { parent: true } },
+      assignedUser: { select: { id: true, name: true } },
+    },
+  });
+  if (!currentSnapshot) throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
   if (status && !conversationStatuses.has(status)) {
     throw Object.assign(new Error("Status inválido."), { statusCode: 400 });
   }
@@ -180,14 +254,53 @@ async function updateConversation(id, { categoryId, status, assignedUserId }, vi
     if (["NOVO", "AGUARDANDO_RESPOSTA", "BOT"].includes(current.status)) data.status = "EM_ATENDIMENTO";
   }
   try {
-    return await prisma.conversation.update({
-      where: { id }, data,
-      include: { contact: true, category: true, assignedUser: { select: { id: true, name: true, email: true } } },
+    return await prisma.$transaction(async (transaction) => {
+      const updated = await transaction.conversation.update({
+        where: { id }, data,
+        include: { contact: true, category: { include: { parent: true } }, assignedUser: { select: { id: true, name: true, email: true } } },
+      });
+      const activities = [];
+      if (categoryId !== undefined && currentSnapshot.categoryId !== updated.categoryId) {
+        activities.push(activityRecord(id, viewer.id, "CATEGORY_CHANGED", {
+          from: currentSnapshot.category ? categoryLabelForHistory(currentSnapshot.category) : "Sem categoria",
+          to: updated.category ? categoryLabelForHistory(updated.category) : "Sem categoria",
+        }));
+      }
+      if (assignedUserId !== undefined && currentSnapshot.assignedUserId !== updated.assignedUserId) {
+        const action = !updated.assignedUserId ? "ASSIGNEE_REMOVED"
+          : !currentSnapshot.assignedUserId && updated.assignedUserId === viewer.id ? "CONVERSATION_CLAIMED"
+            : "CONVERSATION_TRANSFERRED";
+        activities.push(activityRecord(id, viewer.id, action, {
+          from: currentSnapshot.assignedUser?.name || "Sem responsável",
+          to: updated.assignedUser?.name || "Sem responsável",
+        }));
+      }
+      if (status && currentSnapshot.status !== updated.status) {
+        activities.push(activityRecord(id, viewer.id, "STATUS_CHANGED", { from: currentSnapshot.status, to: updated.status }));
+      }
+      if (activities.length) await transaction.conversationActivity.createMany({ data: activities });
+      return updated;
     });
   } catch (error) {
     if (error.code === "P2025") throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
     throw error;
   }
+}
+
+async function setConversationPinned(id, { pinned }, viewer) {
+  await authorization.assertCanViewConversation(viewer, id);
+  if (typeof pinned !== "boolean") {
+    throw Object.assign(new Error("Informe se a conversa deve ser fixada."), { statusCode: 400 });
+  }
+  if (pinned) {
+    await prisma.conversationPin.upsert({
+      where: { userId_conversationId: { userId: viewer.id, conversationId: id } },
+      update: {}, create: { userId: viewer.id, conversationId: id },
+    });
+  } else {
+    await prisma.conversationPin.deleteMany({ where: { userId: viewer.id, conversationId: id } });
+  }
+  return { conversationId: id, pinned };
 }
 
 async function markAsRead(id, { channel } = {}) {
@@ -302,6 +415,7 @@ async function listUsers(viewer) {
 }
 
 module.exports = {
-  addContactNote, conversationStatuses, createCategory, getConversation, getConversationSummary, listCategories,
-  listConversations, listUsers, markAsRead, setContactNotePinned, updateCategory, updateConversation,
+  addContactNote, conversationStatuses, createCategory, deleteContactNote, getConversation, getConversationSummary, listCategories,
+  listConversations, listUsers, markAsRead, recordConversationActivity, setContactNotePinned, setConversationPinned,
+  updateCategory, updateConversation,
 };

@@ -136,6 +136,7 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   app.get("/api/conversations/:id", inbox.detail);
   app.patch("/api/conversations/:id", inbox.update);
   app.post("/api/conversations/:id/claim", inbox.claim);
+  app.patch("/api/conversations/:id/pin", inbox.pinConversation);
   app.post("/api/conversations/:id/read", inbox.read);
   app.post("/api/conversations/:id/messages", inbox.reply);
   app.post("/api/conversations/:id/images", imageUpload, inbox.replyImage);
@@ -147,6 +148,7 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   app.get("/api/users", inbox.users);
   app.post("/api/contacts/:contactId/notes", inbox.addNote);
   app.patch("/api/contacts/:contactId/notes/:noteId", inbox.pinNote);
+  app.delete("/api/contacts/:contactId/notes/:noteId", inbox.deleteNote);
   app.get("/api/admin/users", userManagementController.list);
   app.post("/api/admin/users", userManagementController.create);
   app.patch("/api/admin/users/:id", userManagementController.update);

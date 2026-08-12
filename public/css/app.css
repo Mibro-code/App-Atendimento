@@ -156,3 +156,43 @@ html[data-theme="dark"] * { scrollbar-color:#4b515a #1a1d22; }
 @media (max-width:1200px) { .workspace { grid-template-columns:190px 360px minmax(0,1fr); }.filters-panel { padding-inline:10px; }.conversation-card { min-height:132px; padding-inline:9px; gap:9px; }.category-label,.status-label,.assignee-label { padding-inline:5px; font-size:10px; } }
 @media (max-width:900px) { .workspace { grid-template-columns:170px 330px minmax(0,1fr); }.brand small,.connection { display:none; }.conversation-card { grid-template-columns:7px 40px minmax(0,1fr) auto; }.conversation-card .avatar { width:40px; height:40px; }.card-title small { display:none; }.bubble { max-width:86%; } }
 @media (max-width:700px) { .workspace { grid-template-columns:1fr; }.conversation-card { min-height:126px; }.card-title small { display:block; } }
+
+/* Ações pessoais e histórico da conversa. */
+.conversation-pin { margin-right:5px; color:var(--orange); font-size:11px; font-style:normal; }
+#pin-conversation[data-pinned="true"] { border-color:var(--orange); color:var(--orange); background:var(--orange-soft); }
+.history-panel { position:absolute; z-index:5; top:76px; right:0; bottom:0; width:380px; padding:20px; overflow:auto; border-left:1px solid var(--line); background:#fff; box-shadow:-10px 0 30px #0000000d; transform:translateX(100%); transition:transform .2s ease; }
+.history-panel.open { transform:none; }
+.history-list { padding-top:5px; }
+.history-item { position:relative; padding:10px 0 12px 22px; display:flex; gap:10px; border-bottom:1px solid #eeeeee; }
+.history-dot { position:absolute; top:15px; left:3px; width:9px; height:9px; border:2px solid #fff; border-radius:50%; background:var(--orange); box-shadow:0 0 0 1px #ef5b2a88; }
+.history-item div { min-width:0; }
+.history-item p { margin:0; color:#59636e; font-size:11px; line-height:1.5; }
+.history-item b { color:var(--ink); }
+.history-item time { display:block; margin-top:4px; color:#9299a2; font-size:9px; }
+.note-actions { display:flex; align-items:center; gap:5px; }
+.delete-note { padding:4px 7px; border:1px solid #efc1bd; border-radius:12px; color:#a83229; background:#fff; font-size:8px; font-weight:700; }
+.delete-note:hover { border-color:#b42318; color:#fff; background:#b42318; }
+@media (max-width:700px) { .history-panel { top:76px; width:min(380px,100%); }.chat-actions { flex-wrap:wrap; justify-content:flex-end; } }
+
+/* Equipe: tipografia cerca de 10% maior para leitura confortável. */
+.team-dialog .dialog-header span { font-size:10px; }
+.team-dialog .dialog-header h2 { font-size:24px; }
+.team-dialog .dialog-header p { font-size:12px; }
+.team-dialog .team-section-title strong { font-size:15px; }
+.team-dialog .team-section-title small { font-size:10px; }
+.team-dialog .team-section-title button { font-size:10px; }
+.team-dialog .team-user-info b { font-size:12px; }
+.team-dialog .team-user-info small,.team-dialog .team-user-meta,.team-dialog .team-user-actions button { font-size:9px; }
+.team-dialog .role-pill { font-size:8px; }
+.team-dialog .team-form-heading span { font-size:9px; }
+.team-dialog .team-form-heading h3 { font-size:20px; }
+.team-dialog .team-fields label,.team-dialog .team-check,.team-dialog .team-category-option { font-size:10px; }
+.team-dialog .team-check small,.team-dialog .team-categories > p { font-size:9px; }
+.team-dialog .team-permissions legend,.team-dialog .team-categories legend { font-size:11px; }
+.team-dialog .team-form-actions button { font-size:10px; }
+
+html[data-theme="dark"] .history-panel { background:#1b1e23; }
+html[data-theme="dark"] .history-item { border-color:#30343b; }
+html[data-theme="dark"] .history-item p { color:#b8bec6; }
+html[data-theme="dark"] .history-dot { border-color:#1b1e23; }
+html[data-theme="dark"] .delete-note { border-color:#6d3b38; color:#ef9e97; background:#292326; }
