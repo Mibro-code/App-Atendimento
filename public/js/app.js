@@ -7,6 +7,9 @@ const state = {
   assignedUserActiveOnly: false, alertCursor: null, checkingAlerts: false,
 };
 const $ = (selector) => document.querySelector(selector);
+const defaultDocumentTitle = document.title;
+let waitingTitleTimer = null;
+let waitingAlertCount = 0;
 const escapeHtml = (value = "") => String(value).replace(/[&<>'"]/g, (char) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" })[char]);
 const initials = (name = "?") => name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
 const time = (value) => value ? new Intl.DateTimeFormat("pt-BR", { hour:"2-digit", minute:"2-digit" }).format(new Date(value)) : "";
@@ -49,6 +52,27 @@ function closeConversationView() {
   $("#empty-state").hidden = false;
   $("#chat-panel").classList.remove("open");
   $("#confirm-category").disabled = true;
+}
+function syncWaitingAlert(count) {
+  const waitingCount = Number(count) || 0;
+  waitingAlertCount = waitingCount;
+  const alert = $("#waiting-alert");
+  alert.hidden = waitingCount === 0;
+  alert.textContent = waitingCount === 1
+    ? "⚠ 1 cliente aguardando resposta — atender agora"
+    : `⚠ ${waitingCount} clientes aguardando resposta — atender agora`;
+  if (waitingCount && !waitingTitleTimer) {
+    let warningVisible = false;
+    waitingTitleTimer = setInterval(() => {
+      warningVisible = !warningVisible;
+      document.title = warningVisible ? `⚠ ${waitingAlertCount} AGUARDANDO RESPOSTA` : defaultDocumentTitle;
+    }, 900);
+  }
+  if (!waitingCount && waitingTitleTimer) {
+    clearInterval(waitingTitleTimer);
+    waitingTitleTimer = null;
+    document.title = defaultDocumentTitle;
+  }
 }
 function deliveryStatus(status) {
   return ({
@@ -305,6 +329,7 @@ async function loadConversations() {
   $("#count-in-progress").textContent = summary.statuses.EM_ATENDIMENTO || 0;
   $("#count-waiting").textContent = summary.statuses.AGUARDANDO_RESPOSTA || 0;
   document.querySelector('[data-status="AGUARDANDO_RESPOSTA"]').classList.toggle("attention", Boolean(summary.statuses.AGUARDANDO_RESPOSTA));
+  syncWaitingAlert(summary.statuses.AGUARDANDO_RESPOSTA);
   $("#count-bot").textContent = summary.statuses.BOT || 0;
   $("#count-finalized").textContent = summary.statuses.FINALIZADO || 0;
   document.querySelectorAll("[data-category-count]").forEach((counter) => {
@@ -522,6 +547,15 @@ $("#conversation-list").addEventListener("click", (event) => {
 document.querySelectorAll("[data-status]").forEach((button) => button.addEventListener("click", () => {
   document.querySelectorAll(".filter").forEach((item) => item.classList.remove("active")); button.classList.add("active"); state.status = button.dataset.status; state.category = ""; loadConversations();
 }));
+$("#waiting-alert").addEventListener("click", () => {
+  state.status = "AGUARDANDO_RESPOSTA";
+  state.category = "";
+  state.assignedUser = "";
+  state.assignedUserActiveOnly = false;
+  document.querySelectorAll(".filter").forEach((item) => item.classList.remove("active"));
+  document.querySelector('[data-status="AGUARDANDO_RESPOSTA"]').classList.add("active");
+  loadConversations();
+});
 let searchTimer; $("#search").addEventListener("input", (event) => { clearTimeout(searchTimer); state.search = event.target.value.trim(); searchTimer = setTimeout(loadConversations, 250); });
 $("#refresh").addEventListener("click", loadConversations);
 $("#clear-team-filter").addEventListener("click", () => { state.assignedUser = ""; state.assignedUserActiveOnly = false; loadConversations(); });
