@@ -183,7 +183,7 @@ html[data-theme="dark"] * { scrollbar-color:#4b515a #1a1d22; }
 .team-dialog .team-section-title button { font-size:10px; }
 .team-dialog .team-user-info b { font-size:12px; }
 .team-dialog .team-user-info small,.team-dialog .team-user-meta,.team-dialog .team-user-actions button { font-size:9px; }
-.team-dialog .role-pill { font-size:8px; }
+.team-dialog .role-pill { padding:5px 8px; border-radius:11px; font-size:9px; }
 .team-dialog .team-form-heading span { font-size:9px; }
 .team-dialog .team-form-heading h3 { font-size:20px; }
 .team-dialog .team-fields label,.team-dialog .team-check,.team-dialog .team-category-option { font-size:10px; }
