@@ -12,10 +12,12 @@ test("interpreta todas as mensagens e status de um webhook", () => {
       { id: "wamid.2", from: "5511999999999", type: "image", image: { id: "media.2", mime_type: "image/jpeg", caption: "Foto do produto" }, timestamp: "1700000001" },
       { id: "wamid.4", from: "5511999999999", type: "audio", audio: { id: "media.4", mime_type: "audio/ogg; codecs=opus", voice: true }, timestamp: "1700000002" },
       { id: "wamid.5", from: "5511999999999", type: "video", video: { id: "media.5", mime_type: "video/mp4", caption: "Vídeo do produto" }, timestamp: "1700000003" },
+      { id: "wamid.6", from: "5511999999999", type: "sticker", sticker: { id: "media.6", mime_type: "image/webp", animated: true }, timestamp: "1700000004" },
+      { id: "wamid.7", from: "5511999999999", type: "reaction", reaction: { message_id: "wamid.1", emoji: "❤️" }, timestamp: "1700000005" },
     ],
     statuses: [{ id: "wamid.3", status: "delivered", timestamp: "1700000002" }],
   } }] }] });
-  assert.equal(events.length, 5);
+  assert.equal(events.length, 7);
   assert.equal(events[0].contactName, "Cliente");
   assert.equal(events[0].text, "Olá");
   assert.equal(events[1].text, "Foto do produto");
@@ -27,7 +29,40 @@ test("interpreta todas as mensagens e status de um webhook", () => {
   assert.equal(events[3].text, "Vídeo do produto");
   assert.equal(events[3].mediaId, "media.5");
   assert.equal(events[3].mediaMimeType, "video/mp4");
-  assert.equal(events[4].kind, "status");
+  assert.equal(events[4].type, "sticker");
+  assert.equal(events[4].mediaId, "media.6");
+  assert.equal(events[4].mediaMimeType, "image/webp");
+  assert.equal(events[5].type, "reaction");
+  assert.equal(events[5].text, "❤️");
+  assert.equal(events[5].reactionToExternalId, "wamid.1");
+  assert.equal(events[6].kind, "status");
+});
+
+test("baixa figurinha WebP recebida", async () => {
+  const previousEnv = {
+    GRAPH_VERSION: process.env.GRAPH_VERSION,
+    PHONE_NUMBER_ID: process.env.PHONE_NUMBER_ID,
+    WHATSAPP_TOKEN: process.env.WHATSAPP_TOKEN,
+  };
+  const previousGet = axios.get;
+  process.env.GRAPH_VERSION = "v-test";
+  process.env.PHONE_NUMBER_ID = "phone-test";
+  process.env.WHATSAPP_TOKEN = "token-test";
+  const webp = Buffer.concat([Buffer.from("RIFF"), Buffer.from([4, 0, 0, 0]), Buffer.from("WEBPVP8 ")]);
+  axios.get = async (url) => url.includes("graph.facebook.com")
+    ? { data: { url: "https://lookaside.fbsbx.com/media/sticker", mime_type: "image/webp" } }
+    : { data: webp, headers: { "content-type": "image/webp" } };
+  try {
+    const downloaded = await new MetaCloudChannel().downloadMedia("media.sticker");
+    assert.equal(downloaded.mimeType, "image/webp");
+    assert.equal(downloaded.fileName, "figurinha-media.sticker.webp");
+    assert.deepEqual(downloaded.buffer, webp);
+  } finally {
+    axios.get = previousGet;
+    for (const [key, value] of Object.entries(previousEnv)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
 });
 
 test("interpreta a escolha de uma lista interativa", () => {

@@ -90,42 +90,80 @@ async function completeTriage(conversation, categoryId, channel) {
   });
   if (!category) return sendCategoryMenu(conversation, channel);
 
-  const text = routingText(conversation.contact, category);
-  const result = await channel.sendText(conversation.contact.phone, text);
-  const occurredAt = new Date();
-  await prisma.$transaction([
-    prisma.message.create({ data: {
-      conversationId: conversation.id, externalId: result.externalId || null, channel: "META",
-      direction: "ENVIADA", status: "ENVIADA", type: "text", text, occurredAt,
-      rawPayload: { message: result.data, system: "triage_confirmation" },
-    } }),
-    prisma.conversation.update({ where: { id: conversation.id }, data: {
-      categoryId: category.id, status: "NOVO", assignedUserId: null,
-      lastMessageAt: occurredAt, finalizedAt: null,
-    } }),
-    prisma.conversationActivity.create({ data: {
-      conversationId: conversation.id, action: "BOT_TRIAGE_COMPLETED",
-      details: { categoryId: category.id, categoryName: category.name },
-    } }),
-  ]);
-  return true;
+  const claimed = await prisma.conversation.updateMany({
+    where: { id: conversation.id, categoryId: null, status: "BOT" },
+    data: { categoryId: category.id, status: "NOVO", assignedUserId: null, finalizedAt: null },
+  });
+  if (!claimed.count) return false;
+
+  try {
+    const text = routingText(conversation.contact, category);
+    const result = await channel.sendText(conversation.contact.phone, text);
+    const occurredAt = new Date();
+    await prisma.$transaction([
+      prisma.message.create({ data: {
+        conversationId: conversation.id, externalId: result.externalId || null, channel: "META",
+        direction: "ENVIADA", status: "ENVIADA", type: "text", text, occurredAt,
+        rawPayload: { message: result.data, system: "triage_confirmation" },
+      } }),
+      prisma.conversation.update({ where: { id: conversation.id }, data: { lastMessageAt: occurredAt } }),
+      prisma.conversationActivity.create({ data: {
+        conversationId: conversation.id, action: "BOT_TRIAGE_COMPLETED",
+        details: { categoryId: category.id, categoryName: category.name },
+      } }),
+    ]);
+    return true;
+  } catch (error) {
+    await prisma.conversation.updateMany({
+      where: { id: conversation.id, categoryId: category.id, status: "NOVO", assignedUserId: null },
+      data: { categoryId: null, status: "BOT" },
+    });
+    throw error;
+  }
 }
 
 async function handleIncomingTriage(event, message, channel, { now = new Date() } = {}) {
   const conversation = await prisma.conversation.findUnique({
-    where: { id: message.conversationId }, include: { contact: true },
+    where: { id: message.conversationId },
+    include: {
+      contact: true,
+      messages: {
+        where: { direction: "ENVIADA" }, orderBy: { occurredAt: "desc" }, take: 1,
+        select: { rawPayload: true },
+      },
+    },
   });
   if (!conversation) return false;
-
-  if (!isBusinessHours(now)) {
-    return saveBotText(conversation, afterHoursText(conversation.contact), "after_hours", channel);
-  }
   if (conversation.categoryId) return false;
 
   if (event.interactiveReplyId?.startsWith(categoryReplyPrefix)) {
+    if (!isBusinessHours(now)) return false;
     return completeTriage(conversation, event.interactiveReplyId.slice(categoryReplyPrefix.length), channel);
   }
-  return sendCategoryMenu(conversation, channel);
+  const businessHours = isBusinessHours(now);
+  const lastAutomation = conversation.messages[0]?.rawPayload?.system;
+  const canStart = conversation.status === "NOVO"
+    || (conversation.status === "BOT" && businessHours && lastAutomation === "after_hours");
+  if (!canStart) return false;
+  const claimed = await prisma.conversation.updateMany({
+    where: {
+      id: conversation.id, categoryId: null,
+      status: conversation.status, updatedAt: conversation.updatedAt,
+    },
+    data: { status: "BOT" },
+  });
+  if (!claimed.count) return false;
+  try {
+    if (!businessHours) {
+      return await saveBotText(conversation, afterHoursText(conversation.contact), "after_hours", channel);
+    }
+    return await sendCategoryMenu(conversation, channel);
+  } catch (error) {
+    await prisma.conversation.updateMany({
+      where: { id: conversation.id, categoryId: null, status: "BOT" }, data: { status: "NOVO" },
+    });
+    throw error;
+  }
 }
 
 module.exports = {

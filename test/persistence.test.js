@@ -345,6 +345,43 @@ test("persiste imagens recebidas e enviadas com autoria", async () => {
   assert.deepEqual(await fs.readFile(resolveImage(outgoing.message.mediaStorageKey)), png);
 });
 
+test("persiste e exibe figurinha WebP recebida", async () => {
+  const webp = Buffer.concat([Buffer.from("RIFF"), Buffer.from([4, 0, 0, 0]), Buffer.from("WEBPVP8 ")]);
+  const incoming = await saveIncoming({
+    externalId: "wamid.test.sticker.in", contactExternalId: "5511999999999", phone: "5511999999999",
+    contactName: "Cliente Teste", type: "sticker", text: "[sticker]", occurredAt: new Date(),
+    rawPayload: { sticker: { id: "media.sticker", mime_type: "image/webp", animated: true } },
+    mediaBuffer: webp, mediaMimeType: "image/webp", mediaFileName: "figurinha.webp",
+  });
+  assert.equal(incoming.message.type, "sticker");
+  assert.equal(incoming.message.mediaMimeType, "image/webp");
+  assert.equal(incoming.message.mediaFileName, "figurinha.webp");
+  assert.deepEqual(await fs.readFile(resolveMedia(incoming.message.mediaStorageKey)), webp);
+});
+
+test("persiste reação sem transformar em nova mensagem aguardando resposta", async () => {
+  const conversation = await prisma.conversation.findFirst();
+  const target = await prisma.message.findFirst({
+    where: { conversationId: conversation.id, externalId: { not: null }, type: { not: "reaction" } },
+    orderBy: { occurredAt: "asc" },
+  });
+  await prisma.conversation.update({
+    where: { id: conversation.id }, data: { status: "EM_ATENDIMENTO", unreadCount: 0 },
+  });
+  const incoming = await saveIncoming({
+    externalId: "wamid.test.reaction.in", contactExternalId: "5511999999999", phone: "5511999999999",
+    contactName: "Cliente Teste", type: "reaction", text: "👍", occurredAt: new Date(),
+    reactionToExternalId: target.externalId, reactionEmoji: "👍",
+    rawPayload: { reaction: { message_id: target.externalId, emoji: "👍" } },
+  });
+  assert.equal(incoming.message.type, "reaction");
+  assert.equal(incoming.message.text, "👍");
+  assert.deepEqual(incoming.message.rawPayload.reaction, { message_id: target.externalId, emoji: "👍" });
+  const updated = await prisma.conversation.findUnique({ where: { id: conversation.id } });
+  assert.equal(updated.status, "EM_ATENDIMENTO");
+  assert.equal(updated.unreadCount, 0);
+});
+
 test("persiste áudio recebido para reprodução no histórico", async () => {
   const audio = Buffer.from("OggS-audio-opus-de-teste");
   const incoming = await saveIncoming({

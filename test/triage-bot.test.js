@@ -8,10 +8,37 @@ const {
 
 const externalId = "triage-bot-test-contact";
 const afterHoursExternalId = "triage-bot-after-hours-contact";
+const concurrentExternalId = "triage-bot-concurrent-contact";
 
 test.after(async () => {
-  await prisma.contact.deleteMany({ where: { externalId: { in: [externalId, afterHoursExternalId] } } });
+  await prisma.contact.deleteMany({ where: { externalId: { in: [externalId, afterHoursExternalId, concurrentExternalId] } } });
   await prisma.$disconnect();
+});
+
+test("envia apenas uma triagem quando duas mensagens chegam ao mesmo tempo", async () => {
+  await prisma.contact.deleteMany({ where: { externalId: concurrentExternalId } });
+  const contact = await prisma.contact.create({
+    data: { externalId: concurrentExternalId, phone: "5511988887799", name: "Cliente Rápido" },
+  });
+  const conversation = await prisma.conversation.create({ data: { contactId: contact.id } });
+  const messages = await Promise.all(["one", "two"].map((suffix) => prisma.message.create({ data: {
+    conversationId: conversation.id, externalId: `wamid.triage.concurrent.${suffix}`,
+    direction: "RECEBIDA", status: "RECEBIDA", type: "text", text: "Olá", occurredAt: new Date(),
+  } })));
+  let menusSent = 0;
+  const channel = { sendList: async () => {
+    menusSent += 1;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    return { externalId: `wamid.triage.concurrent.menu.${menusSent}`, data: { ok: true } };
+  } };
+  const results = await Promise.all(messages.map((message) => handleIncomingTriage(
+    {}, message, channel, { now: new Date("2026-08-12T14:00:00.000Z") },
+  )));
+  assert.deepEqual(results.sort(), [false, true]);
+  assert.equal(menusSent, 1);
+  assert.equal(await prisma.message.count({
+    where: { conversationId: conversation.id, direction: "ENVIADA", type: "interactive" },
+  }), 1);
 });
 
 test("faz a triagem somente pelos quatro setores e registra o encaminhamento", async () => {
@@ -95,13 +122,29 @@ test("identifica o horário comercial de Brasília e avisa fora do expediente", 
     status: "RECEBIDA", type: "text", text: "Olá", occurredAt: new Date(),
   } });
   let notice;
-  const channel = { sendText: async (_phone, text) => {
-    notice = text;
-    return { externalId: "wamid.triage.after-hours.notice", data: { ok: true } };
-  } };
+  let menuCount = 0;
+  const channel = {
+    sendText: async (_phone, text) => {
+      notice = text;
+      return { externalId: "wamid.triage.after-hours.notice", data: { ok: true } };
+    },
+    sendList: async () => {
+      menuCount += 1;
+      return { externalId: "wamid.triage.after-hours.next-day-menu", data: { ok: true } };
+    },
+  };
   await handleIncomingTriage({}, incoming, channel, { now: new Date("2026-08-12T20:01:00.000Z") });
   assert.match(notice, /Olá, Marina/);
   assert.match(notice, /não está online/);
   assert.match(notice, /segunda a sexta-feira, das 8h às 17h/);
   assert.equal((await prisma.conversation.findUnique({ where: { id: conversation.id } })).status, "BOT");
+
+  const nextDayMessage = await prisma.message.create({ data: {
+    conversationId: conversation.id, externalId: "wamid.triage.after-hours.next-day",
+    direction: "RECEBIDA", status: "RECEBIDA", type: "text", text: "Olá novamente", occurredAt: new Date(),
+  } });
+  assert.equal(await handleIncomingTriage(
+    {}, nextDayMessage, channel, { now: new Date("2026-08-13T14:00:00.000Z") },
+  ), true);
+  assert.equal(menuCount, 1);
 });
