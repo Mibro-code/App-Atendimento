@@ -2,10 +2,60 @@ const prisma = require("../database/prisma");
 
 const categoryReplyPrefix = "triage_category:";
 const triageCategoryCodes = ["ATENDIMENTO", "SUPORTE", "COMERCIAL", "PARCERIAS"];
-const menuText = "Olá! Para direcionar seu atendimento, selecione com qual setor você deseja falar.";
+const businessTimeZone = "America/Sao_Paulo";
+const businessHoursText = "segunda a sexta-feira, das 8h às 17h (horário de Brasília)";
+
+function contactFirstName(contact) {
+  const name = contact?.name?.trim();
+  if (!name || name === contact?.phone) return "Olá";
+  return name.split(/\s+/)[0];
+}
+
+function businessParts(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: businessTimeZone, weekday: "short", hour: "2-digit", hourCycle: "h23",
+  }).formatToParts(date);
+  return Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+}
+
+function isBusinessHours(date = new Date()) {
+  const { weekday, hour } = businessParts(date);
+  return !["Sat", "Sun"].includes(weekday) && Number(hour) >= 8 && Number(hour) < 17;
+}
+
+function welcomeText(contact) {
+  const greeting = contactFirstName(contact);
+  return `👋 ${greeting === "Olá" ? greeting : `Olá, ${greeting}`}! Seja bem-vindo(a) à Mibro Brasil!\n\nÉ um prazer receber você por aqui. Nosso atendimento funciona de ${businessHoursText}.\n\nPara encaminharmos você à equipe certa, escolha abaixo o setor com o qual deseja falar.`;
+}
+
+function routingText(contact, category) {
+  const greeting = contactFirstName(contact);
+  return `✅ Perfeito${greeting === "Olá" ? "" : `, ${greeting}`}! Encaminhamos seu atendimento para o setor ${category.name}. Em breve, nossa equipe continuará a conversa por aqui.\n\n⏱️ Importante: após uma mensagem da nossa equipe, aguardaremos sua resposta por 15 minutos. Se não houver retorno nesse período, a conversa será finalizada automaticamente. Mas fique tranquilo(a): sempre que precisar, basta enviar uma nova mensagem para iniciar outro atendimento.`;
+}
+
+function afterHoursText(contact) {
+  const greeting = contactFirstName(contact);
+  return `🌙 ${greeting === "Olá" ? greeting : `Olá, ${greeting}`}! Agradecemos por entrar em contato com a Mibro Brasil.\n\nNo momento, nossa equipe não está online. Nosso atendimento funciona de ${businessHoursText}.\n\nPor favor, envie uma nova mensagem dentro desse horário e teremos prazer em atender você. Até breve!`;
+}
 
 function categoryReplyId(categoryId) {
   return `${categoryReplyPrefix}${categoryId}`;
+}
+
+async function saveBotText(conversation, text, system, channel) {
+  const result = await channel.sendText(conversation.contact.phone, text);
+  const occurredAt = new Date();
+  await prisma.$transaction([
+    prisma.message.create({ data: {
+      conversationId: conversation.id, externalId: result.externalId || null, channel: "META",
+      direction: "ENVIADA", status: "ENVIADA", type: "text", text, occurredAt,
+      rawPayload: { message: result.data, system },
+    } }),
+    prisma.conversation.update({
+      where: { id: conversation.id }, data: { status: "BOT", lastMessageAt: occurredAt },
+    }),
+  ]);
+  return true;
 }
 
 async function sendCategoryMenu(conversation, channel) {
@@ -17,6 +67,7 @@ async function sendCategoryMenu(conversation, channel) {
   const rows = categories.map((category) => ({
     id: categoryReplyId(category.id), title: category.name.slice(0, 24),
   }));
+  const menuText = welcomeText(conversation.contact);
   const result = await channel.sendList(conversation.contact.phone, {
     body: menuText, button: "Escolher setor", rows,
   });
@@ -24,7 +75,7 @@ async function sendCategoryMenu(conversation, channel) {
     prisma.message.create({ data: {
       conversationId: conversation.id, externalId: result.externalId || null, channel: "META",
       direction: "ENVIADA", status: "ENVIADA", type: "interactive", text: menuText,
-      occurredAt: new Date(), rawPayload: result.data,
+      occurredAt: new Date(), rawPayload: { message: result.data, system: "triage_menu" },
     } }),
     prisma.conversation.update({
       where: { id: conversation.id }, data: { status: "BOT", lastMessageAt: new Date() },
@@ -39,14 +90,14 @@ async function completeTriage(conversation, categoryId, channel) {
   });
   if (!category) return sendCategoryMenu(conversation, channel);
 
-  const text = `Obrigado! Estou encaminhando você ao setor ${category.name}. Em breve, um atendente continuará o atendimento por aqui.`;
+  const text = routingText(conversation.contact, category);
   const result = await channel.sendText(conversation.contact.phone, text);
   const occurredAt = new Date();
   await prisma.$transaction([
     prisma.message.create({ data: {
       conversationId: conversation.id, externalId: result.externalId || null, channel: "META",
       direction: "ENVIADA", status: "ENVIADA", type: "text", text, occurredAt,
-      rawPayload: result.data,
+      rawPayload: { message: result.data, system: "triage_confirmation" },
     } }),
     prisma.conversation.update({ where: { id: conversation.id }, data: {
       categoryId: category.id, status: "NOVO", assignedUserId: null,
@@ -60,11 +111,16 @@ async function completeTriage(conversation, categoryId, channel) {
   return true;
 }
 
-async function handleIncomingTriage(event, message, channel) {
+async function handleIncomingTriage(event, message, channel, { now = new Date() } = {}) {
   const conversation = await prisma.conversation.findUnique({
     where: { id: message.conversationId }, include: { contact: true },
   });
-  if (!conversation || conversation.categoryId) return false;
+  if (!conversation) return false;
+
+  if (!isBusinessHours(now)) {
+    return saveBotText(conversation, afterHoursText(conversation.contact), "after_hours", channel);
+  }
+  if (conversation.categoryId) return false;
 
   if (event.interactiveReplyId?.startsWith(categoryReplyPrefix)) {
     return completeTriage(conversation, event.interactiveReplyId.slice(categoryReplyPrefix.length), channel);
@@ -72,4 +128,7 @@ async function handleIncomingTriage(event, message, channel) {
   return sendCategoryMenu(conversation, channel);
 }
 
-module.exports = { categoryReplyId, handleIncomingTriage, menuText };
+module.exports = {
+  afterHoursText, businessHoursText, categoryReplyId, handleIncomingTriage,
+  isBusinessHours, routingText, welcomeText,
+};

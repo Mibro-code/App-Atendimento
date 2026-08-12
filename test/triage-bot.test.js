@@ -2,12 +2,15 @@ require("dotenv").config();
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const prisma = require("../src/database/prisma");
-const { categoryReplyId, handleIncomingTriage } = require("../src/services/triage-bot-service");
+const {
+  businessHoursText, categoryReplyId, handleIncomingTriage, isBusinessHours,
+} = require("../src/services/triage-bot-service");
 
 const externalId = "triage-bot-test-contact";
+const afterHoursExternalId = "triage-bot-after-hours-contact";
 
 test.after(async () => {
-  await prisma.contact.deleteMany({ where: { externalId } });
+  await prisma.contact.deleteMany({ where: { externalId: { in: [externalId, afterHoursExternalId] } } });
   await prisma.$disconnect();
 });
 
@@ -34,10 +37,13 @@ test("faz a triagem somente pelos quatro setores e registra o encaminhamento", a
     },
   };
 
-  assert.equal(await handleIncomingTriage({}, incoming, channel), true);
+  const duringBusinessHours = new Date("2026-08-12T14:00:00.000Z");
+  assert.equal(await handleIncomingTriage({}, incoming, channel, { now: duringBusinessHours }), true);
   assert.deepEqual(sentLists[0].rows.map(({ title }) => title), [
     "Atendimento", "Suporte", "Comercial", "Parcerias",
   ]);
+  assert.match(sentLists[0].body, /bem-vindo\(a\) à Mibro Brasil/i);
+  assert.match(sentLists[0].body, new RegExp(businessHoursText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.equal((await prisma.conversation.findUnique({ where: { id: conversation.id } })).status, "BOT");
 
   const wholesale = await prisma.category.findUnique({ where: { code: "ATACADO" } });
@@ -45,7 +51,9 @@ test("faz a triagem somente pelos quatro setores e registra o encaminhamento", a
     conversationId: conversation.id, externalId: "wamid.triage.invalid", direction: "RECEBIDA",
     status: "RECEBIDA", type: "interactive", text: "Atacado", occurredAt: new Date(),
   } });
-  await handleIncomingTriage({ interactiveReplyId: categoryReplyId(wholesale.id) }, invalidReply, channel);
+  await handleIncomingTriage(
+    { interactiveReplyId: categoryReplyId(wholesale.id) }, invalidReply, channel, { now: duringBusinessHours },
+  );
   assert.equal(sentLists.length, 2);
   assert.equal((await prisma.conversation.findUnique({ where: { id: conversation.id } })).categoryId, null);
 
@@ -54,16 +62,46 @@ test("faz a triagem somente pelos quatro setores e registra o encaminhamento", a
     conversationId: conversation.id, externalId: "wamid.triage.valid", direction: "RECEBIDA",
     status: "RECEBIDA", type: "interactive", text: "Suporte", occurredAt: new Date(),
   } });
-  await handleIncomingTriage({ interactiveReplyId: categoryReplyId(support.id) }, validReply, channel);
+  await handleIncomingTriage(
+    { interactiveReplyId: categoryReplyId(support.id) }, validReply, channel, { now: duringBusinessHours },
+  );
   const completed = await prisma.conversation.findUnique({ where: { id: conversation.id } });
   assert.equal(completed.categoryId, support.id);
   assert.equal(completed.status, "NOVO");
   assert.equal(completed.assignedUserId, null);
-  assert.match(sentTexts[0].text, /encaminhando você ao setor Suporte/);
+  assert.match(sentTexts[0].text, /Encaminhamos seu atendimento para o setor Suporte/);
+  assert.match(sentTexts[0].text, /15 minutos/);
+  assert.match(sentTexts[0].text, /finalizada automaticamente/);
   assert.equal(await prisma.message.count({
     where: { conversationId: conversation.id, direction: "ENVIADA", type: "interactive" },
   }), 2);
   assert.equal(await prisma.conversationActivity.count({
     where: { conversationId: conversation.id, action: "BOT_TRIAGE_COMPLETED" },
   }), 1);
+});
+
+test("identifica o horário comercial de Brasília e avisa fora do expediente", async () => {
+  assert.equal(isBusinessHours(new Date("2026-08-12T11:00:00.000Z")), true);
+  assert.equal(isBusinessHours(new Date("2026-08-12T19:59:00.000Z")), true);
+  assert.equal(isBusinessHours(new Date("2026-08-12T20:00:00.000Z")), false);
+  assert.equal(isBusinessHours(new Date("2026-08-15T14:00:00.000Z")), false);
+
+  const contact = await prisma.contact.create({
+    data: { externalId: afterHoursExternalId, phone: "5511988887778", name: "Marina Silva" },
+  });
+  const conversation = await prisma.conversation.create({ data: { contactId: contact.id } });
+  const incoming = await prisma.message.create({ data: {
+    conversationId: conversation.id, externalId: "wamid.triage.after-hours", direction: "RECEBIDA",
+    status: "RECEBIDA", type: "text", text: "Olá", occurredAt: new Date(),
+  } });
+  let notice;
+  const channel = { sendText: async (_phone, text) => {
+    notice = text;
+    return { externalId: "wamid.triage.after-hours.notice", data: { ok: true } };
+  } };
+  await handleIncomingTriage({}, incoming, channel, { now: new Date("2026-08-12T20:01:00.000Z") });
+  assert.match(notice, /Olá, Marina/);
+  assert.match(notice, /não está online/);
+  assert.match(notice, /segunda a sexta-feira, das 8h às 17h/);
+  assert.equal((await prisma.conversation.findUnique({ where: { id: conversation.id } })).status, "BOT");
 });

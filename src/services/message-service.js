@@ -25,6 +25,8 @@ async function saveIncoming(event) {
       } });
       await tx.conversation.update({ where: { id: conversation.id }, data: {
         unreadCount: { increment: 1 }, lastMessageAt: event.occurredAt,
+        categoryId: conversation.status === "FINALIZADO" ? null : conversation.categoryId,
+        assignedUserId: conversation.status === "FINALIZADO" ? null : conversation.assignedUserId,
         status: conversation.status === "FINALIZADO" || conversation.status === "NOVO" ? "NOVO"
           : conversation.status === "BOT" ? "BOT"
             : "AGUARDANDO_RESPOSTA",
