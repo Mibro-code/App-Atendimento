@@ -219,7 +219,8 @@ html[data-theme="dark"] .filter.attention { color:#fff; background:#b42318; }
 html[data-theme="dark"] .limited-history-notice { border-color:#75402f; color:#efb7a3; background:#30231f; }
 
 /* Categorias da equipe agrupadas e rodape sempre acessivel. */
-.team-dialog { display:flex; flex-direction:column; }
+.team-dialog[open] { display:flex; flex-direction:column; }
+.team-dialog:not([open]) { display:none; }
 .team-dialog > .dialog-header { flex:none; }
 .team-dialog .team-layout { height:auto; min-height:0; flex:1; }
 .team-dialog .team-form { scroll-padding-bottom:90px; }
