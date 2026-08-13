@@ -38,6 +38,13 @@ function createInboxController(channel) {
       }
       catch (error) { return next(error); }
     },
+    async deleteConversation(req, res, next) {
+      try {
+        const result = await inbox.deleteConversation(req.params.id, req.user);
+        inboxEvents.publish();
+        return res.json(result);
+      } catch (error) { return next(error); }
+    },
     async claim(req, res, next) {
       try {
         const conversation = await inbox.updateConversation(req.params.id, {

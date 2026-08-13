@@ -422,6 +422,7 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
     $("#assignee-select").value = c.assignedUserId || "";
     $("#claim-conversation").hidden = c.assignedUserId === state.currentUser?.id;
     $("#toggle-finalized").textContent = c.status === "FINALIZADO" ? "Reabrir" : "Finalizar"; $("#toggle-finalized").dataset.status = c.status;
+    $("#delete-conversation").hidden = !state.currentUser?.isMaster;
     $("#pin-conversation").textContent = c.isPinned ? "★ Fixada" : "☆ Fixar";
     $("#pin-conversation").dataset.pinned = String(Boolean(c.isPinned));
     $("#history-toggle").hidden = !c.canViewHistory;
@@ -718,6 +719,20 @@ $("#toggle-finalized").addEventListener("click", async (event) => {
       toast("Mensagem de encerramento enviada e atendimento finalizado.");
     }
     await openConversation(state.selectedId);
+  } catch (e) { toast(e.message, true); }
+  finally { button.disabled = false; }
+});
+$("#delete-conversation").addEventListener("click", async (event) => {
+  const conversationId = state.selectedId;
+  if (!conversationId || !state.currentUser?.isMaster) return;
+  if (!confirm("Apagar esta conversa permanentemente? Todas as mensagens e o histórico desta conversa serão excluídos.")) return;
+  const button = event.currentTarget;
+  button.disabled = true;
+  try {
+    await api(`/api/conversations/${conversationId}`, { method:"DELETE" });
+    closeConversationView();
+    await loadConversations();
+    toast("Conversa apagada.");
   } catch (e) { toast(e.message, true); }
   finally { button.disabled = false; }
 });
