@@ -218,6 +218,11 @@ html[data-theme="dark"] .notification-button[data-enabled="true"] { border-color
 html[data-theme="dark"] .filter.attention { color:#fff; background:#b42318; }
 .limited-history-notice { width:fit-content; max-width:90%; margin:0 auto 16px; padding:8px 12px; border:1px solid #ef5b2a55; border-radius:15px; color:#8a4a34; background:#fff6f2; font-size:10px; text-align:center; }
 html[data-theme="dark"] .limited-history-notice { border-color:#75402f; color:#efb7a3; background:#30231f; }
+.danger-action { padding:8px 12px; border:1px solid #d92d20; border-radius:9px; color:#b42318; background:#fff; font-size:10px; font-weight:800; }
+.danger-action:hover { color:#fff; background:#b42318; }
+.danger-action:disabled { cursor:wait; opacity:.55; }
+html[data-theme="dark"] .danger-action { border-color:#8f4a44; color:#ffaaa3; background:#292326; }
+html[data-theme="dark"] .danger-action:hover { color:#fff; background:#b42318; }
 
 /* Categorias da equipe agrupadas e rodape sempre acessivel. */
 .team-dialog[open] { display:flex; flex-direction:column; }

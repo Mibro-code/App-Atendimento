@@ -1,5 +1,6 @@
 const prisma = require("../database/prisma");
 const authorization = require("./authorization-service");
+const { removeImage } = require("./media-storage-service");
 
 const conversationStatuses = new Set([
   "NOVO", "EM_ATENDIMENTO", "AGUARDANDO_RESPOSTA", "BOT", "FINALIZADO",
@@ -284,6 +285,27 @@ async function deleteContactNote(contactId, noteId, { conversationId }, viewer) 
   });
 }
 
+async function deleteConversation(id, viewer) {
+  authorization.assertMaster(viewer);
+  const conversation = await prisma.conversation.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      messages: {
+        where: { mediaStorageKey: { not: null } },
+        select: { mediaStorageKey: true },
+      },
+    },
+  });
+  if (!conversation) {
+    throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
+  }
+  await prisma.conversation.delete({ where: { id } });
+  const mediaKeys = [...new Set(conversation.messages.map(({ mediaStorageKey }) => mediaStorageKey).filter(Boolean))];
+  await Promise.allSettled(mediaKeys.map((storageKey) => removeImage(storageKey)));
+  return { deleted: true, id };
+}
+
 async function setContactNotePinned(contactId, noteId, { pinned, conversationId }, viewer) {
   await authorization.assertCanAccessContact(viewer, contactId);
   if (typeof pinned !== "boolean") {
@@ -534,7 +556,7 @@ async function listUsers(viewer) {
 }
 
 module.exports = {
-  addContactNote, conversationStatuses, createCategory, deleteContactNote, getConversation, getConversationSummary, getUserAlerts, listCategories,
+  addContactNote, conversationStatuses, createCategory, deleteContactNote, deleteConversation, getConversation, getConversationSummary, getUserAlerts, listCategories,
   listConversations, listUsers, markAsRead, recordConversationActivity, setContactNotePinned, setConversationPinned,
   updateCategory, updateConversation,
 };

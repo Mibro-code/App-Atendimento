@@ -73,6 +73,40 @@ test("registra mensagem enviada e o atendente autor", async () => {
   }), 1);
 });
 
+test("permite apagar conversa somente para Master e remove seus dados relacionados", async () => {
+  const master = await prisma.user.findUnique({ where: { email: "teste@mibro.local" } });
+  const contact = await prisma.contact.create({
+    data: { externalId: "delete-conversation-test", phone: "5511999990000", name: "Contato para exclusão" },
+  });
+  const conversation = await prisma.conversation.create({ data: { contactId: contact.id } });
+  const message = await prisma.message.create({
+    data: {
+      conversationId: conversation.id,
+      direction: "RECEBIDA",
+      status: "RECEBIDA",
+      type: "text",
+      text: "Mensagem que será apagada",
+      occurredAt: new Date(),
+    },
+  });
+  await prisma.conversationPin.create({ data: { conversationId: conversation.id, userId: master.id } });
+
+  await assert.rejects(
+    () => inbox.deleteConversation(conversation.id, { id: "atendente", role: "ATENDENTE" }),
+    /Somente uma conta Master/,
+  );
+  assert.ok(await prisma.conversation.findUnique({ where: { id: conversation.id } }));
+
+  assert.deepEqual(
+    await inbox.deleteConversation(conversation.id, { id: master.id, role: "ADMIN" }),
+    { deleted: true, id: conversation.id },
+  );
+  assert.equal(await prisma.conversation.findUnique({ where: { id: conversation.id } }), null);
+  assert.equal(await prisma.message.findUnique({ where: { id: message.id } }), null);
+  assert.equal(await prisma.conversationPin.count({ where: { conversationId: conversation.id } }), 0);
+  assert.ok(await prisma.contact.findUnique({ where: { id: contact.id } }));
+});
+
 test("lista, pesquisa, classifica, lê, finaliza e reabre a conversa", async () => {
   const category = await prisma.category.findUnique({ where: { code: "SUPORTE" } });
   const user = await prisma.user.findUnique({ where: { email: "teste@mibro.local" } });

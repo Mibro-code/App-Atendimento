@@ -154,6 +154,7 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   app.get("/api/alerts", inbox.alerts);
   app.get("/api/conversations/:id", inbox.detail);
   app.patch("/api/conversations/:id", inbox.update);
+  app.delete("/api/conversations/:id", inbox.deleteConversation);
   app.post("/api/conversations/:id/claim", inbox.claim);
   app.patch("/api/conversations/:id/pin", inbox.pinConversation);
   app.post("/api/conversations/:id/read", inbox.read);
