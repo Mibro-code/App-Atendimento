@@ -223,6 +223,42 @@ html[data-theme="dark"] .limited-history-notice { border-color:#75402f; color:#e
 .danger-action:disabled { cursor:wait; opacity:.55; }
 html[data-theme="dark"] .danger-action { border-color:#8f4a44; color:#ffaaa3; background:#292326; }
 html[data-theme="dark"] .danger-action:hover { color:#fff; background:#b42318; }
+.dialog-header-actions { display:flex; align-items:center; gap:8px; }
+.audit-entry { height:34px; padding:0 13px; border:1px solid #d8dce1; border-radius:17px; color:#535c66; background:#fff; font-size:9px; font-weight:900; }
+.audit-entry:hover { border-color:var(--orange); color:var(--orange); }
+.audit-dialog { width:min(920px,calc(100vw - 32px)); height:min(780px,calc(100vh - 40px)); padding:0; overflow:hidden; border:0; border-radius:16px; color:var(--ink); background:#fff; box-shadow:0 25px 80px #0005; }
+.audit-dialog::backdrop { background:#17171780; backdrop-filter:blur(2px); }
+.audit-dialog[open] { display:flex; flex-direction:column; }
+.audit-filters { padding:14px 20px; display:grid; grid-template-columns:minmax(180px,1fr) 220px 90px; gap:8px; border-bottom:1px solid var(--line); background:#fafafa; }
+.audit-filters input,.audit-filters select { height:38px; padding:0 11px; border:1px solid #dfe2e5; border-radius:9px; outline:0; background:#fff; }
+.audit-filters input:focus,.audit-filters select:focus { border-color:var(--orange); }
+.audit-filters button { border:0; border-radius:9px; color:#fff; background:#171717; font-size:10px; font-weight:900; }
+.audit-summary { padding:10px 22px; display:flex; justify-content:space-between; color:#77808a; background:#fff; font-size:9px; }
+.audit-summary strong { color:#343b43; font-size:10px; }
+.audit-list { min-height:0; padding:4px 22px 24px; overflow:auto; }
+.audit-item { position:relative; padding:15px 8px 15px 28px; display:flex; border-bottom:1px solid #eceef0; }
+.audit-marker { position:absolute; top:20px; left:5px; width:10px; height:10px; border:2px solid #fff; border-radius:50%; background:#64748b; box-shadow:0 0 0 1px #94a3b8; }
+.audit-item.critical .audit-marker { background:#d92d20; box-shadow:0 0 0 1px #f97066; }
+.audit-main { min-width:0; width:100%; }
+.audit-main header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.audit-main header b { color:#313941; font-size:11px; }
+.audit-item.critical .audit-main header b { color:#b42318; }
+.audit-main time,.audit-main footer { color:#8b949e; font-size:9px; }
+.audit-main p { margin:5px 0; color:#505a65; font-size:12px; line-height:1.45; }
+.audit-main footer strong { color:#5b6570; }
+.audit-main details { margin-top:9px; }
+.audit-main summary { width:max-content; cursor:pointer; color:#7b838c; font-size:9px; font-weight:800; }
+.audit-main pre { max-height:260px; margin:8px 0 0; padding:11px; overflow:auto; border-radius:8px; color:#4a5562; background:#f5f6f7; font:9px/1.5 Consolas,monospace; white-space:pre-wrap; }
+html[data-theme="dark"] .audit-entry { border-color:#3b4149; color:#d9dde2; background:#252a30; }
+html[data-theme="dark"] .audit-dialog { color:#edf0f3; background:#1b1e23; }
+html[data-theme="dark"] .audit-filters { border-color:#343940; background:#20242a; }
+html[data-theme="dark"] .audit-filters input,html[data-theme="dark"] .audit-filters select { border-color:#3b4149; color:#e7e9ec; background:#272c32; }
+html[data-theme="dark"] .audit-summary { color:#aab0b8; background:#1b1e23; }
+html[data-theme="dark"] .audit-summary strong,html[data-theme="dark"] .audit-main header b { color:#edf0f3; }
+html[data-theme="dark"] .audit-item { border-color:#30343b; }
+html[data-theme="dark"] .audit-main p { color:#c3c8cf; }
+html[data-theme="dark"] .audit-main pre { color:#cbd1d8; background:#24282e; }
+@media (max-width:650px) { .audit-filters { grid-template-columns:1fr; }.audit-summary { gap:6px; flex-direction:column; }.audit-main header { align-items:flex-start; flex-direction:column; gap:3px; } }
 
 /* Categorias da equipe agrupadas e rodape sempre acessivel. */
 .team-dialog[open] { display:flex; flex-direction:column; }
