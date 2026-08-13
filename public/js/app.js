@@ -10,6 +10,7 @@ const $ = (selector) => document.querySelector(selector);
 const defaultDocumentTitle = document.title;
 let waitingTitleTimer = null;
 let waitingAlertCount = 0;
+let conversationLoadSequence = 0;
 const escapeHtml = (value = "") => String(value).replace(/[&<>'"]/g, (char) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" })[char]);
 const initials = (name = "?") => name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
 const time = (value) => value ? new Intl.DateTimeFormat("pt-BR", { hour:"2-digit", minute:"2-digit" }).format(new Date(value)) : "";
@@ -38,6 +39,7 @@ function syncCategoryConfirmation() {
     || pendingCategoryId() === state.selectedCategoryId;
 }
 function closeConversationView() {
+  conversationLoadSequence += 1;
   state.selectedId = null;
   state.selectedContactId = null;
   state.selectedCategoryId = "";
@@ -362,6 +364,7 @@ async function loadConversations() {
 }
 
 async function openConversation(id, { refreshList = true, markRead = true } = {}) {
+  const loadSequence = ++conversationLoadSequence;
   const changedConversation = state.selectedId !== id;
   state.selectedId = id;
   if (changedConversation) {
@@ -373,6 +376,7 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
   }
   if (markRead) await api(`/api/conversations/${id}/read`, { method:"POST" });
   const c = await api(`/api/conversations/${id}`);
+  if (loadSequence !== conversationLoadSequence || state.selectedId !== id) return;
   const headerSignature = JSON.stringify({
     id: c.id,
     status: c.status,
@@ -648,15 +652,29 @@ $("#notes-list").addEventListener("click", async (event) => {
   try { await api(`/api/contacts/${state.selectedContactId}/notes/${button.dataset.noteId}`, { method:"PATCH", body:JSON.stringify({ pinned, conversationId:state.selectedId }) }); toast(pinned ? "Nota fixada no topo." : "Nota desafixada."); await openConversation(state.selectedId); $("#notes-panel").classList.add("open"); } catch (e) { button.disabled = false; toast(e.message, true); }
 });
 $("#pin-conversation").addEventListener("click", async (event) => {
-  const pinned = event.currentTarget.dataset.pinned !== "true";
-  event.currentTarget.disabled = true;
+  const button = event.currentTarget;
+  const conversationId = state.selectedId;
+  if (!conversationId || button.disabled) return;
+  const pinned = button.dataset.pinned !== "true";
+  button.disabled = true;
+  button.textContent = pinned ? "★ Fixando..." : "☆ Desfixando...";
   try {
-    await api(`/api/conversations/${state.selectedId}/pin`, { method:"PATCH", body:JSON.stringify({ pinned }) });
-    toast(pinned ? "Conversa fixada para sua conta." : "Conversa desafixada.");
-    state.selectedHeaderSignature = "";
-    await openConversation(state.selectedId);
-  } catch (e) { toast(e.message, true); }
-  finally { event.currentTarget.disabled = false; }
+    const result = await api(`/api/conversations/${conversationId}/pin`, { method:"PATCH", body:JSON.stringify({ pinned }) });
+    if (state.selectedId === conversationId) {
+      button.dataset.pinned = String(result.pinned);
+      button.textContent = result.pinned ? "★ Fixada" : "☆ Fixar";
+      const listed = state.conversations.find((conversation) => conversation.id === conversationId);
+      if (listed) listed.isPinned = result.pinned;
+      state.selectedHeaderSignature = "";
+      state.listSignature = "";
+    }
+    toast(result.pinned ? "Conversa fixada para sua conta." : "Conversa desafixada.");
+    if (state.selectedId === conversationId) await openConversation(conversationId, { markRead:false });
+    else await loadConversations();
+  } catch (e) {
+    if (state.selectedId === conversationId) button.textContent = pinned ? "☆ Fixar" : "★ Fixada";
+    toast(e.message, true);
+  } finally { button.disabled = false; }
 });
 async function confirmConversationCategory() {
   const button = $("#confirm-category");

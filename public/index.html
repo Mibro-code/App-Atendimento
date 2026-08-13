@@ -4,11 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#ef5b2a">
-  <meta name="application-name" content="Mibro Atendimento">
+  <meta name="application-name" content="Mibro">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="192x192" href="/assets/app-icon-192.png">
   <link rel="apple-touch-icon" href="/assets/app-icon-192.png">
-  <title>Mibro • Central de Atendimento</title>
+  <title>Central de Atendimento</title>
   <script>try{const saved=localStorage.getItem("mibro-theme");document.documentElement.dataset.theme=saved||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch{}</script>
   <link rel="stylesheet" href="/css/app.css">
 </head>
@@ -79,7 +79,7 @@
           <div id="history-list" class="history-list"></div>
         </aside>
         <form id="composer" class="composer">
-          <label class="attach-image" title="Anexar imagem" aria-label="Anexar imagem"><input id="image-input" type="file" accept="image/jpeg,image/png"><span>＋</span></label>
+          <label class="attach-image" title="Anexar imagem" aria-label="Anexar imagem"><input id="image-input" type="file" accept="image/jpeg,image/png"><span aria-hidden="true">+</span></label>
           <div id="attachment-preview" class="attachment-preview" hidden><img id="attachment-thumb" alt="Prévia da imagem"><span id="attachment-name"></span><button id="remove-attachment" type="button" aria-label="Remover imagem">×</button></div>
           <textarea id="message-input" rows="1" maxlength="4096" placeholder="Digite uma mensagem..."></textarea>
           <button id="send-button" type="submit">Enviar</button>

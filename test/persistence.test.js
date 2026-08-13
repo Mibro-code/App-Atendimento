@@ -179,6 +179,13 @@ test("fixa conversas por conta, restringe exclusão de notas e registra o histó
   assert.equal(masterList.find(({ id }) => id === conversation.id).isPinned, true);
   assert.equal(otherList.find(({ id }) => id === conversation.id).isPinned, false);
 
+  await inbox.setConversationPinned(conversation.id, { pinned: false }, { id: master.id, role: "ADMIN" });
+  const unpinnedList = await inbox.listConversations({}, { id: master.id, role: "ADMIN" });
+  assert.equal(unpinnedList.find(({ id }) => id === conversation.id).isPinned, false);
+  await inbox.setConversationPinned(conversation.id, { pinned: true }, { id: master.id, role: "ADMIN" });
+  const repinnedList = await inbox.listConversations({}, { id: master.id, role: "ADMIN" });
+  assert.equal(repinnedList.find(({ id }) => id === conversation.id).isPinned, true);
+
   const note = await inbox.addContactNote(conversation.contactId, {
     content: "Nota que será removida pelo Master.", authorId: master.id, conversationId: conversation.id,
   }, { id: master.id, role: "ADMIN" });
