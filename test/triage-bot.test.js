@@ -11,6 +11,7 @@ const afterHoursExternalId = "triage-bot-after-hours-contact";
 const concurrentExternalId = "triage-bot-concurrent-contact";
 
 test.after(async () => {
+  await prisma.auditLog.deleteMany({ where: { actorUserId: null } });
   await prisma.contact.deleteMany({ where: { externalId: { in: [externalId, afterHoursExternalId, concurrentExternalId] } } });
   await prisma.$disconnect();
 });
@@ -105,6 +106,11 @@ test("faz a triagem somente pelos quatro setores e registra o encaminhamento", a
   assert.equal(await prisma.conversationActivity.count({
     where: { conversationId: conversation.id, action: "BOT_TRIAGE_COMPLETED" },
   }), 1);
+  const auditEntry = await prisma.auditLog.findFirst({
+    where: { entityId: conversation.id, action: "CONVERSATION_CATEGORY_CHANGED" },
+  });
+  assert.ok(auditEntry);
+  assert.match(auditEntry.summary, /Bot encaminhou/);
 });
 
 test("identifica o horário comercial de Brasília e avisa fora do expediente", async () => {

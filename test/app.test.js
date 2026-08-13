@@ -7,6 +7,7 @@ const prisma = require("../src/database/prisma");
 const inboxEvents = require("../src/realtime/inbox-events");
 
 test.before(async () => {
+  await prisma.auditLog.deleteMany();
   await prisma.contactNote.deleteMany();
   await prisma.message.deleteMany();
   await prisma.conversation.deleteMany();
@@ -139,6 +140,10 @@ test("entrega o painel e as APIs básicas da caixa de entrada", async () => {
     assert.equal((await fetch(`${base}/api/conversations/${commercialConversation.id}`, { headers: { Cookie: agentCookie } })).status, 404);
     assert.equal((await fetch(`${base}/api/conversations/${supportChildConversation.id}`, { headers: { Cookie: agentCookie } })).status, 404);
     assert.equal((await fetch(`${base}/api/admin/users`, { headers: { Cookie: agentCookie } })).status, 403);
+    assert.equal((await fetch(`${base}/api/admin/audit-logs`, { headers: { Cookie: agentCookie } })).status, 403);
+    const auditResponse = await fetch(`${base}/api/admin/audit-logs?entityType=USER`, { headers: { Cookie: cookie } });
+    assert.equal(auditResponse.status, 200);
+    assert.ok((await auditResponse.json()).some(({ action, entityId }) => action === "USER_CREATED" && entityId === createdAgent.id));
     assert.equal((await fetch(`${base}/api/team/users`, { headers: { Cookie: agentCookie } })).status, 403);
     const allowTeamActivity = await fetch(`${base}/api/admin/users/${createdAgent.id}`, { method: "PATCH", headers: { Cookie: cookie, "Content-Type": "application/json" }, body: JSON.stringify({ canViewTeamActivity: true, canViewConversationHistory: true }) });
     assert.equal(allowTeamActivity.status, 200);
@@ -187,6 +192,7 @@ test("entrega o painel e as APIs básicas da caixa de entrada", async () => {
     assert.equal(login.status, 200);
   } finally {
     server.close();
+    await prisma.auditLog.deleteMany();
     await prisma.message.deleteMany();
     await prisma.conversation.deleteMany();
     await prisma.contact.deleteMany();

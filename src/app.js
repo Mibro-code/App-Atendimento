@@ -17,6 +17,7 @@ const { registerExternalLead } = require("./services/external-lead-service");
 const inboxEvents = require("./realtime/inbox-events");
 const authorization = require("./services/authorization-service");
 const userManagementController = require("./controllers/user-management-controller");
+const auditController = require("./controllers/audit-controller");
 const imageUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024, files: 1 },
@@ -170,6 +171,7 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   app.patch("/api/contacts/:contactId/notes/:noteId", inbox.pinNote);
   app.delete("/api/contacts/:contactId/notes/:noteId", inbox.deleteNote);
   app.get("/api/admin/users", userManagementController.list);
+  app.get("/api/admin/audit-logs", auditController.list);
   app.post("/api/admin/users", userManagementController.create);
   app.patch("/api/admin/users/:id", userManagementController.update);
   app.get("/api/team/users", userManagementController.activity);
