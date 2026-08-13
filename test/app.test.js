@@ -52,6 +52,23 @@ test("aceita somente webhooks POST com assinatura válida quando configurada", a
   }
 });
 
+test("protege a integração de leads com segredo próprio", async () => {
+  const previous = process.env.INTEGRATION_API_SECRET;
+  process.env.INTEGRATION_API_SECRET = "segredo-de-integracao-com-32-caracteres";
+  const server = createApp({ channel: {} }).listen(0);
+  try {
+    await new Promise((resolve) => server.once("listening", resolve));
+    const url = `http://127.0.0.1:${server.address().port}/integrations/leads/atacado`;
+    assert.equal((await fetch(url, { method: "POST" })).status, 401);
+    assert.equal((await fetch(url, { method: "POST", headers: { Authorization: "Bearer incorreto" } })).status, 401);
+  } finally {
+    server.close();
+    if (previous === undefined) delete process.env.INTEGRATION_API_SECRET;
+    else process.env.INTEGRATION_API_SECRET = previous;
+    await prisma.$disconnect();
+  }
+});
+
 test("entrega o painel e as APIs básicas da caixa de entrada", async () => {
   const server = createApp({ channel: {} }).listen(0);
   try {

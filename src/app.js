@@ -12,6 +12,8 @@ const { createInboxController } = require("./controllers/inbox-controller");
 const authController = require("./controllers/auth-controller");
 const { authenticate, requirePageAuth } = require("./middleware/auth");
 const verifyMetaSignature = require("./middleware/meta-signature");
+const integrationAuth = require("./middleware/integration-auth");
+const { registerExternalLead } = require("./services/external-lead-service");
 const inboxEvents = require("./realtime/inbox-events");
 const authorization = require("./services/authorization-service");
 const userManagementController = require("./controllers/user-management-controller");
@@ -88,6 +90,17 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
       return res.json({ status: "ok", database: "connected" });
     } catch (_error) {
       return res.status(503).json({ status: "error", database: "unavailable" });
+    }
+  });
+
+  const integrationLimiter = rateLimit({ windowMs: 60 * 1000, limit: 60, standardHeaders: true, legacyHeaders: false });
+  app.post("/integrations/leads/atacado", integrationLimiter, integrationAuth, async (req, res, next) => {
+    try {
+      const result = await registerExternalLead(req.body);
+      inboxEvents.publish();
+      return res.status(result.duplicate ? 200 : 201).json({ success: true, ...result });
+    } catch (error) {
+      return next(error);
     }
   });
 
