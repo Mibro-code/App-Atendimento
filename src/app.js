@@ -30,7 +30,7 @@ const imageUpload = multer({
 }).single("image");
 const documentUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 16 * 1024 * 1024, files: 1 },
+  limits: { fileSize: 100 * 1024 * 1024, files: 1 },
   fileFilter(_req, file, callback) {
     if (file.mimetype !== "application/pdf") {
       return callback(Object.assign(new Error("Envie um arquivo PDF."), { statusCode: 400 }));
@@ -70,7 +70,8 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
             if (existing) continue;
             const media = await channel.downloadMedia(event.mediaId, {
               maxSize: event.type === "sticker" ? 500 * 1024
-                : (event.type === "image" ? 5 * 1024 * 1024 : 16 * 1024 * 1024),
+                : (event.type === "image" ? 5 * 1024 * 1024
+                  : (event.type === "document" ? 100 * 1024 * 1024 : 16 * 1024 * 1024)),
             });
             event.mediaBuffer = media.buffer;
             event.mediaMimeType = media.mimeType;
@@ -190,7 +191,7 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   app.use((error, _req, res, _next) => {
     if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
       return res.status(413).json({
-        error: error.field === "document" ? "O PDF deve ter no máximo 16 MB." : "A imagem deve ter no máximo 5 MB.",
+        error: error.field === "document" ? "O PDF deve ter no máximo 100 MB." : "A imagem deve ter no máximo 5 MB.",
       });
     }
     if (!error.statusCode) console.error("Erro interno:", {

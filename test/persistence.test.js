@@ -5,7 +5,7 @@ const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const prisma = require("../src/database/prisma");
-const { resolveImage, resolveMedia } = require("../src/services/media-storage-service");
+const { MAX_DOCUMENT_SIZE, resolveImage, resolveMedia } = require("../src/services/media-storage-service");
 const { closingMessage, finalizeConversation, saveIncoming, sendDocument, sendImage, sendText } = require("../src/services/message-service");
 const inbox = require("../src/services/inbox-service");
 const mediaTestDir = path.join(os.tmpdir(), `app-whats-media-test-${process.pid}`);
@@ -406,6 +406,7 @@ test("persiste imagens recebidas e enviadas com autoria", async () => {
 });
 
 test("persiste PDFs recebidos e enviados com autoria", async () => {
+  assert.equal(MAX_DOCUMENT_SIZE, 100 * 1024 * 1024);
   const conversation = await prisma.conversation.findFirst();
   const user = await prisma.user.findUnique({ where: { email: "teste@mibro.local" } });
   const receivedPdf = Buffer.from("%PDF-1.7\nPDF recebido para teste");

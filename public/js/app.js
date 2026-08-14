@@ -841,7 +841,7 @@ $("#attachment-input").addEventListener("change", (event) => {
   const isPdf = file.type === "application/pdf";
   if (!isImage && !isPdf) { clearSelectedAttachment(); return toast("Envie uma imagem JPG/PNG ou um arquivo PDF.", true); }
   if (isImage && file.size > 5 * 1024 * 1024) { clearSelectedAttachment(); return toast("A imagem deve ter no máximo 5 MB.", true); }
-  if (isPdf && file.size > 16 * 1024 * 1024) { clearSelectedAttachment(); return toast("O PDF deve ter no máximo 16 MB.", true); }
+  if (isPdf && file.size > 100 * 1024 * 1024) { clearSelectedAttachment(); return toast("O PDF deve ter no máximo 100 MB.", true); }
   if (attachmentUrl) URL.revokeObjectURL(attachmentUrl);
   attachmentUrl = null;
   selectedAttachment = file;

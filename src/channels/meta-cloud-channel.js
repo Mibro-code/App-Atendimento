@@ -162,7 +162,7 @@ class MetaCloudChannel {
       form.append("messaging_product", "whatsapp");
       form.append("file", new Blob([buffer], { type: mimeType }), fileName);
       const upload = await axios.post(this.apiUrl(`${process.env.PHONE_NUMBER_ID}/media`), form, {
-        headers: this.authHeaders(), maxBodyLength: 17 * 1024 * 1024,
+        headers: this.authHeaders(), maxBodyLength: 101 * 1024 * 1024,
       });
       const response = await axios.post(this.apiUrl(`${process.env.PHONE_NUMBER_ID}/messages`), {
         messaging_product: "whatsapp", recipient_type: "individual", to, type: "document",
