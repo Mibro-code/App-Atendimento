@@ -6,7 +6,7 @@ const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 const MAX_STICKER_SIZE = 500 * 1024;
 const MAX_AUDIO_SIZE = 16 * 1024 * 1024;
 const MAX_VIDEO_SIZE = 16 * 1024 * 1024;
-const MAX_DOCUMENT_SIZE = 16 * 1024 * 1024;
+const MAX_DOCUMENT_SIZE = 100 * 1024 * 1024;
 const mediaExtensions = new Map([
   ["image/jpeg", ".jpg"],
   ["image/png", ".png"],
@@ -95,7 +95,7 @@ function validateDocument({ buffer, mimeType }) {
     throw Object.assign(new Error("O PDF está vazio."), { statusCode: 400 });
   }
   if (buffer.length > MAX_DOCUMENT_SIZE) {
-    throw Object.assign(new Error("O PDF deve ter no máximo 16 MB."), { statusCode: 413 });
+    throw Object.assign(new Error("O PDF deve ter no máximo 100 MB."), { statusCode: 413 });
   }
   const validPdf = mimeType === "application/pdf" && buffer.length >= 5
     && buffer.subarray(0, 5).toString("ascii") === "%PDF-";
