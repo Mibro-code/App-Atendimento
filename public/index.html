@@ -50,7 +50,7 @@
       <div id="chat-content" class="chat-content" hidden>
         <header class="chat-header">
           <div class="contact-avatar" id="contact-avatar"></div>
-          <div class="contact-info"><h2 id="contact-name"></h2><p id="contact-phone"></p></div>
+          <button id="contact-details" class="contact-info" type="button" title="Ver arquivos e links desta conversa"><h2 id="contact-name"></h2><p id="contact-phone"></p></button>
           <div class="chat-actions">
             <button id="pin-conversation" class="secondary-action" type="button" title="Fixar esta conversa somente para minha conta">☆ Fixar</button>
             <button id="notes-toggle" class="secondary-action" type="button">Notas</button>
@@ -88,6 +88,15 @@
       </div>
     </section>
   </main>
+  <dialog id="contact-files-dialog" class="contact-files-dialog">
+    <div class="dialog-header"><div><span>CONTEÚDO COMPARTILHADO</span><h2 id="contact-files-title">Arquivos da conversa</h2><p>Somente o conteúdo que sua conta pode visualizar nesta conversa.</p></div><button id="close-contact-files" type="button" aria-label="Fechar">×</button></div>
+    <nav class="contact-files-tabs" aria-label="Tipos de conteúdo">
+      <button type="button" data-files-tab="media">Imagens e vídeos <span id="media-files-count">0</span></button>
+      <button type="button" data-files-tab="documents">Documentos <span id="document-files-count">0</span></button>
+      <button type="button" data-files-tab="links">Links <span id="link-files-count">0</span></button>
+    </nav>
+    <div id="contact-files-content" class="contact-files-content"></div>
+  </dialog>
   <dialog id="transfer-dialog" class="category-dialog transfer-dialog">
     <div class="dialog-header"><div><span>ENCAMINHAMENTO</span><h2>Transferir conversa</h2><p id="transfer-destination">Confirme o novo setor deste atendimento.</p></div><button id="close-transfer" type="button" aria-label="Fechar">×</button></div>
     <form id="transfer-form" class="transfer-form">
