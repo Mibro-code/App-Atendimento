@@ -240,7 +240,8 @@ html[data-theme="dark"] .limited-history-notice { border-color:#75402f; color:#e
 html[data-theme="dark"] .danger-action { border-color:#8f4a44; color:#ffaaa3; background:#292326; }
 html[data-theme="dark"] .danger-action:hover { color:#fff; background:#b42318; }
 .dialog-header-actions { display:flex; align-items:center; gap:8px; }
-.audit-entry { height:34px; padding:0 13px; border:1px solid #d8dce1; border-radius:17px; color:#535c66; background:#fff; font-size:9px; font-weight:900; }
+.dialog-header .audit-entry { width:38px; height:38px; padding:0; display:grid; place-items:center; flex:0 0 38px; border:1px solid #d8dce1; border-radius:50%; color:#535c66; background:#fff; }
+.audit-entry svg { width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
 .audit-entry:hover { border-color:var(--orange); color:var(--orange); }
 .audit-dialog { width:min(920px,calc(100vw - 32px)); height:min(780px,calc(100vh - 40px)); padding:0; overflow:hidden; border:0; border-radius:16px; color:var(--ink); background:#fff; box-shadow:0 25px 80px #0005; }
 .audit-dialog::backdrop { background:#17171780; backdrop-filter:blur(2px); }
