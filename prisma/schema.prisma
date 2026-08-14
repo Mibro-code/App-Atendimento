@@ -143,6 +143,26 @@ model User {
   categoryAccess             UserCategoryAccess[]
   conversationPins           ConversationPin[]
   conversationActivities     ConversationActivity[] @relation("ConversationActivityActor")
+  auditLogs                  AuditLog[]              @relation("AuditLogActor")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  actorName   String?
+  actorEmail  String?
+  action      String
+  entityType  String
+  entityId    String?
+  summary     String
+  details     Json?
+  createdAt   DateTime @default(now())
+  actorUser   User?    @relation("AuditLogActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([action, createdAt])
+  @@index([entityType, entityId])
+  @@index([actorUserId, createdAt])
 }
 
 model ConversationPin {

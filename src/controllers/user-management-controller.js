@@ -14,7 +14,7 @@ module.exports = {
   async create(req, res, next) {
     try {
       authorization.assertMaster(req.user);
-      const user = await users.createUser(req.body);
+      const user = await users.createUser(req.body, req.user);
       inboxEvents.publish();
       return res.status(201).json(user);
     } catch (error) { return next(error); }
@@ -22,7 +22,7 @@ module.exports = {
   async update(req, res, next) {
     try {
       authorization.assertMaster(req.user);
-      const user = await users.updateUser(req.params.id, req.body, req.user.id);
+      const user = await users.updateUser(req.params.id, req.body, req.user.id, req.user);
       inboxEvents.publish();
       return res.json(user);
     } catch (error) { return next(error); }

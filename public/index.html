@@ -59,6 +59,7 @@
             <select id="subcategory-select" aria-label="Subcategoria" hidden></select>
             <button id="confirm-category" class="category-confirm" type="button" disabled>OK</button>
             <button id="toggle-finalized" class="secondary-action"></button>
+            <button id="delete-conversation" class="danger-action" type="button" hidden>Apagar</button>
           </div>
         </header>
         <div class="conversation-meta">
@@ -99,7 +100,7 @@
     <div id="category-manager-list" class="category-manager-list"></div>
   </dialog>
   <dialog id="team-dialog" class="team-dialog">
-    <div class="dialog-header"><div><span>ADMINISTRAÇÃO</span><h2>Equipe</h2><p>Crie contas e defina exatamente quais atendimentos cada pessoa pode acessar.</p></div><button id="close-team" type="button" aria-label="Fechar">×</button></div>
+    <div class="dialog-header"><div><span>ADMINISTRAÇÃO</span><h2>Equipe</h2><p>Crie contas e defina exatamente quais atendimentos cada pessoa pode acessar.</p></div><div class="dialog-header-actions"><button id="open-audit" class="audit-entry" type="button" hidden>Auditoria</button><button id="close-team" type="button" aria-label="Fechar">×</button></div></div>
     <div class="team-layout">
       <section class="team-members">
         <div class="team-section-title"><div><strong>Membros</strong><small id="team-count"></small></div><button id="new-team-user" type="button">+ Nova conta</button></div>
@@ -126,6 +127,22 @@
         <div class="team-form-actions"><button id="cancel-team-edit" type="button">Limpar</button><button type="submit">Salvar conta</button></div>
       </form>
     </div>
+  </dialog>
+  <dialog id="audit-dialog" class="audit-dialog">
+    <div class="dialog-header"><div><span>ACESSO MASTER</span><h2>Auditoria geral</h2><p>Registro permanente das ações administrativas e alterações de maior impacto.</p></div><button id="close-audit" type="button" aria-label="Fechar">×</button></div>
+    <form id="audit-filter-form" class="audit-filters">
+      <input id="audit-search" type="search" maxlength="120" placeholder="Buscar pessoa ou ação">
+      <select id="audit-entity" aria-label="Tipo de registro">
+        <option value="">Todos os registros</option>
+        <option value="USER">Contas e acessos</option>
+        <option value="CONVERSATION">Conversas</option>
+        <option value="CATEGORY">Categorias</option>
+        <option value="NOTE">Notas</option>
+      </select>
+      <button type="submit">Filtrar</button>
+    </form>
+    <div class="audit-summary"><strong id="audit-count">0 registros</strong><small>São exibidos os 200 registros mais recentes do filtro.</small></div>
+    <div id="audit-list" class="audit-list"></div>
   </dialog>
   <aside id="update-banner" class="update-banner" hidden><span><b>Nova versão disponível</b><small>Atualize para receber as melhorias do atendimento.</small></span><button id="update-later" type="button">Depois</button><button id="apply-update" type="button">Atualizar agora</button></aside>
   <div id="toast" class="toast" role="status"></div>

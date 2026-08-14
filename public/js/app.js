@@ -3,7 +3,7 @@ const state = {
   selectedId: null, selectedContactId: null, selectedCategoryId: "", status: "", category: "", search: "",
   categorySignature: "", listSignature: "", selectedHeaderSignature: "",
   selectedMessagesSignature: "", selectedNotesSignature: "", selectedActivitiesSignature: "", selectedMessageItems: [],
-  expandedCategories: new Set(), adminUsers: [], editingUserId: null, assignedUser: "",
+  expandedCategories: new Set(), adminUsers: [], auditLogs: [], editingUserId: null, assignedUser: "",
   assignedUserActiveOnly: false, alertCursor: null, checkingAlerts: false,
 };
 const $ = (selector) => document.querySelector(selector);
@@ -241,6 +241,7 @@ async function loadCurrentUser() {
   state.currentUser = status.user;
   $("#current-user").textContent = status.user.name;
   $("#team-button").hidden = !status.user.isMaster && !status.user.canViewTeamActivity;
+  $("#open-audit").hidden = !status.user.isMaster;
   $("#manage-categories").hidden = !status.user.canManageCategories;
   $("#assignee-select").disabled = !status.user.canTransferConversations;
   $("#history-toggle").hidden = !status.user.canViewConversationHistory;
@@ -458,6 +459,7 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
     $("#assignee-select").value = c.assignedUserId || "";
     $("#claim-conversation").hidden = c.assignedUserId === state.currentUser?.id;
     $("#toggle-finalized").textContent = c.status === "FINALIZADO" ? "Reabrir" : "Finalizar"; $("#toggle-finalized").dataset.status = c.status;
+    $("#delete-conversation").hidden = !state.currentUser?.isMaster;
     $("#pin-conversation").textContent = c.isPinned ? "★ Fixada" : "☆ Fixar";
     $("#pin-conversation").dataset.pinned = String(Boolean(c.isPinned));
     $("#history-toggle").hidden = !c.canViewHistory;
@@ -602,6 +604,36 @@ function renderAdminUsers() {
   $("#team-user-list").innerHTML = state.adminUsers.map((user) => `<article class="team-user-card ${user.active ? "" : "inactive"}"><div class="team-user-main"><span class="team-user-avatar">${escapeHtml(initials(user.name))}</span><span class="team-user-info"><b>${escapeHtml(user.name)}</b><small>${escapeHtml(user.email || "Membro da equipe")}</small></span><span class="role-pill">${escapeHtml(roleLabel(user.role))}</span></div><div class="team-user-meta"><span>${user._count.assignedConversations} conversa(s) atribuída(s)</span>${state.currentUser?.isMaster ? `<span>•</span><span>${user._count.sentMessages} resposta(s)</span>` : ""}${user.active ? "" : "<span>• Inativa</span>"}</div><div class="team-user-actions">${state.currentUser?.isMaster ? `<button type="button" data-edit-user="${escapeHtml(user.id)}">Editar</button>` : ""}<button type="button" data-view-user="${escapeHtml(user.id)}">Ver atendimentos</button></div></article>`).join("");
 }
 
+const auditActionLabel = (action) => ({
+  USER_CREATED:"Conta criada", USER_UPDATED:"Conta alterada",
+  CONVERSATION_DELETED:"Conversa apagada", CONVERSATION_PINNED:"Conversa fixada",
+  CONVERSATION_UNPINNED:"Conversa desafixada", CONVERSATION_CATEGORY_CHANGED:"Categoria da conversa",
+  CONVERSATION_ASSIGNEE_CHANGED:"Responsável da conversa", CONVERSATION_STATUS_CHANGED:"Status da conversa",
+  CATEGORY_CREATED:"Categoria criada", CATEGORY_UPDATED:"Categoria alterada", NOTE_DELETED:"Nota apagada",
+})[action] || action;
+
+function renderAuditLogs() {
+  $("#audit-count").textContent = `${state.auditLogs.length} registro${state.auditLogs.length === 1 ? "" : "s"}`;
+  $("#audit-list").innerHTML = state.auditLogs.length ? state.auditLogs.map((log) => {
+    const critical = ["CONVERSATION_DELETED", "USER_CREATED", "USER_UPDATED"].includes(log.action);
+    const actor = log.actorName || log.actorEmail || "Sistema";
+    const when = new Intl.DateTimeFormat("pt-BR", { dateStyle:"short", timeStyle:"medium" }).format(new Date(log.createdAt));
+    const details = log.details ? escapeHtml(JSON.stringify(log.details, null, 2)) : "";
+    return `<article class="audit-item ${critical ? "critical" : ""}"><span class="audit-marker" aria-hidden="true"></span><div class="audit-main"><header><b>${escapeHtml(auditActionLabel(log.action))}</b><time>${escapeHtml(when)}</time></header><p>${escapeHtml(log.summary)}</p><footer>Por <strong>${escapeHtml(actor)}</strong>${log.actorEmail ? ` • ${escapeHtml(log.actorEmail)}` : ""}</footer>${details ? `<details><summary>Ver detalhes técnicos</summary><pre>${details}</pre></details>` : ""}</div></article>`;
+  }).join("") : `<div class="notes-empty">Nenhum registro encontrado para este filtro.</div>`;
+}
+
+async function loadAuditLogs() {
+  if (!state.currentUser?.isMaster) return;
+  const params = new URLSearchParams({ limit:"200" });
+  const entityType = $("#audit-entity").value;
+  const search = $("#audit-search").value.trim();
+  if (entityType) params.set("entityType", entityType);
+  if (search) params.set("search", search);
+  state.auditLogs = await api(`/api/admin/audit-logs?${params}`);
+  renderAuditLogs();
+}
+
 async function loadAdminUsers() {
   if (!state.currentUser?.isMaster && !state.currentUser?.canViewTeamActivity) return;
   state.adminUsers = await api(state.currentUser.isMaster ? "/api/admin/users" : "/api/team/users");
@@ -638,6 +670,15 @@ $("#team-dialog").addEventListener("click", (event) => { if (event.target === $(
 $("#new-team-user").addEventListener("click", resetTeamForm);
 $("#cancel-team-edit").addEventListener("click", resetTeamForm);
 $("#team-role").addEventListener("change", syncMasterForm);
+$("#open-audit").addEventListener("click", async () => {
+  if (!state.currentUser?.isMaster) return;
+  $("#team-dialog").close();
+  try { await loadAuditLogs(); $("#audit-dialog").showModal(); }
+  catch (e) { toast(e.message, true); }
+});
+$("#close-audit").addEventListener("click", () => $("#audit-dialog").close());
+$("#audit-dialog").addEventListener("click", (event) => { if (event.target === $("#audit-dialog")) $("#audit-dialog").close(); });
+$("#audit-filter-form").addEventListener("submit", async (event) => { event.preventDefault(); try { await loadAuditLogs(); } catch (e) { toast(e.message, true); } });
 $("#team-user-list").addEventListener("click", (event) => {
   const edit = event.target.closest("[data-edit-user]");
   if (edit) return editTeamUser(edit.dataset.editUser);
@@ -755,6 +796,20 @@ $("#toggle-finalized").addEventListener("click", async (event) => {
       toast("Mensagem de encerramento enviada e atendimento finalizado.");
     }
     await openConversation(state.selectedId);
+  } catch (e) { toast(e.message, true); }
+  finally { button.disabled = false; }
+});
+$("#delete-conversation").addEventListener("click", async (event) => {
+  const conversationId = state.selectedId;
+  if (!conversationId || !state.currentUser?.isMaster) return;
+  if (!confirm("Apagar esta conversa permanentemente? Todas as mensagens e o histórico desta conversa serão excluídos.")) return;
+  const button = event.currentTarget;
+  button.disabled = true;
+  try {
+    await api(`/api/conversations/${conversationId}`, { method:"DELETE" });
+    closeConversationView();
+    await loadConversations();
+    toast("Conversa apagada.");
   } catch (e) { toast(e.message, true); }
   finally { button.disabled = false; }
 });

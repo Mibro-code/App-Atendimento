@@ -13,11 +13,13 @@ process.env.MEDIA_STORAGE_DIR = mediaTestDir;
 const masterViewer = { id: "master-test", role: "ADMIN" };
 
 test.before(async () => {
+  await prisma.auditLog.deleteMany();
   await prisma.message.deleteMany();
   await prisma.conversation.deleteMany();
   await prisma.contact.deleteMany();
 });
 test.after(async () => {
+  await prisma.auditLog.deleteMany();
   await prisma.message.deleteMany();
   await prisma.conversation.deleteMany();
   await prisma.contact.deleteMany();
@@ -73,6 +75,49 @@ test("registra mensagem enviada e o atendente autor", async () => {
   }), 1);
 });
 
+test("permite apagar conversa somente para Master e remove seus dados relacionados", async () => {
+  const master = await prisma.user.findUnique({ where: { email: "teste@mibro.local" } });
+  const contact = await prisma.contact.create({
+    data: { externalId: "delete-conversation-test", phone: "5511999990000", name: "Contato para exclusão" },
+  });
+  const conversation = await prisma.conversation.create({ data: { contactId: contact.id } });
+  const message = await prisma.message.create({
+    data: {
+      conversationId: conversation.id,
+      direction: "RECEBIDA",
+      status: "RECEBIDA",
+      type: "text",
+      text: "Mensagem que será apagada",
+      occurredAt: new Date(),
+    },
+  });
+  await prisma.conversationPin.create({ data: { conversationId: conversation.id, userId: master.id } });
+
+  await assert.rejects(
+    () => inbox.deleteConversation(conversation.id, { id: "atendente", role: "ATENDENTE" }),
+    /Somente uma conta Master/,
+  );
+  assert.ok(await prisma.conversation.findUnique({ where: { id: conversation.id } }));
+
+  assert.deepEqual(
+    await inbox.deleteConversation(conversation.id, { id: master.id, role: "ADMIN" }),
+    { deleted: true, id: conversation.id },
+  );
+  assert.equal(await prisma.conversation.findUnique({ where: { id: conversation.id } }), null);
+  assert.equal(await prisma.message.findUnique({ where: { id: message.id } }), null);
+  assert.equal(await prisma.conversationPin.count({ where: { conversationId: conversation.id } }), 0);
+  assert.ok(await prisma.contact.findUnique({ where: { id: contact.id } }));
+  const deletionAudit = await prisma.auditLog.findFirst({
+    where: { action: "CONVERSATION_DELETED", entityId: conversation.id },
+  });
+  assert.ok(deletionAudit);
+  assert.match(deletionAudit.summary, /Apagou a conversa/);
+  await assert.rejects(
+    () => require("../src/services/audit-service").listAuditLogs({}, { id: "atendente", role: "ATENDENTE" }),
+    /Somente uma conta Master/,
+  );
+});
+
 test("lista, pesquisa, classifica, lê, finaliza e reabre a conversa", async () => {
   const category = await prisma.category.findUnique({ where: { code: "SUPORTE" } });
   const user = await prisma.user.findUnique({ where: { email: "teste@mibro.local" } });
@@ -104,6 +149,9 @@ test("lista, pesquisa, classifica, lê, finaliza e reabre a conversa", async () 
   assert.ok((await inbox.getConversation(conversation.id, masterViewer)).finalizedAt);
   await inbox.updateConversation(conversation.id, { status: "NOVO" }, masterViewer);
   assert.equal((await inbox.getConversation(conversation.id, masterViewer)).finalizedAt, null);
+  const auditActions = (await prisma.auditLog.findMany({ where: { entityId: conversation.id } })).map(({ action }) => action);
+  assert.ok(auditActions.includes("CONVERSATION_CATEGORY_CHANGED"));
+  assert.ok(auditActions.includes("CONVERSATION_STATUS_CHANGED"));
 });
 
 test("envia mensagem neutra antes de finalizar o atendimento", async () => {
@@ -185,6 +233,11 @@ test("fixa conversas por conta, restringe exclusão de notas e registra o histó
   await inbox.setConversationPinned(conversation.id, { pinned: true }, { id: master.id, role: "ADMIN" });
   const repinnedList = await inbox.listConversations({}, { id: master.id, role: "ADMIN" });
   assert.equal(repinnedList.find(({ id }) => id === conversation.id).isPinned, true);
+  const pinAudits = await prisma.auditLog.findMany({
+    where: { entityId: conversation.id, action: { in: ["CONVERSATION_PINNED", "CONVERSATION_UNPINNED"] } },
+  });
+  assert.equal(pinAudits.filter(({ action }) => action === "CONVERSATION_PINNED").length, 2);
+  assert.equal(pinAudits.filter(({ action }) => action === "CONVERSATION_UNPINNED").length, 1);
 
   const note = await inbox.addContactNote(conversation.contactId, {
     content: "Nota que será removida pelo Master.", authorId: master.id, conversationId: conversation.id,

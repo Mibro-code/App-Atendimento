@@ -1,4 +1,5 @@
 const prisma = require("../database/prisma");
+const audit = require("./audit-service");
 
 const categoryReplyPrefix = "triage_category:";
 const triageCategoryCodes = ["ATENDIMENTO", "SUPORTE", "COMERCIAL", "PARCERIAS"];
@@ -100,18 +101,34 @@ async function completeTriage(conversation, categoryId, channel) {
     const text = routingText(conversation.contact, category);
     const result = await channel.sendText(conversation.contact.phone, text);
     const occurredAt = new Date();
-    await prisma.$transaction([
-      prisma.message.create({ data: {
+    await prisma.$transaction(async (transaction) => {
+      await transaction.message.create({ data: {
         conversationId: conversation.id, externalId: result.externalId || null, channel: "META",
         direction: "ENVIADA", status: "ENVIADA", type: "text", text, occurredAt,
         rawPayload: { message: result.data, system: "triage_confirmation" },
-      } }),
-      prisma.conversation.update({ where: { id: conversation.id }, data: { lastMessageAt: occurredAt } }),
-      prisma.conversationActivity.create({ data: {
+      } });
+      await transaction.conversation.update({ where: { id: conversation.id }, data: { lastMessageAt: occurredAt } });
+      await transaction.conversationActivity.create({ data: {
         conversationId: conversation.id, action: "BOT_TRIAGE_COMPLETED",
         details: { categoryId: category.id, categoryName: category.name },
-      } }),
-    ]);
+      } });
+      await audit.recordAudit({
+        actor: null,
+        action: "CONVERSATION_CATEGORY_CHANGED",
+        entityType: "CONVERSATION",
+        entityId: conversation.id,
+        summary: `Bot encaminhou a conversa de ${conversation.contact.name || conversation.contact.phone} para ${category.name}`,
+        details: {
+          conversationId: conversation.id,
+          contactName: conversation.contact.name || null,
+          contactPhone: conversation.contact.phone,
+          from: "Sem categoria",
+          to: category.name,
+          fromCategoryId: null,
+          toCategoryId: category.id,
+        },
+      }, transaction);
+    });
     return true;
   } catch (error) {
     await prisma.conversation.updateMany({

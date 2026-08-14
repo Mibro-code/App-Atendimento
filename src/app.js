@@ -12,9 +12,12 @@ const { createInboxController } = require("./controllers/inbox-controller");
 const authController = require("./controllers/auth-controller");
 const { authenticate, requirePageAuth } = require("./middleware/auth");
 const verifyMetaSignature = require("./middleware/meta-signature");
+const integrationAuth = require("./middleware/integration-auth");
+const { registerExternalLead } = require("./services/external-lead-service");
 const inboxEvents = require("./realtime/inbox-events");
 const authorization = require("./services/authorization-service");
 const userManagementController = require("./controllers/user-management-controller");
+const auditController = require("./controllers/audit-controller");
 const imageUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024, files: 1 },
@@ -91,6 +94,17 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
     }
   });
 
+  const integrationLimiter = rateLimit({ windowMs: 60 * 1000, limit: 60, standardHeaders: true, legacyHeaders: false });
+  app.post("/integrations/leads/atacado", integrationLimiter, integrationAuth, async (req, res, next) => {
+    try {
+      const result = await registerExternalLead(req.body);
+      inboxEvents.publish();
+      return res.status(result.duplicate ? 200 : 201).json({ success: true, ...result });
+    } catch (error) {
+      return next(error);
+    }
+  });
+
   const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false });
   app.get("/api/auth/status", authController.status);
   app.post("/api/auth/setup", loginLimiter, authController.setup);
@@ -141,6 +155,7 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   app.get("/api/alerts", inbox.alerts);
   app.get("/api/conversations/:id", inbox.detail);
   app.patch("/api/conversations/:id", inbox.update);
+  app.delete("/api/conversations/:id", inbox.deleteConversation);
   app.post("/api/conversations/:id/claim", inbox.claim);
   app.patch("/api/conversations/:id/pin", inbox.pinConversation);
   app.post("/api/conversations/:id/read", inbox.read);
@@ -156,6 +171,7 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   app.patch("/api/contacts/:contactId/notes/:noteId", inbox.pinNote);
   app.delete("/api/contacts/:contactId/notes/:noteId", inbox.deleteNote);
   app.get("/api/admin/users", userManagementController.list);
+  app.get("/api/admin/audit-logs", auditController.list);
   app.post("/api/admin/users", userManagementController.create);
   app.patch("/api/admin/users/:id", userManagementController.update);
   app.get("/api/team/users", userManagementController.activity);

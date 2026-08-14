@@ -44,6 +44,7 @@ services:
       PHONE_NUMBER_ID: ${PHONE_NUMBER_ID}
       GRAPH_VERSION: ${GRAPH_VERSION}
       META_APP_SECRET: ${META_APP_SECRET}
+      INTEGRATION_API_SECRET: ${INTEGRATION_API_SECRET}
       MEDIA_STORAGE_DIR: /app/storage/media
     volumes:
       - atendimento_media_data:/app/storage

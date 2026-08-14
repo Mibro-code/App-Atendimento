@@ -1,6 +1,7 @@
 const bcrypt = require("bcryptjs");
 const prisma = require("../database/prisma");
 const authorization = require("./authorization-service");
+const audit = require("./audit-service");
 
 const manageableRoles = new Set(["ADMIN", "SUPERVISOR", "ATENDENTE"]);
 const booleanPermissions = [
@@ -57,6 +58,21 @@ const publicSelection = {
   _count: { select: { assignedConversations: true, sentMessages: true } },
 };
 
+function accessSnapshot(user) {
+  return {
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    active: user.active,
+    permissions: Object.fromEntries(booleanPermissions.map((key) => [key, Boolean(user[key])])),
+    categories: (user.categoryAccess || []).map(({ category }) => ({
+      id: category.id,
+      name: category.name,
+      parentId: category.parentId,
+    })),
+  };
+}
+
 async function listUsers() {
   return prisma.user.findMany({ where: { role: { not: "BOT" } }, select: publicSelection, orderBy: { name: "asc" } });
 }
@@ -81,7 +97,7 @@ async function listTeamActivity(viewer) {
   }));
 }
 
-async function createUser(data) {
+async function createUser(data, actor) {
   const name = validateName(data.name);
   const email = validateEmail(data.email);
   const role = validateRole(data.role || "ATENDENTE");
@@ -89,12 +105,23 @@ async function createUser(data) {
   const categoryIds = await validateCategoryIds(data.categoryIds);
   const passwordHash = await bcrypt.hash(password, 12);
   try {
-    return await prisma.user.create({
-      data: {
-        name, email, role, passwordHash, ...permissionData(data),
-        categoryAccess: { create: categoryIds.map((categoryId) => ({ categoryId })) },
-      },
-      select: publicSelection,
+    return await prisma.$transaction(async (transaction) => {
+      const user = await transaction.user.create({
+        data: {
+          name, email, role, passwordHash, ...permissionData(data),
+          categoryAccess: { create: categoryIds.map((categoryId) => ({ categoryId })) },
+        },
+        select: publicSelection,
+      });
+      await audit.recordAudit({
+        actor,
+        action: "USER_CREATED",
+        entityType: "USER",
+        entityId: user.id,
+        summary: `Criou a conta ${user.name} (${user.email})`,
+        details: { access: accessSnapshot(user) },
+      }, transaction);
+      return user;
     });
   } catch (error) {
     if (error.code === "P2002") throw Object.assign(new Error("Já existe uma conta com este e-mail."), { statusCode: 409 });
@@ -102,8 +129,8 @@ async function createUser(data) {
   }
 }
 
-async function updateUser(id, data, currentMasterId) {
-  const existing = await prisma.user.findUnique({ where: { id } });
+async function updateUser(id, data, currentMasterId, actor) {
+  const existing = await prisma.user.findUnique({ where: { id }, select: publicSelection });
   if (!existing || existing.role === "BOT") throw Object.assign(new Error("Usuário não encontrado."), { statusCode: 404 });
   const update = {};
   if (data.name !== undefined) update.name = validateName(data.name);
@@ -131,7 +158,20 @@ async function updateUser(id, data, currentMasterId) {
         await transaction.userCategoryAccess.deleteMany({ where: { userId: id } });
         if (categoryIds.length) await transaction.userCategoryAccess.createMany({ data: categoryIds.map((categoryId) => ({ userId: id, categoryId })) });
       }
-      return transaction.user.update({ where: { id }, data: update, select: publicSelection });
+      const user = await transaction.user.update({ where: { id }, data: update, select: publicSelection });
+      await audit.recordAudit({
+        actor,
+        action: "USER_UPDATED",
+        entityType: "USER",
+        entityId: user.id,
+        summary: `Alterou a conta ${user.name} (${user.email})`,
+        details: {
+          before: accessSnapshot(existing),
+          after: accessSnapshot(user),
+          passwordChanged: Boolean(password),
+        },
+      }, transaction);
+      return user;
     });
   } catch (error) {
     if (error.code === "P2002") throw Object.assign(new Error("Já existe uma conta com este e-mail."), { statusCode: 409 });

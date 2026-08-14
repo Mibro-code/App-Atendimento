@@ -1,5 +1,7 @@
 const prisma = require("../database/prisma");
 const authorization = require("./authorization-service");
+const { removeImage } = require("./media-storage-service");
+const audit = require("./audit-service");
 
 const conversationStatuses = new Set([
   "NOVO", "EM_ATENDIMENTO", "AGUARDANDO_RESPOSTA", "BOT", "FINALIZADO",
@@ -42,6 +44,14 @@ function categoryLabelForHistory(category) {
 
 function categorySectorId(category) {
   return category?.parentId || category?.id || null;
+}
+
+function contactAuditSnapshot(conversation) {
+  return {
+    conversationId: conversation.id,
+    contactName: conversation.contact?.name || null,
+    contactPhone: conversation.contact?.phone || null,
+  };
 }
 
 async function listConversations({ search, category, status, assignedUser, activeOnly }, viewer) {
@@ -280,8 +290,58 @@ async function deleteContactNote(contactId, noteId, { conversationId }, viewer) 
       conversationId, actorUserId: viewer.id, action: "NOTE_DELETED",
       details: { preview: note.content.slice(0, 120), wasPinned: note.pinned },
     }, transaction);
+    await audit.recordAudit({
+      actor: viewer,
+      action: "NOTE_DELETED",
+      entityType: "NOTE",
+      entityId: note.id,
+      summary: "Apagou uma nota interna de contato",
+      details: { contactId, conversationId, preview: note.content.slice(0, 120), wasPinned: note.pinned },
+    }, transaction);
     return { deleted: true };
   });
+}
+
+async function deleteConversation(id, viewer) {
+  authorization.assertMaster(viewer);
+  const conversation = await prisma.conversation.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      status: true,
+      category: { select: { id: true, name: true } },
+      assignedUser: { select: { id: true, name: true, email: true } },
+      contact: { select: { id: true, name: true, phone: true } },
+      _count: { select: { messages: true, activities: true, pins: true } },
+      messages: {
+        where: { mediaStorageKey: { not: null } },
+        select: { mediaStorageKey: true },
+      },
+    },
+  });
+  if (!conversation) {
+    throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
+  }
+  await prisma.$transaction(async (transaction) => {
+    await audit.recordAudit({
+      actor: viewer,
+      action: "CONVERSATION_DELETED",
+      entityType: "CONVERSATION",
+      entityId: conversation.id,
+      summary: `Apagou a conversa de ${conversation.contact.name || conversation.contact.phone}`,
+      details: {
+        contact: conversation.contact,
+        status: conversation.status,
+        category: conversation.category,
+        assignedUser: conversation.assignedUser,
+        removedRecords: conversation._count,
+      },
+    }, transaction);
+    await transaction.conversation.delete({ where: { id } });
+  });
+  const mediaKeys = [...new Set(conversation.messages.map(({ mediaStorageKey }) => mediaStorageKey).filter(Boolean))];
+  await Promise.allSettled(mediaKeys.map((storageKey) => removeImage(storageKey)));
+  return { deleted: true, id };
 }
 
 async function setContactNotePinned(contactId, noteId, { pinned, conversationId }, viewer) {
@@ -398,6 +458,41 @@ async function updateConversation(id, { categoryId, status, assignedUserId }, vi
         activities.push(activityRecord(id, viewer.id, "STATUS_CHANGED", { from: currentSnapshot.status, to: updated.status }));
       }
       if (activities.length) await transaction.conversationActivity.createMany({ data: activities });
+      const contact = contactAuditSnapshot(updated);
+      const audits = [];
+      if (currentSnapshot.categoryId !== updated.categoryId) {
+        const from = currentSnapshot.category ? categoryLabelForHistory(currentSnapshot.category) : "Sem categoria";
+        const to = updated.category ? categoryLabelForHistory(updated.category) : "Sem categoria";
+        audits.push({
+          action: "CONVERSATION_CATEGORY_CHANGED",
+          summary: `Alterou a categoria da conversa de ${updated.contact.name || updated.contact.phone}: ${from} → ${to}`,
+          details: { ...contact, from, to, fromCategoryId: currentSnapshot.categoryId, toCategoryId: updated.categoryId },
+        });
+      }
+      if (currentSnapshot.assignedUserId !== updated.assignedUserId) {
+        const from = currentSnapshot.assignedUser?.name || "Sem responsável";
+        const to = updated.assignedUser?.name || "Sem responsável";
+        audits.push({
+          action: "CONVERSATION_ASSIGNEE_CHANGED",
+          summary: `Alterou o responsável da conversa de ${updated.contact.name || updated.contact.phone}: ${from} → ${to}`,
+          details: { ...contact, from, to, fromUserId: currentSnapshot.assignedUserId, toUserId: updated.assignedUserId },
+        });
+      }
+      if (currentSnapshot.status !== updated.status) {
+        audits.push({
+          action: "CONVERSATION_STATUS_CHANGED",
+          summary: `Alterou o status da conversa de ${updated.contact.name || updated.contact.phone}: ${currentSnapshot.status} → ${updated.status}`,
+          details: { ...contact, from: currentSnapshot.status, to: updated.status },
+        });
+      }
+      for (const entry of audits) {
+        await audit.recordAudit({
+          actor: viewer,
+          entityType: "CONVERSATION",
+          entityId: id,
+          ...entry,
+        }, transaction);
+      }
       return updated;
     });
   } catch (error) {
@@ -411,14 +506,32 @@ async function setConversationPinned(id, { pinned }, viewer) {
   if (typeof pinned !== "boolean") {
     throw Object.assign(new Error("Informe se a conversa deve ser fixada."), { statusCode: 400 });
   }
-  if (pinned) {
-    await prisma.conversationPin.upsert({
+  const [conversation, currentPin] = await Promise.all([
+    prisma.conversation.findUnique({ where: { id }, include: { contact: true } }),
+    prisma.conversationPin.findUnique({
       where: { userId_conversationId: { userId: viewer.id, conversationId: id } },
-      update: {}, create: { userId: viewer.id, conversationId: id },
-    });
-  } else {
-    await prisma.conversationPin.deleteMany({ where: { userId: viewer.id, conversationId: id } });
-  }
+      select: { createdAt: true },
+    }),
+  ]);
+  if (!conversation) throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
+  if (Boolean(currentPin) === pinned) return { conversationId: id, pinned };
+  await prisma.$transaction(async (transaction) => {
+    if (pinned) {
+      await transaction.conversationPin.create({ data: { userId: viewer.id, conversationId: id } });
+    } else {
+      await transaction.conversationPin.delete({
+        where: { userId_conversationId: { userId: viewer.id, conversationId: id } },
+      });
+    }
+    await audit.recordAudit({
+      actor: viewer,
+      action: pinned ? "CONVERSATION_PINNED" : "CONVERSATION_UNPINNED",
+      entityType: "CONVERSATION",
+      entityId: id,
+      summary: `${pinned ? "Fixou" : "Desafixou"} a conversa de ${conversation.contact.name || conversation.contact.phone}`,
+      details: contactAuditSnapshot(conversation),
+    }, transaction);
+  });
   return { conversationId: id, pinned };
 }
 
@@ -485,8 +598,19 @@ async function createCategory(data, viewer) {
   for (let suffix = 1; suffix <= 100; suffix += 1) {
     const code = suffix === 1 ? baseCode : `${baseCode}_${suffix}`;
     try {
-      return await prisma.category.create({
-        data: { code, name, color, parentId, displayOrder: (order._max.displayOrder || 0) + 10 },
+      return await prisma.$transaction(async (transaction) => {
+        const category = await transaction.category.create({
+          data: { code, name, color, parentId, displayOrder: (order._max.displayOrder || 0) + 10 },
+        });
+        await audit.recordAudit({
+          actor: viewer,
+          action: "CATEGORY_CREATED",
+          entityType: "CATEGORY",
+          entityId: category.id,
+          summary: `Criou a categoria ${category.name}`,
+          details: { category },
+        }, transaction);
+        return category;
       });
     } catch (error) {
       if (error.code !== "P2002") throw error;
@@ -497,6 +621,8 @@ async function createCategory(data, viewer) {
 
 async function updateCategory(id, data, viewer) {
   authorization.assertCanManageCategories(viewer);
+  const existing = await prisma.category.findUnique({ where: { id } });
+  if (!existing) throw Object.assign(new Error("Categoria não encontrada."), { statusCode: 404 });
   const allowed = {};
   if (data.name !== undefined) allowed.name = validateCategoryName(data.name);
   if (data.color !== undefined) allowed.color = validateCategoryColor(data.color);
@@ -516,7 +642,18 @@ async function updateCategory(id, data, viewer) {
     allowed.parentId = parentId;
   }
   try {
-    return await prisma.category.update({ where: { id }, data: allowed });
+    return await prisma.$transaction(async (transaction) => {
+      const category = await transaction.category.update({ where: { id }, data: allowed });
+      await audit.recordAudit({
+        actor: viewer,
+        action: "CATEGORY_UPDATED",
+        entityType: "CATEGORY",
+        entityId: category.id,
+        summary: `Alterou a categoria ${category.name}`,
+        details: { before: existing, after: category },
+      }, transaction);
+      return category;
+    });
   } catch (error) {
     if (error.code === "P2025") throw Object.assign(new Error("Categoria não encontrada."), { statusCode: 404 });
     throw error;
@@ -534,7 +671,7 @@ async function listUsers(viewer) {
 }
 
 module.exports = {
-  addContactNote, conversationStatuses, createCategory, deleteContactNote, getConversation, getConversationSummary, getUserAlerts, listCategories,
+  addContactNote, conversationStatuses, createCategory, deleteContactNote, deleteConversation, getConversation, getConversationSummary, getUserAlerts, listCategories,
   listConversations, listUsers, markAsRead, recordConversationActivity, setContactNotePinned, setConversationPinned,
   updateCategory, updateConversation,
 };

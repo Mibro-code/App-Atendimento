@@ -7,6 +7,7 @@ const prisma = require("../src/database/prisma");
 const inboxEvents = require("../src/realtime/inbox-events");
 
 test.before(async () => {
+  await prisma.auditLog.deleteMany();
   await prisma.contactNote.deleteMany();
   await prisma.message.deleteMany();
   await prisma.conversation.deleteMany();
@@ -48,6 +49,23 @@ test("aceita somente webhooks POST com assinatura válida quando configurada", a
     server.close();
     if (previous === undefined) delete process.env.META_APP_SECRET;
     else process.env.META_APP_SECRET = previous;
+    await prisma.$disconnect();
+  }
+});
+
+test("protege a integração de leads com segredo próprio", async () => {
+  const previous = process.env.INTEGRATION_API_SECRET;
+  process.env.INTEGRATION_API_SECRET = "segredo-de-integracao-com-32-caracteres";
+  const server = createApp({ channel: {} }).listen(0);
+  try {
+    await new Promise((resolve) => server.once("listening", resolve));
+    const url = `http://127.0.0.1:${server.address().port}/integrations/leads/atacado`;
+    assert.equal((await fetch(url, { method: "POST" })).status, 401);
+    assert.equal((await fetch(url, { method: "POST", headers: { Authorization: "Bearer incorreto" } })).status, 401);
+  } finally {
+    server.close();
+    if (previous === undefined) delete process.env.INTEGRATION_API_SECRET;
+    else process.env.INTEGRATION_API_SECRET = previous;
     await prisma.$disconnect();
   }
 });
@@ -122,6 +140,10 @@ test("entrega o painel e as APIs básicas da caixa de entrada", async () => {
     assert.equal((await fetch(`${base}/api/conversations/${commercialConversation.id}`, { headers: { Cookie: agentCookie } })).status, 404);
     assert.equal((await fetch(`${base}/api/conversations/${supportChildConversation.id}`, { headers: { Cookie: agentCookie } })).status, 404);
     assert.equal((await fetch(`${base}/api/admin/users`, { headers: { Cookie: agentCookie } })).status, 403);
+    assert.equal((await fetch(`${base}/api/admin/audit-logs`, { headers: { Cookie: agentCookie } })).status, 403);
+    const auditResponse = await fetch(`${base}/api/admin/audit-logs?entityType=USER`, { headers: { Cookie: cookie } });
+    assert.equal(auditResponse.status, 200);
+    assert.ok((await auditResponse.json()).some(({ action, entityId }) => action === "USER_CREATED" && entityId === createdAgent.id));
     assert.equal((await fetch(`${base}/api/team/users`, { headers: { Cookie: agentCookie } })).status, 403);
     const allowTeamActivity = await fetch(`${base}/api/admin/users/${createdAgent.id}`, { method: "PATCH", headers: { Cookie: cookie, "Content-Type": "application/json" }, body: JSON.stringify({ canViewTeamActivity: true, canViewConversationHistory: true }) });
     assert.equal(allowTeamActivity.status, 200);
@@ -170,6 +192,7 @@ test("entrega o painel e as APIs básicas da caixa de entrada", async () => {
     assert.equal(login.status, 200);
   } finally {
     server.close();
+    await prisma.auditLog.deleteMany();
     await prisma.message.deleteMany();
     await prisma.conversation.deleteMany();
     await prisma.contact.deleteMany();
