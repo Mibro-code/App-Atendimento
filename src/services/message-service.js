@@ -1,6 +1,6 @@
 const prisma = require("../database/prisma");
 const { findOrCreateMetaConversation } = require("./conversation-service");
-const { removeImage, storeAudio, storeImage, storeSticker, storeVideo } = require("./media-storage-service");
+const { removeImage, storeAudio, storeDocument, storeImage, storeSticker, storeVideo } = require("./media-storage-service");
 const { formatTeamMessage } = require("./team-message-formatter");
 const statuses = { sent: "ENVIADA", delivered: "ENTREGUE", read: "LIDA", failed: "FALHOU" };
 const closingMessage = "Agradecemos pelo seu contato. Se precisar de qualquer ajuda, estamos à disposição. Você pode voltar a falar conosco quando quiser.";
@@ -11,7 +11,7 @@ async function saveIncoming(event) {
       const existing = await tx.message.findUnique({ where: { externalId: event.externalId } });
       if (existing) return { message: existing, duplicate: true };
       const { conversation } = await findOrCreateMetaConversation(event, tx);
-      const mediaStore = ({ audio: storeAudio, video: storeVideo, sticker: storeSticker })[event.type] || storeImage;
+      const mediaStore = ({ audio: storeAudio, video: storeVideo, sticker: storeSticker, document: storeDocument })[event.type] || storeImage;
       const media = event.mediaBuffer ? await mediaStore({
         buffer: event.mediaBuffer, mimeType: event.mediaMimeType,
         fileName: event.mediaFileName, stableId: event.externalId,
@@ -125,6 +125,37 @@ async function sendImage({ conversationId, buffer, mimeType, fileName, caption, 
   return { message, providerData: result.data };
 }
 
+async function sendDocument({ conversationId, buffer, mimeType, fileName, caption, sentByUserId, channel }) {
+  const conversation = await prisma.conversation.findUnique({ where: { id: conversationId }, include: { contact: true, category: { include: { parent: true } } } });
+  if (!conversation) throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
+  const cleanCaption = caption?.trim() || null;
+  const providerCaption = formatTeamMessage(conversation.category, cleanCaption || "");
+  if (providerCaption.length > 1024) {
+    throw Object.assign(new Error("A legenda ficou acima do limite após adicionar o nome da equipe."), { statusCode: 400 });
+  }
+  const media = await storeDocument({ buffer, mimeType, fileName });
+  let result;
+  try {
+    result = await channel.sendDocument(conversation.contact.phone, {
+      buffer, mimeType: media.mimeType, fileName: media.fileName, caption: providerCaption || null,
+    });
+  } catch (error) {
+    await removeImage(media.storageKey);
+    throw error;
+  }
+  const occurredAt = new Date();
+  const message = await prisma.message.create({ data: {
+    conversationId, externalId: result.externalId, channel: conversation.channel, direction: "ENVIADA",
+    status: "ENVIADA", type: "document", text: cleanCaption,
+    mediaStorageKey: media.storageKey, mediaMimeType: media.mimeType,
+    mediaFileName: media.fileName, mediaSize: media.size,
+    occurredAt, sentByUserId: sentByUserId || null,
+    rawPayload: { message: result.data, mediaId: result.mediaId },
+  } });
+  await updateConversationAfterSending({ conversationId, sentByUserId, occurredAt });
+  return { message, providerData: result.data };
+}
+
 async function finalizeConversation({ conversationId, sentByUserId, channel }) {
   const current = await prisma.conversation.findUnique({ where: { id: conversationId } });
   if (!current) throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
@@ -143,4 +174,4 @@ async function sendTextToPhone({ phone, text, channel }) {
   return sendText({ conversationId: conversation.id, text, channel });
 }
 
-module.exports = { closingMessage, finalizeConversation, saveIncoming, sendImage, updateStatus, sendText, sendTextToPhone };
+module.exports = { closingMessage, finalizeConversation, saveIncoming, sendDocument, sendImage, updateStatus, sendText, sendTextToPhone };

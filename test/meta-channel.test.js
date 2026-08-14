@@ -14,10 +14,11 @@ test("interpreta todas as mensagens e status de um webhook", () => {
       { id: "wamid.5", from: "5511999999999", type: "video", video: { id: "media.5", mime_type: "video/mp4", caption: "Vídeo do produto" }, timestamp: "1700000003" },
       { id: "wamid.6", from: "5511999999999", type: "sticker", sticker: { id: "media.6", mime_type: "image/webp", animated: true }, timestamp: "1700000004" },
       { id: "wamid.7", from: "5511999999999", type: "reaction", reaction: { message_id: "wamid.1", emoji: "❤️" }, timestamp: "1700000005" },
+      { id: "wamid.8", from: "5511999999999", type: "document", document: { id: "media.8", mime_type: "application/pdf", filename: "garantia.pdf", caption: "Nota fiscal" }, timestamp: "1700000006" },
     ],
     statuses: [{ id: "wamid.3", status: "delivered", timestamp: "1700000002" }],
   } }] }] });
-  assert.equal(events.length, 7);
+  assert.equal(events.length, 8);
   assert.equal(events[0].contactName, "Cliente");
   assert.equal(events[0].text, "Olá");
   assert.equal(events[1].text, "Foto do produto");
@@ -35,7 +36,50 @@ test("interpreta todas as mensagens e status de um webhook", () => {
   assert.equal(events[5].type, "reaction");
   assert.equal(events[5].text, "❤️");
   assert.equal(events[5].reactionToExternalId, "wamid.1");
-  assert.equal(events[6].kind, "status");
+  assert.equal(events[6].type, "document");
+  assert.equal(events[6].text, "Nota fiscal");
+  assert.equal(events[6].mediaId, "media.8");
+  assert.equal(events[6].mediaMimeType, "application/pdf");
+  assert.equal(events[6].mediaFileName, "garantia.pdf");
+  assert.equal(events[7].kind, "status");
+});
+
+test("envia PDF como documento nativo do WhatsApp", async () => {
+  const previousEnv = {
+    GRAPH_VERSION: process.env.GRAPH_VERSION,
+    PHONE_NUMBER_ID: process.env.PHONE_NUMBER_ID,
+    WHATSAPP_TOKEN: process.env.WHATSAPP_TOKEN,
+  };
+  const previousPost = axios.post;
+  process.env.GRAPH_VERSION = "v-test";
+  process.env.PHONE_NUMBER_ID = "phone-test";
+  process.env.WHATSAPP_TOKEN = "token-test";
+  const posts = [];
+  axios.post = async (url, body) => {
+    posts.push({ url, body });
+    return url.endsWith("/media")
+      ? { data: { id: "media.document.uploaded" } }
+      : { data: { messages: [{ id: "wamid.document.sent" }] } };
+  };
+  try {
+    const sent = await new MetaCloudChannel().sendDocument("5511999999999", {
+      buffer: Buffer.from("%PDF-1.7\ndocumento"), mimeType: "application/pdf",
+      fileName: "manual-mibro.pdf", caption: "Manual solicitado",
+    });
+    assert.equal(sent.externalId, "wamid.document.sent");
+    assert.equal(sent.mediaId, "media.document.uploaded");
+    assert.equal(posts.length, 2);
+    assert.match(posts[0].url, /phone-test\/media$/);
+    assert.equal(posts[1].body.type, "document");
+    assert.deepEqual(posts[1].body.document, {
+      id: "media.document.uploaded", filename: "manual-mibro.pdf", caption: "Manual solicitado",
+    });
+  } finally {
+    axios.post = previousPost;
+    for (const [key, value] of Object.entries(previousEnv)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
 });
 
 test("baixa figurinha WebP recebida", async () => {

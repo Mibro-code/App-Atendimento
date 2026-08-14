@@ -6,7 +6,7 @@ const os = require("node:os");
 const path = require("node:path");
 const prisma = require("../src/database/prisma");
 const { resolveImage, resolveMedia } = require("../src/services/media-storage-service");
-const { closingMessage, finalizeConversation, saveIncoming, sendImage, sendText } = require("../src/services/message-service");
+const { closingMessage, finalizeConversation, saveIncoming, sendDocument, sendImage, sendText } = require("../src/services/message-service");
 const inbox = require("../src/services/inbox-service");
 const mediaTestDir = path.join(os.tmpdir(), `app-whats-media-test-${process.pid}`);
 process.env.MEDIA_STORAGE_DIR = mediaTestDir;
@@ -403,6 +403,39 @@ test("persiste imagens recebidas e enviadas com autoria", async () => {
   assert.equal((await prisma.conversation.findUnique({ where: { id: conversation.id } })).assignedUserId, user.id);
   assert.equal(providerCaption, "[*Suporte*]\n\nImagem enviada");
   assert.deepEqual(await fs.readFile(resolveImage(outgoing.message.mediaStorageKey)), png);
+});
+
+test("persiste PDFs recebidos e enviados com autoria", async () => {
+  const conversation = await prisma.conversation.findFirst();
+  const user = await prisma.user.findUnique({ where: { email: "teste@mibro.local" } });
+  const receivedPdf = Buffer.from("%PDF-1.7\nPDF recebido para teste");
+  const sentPdf = Buffer.from("%PDF-1.7\nPDF enviado para teste");
+  const incoming = await saveIncoming({
+    externalId: "wamid.test.document.in", contactExternalId: "5511999999999", phone: "5511999999999",
+    contactName: "Cliente Teste", type: "document", text: "Nota fiscal", occurredAt: new Date(),
+    rawPayload: { document: { id: "media.document.in", mime_type: "application/pdf", filename: "nota-fiscal.pdf" } },
+    mediaBuffer: receivedPdf, mediaMimeType: "application/pdf", mediaFileName: "nota-fiscal.pdf",
+  });
+  assert.equal(incoming.message.type, "document");
+  assert.equal(incoming.message.mediaFileName, "nota-fiscal.pdf");
+  assert.deepEqual(await fs.readFile(resolveMedia(incoming.message.mediaStorageKey)), receivedPdf);
+
+  let providerDocument;
+  const channel = { sendDocument: async (_phone, data) => {
+    providerDocument = data;
+    return { externalId: "wamid.test.document.out", mediaId: "media.document.out", data: { messages: [{ id: "wamid.test.document.out" }] } };
+  } };
+  const outgoing = await sendDocument({
+    conversationId: conversation.id, buffer: sentPdf, mimeType: "application/pdf",
+    fileName: "manual-mibro.pdf", caption: "Manual solicitado", sentByUserId: user.id, channel,
+  });
+  assert.equal(outgoing.message.type, "document");
+  assert.equal(outgoing.message.direction, "ENVIADA");
+  assert.equal(outgoing.message.sentByUserId, user.id);
+  assert.equal(outgoing.message.mediaMimeType, "application/pdf");
+  assert.equal(outgoing.message.mediaFileName, "manual-mibro.pdf");
+  assert.equal(providerDocument.caption, "[*Suporte*]\n\nManual solicitado");
+  assert.deepEqual(await fs.readFile(resolveMedia(outgoing.message.mediaStorageKey)), sentPdf);
 });
 
 test("persiste e exibe figurinha WebP recebida", async () => {
