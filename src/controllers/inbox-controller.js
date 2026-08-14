@@ -1,7 +1,7 @@
 const inbox = require("../services/inbox-service");
 const prisma = require("../database/prisma");
 const { resolveMedia } = require("../services/media-storage-service");
-const { finalizeConversation, sendDocument, sendImage, sendText } = require("../services/message-service");
+const { finalizeConversation, sendDocument, sendImage, sendText, sendVideo } = require("../services/message-service");
 const inboxEvents = require("../realtime/inbox-events");
 const authorization = require("../services/authorization-service");
 
@@ -85,6 +85,19 @@ function createInboxController(channel) {
       try {
         await authorization.assertCanViewConversation(req.user, req.params.id);
         const result = await sendImage({
+          conversationId: req.params.id, buffer: req.file.buffer,
+          mimeType: req.file.mimetype, fileName: req.file.originalname,
+          caption: req.body.caption, sentByUserId: req.user.id, channel,
+        });
+        inboxEvents.publish();
+        return res.status(201).json(result.message);
+      } catch (error) { return next(error); }
+    },
+    async replyVideo(req, res, next) {
+      if (!req.file) return res.status(400).json({ error: "Selecione um vídeo MP4 ou 3GP." });
+      try {
+        await authorization.assertCanViewConversation(req.user, req.params.id);
+        const result = await sendVideo({
           conversationId: req.params.id, buffer: req.file.buffer,
           mimeType: req.file.mimetype, fileName: req.file.originalname,
           caption: req.body.caption, sentByUserId: req.user.id, channel,

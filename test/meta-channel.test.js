@@ -82,6 +82,44 @@ test("envia PDF como documento nativo do WhatsApp", async () => {
   }
 });
 
+test("envia vídeo como mídia nativa do WhatsApp", async () => {
+  const previousEnv = {
+    GRAPH_VERSION: process.env.GRAPH_VERSION,
+    PHONE_NUMBER_ID: process.env.PHONE_NUMBER_ID,
+    WHATSAPP_TOKEN: process.env.WHATSAPP_TOKEN,
+  };
+  const previousPost = axios.post;
+  process.env.GRAPH_VERSION = "v-test";
+  process.env.PHONE_NUMBER_ID = "phone-test";
+  process.env.WHATSAPP_TOKEN = "token-test";
+  const posts = [];
+  axios.post = async (url, body) => {
+    posts.push({ url, body });
+    return url.endsWith("/media")
+      ? { data: { id: "media.video.uploaded" } }
+      : { data: { messages: [{ id: "wamid.video.sent" }] } };
+  };
+  try {
+    const sent = await new MetaCloudChannel().sendVideo("5511999999999", {
+      buffer: Buffer.from("0000ftyp-video"), mimeType: "video/mp4",
+      fileName: "produto.mp4", caption: "Demonstração do produto",
+    });
+    assert.equal(sent.externalId, "wamid.video.sent");
+    assert.equal(sent.mediaId, "media.video.uploaded");
+    assert.equal(posts.length, 2);
+    assert.match(posts[0].url, /phone-test\/media$/);
+    assert.equal(posts[1].body.type, "video");
+    assert.deepEqual(posts[1].body.video, {
+      id: "media.video.uploaded", caption: "Demonstração do produto",
+    });
+  } finally {
+    axios.post = previousPost;
+    for (const [key, value] of Object.entries(previousEnv)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
+});
+
 test("baixa figurinha WebP recebida", async () => {
   const previousEnv = {
     GRAPH_VERSION: process.env.GRAPH_VERSION,

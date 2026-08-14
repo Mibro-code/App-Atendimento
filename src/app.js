@@ -28,6 +28,16 @@ const imageUpload = multer({
     return callback(null, true);
   },
 }).single("image");
+const videoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 16 * 1024 * 1024, files: 1 },
+  fileFilter(_req, file, callback) {
+    if (!["video/mp4", "video/3gpp", "video/3gp"].includes(file.mimetype)) {
+      return callback(Object.assign(new Error("Envie um vídeo MP4 ou 3GP."), { statusCode: 400 }));
+    }
+    return callback(null, true);
+  },
+}).single("video");
 const documentUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 100 * 1024 * 1024, files: 1 },
@@ -172,6 +182,7 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   app.post("/api/conversations/:id/read", inbox.read);
   app.post("/api/conversations/:id/messages", inbox.reply);
   app.post("/api/conversations/:id/images", imageUpload, inbox.replyImage);
+  app.post("/api/conversations/:id/videos", videoUpload, inbox.replyVideo);
   app.post("/api/conversations/:id/documents", documentUpload, inbox.replyDocument);
   app.post("/api/conversations/:id/finalize", inbox.finalize);
   app.get("/api/messages/:messageId/media", inbox.media);
@@ -191,7 +202,8 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   app.use((error, _req, res, _next) => {
     if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
       return res.status(413).json({
-        error: error.field === "document" ? "O PDF deve ter no máximo 100 MB." : "A imagem deve ter no máximo 5 MB.",
+        error: error.field === "document" ? "O PDF deve ter no máximo 100 MB."
+          : (error.field === "video" ? "O vídeo deve ter no máximo 16 MB." : "A imagem deve ter no máximo 5 MB."),
       });
     }
     if (!error.statusCode) console.error("Erro interno:", {
