@@ -163,19 +163,7 @@ function messagePreviewForAlert(message) {
   return text.length > 90 ? `${text.slice(0, 87)}...` : text;
 }
 
-function categoryMessageRange(start, end) {
-  const occurredAt = {};
-  if (start) occurredAt.gte = start;
-  if (end) occurredAt.lt = end;
-  return Object.keys(occurredAt).length ? { occurredAt } : {};
-}
-
-function messageInsideRange(message, range) {
-  const occurredAt = new Date(message.occurredAt);
-  return (!range.start || occurredAt >= range.start) && (!range.end || occurredAt < range.end);
-}
-
-async function restrictedMessageVisibility(conversationId, viewer, access) {
+async function restrictedMessageVisibility(conversationId, viewer) {
   const activities = await prisma.conversationActivity.findMany({
     where: { conversationId, action: { in: ["CONVERSATION_TRANSFERRED", "CATEGORY_CHANGED"] } },
     select: { action: true, createdAt: true, details: true }, orderBy: { createdAt: "asc" },
@@ -197,60 +185,18 @@ async function restrictedMessageVisibility(conversationId, viewer, access) {
       !== (categorySectors.get(toCategoryId) || toCategoryId);
   };
   const reversed = [...activities].reverse();
+  const latestCategoryChange = reversed.find(isSectorChange);
+  if (latestCategoryChange?.details?.historyLimited === false) {
+    return { where: undefined, limited: false };
+  }
   const strictBoundary = reversed.find((activity) => {
     if (activity.action === "CONVERSATION_TRANSFERRED") return activity.details?.toUserId === viewer.id;
     if (!isSectorChange(activity)) return false;
     return allowedCategoryIds.has(activity.details?.toCategoryId || null);
   });
-  const categoryChanges = activities.filter(isSectorChange);
-  const latestCategoryChange = categoryChanges.at(-1);
-  const allowsSameAgentRecovery = latestCategoryChange?.details?.historyLimited === false;
-  if (!allowsSameAgentRecovery || access.assignedUserId !== viewer.id) {
-    return {
-      where: strictBoundary ? { occurredAt: { gte: strictBoundary.createdAt } } : undefined,
-      limited: Boolean(strictBoundary),
-    };
-  }
-
-  const latestDirectTransfer = reversed.find((activity) => (
-    activity.action === "CONVERSATION_TRANSFERRED" && activity.details?.toUserId === viewer.id
-  ));
-  if (!latestCategoryChange) {
-    return {
-      where: latestDirectTransfer ? { occurredAt: { gte: latestDirectTransfer.createdAt } } : undefined,
-      limited: Boolean(latestDirectTransfer),
-    };
-  }
-
-  let currentStart = latestCategoryChange.createdAt;
-  if (latestDirectTransfer?.createdAt > currentStart) currentStart = latestDirectTransfer.createdAt;
-  const historicalSegments = [];
-  let segmentStart = null;
-  let segmentCategoryId = categoryChanges[0].details?.fromCategoryId || null;
-  for (const change of categoryChanges) {
-    historicalSegments.push({ start: segmentStart, end: change.createdAt, categoryId: segmentCategoryId });
-    segmentStart = change.createdAt;
-    segmentCategoryId = change.details?.toCategoryId || null;
-  }
-  const messageMetadata = await prisma.message.findMany({
-    where: { conversationId }, select: { occurredAt: true, direction: true, sentByUserId: true },
-    orderBy: { occurredAt: "asc" },
-  });
-  const visibleRanges = historicalSegments.filter((segment) => {
-    const categoryAllowed = segment.categoryId
-      ? allowedCategoryIds.has(segment.categoryId)
-      : Boolean(viewer.canViewUncategorized);
-    if (!categoryAllowed) return false;
-    const senders = new Set(messageMetadata.filter((message) => (
-      message.direction === "ENVIADA" && message.sentByUserId && messageInsideRange(message, segment)
-    )).map(({ sentByUserId }) => sentByUserId));
-    return senders.size === 1 && senders.has(viewer.id);
-  });
-  visibleRanges.push({ start: currentStart, end: null, categoryId: access.categoryId });
-  const limited = messageMetadata.some((message) => !visibleRanges.some((range) => messageInsideRange(message, range)));
   return {
-    where: limited ? { OR: visibleRanges.map((range) => categoryMessageRange(range.start, range.end)) } : undefined,
-    limited,
+    where: strictBoundary ? { occurredAt: { gte: strictBoundary.createdAt } } : undefined,
+    limited: Boolean(strictBoundary),
   };
 }
 
@@ -263,7 +209,7 @@ async function getConversation(id, viewer) {
   if (!access) return null;
   let messageVisibility = { where: undefined, limited: false };
   if (!authorization.isMaster(viewer) && !viewer.canViewPreviousMessages) {
-    messageVisibility = await restrictedMessageVisibility(id, viewer, access);
+    messageVisibility = await restrictedMessageVisibility(id, viewer);
   }
   return prisma.conversation.findFirst({
     where: { AND: [{ id }, scope] },
