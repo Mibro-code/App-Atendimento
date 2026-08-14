@@ -99,6 +99,9 @@ test("entrega o painel e as APIs básicas da caixa de entrada", async () => {
     const pageHtml = await page.text();
     assert.match(pageHtml, /Central de Atendimento/);
     assert.match(pageHtml, /manifest\.webmanifest/);
+    assert.match(pageHtml, /CONTEÚDO COMPARTILHADO/);
+    assert.match(pageHtml, /Imagens e vídeos/);
+    assert.match(pageHtml, /Documentos/);
     assert.match(pageHtml, /Atualizar agora/);
     assert.match(pageHtml, /Ocultar histórico anterior para o novo setor/);
     const categories = await fetch(`${base}/api/categories`, { headers: { Cookie: cookie } });

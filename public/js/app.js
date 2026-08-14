@@ -3,6 +3,7 @@ const state = {
   selectedId: null, selectedContactId: null, selectedCategoryId: "", status: "", category: "", search: "",
   categorySignature: "", listSignature: "", selectedHeaderSignature: "",
   selectedMessagesSignature: "", selectedNotesSignature: "", selectedActivitiesSignature: "", selectedMessageItems: [],
+  selectedMessages: [], selectedContactName: "", contactFilesTab: "media",
   expandedCategories: new Set(), adminUsers: [], auditLogs: [], editingUserId: null, assignedUser: "",
   assignedUserActiveOnly: false, alertCursor: null, checkingAlerts: false,
 };
@@ -49,6 +50,9 @@ function closeConversationView() {
   state.selectedNotesSignature = "";
   state.selectedActivitiesSignature = "";
   state.selectedMessageItems = [];
+  state.selectedMessages = [];
+  state.selectedContactName = "";
+  if ($("#contact-files-dialog")?.open) $("#contact-files-dialog").close();
   $("#notes-panel").classList.remove("open");
   $("#history-panel").classList.remove("open");
   $("#chat-content").hidden = true;
@@ -234,6 +238,75 @@ function messagesWithReactions(messages) {
   return messages
     .filter((message) => message.type !== "reaction")
     .map((message) => ({ ...message, reactionEmoji: reactions.get(message.externalId) || "" }));
+}
+
+function sharedFileMeta(message) {
+  const author = message.direction === "ENVIADA" ? (message.sentByUser?.name || "Equipe") : "Cliente";
+  const occurredAt = new Intl.DateTimeFormat("pt-BR", {
+    dateStyle:"short", timeStyle:"short", timeZone:conversationTimeZone,
+  }).format(new Date(message.occurredAt));
+  return `${author} • ${occurredAt}`;
+}
+
+function externalLinks(messages) {
+  const found = new Map();
+  const pattern = /(?:https?:\/\/|www\.)[^\s<>"']+/gi;
+  for (const message of messages) {
+    for (const match of String(message.text || "").match(pattern) || []) {
+      const raw = match.replace(/[),.!?;:\]}]+$/g, "");
+      const candidate = raw.toLowerCase().startsWith("www.") ? `https://${raw}` : raw;
+      try {
+        const parsed = new URL(candidate);
+        if (!["http:", "https:"].includes(parsed.protocol)) continue;
+        if (!found.has(parsed.href)) found.set(parsed.href, {
+          href:parsed.href, label:raw, host:parsed.hostname.replace(/^www\./, ""), message,
+        });
+      } catch {}
+    }
+  }
+  return [...found.values()];
+}
+
+function renderContactFiles(tab = "media") {
+  state.contactFilesTab = tab;
+  const messages = state.selectedMessages || [];
+  const media = messages.filter((message) => ["image", "video"].includes(message.type) && message.mediaStorageKey);
+  const documents = messages.filter((message) => message.type === "document" && message.mediaStorageKey);
+  const links = externalLinks(messages);
+  $("#media-files-count").textContent = media.length;
+  $("#document-files-count").textContent = documents.length;
+  $("#link-files-count").textContent = links.length;
+  document.querySelectorAll("[data-files-tab]").forEach((button) => button.classList.toggle("active", button.dataset.filesTab === tab));
+
+  let markup = "";
+  if (tab === "media") {
+    markup = media.length ? `<div class="shared-media-grid">${media.map((message) => {
+      const url = `/api/messages/${encodeURIComponent(message.id)}/media`;
+      const label = message.type === "video" ? "Vídeo" : "Imagem";
+      const preview = message.type === "video"
+        ? `<video controls preload="metadata" playsinline><source src="${url}" type="${escapeHtml(message.mediaMimeType || "video/mp4")}">Vídeo indisponível.</video>`
+        : `<img src="${url}" alt="${escapeHtml(message.text || "Imagem da conversa")}" loading="lazy">`;
+      const caption = message.text && !["[image]", "[video]"].includes(message.text) ? message.text : label;
+      const wrapper = message.type === "image" ? "a" : "article";
+      const linkAttributes = message.type === "image" ? ` href="${url}" target="_blank" rel="noopener"` : "";
+      return `<${wrapper} class="shared-media-card"${linkAttributes}>${preview}<span class="shared-file-caption"><b>${escapeHtml(caption)}</b><small>${escapeHtml(sharedFileMeta(message))}</small></span></${wrapper}>`;
+    }).join("")}</div>` : `<div class="shared-empty">Nenhuma imagem ou vídeo disponível nesta conversa.</div>`;
+  } else if (tab === "documents") {
+    markup = documents.length ? `<div class="shared-document-list">${documents.map((message) => {
+      const url = `/api/messages/${encodeURIComponent(message.id)}/media`;
+      return `<a class="shared-document-card" href="${url}" target="_blank" rel="noopener"><span class="shared-document-icon">PDF</span><span class="shared-file-details"><b>${escapeHtml(message.mediaFileName || "documento.pdf")}</b><small>${escapeHtml(`${formatFileSize(message.mediaSize)} • ${sharedFileMeta(message)}`)}</small></span><span class="shared-open">Abrir</span></a>`;
+    }).join("")}</div>` : `<div class="shared-empty">Nenhum documento disponível nesta conversa.</div>`;
+  } else {
+    markup = links.length ? `<div class="shared-link-list">${links.map((link) => `<a class="shared-link-card" href="${escapeHtml(link.href)}" target="_blank" rel="noopener noreferrer"><span class="shared-link-icon">↗</span><span class="shared-file-details"><b>${escapeHtml(link.label)}</b><small>${escapeHtml(`${link.host} • ${sharedFileMeta(link.message)}`)}</small></span><span class="shared-open">Abrir</span></a>`).join("")}</div>` : `<div class="shared-empty">Nenhum link encontrado nas mensagens desta conversa.</div>`;
+  }
+  $("#contact-files-content").innerHTML = markup;
+}
+
+function openContactFiles() {
+  if (!state.selectedId) return;
+  $("#contact-files-title").textContent = state.selectedContactName || "Arquivos da conversa";
+  renderContactFiles("media");
+  $("#contact-files-dialog").showModal();
 }
 
 function syncMessageStatuses(messages) {
@@ -423,6 +496,7 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
     state.selectedNotesSignature = "";
     state.selectedActivitiesSignature = "";
     state.selectedMessageItems = [];
+    state.selectedMessages = [];
   }
   if (markRead) await api(`/api/conversations/${id}/read`, { method:"POST" });
   const c = await api(`/api/conversations/${id}`);
@@ -440,6 +514,8 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
     messageHistoryLimited: c.messageHistoryLimited,
   });
   const displayMessages = messagesWithReactions(c.messages);
+  state.selectedMessages = displayMessages;
+  state.selectedContactName = c.contact.name || c.contact.phone;
   const hasReactionEvents = displayMessages.length !== c.messages.length;
   const messageItems = displayMessages.map((message) => JSON.stringify([message.id, message.externalId, message.direction, message.type, message.text, message.occurredAt, message.mediaStorageKey, message.mediaMimeType, message.mediaFileName, message.mediaSize, message.reactionEmoji, message.sentByUser?.id, message.sentByUser?.name]));
   const messagesSignature = JSON.stringify([c.messageHistoryLimited, messageItems]);
@@ -492,6 +568,7 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
     $("#messages").scrollTop = $("#messages").scrollHeight;
   }
   syncMessageStatuses(displayMessages);
+  if ($("#contact-files-dialog").open) renderContactFiles(state.contactFilesTab);
   if (notesSignature !== state.selectedNotesSignature) {
     state.selectedNotesSignature = notesSignature;
     renderNotes(c.contact.notes || []);
@@ -680,6 +757,13 @@ $("#user-button").addEventListener("click", async () => { await api("/api/auth/l
 $("#team-button").addEventListener("click", async () => { try { await loadAdminUsers(); resetTeamForm(); $("#new-team-user").hidden = !state.currentUser.isMaster; $("#team-form").hidden = !state.currentUser.isMaster; $("#team-dialog").classList.toggle("activity-only", !state.currentUser.isMaster); $("#team-dialog").showModal(); } catch (e) { toast(e.message, true); } });
 $("#close-team").addEventListener("click", () => $("#team-dialog").close());
 $("#team-dialog").addEventListener("click", (event) => { if (event.target === $("#team-dialog")) $("#team-dialog").close(); });
+$("#contact-details").addEventListener("click", openContactFiles);
+$("#close-contact-files").addEventListener("click", () => $("#contact-files-dialog").close());
+$("#contact-files-dialog").addEventListener("click", (event) => { if (event.target === $("#contact-files-dialog")) $("#contact-files-dialog").close(); });
+$(".contact-files-tabs").addEventListener("click", (event) => {
+  const tab = event.target.closest("[data-files-tab]")?.dataset.filesTab;
+  if (tab) renderContactFiles(tab);
+});
 $("#new-team-user").addEventListener("click", resetTeamForm);
 $("#cancel-team-edit").addEventListener("click", resetTeamForm);
 $("#team-role").addEventListener("change", syncMasterForm);
