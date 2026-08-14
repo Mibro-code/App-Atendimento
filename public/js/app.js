@@ -13,7 +13,8 @@ let waitingAlertCount = 0;
 let conversationLoadSequence = 0;
 const escapeHtml = (value = "") => String(value).replace(/[&<>'"]/g, (char) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" })[char]);
 const initials = (name = "?") => name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
-const time = (value) => value ? new Intl.DateTimeFormat("pt-BR", { hour:"2-digit", minute:"2-digit" }).format(new Date(value)) : "";
+const conversationTimeZone = "America/Sao_Paulo";
+const time = (value) => value ? new Intl.DateTimeFormat("pt-BR", { hour:"2-digit", minute:"2-digit", timeZone:conversationTimeZone }).format(new Date(value)) : "";
 const statusLabel = (value) => ({ NOVO:"Novo", EM_ATENDIMENTO:"Em atendimento", AGUARDANDO_RESPOSTA:"Aguardando resposta", BOT:"Bot", FINALIZADO:"Finalizado" })[value] || value;
 const categoryLabel = (category) => category?.parent?.name ? `${category.parent.name}: ${category.name}` : (category?.name || "Sem categoria");
 function orderedCategories(categories) {
@@ -171,6 +172,41 @@ function messageContent(message) {
 function messageRowMarkup(message) {
   const [symbol, label, statusClass] = deliveryStatus(message.status);
   return `<div class="message-row ${message.direction === "ENVIADA" ? "sent" : "received"}" data-message-id="${escapeHtml(message.id)}"><div class="bubble ${["image", "audio", "video", "sticker"].includes(message.type) ? `${message.type}-bubble` : ""} ${message.reactionEmoji ? "has-reaction" : ""}">${messageContent(message)}<footer>${message.sentByUser ? `<span class="author">${escapeHtml(message.sentByUser.name)}</span>` : ""}<span>${time(message.occurredAt)}</span>${message.direction === "ENVIADA" ? `<span class="delivery-status ${statusClass}" title="${label}" aria-label="${label}">${symbol}</span>` : ""}</footer>${message.reactionEmoji ? `<span class="message-reaction" title="Reação do cliente">${escapeHtml(message.reactionEmoji)}</span>` : ""}</div></div>`;
+}
+
+function messageDateKey(value) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    year:"numeric", month:"2-digit", day:"2-digit", timeZone:conversationTimeZone,
+  }).formatToParts(new Date(value));
+  const values = Object.fromEntries(parts.map(({ type, value: partValue }) => [type, partValue]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function messageDateLabel(value, now = new Date()) {
+  const key = messageDateKey(value);
+  const todayKey = messageDateKey(now);
+  const dayNumber = (dateKey) => {
+    const [year, month, day] = dateKey.split("-").map(Number);
+    return Date.UTC(year, month - 1, day) / 86400000;
+  };
+  const difference = dayNumber(todayKey) - dayNumber(key);
+  if (difference === 0) return "Hoje";
+  if (difference === 1) return "Ontem";
+  return new Intl.DateTimeFormat("pt-BR", {
+    day:"2-digit", month:"long", year:"numeric", timeZone:conversationTimeZone,
+  }).format(new Date(value));
+}
+
+function messageRowsMarkup(messages, previousMessage = null) {
+  let previousDateKey = previousMessage ? messageDateKey(previousMessage.occurredAt) : "";
+  return messages.map((message) => {
+    const currentDateKey = messageDateKey(message.occurredAt);
+    const label = messageDateLabel(message.occurredAt);
+    const separator = currentDateKey === previousDateKey ? ""
+      : `<div class="message-date-separator" role="separator" aria-label="${escapeHtml(label)}"><span>${escapeHtml(label)}</span></div>`;
+    previousDateKey = currentDateKey;
+    return `${separator}${messageRowMarkup(message)}`;
+  }).join("");
 }
 
 function messagesWithReactions(messages) {
@@ -434,9 +470,10 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
     const canAppend = !hasReactionEvents && !changedConversation && state.selectedMessageItems.length <= messageItems.length
       && state.selectedMessageItems.every((item, index) => item === messageItems[index]);
     if (canAppend) {
-      $("#messages").insertAdjacentHTML("beforeend", displayMessages.slice(state.selectedMessageItems.length).map(messageRowMarkup).join(""));
+      const previousMessage = state.selectedMessageItems.length ? displayMessages[state.selectedMessageItems.length - 1] : null;
+      $("#messages").insertAdjacentHTML("beforeend", messageRowsMarkup(displayMessages.slice(state.selectedMessageItems.length), previousMessage));
     } else {
-      $("#messages").innerHTML = `${c.messageHistoryLimited ? `<div class="limited-history-notice">As mensagens anteriores ao encaminhamento estão ocultas para esta conta.</div>` : ""}${displayMessages.map(messageRowMarkup).join("")}`;
+      $("#messages").innerHTML = `${c.messageHistoryLimited ? `<div class="limited-history-notice">As mensagens anteriores ao encaminhamento estão ocultas para esta conta.</div>` : ""}${messageRowsMarkup(displayMessages)}`;
     }
     state.selectedMessageItems = messageItems;
     $("#messages").scrollTop = $("#messages").scrollHeight;
