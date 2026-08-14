@@ -7,6 +7,12 @@ const MAX_STICKER_SIZE = 500 * 1024;
 const MAX_AUDIO_SIZE = 16 * 1024 * 1024;
 const MAX_VIDEO_SIZE = 16 * 1024 * 1024;
 const MAX_DOCUMENT_SIZE = 100 * 1024 * 1024;
+const documentMimeTypes = new Set([
+  "text/plain", "application/pdf", "application/msword", "application/vnd.ms-excel",
+  "application/vnd.ms-powerpoint", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+]);
 const mediaExtensions = new Map([
   ["image/jpeg", ".jpg"],
   ["image/png", ".png"],
@@ -20,6 +26,13 @@ const mediaExtensions = new Map([
   ["video/3gpp", ".3gp"],
   ["video/3gp", ".3gp"],
   ["application/pdf", ".pdf"],
+  ["text/plain", ".txt"],
+  ["application/msword", ".doc"],
+  ["application/vnd.openxmlformats-officedocument.wordprocessingml.document", ".docx"],
+  ["application/vnd.ms-excel", ".xls"],
+  ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xlsx"],
+  ["application/vnd.ms-powerpoint", ".ppt"],
+  ["application/vnd.openxmlformats-officedocument.presentationml.presentation", ".pptx"],
 ]);
 
 function normalizeMimeType(value) {
@@ -92,15 +105,27 @@ function validateVideo({ buffer, mimeType }) {
 function validateDocument({ buffer, mimeType }) {
   mimeType = normalizeMimeType(mimeType);
   if (!Buffer.isBuffer(buffer) || !buffer.length) {
-    throw Object.assign(new Error("O PDF está vazio."), { statusCode: 400 });
+    throw Object.assign(new Error("O documento está vazio."), { statusCode: 400 });
   }
   if (buffer.length > MAX_DOCUMENT_SIZE) {
-    throw Object.assign(new Error("O PDF deve ter no máximo 100 MB."), { statusCode: 413 });
+    throw Object.assign(new Error("O documento deve ter no máximo 100 MB."), { statusCode: 413 });
   }
-  const validPdf = mimeType === "application/pdf" && buffer.length >= 5
-    && buffer.subarray(0, 5).toString("ascii") === "%PDF-";
-  if (!validPdf) {
-    throw Object.assign(new Error("O arquivo não contém um PDF válido."), { statusCode: 400 });
+  if (!documentMimeTypes.has(mimeType)) {
+    throw Object.assign(new Error("Formato de documento não suportado."), { statusCode: 400 });
+  }
+  const isPdf = mimeType === "application/pdf";
+  const isText = mimeType === "text/plain";
+  const isOpenXml = mimeType.startsWith("application/vnd.openxmlformats-officedocument.");
+  const isLegacyOffice = ["application/msword", "application/vnd.ms-excel", "application/vnd.ms-powerpoint"].includes(mimeType);
+  const validPdf = !isPdf || (buffer.length >= 5 && buffer.subarray(0, 5).toString("ascii") === "%PDF-");
+  const validText = !isText || !buffer.includes(0);
+  const validOpenXml = !isOpenXml || (buffer.length >= 4
+    && buffer.subarray(0, 4).equals(Buffer.from([0x50, 0x4b, 0x03, 0x04])));
+  const oleSignature = Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
+  const validLegacyOffice = !isLegacyOffice || (buffer.length >= oleSignature.length
+    && buffer.subarray(0, oleSignature.length).equals(oleSignature));
+  if (!validPdf || !validText || !validOpenXml || !validLegacyOffice) {
+    throw Object.assign(new Error("O conteúdo do documento não corresponde ao formato informado."), { statusCode: 400 });
   }
 }
 
@@ -109,7 +134,7 @@ function storageRoot() {
 }
 
 function safeFileName(value, mimeType) {
-  const mediaKind = mimeType === "application/pdf" ? "documento"
+  const mediaKind = documentMimeTypes.has(mimeType) ? "documento"
     : mimeType === "image/webp" ? "figurinha"
     : (mimeType.startsWith("audio/") ? "audio" : (mimeType.startsWith("video/") ? "video" : "imagem"));
   const fallback = `${mediaKind}${mediaExtensions.get(mimeType)}`;
@@ -156,7 +181,7 @@ async function storeDocument(options) {
 }
 
 function resolveMedia(storageKey) {
-  if (!/^[a-f0-9]{32,64}\.(jpg|png|webp|aac|m4a|mp3|amr|ogg|mp4|3gp|pdf)$/.test(storageKey || "")) {
+  if (!/^[a-f0-9]{32,64}\.(jpg|png|webp|aac|m4a|mp3|amr|ogg|mp4|3gp|pdf|txt|doc|docx|xls|xlsx|ppt|pptx)$/.test(storageKey || "")) {
     throw Object.assign(new Error("Mídia inválida."), { statusCode: 404 });
   }
   return path.join(storageRoot(), storageKey);
@@ -170,6 +195,6 @@ async function removeImage(storageKey) {
 }
 
 module.exports = {
-  MAX_AUDIO_SIZE, MAX_DOCUMENT_SIZE, MAX_IMAGE_SIZE, MAX_STICKER_SIZE, MAX_VIDEO_SIZE, normalizeMimeType, removeImage, resolveImage, resolveMedia,
+  MAX_AUDIO_SIZE, MAX_DOCUMENT_SIZE, MAX_IMAGE_SIZE, MAX_STICKER_SIZE, MAX_VIDEO_SIZE, documentMimeTypes, normalizeMimeType, removeImage, resolveImage, resolveMedia,
   storeAudio, storeDocument, storeImage, storeSticker, storeVideo, validateAudio, validateDocument, validateImage, validateSticker, validateVideo,
 };

@@ -158,7 +158,7 @@ function messagePreviewForAlert(message) {
   if (message.type === "image") return "enviou uma imagem";
   if (message.type === "audio") return "enviou um áudio";
   if (message.type === "video") return "enviou um vídeo";
-  if (message.type === "document") return `enviou o PDF ${message.mediaFileName || "documento.pdf"}`;
+  if (message.type === "document") return `enviou o documento ${message.mediaFileName || "arquivo"}`;
   const text = message.text?.trim() || "enviou uma mensagem";
   return text.length > 90 ? `${text.slice(0, 87)}...` : text;
 }

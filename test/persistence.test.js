@@ -5,7 +5,7 @@ const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const prisma = require("../src/database/prisma");
-const { MAX_DOCUMENT_SIZE, resolveImage, resolveMedia } = require("../src/services/media-storage-service");
+const { MAX_DOCUMENT_SIZE, resolveImage, resolveMedia, validateDocument } = require("../src/services/media-storage-service");
 const { closingMessage, finalizeConversation, saveIncoming, sendDocument, sendImage, sendText, sendVideo } = require("../src/services/message-service");
 const inbox = require("../src/services/inbox-service");
 const mediaTestDir = path.join(os.tmpdir(), `app-whats-media-test-${process.pid}`);
@@ -523,6 +523,38 @@ test("persiste PDFs recebidos e enviados com autoria", async () => {
   assert.equal(outgoing.message.mediaFileName, "manual-mibro.pdf");
   assert.equal(providerDocument.caption, "[*Suporte*]\n\nManual solicitado");
   assert.deepEqual(await fs.readFile(resolveMedia(outgoing.message.mediaStorageKey)), sentPdf);
+});
+
+test("aceita documentos Office e bloqueia arquivos renomeados", async () => {
+  const conversation = await prisma.conversation.findFirst();
+  const user = await prisma.user.findUnique({ where: { email: "teste@mibro.local" } });
+  const docxMime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  const docx = Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.from("documento Word de teste")]);
+  const incoming = await saveIncoming({
+    externalId: "wamid.test.docx.in", contactExternalId: "5511999999999", phone: "5511999999999",
+    contactName: "Cliente Teste", type: "document", text: "Formulário", occurredAt: new Date(),
+    rawPayload: { document: { id: "media.docx.in", mime_type: docxMime, filename: "garantia.docx" } },
+    mediaBuffer: docx, mediaMimeType: docxMime, mediaFileName: "garantia.docx",
+  });
+  assert.equal(incoming.message.mediaMimeType, docxMime);
+  assert.equal(incoming.message.mediaFileName, "garantia.docx");
+  assert.deepEqual(await fs.readFile(resolveMedia(incoming.message.mediaStorageKey)), docx);
+
+  let providerDocument;
+  const channel = { sendDocument: async (_phone, data) => {
+    providerDocument = data;
+    return { externalId: "wamid.test.docx.out", mediaId: "media.docx.out", data: {} };
+  } };
+  const outgoing = await sendDocument({
+    conversationId: conversation.id, buffer: docx, mimeType: docxMime,
+    fileName: "formulario.docx", caption: "Formulário solicitado", sentByUserId: user.id, channel,
+  });
+  assert.equal(outgoing.message.mediaFileName, "formulario.docx");
+  assert.equal(providerDocument.mimeType, docxMime);
+  assert.throws(
+    () => validateDocument({ buffer: Buffer.from("MZ executável renomeado"), mimeType: docxMime }),
+    /não corresponde ao formato informado/,
+  );
 });
 
 test("persiste e exibe figurinha WebP recebida", async () => {

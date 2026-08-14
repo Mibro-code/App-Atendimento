@@ -107,7 +107,7 @@ function createInboxController(channel) {
       } catch (error) { return next(error); }
     },
     async replyDocument(req, res, next) {
-      if (!req.file) return res.status(400).json({ error: "Selecione um arquivo PDF." });
+      if (!req.file) return res.status(400).json({ error: "Selecione um documento." });
       try {
         await authorization.assertCanViewConversation(req.user, req.params.id);
         const result = await sendDocument({

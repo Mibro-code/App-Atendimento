@@ -18,6 +18,7 @@ const inboxEvents = require("./realtime/inbox-events");
 const authorization = require("./services/authorization-service");
 const userManagementController = require("./controllers/user-management-controller");
 const auditController = require("./controllers/audit-controller");
+const { documentMimeTypes } = require("./services/media-storage-service");
 const imageUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024, files: 1 },
@@ -42,8 +43,8 @@ const documentUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 100 * 1024 * 1024, files: 1 },
   fileFilter(_req, file, callback) {
-    if (file.mimetype !== "application/pdf") {
-      return callback(Object.assign(new Error("Envie um arquivo PDF."), { statusCode: 400 }));
+    if (!documentMimeTypes.has(file.mimetype)) {
+      return callback(Object.assign(new Error("Envie um documento PDF, TXT, Word, Excel ou PowerPoint."), { statusCode: 400 }));
     }
     return callback(null, true);
   },
@@ -202,7 +203,7 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   app.use((error, _req, res, _next) => {
     if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
       return res.status(413).json({
-        error: error.field === "document" ? "O PDF deve ter no máximo 100 MB."
+        error: error.field === "document" ? "O documento deve ter no máximo 100 MB."
           : (error.field === "video" ? "O vídeo deve ter no máximo 16 MB." : "A imagem deve ter no máximo 5 MB."),
       });
     }

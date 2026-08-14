@@ -18,6 +18,17 @@ const conversationTimeZone = "America/Sao_Paulo";
 const time = (value) => value ? new Intl.DateTimeFormat("pt-BR", { hour:"2-digit", minute:"2-digit", timeZone:conversationTimeZone }).format(new Date(value)) : "";
 const statusLabel = (value) => ({ NOVO:"Novo", EM_ATENDIMENTO:"Em atendimento", AGUARDANDO_RESPOSTA:"Aguardando resposta", BOT:"Bot", FINALIZADO:"Finalizado" })[value] || value;
 const categoryLabel = (category) => category?.parent?.name ? `${category.parent.name}: ${category.name}` : (category?.name || "Sem categoria");
+const documentTypeLabels = new Map([
+  ["application/pdf", "PDF"], ["text/plain", "TXT"], ["application/msword", "DOC"],
+  ["application/vnd.openxmlformats-officedocument.wordprocessingml.document", "DOCX"],
+  ["application/vnd.ms-excel", "XLS"],
+  ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "XLSX"],
+  ["application/vnd.ms-powerpoint", "PPT"],
+  ["application/vnd.openxmlformats-officedocument.presentationml.presentation", "PPTX"],
+]);
+const isDocumentMime = (value) => documentTypeLabels.has(String(value || "").toLowerCase());
+const documentTypeLabel = (mimeType, fileName = "") => documentTypeLabels.get(String(mimeType || "").toLowerCase())
+  || fileName.split(".").pop()?.toUpperCase().slice(0, 5) || "DOC";
 function orderedCategories(categories) {
   const roots = categories.filter((category) => !category.parentId);
   const nested = roots.flatMap((root) => [root, ...categories.filter((category) => category.parentId === root.id)]);
@@ -95,15 +106,15 @@ const messagePreview = (message) => {
   if (message.type === "audio") return "▶ Áudio";
   if (message.type === "video") return message.text && message.text !== "[video]" ? `🎬 ${message.text}` : "🎬 Vídeo";
   if (message.type === "sticker") return "💟 Figurinha";
-  if (message.type === "document") return `📄 ${message.mediaFileName || "Documento PDF"}`;
+  if (message.type === "document") return `📄 ${message.mediaFileName || "Documento"}`;
   return message.text || `[${message.type}]`;
 };
 
-function formatFileSize(value) {
+function formatFileSize(value, typeLabel = "ARQUIVO") {
   const bytes = Number(value) || 0;
-  if (!bytes) return "PDF";
-  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB • PDF`;
-  return `${(bytes / (1024 * 1024)).toFixed(1).replace(".0", "")} MB • PDF`;
+  if (!bytes) return typeLabel;
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB • ${typeLabel}`;
+  return `${(bytes / (1024 * 1024)).toFixed(1).replace(".0", "")} MB • ${typeLabel}`;
 }
 
 function conversationSignature(conversation) {
@@ -175,14 +186,15 @@ function messageContent(message) {
     return `<img class="message-sticker" src="${mediaUrl}" alt="Figurinha recebida" loading="lazy">`;
   }
   if (message.type === "document" && message.mediaStorageKey) {
-    const fileName = message.mediaFileName || "documento.pdf";
-    return `<a class="message-document" href="${mediaUrl}" target="_blank" rel="noopener"><span class="document-icon" aria-hidden="true">PDF</span><span class="document-details"><strong>${escapeHtml(fileName)}</strong><small>${escapeHtml(formatFileSize(message.mediaSize))}</small></span><span class="document-action">Abrir</span></a>${message.text && message.text !== "[document]" ? `<p>${escapeHtml(message.text)}</p>` : ""}`;
+    const fileName = message.mediaFileName || "documento";
+    const typeLabel = documentTypeLabel(message.mediaMimeType, fileName);
+    return `<a class="message-document" href="${mediaUrl}" target="_blank" rel="noopener"><span class="document-icon" aria-hidden="true">${escapeHtml(typeLabel)}</span><span class="document-details"><strong>${escapeHtml(fileName)}</strong><small>${escapeHtml(formatFileSize(message.mediaSize, typeLabel))}</small></span><span class="document-action">Abrir</span></a>${message.text && message.text !== "[document]" ? `<p>${escapeHtml(message.text)}</p>` : ""}`;
   }
   if (message.type === "image") return "<p>[Imagem indisponível]</p>";
   if (message.type === "audio") return "<p>[Áudio indisponível]</p>";
   if (message.type === "video") return "<p>[Vídeo indisponível]</p>";
   if (message.type === "sticker") return "<p>[Figurinha indisponível]</p>";
-  if (message.type === "document") return "<p>[PDF indisponível]</p>";
+  if (message.type === "document") return "<p>[Documento indisponível]</p>";
   return `<p>${escapeHtml(message.text || `[${message.type}]`)}</p>`;
 }
 
@@ -294,7 +306,9 @@ function renderContactFiles(tab = "media") {
   } else if (tab === "documents") {
     markup = documents.length ? `<div class="shared-document-list">${documents.map((message) => {
       const url = `/api/messages/${encodeURIComponent(message.id)}/media`;
-      return `<a class="shared-document-card" href="${url}" target="_blank" rel="noopener"><span class="shared-document-icon">PDF</span><span class="shared-file-details"><b>${escapeHtml(message.mediaFileName || "documento.pdf")}</b><small>${escapeHtml(`${formatFileSize(message.mediaSize)} • ${sharedFileMeta(message)}`)}</small></span><span class="shared-open">Abrir</span></a>`;
+      const fileName = message.mediaFileName || "documento";
+      const typeLabel = documentTypeLabel(message.mediaMimeType, fileName);
+      return `<a class="shared-document-card" href="${url}" target="_blank" rel="noopener"><span class="shared-document-icon">${escapeHtml(typeLabel)}</span><span class="shared-file-details"><b>${escapeHtml(fileName)}</b><small>${escapeHtml(`${formatFileSize(message.mediaSize, typeLabel)} • ${sharedFileMeta(message)}`)}</small></span><span class="shared-open">Abrir</span></a>`;
     }).join("")}</div>` : `<div class="shared-empty">Nenhum documento disponível nesta conversa.</div>`;
   } else {
     markup = links.length ? `<div class="shared-link-list">${links.map((link) => `<a class="shared-link-card" href="${escapeHtml(link.href)}" target="_blank" rel="noopener noreferrer"><span class="shared-link-icon">↗</span><span class="shared-file-details"><b>${escapeHtml(link.label)}</b><small>${escapeHtml(`${link.host} • ${sharedFileMeta(link.message)}`)}</small></span><span class="shared-open">Abrir</span></a>`).join("")}</div>` : `<div class="shared-empty">Nenhum link encontrado nas mensagens desta conversa.</div>`;
@@ -941,24 +955,24 @@ $("#attachment-input").addEventListener("change", (event) => {
   const file = event.target.files[0];
   if (!file) return clearSelectedAttachment();
   const isImage = ["image/jpeg", "image/png"].includes(file.type);
-  const isPdf = file.type === "application/pdf";
+  const isDocument = isDocumentMime(file.type);
   const isVideo = ["video/mp4", "video/3gpp", "video/3gp"].includes(file.type);
-  if (!isImage && !isPdf && !isVideo) { clearSelectedAttachment(); return toast("Envie uma imagem JPG/PNG, vídeo MP4/3GP ou arquivo PDF.", true); }
+  if (!isImage && !isDocument && !isVideo) { clearSelectedAttachment(); return toast("Envie uma imagem JPG/PNG, vídeo MP4/3GP ou documento PDF/TXT/Word/Excel/PowerPoint.", true); }
   if (isImage && file.size > 5 * 1024 * 1024) { clearSelectedAttachment(); return toast("A imagem deve ter no máximo 5 MB.", true); }
   if (isVideo && file.size > 16 * 1024 * 1024) { clearSelectedAttachment(); return toast("O vídeo deve ter no máximo 16 MB.", true); }
-  if (isPdf && file.size > 100 * 1024 * 1024) { clearSelectedAttachment(); return toast("O PDF deve ter no máximo 100 MB.", true); }
+  if (isDocument && file.size > 100 * 1024 * 1024) { clearSelectedAttachment(); return toast("O documento deve ter no máximo 100 MB.", true); }
   if (attachmentUrl) URL.revokeObjectURL(attachmentUrl);
   attachmentUrl = null;
   selectedAttachment = file;
   $("#attachment-thumb").hidden = !isImage;
   $("#attachment-type").hidden = isImage;
-  $("#attachment-type").textContent = isPdf ? "PDF" : "VÍDEO";
+  $("#attachment-type").textContent = isDocument ? documentTypeLabel(file.type, file.name) : "VÍDEO";
   if (isImage) { attachmentUrl = URL.createObjectURL(file); $("#attachment-thumb").src = attachmentUrl; }
   $("#message-input").maxLength = 1024;
   $("#attachment-name").textContent = file.name; $("#attachment-preview").hidden = false; $("#message-input").focus();
 });
 $("#remove-attachment").addEventListener("click", clearSelectedAttachment);
-$("#composer").addEventListener("submit", async (event) => { event.preventDefault(); const input = $("#message-input"); const text = input.value.trim(); if (!text && !selectedAttachment) return; $("#send-button").disabled = true; try { if (selectedAttachment) { const isPdf = selectedAttachment.type === "application/pdf"; const isVideo = selectedAttachment.type.startsWith("video/"); const field = isPdf ? "document" : (isVideo ? "video" : "image"); const endpoint = isPdf ? "documents" : (isVideo ? "videos" : "images"); const form = new FormData(); form.append(field, selectedAttachment); if (text) form.append("caption", text); await api(`/api/conversations/${state.selectedId}/${endpoint}`, { method:"POST", body:form }); clearSelectedAttachment(); } else { await api(`/api/conversations/${state.selectedId}/messages`, { method:"POST", body:JSON.stringify({ text }) }); } input.value = ""; await openConversation(state.selectedId); } catch (e) { toast(e.message, true); } finally { $("#send-button").disabled = false; input.focus(); } });
+$("#composer").addEventListener("submit", async (event) => { event.preventDefault(); const input = $("#message-input"); const text = input.value.trim(); if (!text && !selectedAttachment) return; $("#send-button").disabled = true; try { if (selectedAttachment) { const isDocument = isDocumentMime(selectedAttachment.type); const isVideo = selectedAttachment.type.startsWith("video/"); const field = isDocument ? "document" : (isVideo ? "video" : "image"); const endpoint = isDocument ? "documents" : (isVideo ? "videos" : "images"); const form = new FormData(); form.append(field, selectedAttachment); if (text) form.append("caption", text); await api(`/api/conversations/${state.selectedId}/${endpoint}`, { method:"POST", body:form }); clearSelectedAttachment(); } else { await api(`/api/conversations/${state.selectedId}/messages`, { method:"POST", body:JSON.stringify({ text }) }); } input.value = ""; await openConversation(state.selectedId); } catch (e) { toast(e.message, true); } finally { $("#send-button").disabled = false; input.focus(); } });
 $("#message-input").addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); $("#composer").requestSubmit(); } });
 $(".chat-header").addEventListener("click", (event) => { if (innerWidth <= 700 && event.offsetX < 45) $("#chat-panel").classList.remove("open"); });
 
