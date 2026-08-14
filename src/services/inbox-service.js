@@ -514,7 +514,7 @@ async function updateConversation(id, { categoryId, status, assignedUserId, limi
           from: currentSnapshot.category ? categoryLabelForHistory(currentSnapshot.category) : "Sem categoria",
           to: updated.category ? categoryLabelForHistory(updated.category) : "Sem categoria",
           fromCategoryId: currentSnapshot.categoryId, toCategoryId: updated.categoryId,
-          sectorChanged, historyLimited: limitHistory !== false,
+          sectorChanged, historyLimited: limitHistory === true,
         }));
       }
       if (currentSnapshot.assignedUserId !== updated.assignedUserId) {
@@ -541,7 +541,7 @@ async function updateConversation(id, { categoryId, status, assignedUserId, limi
           summary: `Alterou a categoria da conversa de ${updated.contact.name || updated.contact.phone}: ${from} → ${to}`,
           details: {
             ...contact, from, to, fromCategoryId: currentSnapshot.categoryId,
-            toCategoryId: updated.categoryId, historyLimited: limitHistory !== false,
+            toCategoryId: updated.categoryId, historyLimited: limitHistory === true,
           },
         });
       }

@@ -353,7 +353,7 @@ test("permite ao atendente autorizado transferir setores e oculta mensagens ante
     canViewPreviousMessages: false,
   };
 
-  await inbox.updateConversation(conversation.id, { categoryId: commercial.id }, masterViewer);
+  await inbox.updateConversation(conversation.id, { categoryId: commercial.id, limitHistory: true }, masterViewer);
   const strictTransfer = await prisma.conversationActivity.findFirst({
     where: { conversationId: conversation.id, action: "CATEGORY_CHANGED" }, orderBy: { createdAt: "desc" },
   });
@@ -409,7 +409,7 @@ test("a transferência pode recuperar somente categorias anteriores atendidas pe
     text: "Resposta do atendente em Suporte", occurredAt: new Date(Date.now() - 1000), sentByUserId: returningAgent.id,
   } });
 
-  await inbox.updateConversation(conversation.id, { categoryId: commercial.id, limitHistory: false }, masterViewer);
+  await inbox.updateConversation(conversation.id, { categoryId: commercial.id }, masterViewer);
   const flexibleTransfer = await prisma.conversationActivity.findFirst({
     where: { conversationId: conversation.id, action: "CATEGORY_CHANGED" }, orderBy: { createdAt: "desc" },
   });
