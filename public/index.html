@@ -88,6 +88,13 @@
       </div>
     </section>
   </main>
+  <dialog id="transfer-dialog" class="category-dialog transfer-dialog">
+    <div class="dialog-header"><div><span>ENCAMINHAMENTO</span><h2>Transferir conversa</h2><p id="transfer-destination">Confirme o novo setor deste atendimento.</p></div><button id="close-transfer" type="button" aria-label="Fechar">×</button></div>
+    <form id="transfer-form" class="transfer-form">
+      <label class="transfer-history-option"><input id="transfer-limit-history" type="checkbox" checked><span><b>Ocultar histórico anterior para o novo setor</b><small>Se desmarcado, o mesmo atendente poderá recuperar somente os trechos que ele próprio atendeu em categorias às quais possui acesso.</small></span></label>
+      <div class="transfer-actions"><button id="cancel-transfer" type="button">Cancelar</button><button type="submit">Confirmar transferência</button></div>
+    </form>
+  </dialog>
   <dialog id="category-dialog" class="category-dialog">
     <div class="dialog-header"><div><span>ORGANIZAÇÃO</span><h2>Categorias</h2><p>Crie seções e ajuste como elas aparecem no atendimento.</p></div><button id="close-categories" type="button" aria-label="Fechar">×</button></div>
     <form id="category-form" class="category-create-form">
