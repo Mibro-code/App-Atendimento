@@ -300,16 +300,17 @@ test("fixa conversas por conta, restringe exclusão de notas e registra o histó
     conversationId: conversation.id, direction: "RECEBIDA", status: "RECEBIDA", type: "text",
     text: "Mensagem posterior ao encaminhamento", occurredAt: new Date(Date.now() + 1000),
   } });
-  const limitedDetail = await inbox.getConversation(conversation.id, {
+  const defaultDetail = await inbox.getConversation(conversation.id, {
     id: handoffAgent.id, role: "ATENDENTE", canViewPreviousMessages: false,
   });
-  assert.equal(limitedDetail.messageHistoryLimited, true);
-  assert.deepEqual(limitedDetail.messages.map(({ id }) => id), [afterTransferMessage.id]);
+  assert.equal(defaultDetail.messageHistoryLimited, false);
+  assert.ok(defaultDetail.messages.some(({ id }) => id === afterTransferMessage.id));
+  assert.ok(defaultDetail.messages.length > 1);
   const fullDetail = await inbox.getConversation(conversation.id, {
     id: handoffAgent.id, role: "ATENDENTE", canViewPreviousMessages: true,
   });
   assert.equal(fullDetail.messageHistoryLimited, false);
-  assert.ok(fullDetail.messages.length > limitedDetail.messages.length);
+  assert.deepEqual(fullDetail.messages.map(({ id }) => id), defaultDetail.messages.map(({ id }) => id));
 
   await inbox.updateConversation(conversation.id, { status: "FINALIZADO" }, { id: master.id, role: "ADMIN" });
   const activeAssignments = await inbox.listConversations({ assignedUser: handoffAgent.id, activeOnly: "true" }, { id: master.id, role: "ADMIN" });
@@ -379,7 +380,7 @@ test("permite ao atendente autorizado transferir setores e oculta mensagens ante
   await prisma.user.delete({ where: { id: transferAgent.id } });
 });
 
-test("a transferência pode recuperar somente categorias anteriores atendidas pela mesma pessoa", async () => {
+test("a transferência sem limitação entrega o histórico completo ao novo atendente", async () => {
   const support = await prisma.category.findUnique({ where: { code: "SUPORTE" } });
   const commercial = await prisma.category.findUnique({ where: { code: "COMERCIAL" } });
   const [returningAgent, differentAgent] = await Promise.all([
@@ -445,9 +446,11 @@ test("a transferência pode recuperar somente categorias anteriores atendidas pe
     id: differentAgent.id, role: "ATENDENTE", canViewPreviousMessages: false,
     canViewUncategorized: false,
   };
-  const hiddenFromDifferentAgent = await inbox.getConversation(conversation.id, differentViewer);
-  assert.equal(hiddenFromDifferentAgent.messageHistoryLimited, true);
-  assert.deepEqual(hiddenFromDifferentAgent.messages.map(({ id }) => id), [finalIncoming.id]);
+  const visibleToDifferentAgent = await inbox.getConversation(conversation.id, differentViewer);
+  assert.equal(visibleToDifferentAgent.messageHistoryLimited, false);
+  assert.deepEqual(visibleToDifferentAgent.messages.map(({ id }) => id), [
+    firstIncoming.id, firstReply.id, commercialIncoming.id, commercialReply.id, finalIncoming.id,
+  ]);
 
   const masterDetail = await inbox.getConversation(conversation.id, masterViewer);
   assert.deepEqual(masterDetail.messages.map(({ id }) => id), [
