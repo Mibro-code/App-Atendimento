@@ -35,7 +35,7 @@ class MetaCloudChannel {
       const contacts = new Map((value.contacts || []).map((item) => [item.wa_id, item]));
       for (const message of value.messages || []) {
         const contact = contacts.get(message.from) || value.contacts?.[0];
-        const media = ({ image: message.image, audio: message.audio, video: message.video, sticker: message.sticker })[message.type] || null;
+        const media = ({ image: message.image, audio: message.audio, video: message.video, sticker: message.sticker, document: message.document })[message.type] || null;
         const interactiveReply = message.interactive?.button_reply || message.interactive?.list_reply || null;
         const reaction = message.type === "reaction" ? message.reaction : null;
         events.push({
@@ -48,6 +48,7 @@ class MetaCloudChannel {
           reactionToExternalId: reaction?.message_id || null,
           reactionEmoji: reaction?.emoji ?? null,
           mediaId: media?.id, mediaMimeType: media?.mime_type,
+          mediaFileName: media?.filename || null,
           occurredAt: new Date(Number(message.timestamp) * 1000), rawPayload: message,
         });
       }
@@ -121,8 +122,10 @@ class MetaCloudChannel {
         "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "audio/aac": "aac", "audio/mp4": "m4a",
         "audio/mpeg": "mp3", "audio/amr": "amr", "audio/ogg": "ogg",
         "video/mp4": "mp4", "video/3gpp": "3gp", "video/3gp": "3gp",
+        "application/pdf": "pdf",
       })[mimeType] || "bin";
-      const mediaKind = mimeType === "image/webp" ? "figurinha"
+      const mediaKind = mimeType === "application/pdf" ? "documento"
+        : mimeType === "image/webp" ? "figurinha"
         : (mimeType.startsWith("audio/") ? "audio" : (mimeType.startsWith("video/") ? "video" : "imagem"));
       return {
         buffer: Buffer.from(media.data), mimeType,
@@ -149,6 +152,25 @@ class MetaCloudChannel {
       return { externalId: response.data?.messages?.[0]?.id, mediaId: upload.data.id, data: response.data };
     } catch (error) {
       throw this.providerFailure(error, "A Meta não aceitou o envio da imagem.");
+    }
+  }
+
+  async sendDocument(to, { buffer, mimeType, fileName, caption }) {
+    this.assertConfigured();
+    try {
+      const form = new FormData();
+      form.append("messaging_product", "whatsapp");
+      form.append("file", new Blob([buffer], { type: mimeType }), fileName);
+      const upload = await axios.post(this.apiUrl(`${process.env.PHONE_NUMBER_ID}/media`), form, {
+        headers: this.authHeaders(), maxBodyLength: 17 * 1024 * 1024,
+      });
+      const response = await axios.post(this.apiUrl(`${process.env.PHONE_NUMBER_ID}/messages`), {
+        messaging_product: "whatsapp", recipient_type: "individual", to, type: "document",
+        document: { id: upload.data.id, filename: fileName, ...(caption ? { caption } : {}) },
+      }, { headers: { ...this.authHeaders(), "Content-Type": "application/json" } });
+      return { externalId: response.data?.messages?.[0]?.id, mediaId: upload.data.id, data: response.data };
+    } catch (error) {
+      throw this.providerFailure(error, "A Meta não aceitou o envio do PDF.");
     }
   }
 }

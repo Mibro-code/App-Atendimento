@@ -28,6 +28,16 @@ const imageUpload = multer({
     return callback(null, true);
   },
 }).single("image");
+const documentUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 16 * 1024 * 1024, files: 1 },
+  fileFilter(_req, file, callback) {
+    if (file.mimetype !== "application/pdf") {
+      return callback(Object.assign(new Error("Envie um arquivo PDF."), { statusCode: 400 }));
+    }
+    return callback(null, true);
+  },
+}).single("document");
 
 function createApp({ channel = new MetaCloudChannel() } = {}) {
   const app = express();
@@ -55,7 +65,7 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
       let changed = false;
       for (const event of events) {
         if (event.kind === "message") {
-          if (["image", "audio", "video", "sticker"].includes(event.type) && event.mediaId) {
+          if (["image", "audio", "video", "sticker", "document"].includes(event.type) && event.mediaId) {
             const existing = await prisma.message.findUnique({ where: { externalId: event.externalId }, select: { id: true } });
             if (existing) continue;
             const media = await channel.downloadMedia(event.mediaId, {
@@ -64,7 +74,7 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
             });
             event.mediaBuffer = media.buffer;
             event.mediaMimeType = media.mimeType;
-            event.mediaFileName = media.fileName;
+            event.mediaFileName ||= media.fileName;
           }
           const result = await saveIncoming(event);
           if (!result.duplicate) {
@@ -161,6 +171,7 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   app.post("/api/conversations/:id/read", inbox.read);
   app.post("/api/conversations/:id/messages", inbox.reply);
   app.post("/api/conversations/:id/images", imageUpload, inbox.replyImage);
+  app.post("/api/conversations/:id/documents", documentUpload, inbox.replyDocument);
   app.post("/api/conversations/:id/finalize", inbox.finalize);
   app.get("/api/messages/:messageId/media", inbox.media);
   app.get("/api/categories", inbox.categories);
@@ -178,7 +189,9 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
 
   app.use((error, _req, res, _next) => {
     if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
-      return res.status(413).json({ error: "A imagem deve ter no máximo 5 MB." });
+      return res.status(413).json({
+        error: error.field === "document" ? "O PDF deve ter no máximo 16 MB." : "A imagem deve ter no máximo 5 MB.",
+      });
     }
     if (!error.statusCode) console.error("Erro interno:", {
       name: error.name,

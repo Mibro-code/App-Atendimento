@@ -91,8 +91,16 @@ const messagePreview = (message) => {
   if (message.type === "audio") return "▶ Áudio";
   if (message.type === "video") return message.text && message.text !== "[video]" ? `🎬 ${message.text}` : "🎬 Vídeo";
   if (message.type === "sticker") return "💟 Figurinha";
+  if (message.type === "document") return `📄 ${message.mediaFileName || "Documento PDF"}`;
   return message.text || `[${message.type}]`;
 };
+
+function formatFileSize(value) {
+  const bytes = Number(value) || 0;
+  if (!bytes) return "PDF";
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB • PDF`;
+  return `${(bytes / (1024 * 1024)).toFixed(1).replace(".0", "")} MB • PDF`;
+}
 
 function conversationSignature(conversation) {
   const lastMessage = conversation.messages?.[0];
@@ -162,16 +170,21 @@ function messageContent(message) {
   if (message.type === "sticker" && message.mediaStorageKey) {
     return `<img class="message-sticker" src="${mediaUrl}" alt="Figurinha recebida" loading="lazy">`;
   }
+  if (message.type === "document" && message.mediaStorageKey) {
+    const fileName = message.mediaFileName || "documento.pdf";
+    return `<a class="message-document" href="${mediaUrl}" target="_blank" rel="noopener"><span class="document-icon" aria-hidden="true">PDF</span><span class="document-details"><strong>${escapeHtml(fileName)}</strong><small>${escapeHtml(formatFileSize(message.mediaSize))}</small></span><span class="document-action">Abrir</span></a>${message.text && message.text !== "[document]" ? `<p>${escapeHtml(message.text)}</p>` : ""}`;
+  }
   if (message.type === "image") return "<p>[Imagem indisponível]</p>";
   if (message.type === "audio") return "<p>[Áudio indisponível]</p>";
   if (message.type === "video") return "<p>[Vídeo indisponível]</p>";
   if (message.type === "sticker") return "<p>[Figurinha indisponível]</p>";
+  if (message.type === "document") return "<p>[PDF indisponível]</p>";
   return `<p>${escapeHtml(message.text || `[${message.type}]`)}</p>`;
 }
 
 function messageRowMarkup(message) {
   const [symbol, label, statusClass] = deliveryStatus(message.status);
-  return `<div class="message-row ${message.direction === "ENVIADA" ? "sent" : "received"}" data-message-id="${escapeHtml(message.id)}"><div class="bubble ${["image", "audio", "video", "sticker"].includes(message.type) ? `${message.type}-bubble` : ""} ${message.reactionEmoji ? "has-reaction" : ""}">${messageContent(message)}<footer>${message.sentByUser ? `<span class="author">${escapeHtml(message.sentByUser.name)}</span>` : ""}<span>${time(message.occurredAt)}</span>${message.direction === "ENVIADA" ? `<span class="delivery-status ${statusClass}" title="${label}" aria-label="${label}">${symbol}</span>` : ""}</footer>${message.reactionEmoji ? `<span class="message-reaction" title="Reação do cliente">${escapeHtml(message.reactionEmoji)}</span>` : ""}</div></div>`;
+  return `<div class="message-row ${message.direction === "ENVIADA" ? "sent" : "received"}" data-message-id="${escapeHtml(message.id)}"><div class="bubble ${["image", "audio", "video", "sticker", "document"].includes(message.type) ? `${message.type}-bubble` : ""} ${message.reactionEmoji ? "has-reaction" : ""}">${messageContent(message)}<footer>${message.sentByUser ? `<span class="author">${escapeHtml(message.sentByUser.name)}</span>` : ""}<span>${time(message.occurredAt)}</span>${message.direction === "ENVIADA" ? `<span class="delivery-status ${statusClass}" title="${label}" aria-label="${label}">${symbol}</span>` : ""}</footer>${message.reactionEmoji ? `<span class="message-reaction" title="Reação do cliente">${escapeHtml(message.reactionEmoji)}</span>` : ""}</div></div>`;
 }
 
 function messageDateKey(value) {
@@ -428,7 +441,7 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
   });
   const displayMessages = messagesWithReactions(c.messages);
   const hasReactionEvents = displayMessages.length !== c.messages.length;
-  const messageItems = displayMessages.map((message) => JSON.stringify([message.id, message.externalId, message.direction, message.type, message.text, message.occurredAt, message.mediaStorageKey, message.mediaMimeType, message.reactionEmoji, message.sentByUser?.id, message.sentByUser?.name]));
+  const messageItems = displayMessages.map((message) => JSON.stringify([message.id, message.externalId, message.direction, message.type, message.text, message.occurredAt, message.mediaStorageKey, message.mediaMimeType, message.mediaFileName, message.mediaSize, message.reactionEmoji, message.sentByUser?.id, message.sentByUser?.name]));
   const messagesSignature = JSON.stringify([c.messageHistoryLimited, messageItems]);
   const notesSignature = JSON.stringify((c.contact.notes || []).map((note) => [note.id, note.content, note.pinned, note.createdAt, note.updatedAt, note.author?.name]));
   const activitiesSignature = JSON.stringify((c.activities || []).map((activity) => [activity.id, activity.action, activity.details, activity.createdAt, activity.actorUser?.name]));
@@ -813,24 +826,33 @@ $("#delete-conversation").addEventListener("click", async (event) => {
   } catch (e) { toast(e.message, true); }
   finally { button.disabled = false; }
 });
-let selectedImage = null;
+let selectedAttachment = null;
 let attachmentUrl = null;
-function clearSelectedImage() {
-  selectedImage = null; $("#image-input").value = ""; $("#attachment-preview").hidden = true;
+function clearSelectedAttachment() {
+  selectedAttachment = null; $("#attachment-input").value = ""; $("#attachment-preview").hidden = true;
+  $("#attachment-thumb").hidden = false; $("#attachment-type").hidden = true;
   $("#message-input").maxLength = 4096;
   if (attachmentUrl) URL.revokeObjectURL(attachmentUrl); attachmentUrl = null;
 }
-$("#image-input").addEventListener("change", (event) => {
+$("#attachment-input").addEventListener("change", (event) => {
   const file = event.target.files[0];
-  if (!file) return clearSelectedImage();
-  if (!["image/jpeg", "image/png"].includes(file.type)) { clearSelectedImage(); return toast("Envie uma imagem JPG ou PNG.", true); }
-  if (file.size > 5 * 1024 * 1024) { clearSelectedImage(); return toast("A imagem deve ter no máximo 5 MB.", true); }
-  selectedImage = file; attachmentUrl = URL.createObjectURL(file); $("#attachment-thumb").src = attachmentUrl;
+  if (!file) return clearSelectedAttachment();
+  const isImage = ["image/jpeg", "image/png"].includes(file.type);
+  const isPdf = file.type === "application/pdf";
+  if (!isImage && !isPdf) { clearSelectedAttachment(); return toast("Envie uma imagem JPG/PNG ou um arquivo PDF.", true); }
+  if (isImage && file.size > 5 * 1024 * 1024) { clearSelectedAttachment(); return toast("A imagem deve ter no máximo 5 MB.", true); }
+  if (isPdf && file.size > 16 * 1024 * 1024) { clearSelectedAttachment(); return toast("O PDF deve ter no máximo 16 MB.", true); }
+  if (attachmentUrl) URL.revokeObjectURL(attachmentUrl);
+  attachmentUrl = null;
+  selectedAttachment = file;
+  $("#attachment-thumb").hidden = isPdf;
+  $("#attachment-type").hidden = !isPdf;
+  if (isImage) { attachmentUrl = URL.createObjectURL(file); $("#attachment-thumb").src = attachmentUrl; }
   $("#message-input").maxLength = 1024;
   $("#attachment-name").textContent = file.name; $("#attachment-preview").hidden = false; $("#message-input").focus();
 });
-$("#remove-attachment").addEventListener("click", clearSelectedImage);
-$("#composer").addEventListener("submit", async (event) => { event.preventDefault(); const input = $("#message-input"); const text = input.value.trim(); if (!text && !selectedImage) return; $("#send-button").disabled = true; try { if (selectedImage) { const form = new FormData(); form.append("image", selectedImage); if (text) form.append("caption", text); await api(`/api/conversations/${state.selectedId}/images`, { method:"POST", body:form }); clearSelectedImage(); } else { await api(`/api/conversations/${state.selectedId}/messages`, { method:"POST", body:JSON.stringify({ text }) }); } input.value = ""; await openConversation(state.selectedId); } catch (e) { toast(e.message, true); } finally { $("#send-button").disabled = false; input.focus(); } });
+$("#remove-attachment").addEventListener("click", clearSelectedAttachment);
+$("#composer").addEventListener("submit", async (event) => { event.preventDefault(); const input = $("#message-input"); const text = input.value.trim(); if (!text && !selectedAttachment) return; $("#send-button").disabled = true; try { if (selectedAttachment) { const isPdf = selectedAttachment.type === "application/pdf"; const form = new FormData(); form.append(isPdf ? "document" : "image", selectedAttachment); if (text) form.append("caption", text); await api(`/api/conversations/${state.selectedId}/${isPdf ? "documents" : "images"}`, { method:"POST", body:form }); clearSelectedAttachment(); } else { await api(`/api/conversations/${state.selectedId}/messages`, { method:"POST", body:JSON.stringify({ text }) }); } input.value = ""; await openConversation(state.selectedId); } catch (e) { toast(e.message, true); } finally { $("#send-button").disabled = false; input.focus(); } });
 $("#message-input").addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); $("#composer").requestSubmit(); } });
 $(".chat-header").addEventListener("click", (event) => { if (innerWidth <= 700 && event.offsetX < 45) $("#chat-panel").classList.remove("open"); });
 

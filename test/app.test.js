@@ -159,6 +159,10 @@ test("entrega o painel e as APIs básicas da caixa de entrada", async () => {
     imageForm.append("image", new Blob([Buffer.from([0xff, 0xd8, 0xff, 0x00])], { type: "image/jpeg" }), "teste.jpg");
     const missingConversationImage = await fetch(`${base}/api/conversations/inexistente/images`, { method: "POST", headers: { Cookie: cookie }, body: imageForm });
     assert.equal(missingConversationImage.status, 404);
+    const documentForm = new FormData();
+    documentForm.append("document", new Blob([Buffer.from("%PDF-1.7\nPDF de teste")], { type: "application/pdf" }), "manual.pdf");
+    const missingConversationDocument = await fetch(`${base}/api/conversations/inexistente/documents`, { method: "POST", headers: { Cookie: cookie }, body: documentForm });
+    assert.equal(missingConversationDocument.status, 404);
     assert.equal((await fetch(`${base}/api/messages/inexistente/media`, { headers: { Cookie: cookie } })).status, 404);
     assert.equal((await fetch(`${base}/health`)).status, 200);
     const conversations = await fetch(`${base}/api/conversations`, { headers: { Cookie: cookie } });
