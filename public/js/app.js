@@ -767,20 +767,35 @@ $("#pin-conversation").addEventListener("click", async (event) => {
     toast(e.message, true);
   } finally { button.disabled = false; }
 });
-async function confirmConversationCategory() {
+function openConversationCategoryTransfer() {
+  if ($("#confirm-category").disabled) return;
+  const primary = $("#category-select").selectedOptions[0]?.textContent || "Sem categoria";
+  const secondary = $("#subcategory-select").value ? $("#subcategory-select").selectedOptions[0]?.textContent : "";
+  $("#transfer-destination").textContent = `Destino: ${secondary ? `${primary}: ${secondary}` : primary}`;
+  $("#transfer-limit-history").checked = true;
+  $("#transfer-dialog").showModal();
+}
+async function confirmConversationCategory(event) {
+  event.preventDefault();
   const button = $("#confirm-category");
   const categoryId = pendingCategoryId();
-  if (button.disabled) return;
+  if (!state.selectedId || categoryId === state.selectedCategoryId) return;
+  const submit = event.submitter;
+  submit.disabled = true;
   button.disabled = true;
   try {
-    await api(`/api/conversations/${state.selectedId}`, { method:"PATCH", body:JSON.stringify({ categoryId:categoryId || null }) });
+    await api(`/api/conversations/${state.selectedId}`, { method:"PATCH", body:JSON.stringify({
+      categoryId:categoryId || null, limitHistory:$("#transfer-limit-history").checked,
+    }) });
+    $("#transfer-dialog").close();
     toast("Conversa transferida para a categoria selecionada.");
     closeConversationView();
     await loadConversations();
   } catch (e) {
+    $("#transfer-dialog").close();
     toast(e.message, true);
     await openConversation(state.selectedId, { markRead:false });
-  } finally { syncCategoryConfirmation(); }
+  } finally { submit.disabled = false; syncCategoryConfirmation(); }
 }
 $("#category-select").addEventListener("change", (event) => {
   const primaryId = event.target.value;
@@ -788,7 +803,11 @@ $("#category-select").addEventListener("change", (event) => {
   syncCategoryConfirmation();
 });
 $("#subcategory-select").addEventListener("change", syncCategoryConfirmation);
-$("#confirm-category").addEventListener("click", confirmConversationCategory);
+$("#confirm-category").addEventListener("click", openConversationCategoryTransfer);
+$("#transfer-form").addEventListener("submit", confirmConversationCategory);
+$("#close-transfer").addEventListener("click", () => $("#transfer-dialog").close());
+$("#cancel-transfer").addEventListener("click", () => $("#transfer-dialog").close());
+$("#transfer-dialog").addEventListener("click", (event) => { if (event.target === $("#transfer-dialog")) $("#transfer-dialog").close(); });
 $("#assignee-select").addEventListener("change", async (event) => { try { await api(`/api/conversations/${state.selectedId}`, { method:"PATCH", body:JSON.stringify({ assignedUserId:event.target.value || null }) }); toast(event.target.value ? "Responsável atualizado." : "Conversa sem responsável."); await openConversation(state.selectedId); } catch (e) { toast(e.message, true); } });
 $("#claim-conversation").addEventListener("click", async () => { try { await api(`/api/conversations/${state.selectedId}/claim`, { method:"POST" }); toast("Conversa atribuída a você."); await openConversation(state.selectedId); } catch (e) { toast(e.message, true); } });
 $("#manage-categories").addEventListener("click", () => { renderCategoryManager(); $("#category-dialog").showModal(); });

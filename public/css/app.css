@@ -55,6 +55,7 @@ button { cursor:pointer; }
 .dialog-header { padding:22px 24px 17px; display:flex; align-items:flex-start; justify-content:space-between; border-bottom:1px solid var(--line); }
 .dialog-header span { color:var(--orange); font-size:9px; font-weight:800; letter-spacing:.14em; }.dialog-header h2 { margin:4px 0 3px; font-size:22px; }.dialog-header p { margin:0; color:var(--muted); font-size:11px; }
 .dialog-header button { width:34px; height:34px; border:0; border-radius:50%; color:#555; background:#f3f3f3; font-size:21px; }
+.transfer-dialog { width:min(540px,calc(100vw - 32px)); }.transfer-form { padding:20px 24px 22px; }.transfer-history-option { padding:14px; display:flex; align-items:flex-start; gap:10px; border:1px solid #ead8d1; border-radius:11px; background:#fff8f5; color:#4f5963; }.transfer-history-option input { margin-top:3px; accent-color:var(--orange); }.transfer-history-option b,.transfer-history-option small { display:block; }.transfer-history-option b { font-size:12px; }.transfer-history-option small { margin-top:5px; color:#7c858e; font-size:10px; line-height:1.45; }.transfer-actions { margin-top:18px; display:flex; justify-content:flex-end; gap:8px; }.transfer-actions button { min-height:36px; padding:0 15px; border:1px solid var(--line); border-radius:18px; color:#555; background:#fff; font-size:10px; font-weight:800; }.transfer-actions button[type="submit"] { border-color:var(--orange); color:#fff; background:var(--orange); }
 .category-create-form { padding:17px 24px; display:grid; grid-template-columns:1fr 150px 75px auto; align-items:end; gap:10px; background:#fff8f5; }
 .category-create-form label { display:flex; flex-direction:column; gap:5px; color:#737b84; font-size:10px; font-weight:700; }.category-create-form input,.category-create-form select { height:39px; padding:0 11px; border:1px solid #dedede; border-radius:8px; outline:0; background:#fff; }.category-create-form input:focus,.category-create-form select:focus { border-color:var(--orange); }.category-create-form .color-field input { width:100%; padding:4px; }
 .category-create-form button { height:39px; padding:0 17px; border:0; border-radius:8px; color:#fff; background:#121212; font-size:11px; font-weight:800; }.category-create-form button:hover { background:var(--orange); }
@@ -141,6 +142,10 @@ html[data-theme="dark"] .note.pinned { border-color:#8a4a34; background:#2b211e;
 html[data-theme="dark"] .pin-note { border-color:#3b4149; color:#cbd0d6; background:#2b3037; }
 html[data-theme="dark"] .notes-header button,html[data-theme="dark"] .attachment-preview button { color:#c6cbd1; background:#30353c; }
 html[data-theme="dark"] .category-dialog { color:#eef0f3; background:#1b1e23; }
+html[data-theme="dark"] .transfer-history-option { border-color:#704131; color:#e1e4e8; background:#2b211e; }
+html[data-theme="dark"] .transfer-history-option small { color:#aeb4bd; }
+html[data-theme="dark"] .transfer-actions button { border-color:#3b4149; color:#d7dbe0; background:#24282e; }
+html[data-theme="dark"] .transfer-actions button[type="submit"] { border-color:var(--orange); color:#fff; background:var(--orange); }
 html[data-theme="dark"] .dialog-header button { color:#d4d7dc; background:#2b3037; }
 html[data-theme="dark"] .category-create-form { background:#27201e; }
 html[data-theme="dark"] .category-create-form input,html[data-theme="dark"] .category-create-form select,html[data-theme="dark"] .category-manager-row input,html[data-theme="dark"] .category-manager-row select { border-color:#3a4048; color:#e9ebee; background:#24282e; }

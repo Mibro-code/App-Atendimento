@@ -354,6 +354,10 @@ test("permite ao atendente autorizado transferir setores e oculta mensagens ante
   };
 
   await inbox.updateConversation(conversation.id, { categoryId: commercial.id }, masterViewer);
+  const strictTransfer = await prisma.conversationActivity.findFirst({
+    where: { conversationId: conversation.id, action: "CATEGORY_CHANGED" }, orderBy: { createdAt: "desc" },
+  });
+  assert.equal(strictTransfer.details.historyLimited, true);
   const sectorLimited = await inbox.getConversation(conversation.id, viewer);
   assert.equal(sectorLimited.messageHistoryLimited, true);
   assert.equal(sectorLimited.messages.length, 0);
@@ -373,6 +377,85 @@ test("permite ao atendente autorizado transferir setores e oculta mensagens ante
   assert.equal(moved.categoryId, support.id);
   assert.equal(moved.assignedUserId, null);
   await prisma.user.delete({ where: { id: transferAgent.id } });
+});
+
+test("a transferência pode recuperar somente categorias anteriores atendidas pela mesma pessoa", async () => {
+  const support = await prisma.category.findUnique({ where: { code: "SUPORTE" } });
+  const commercial = await prisma.category.findUnique({ where: { code: "COMERCIAL" } });
+  const [returningAgent, differentAgent] = await Promise.all([
+    prisma.user.create({ data: {
+      name: "Atendente que retorna", email: "historico-retorno@mibro.local", role: "ATENDENTE",
+      canTransferConversations: true, canViewPreviousMessages: false,
+      categoryAccess: { create: [{ categoryId: support.id }, { categoryId: commercial.id }] },
+    } }),
+    prisma.user.create({ data: {
+      name: "Outro atendente", email: "historico-outro@mibro.local", role: "ATENDENTE",
+      canTransferConversations: true, canViewPreviousMessages: false,
+      categoryAccess: { create: [{ categoryId: support.id }, { categoryId: commercial.id }] },
+    } }),
+  ]);
+  const contact = await prisma.contact.create({
+    data: { externalId: "history-category-test", phone: "5511988887777", name: "Cliente histórico por categoria" },
+  });
+  const conversation = await prisma.conversation.create({
+    data: { contactId: contact.id, categoryId: support.id, assignedUserId: returningAgent.id, status: "EM_ATENDIMENTO" },
+  });
+  const firstIncoming = await prisma.message.create({ data: {
+    conversationId: conversation.id, direction: "RECEBIDA", status: "RECEBIDA", type: "text",
+    text: "Mensagem inicial em Suporte", occurredAt: new Date(Date.now() - 2000),
+  } });
+  const firstReply = await prisma.message.create({ data: {
+    conversationId: conversation.id, direction: "ENVIADA", status: "ENVIADA", type: "text",
+    text: "Resposta do atendente em Suporte", occurredAt: new Date(Date.now() - 1000), sentByUserId: returningAgent.id,
+  } });
+
+  await inbox.updateConversation(conversation.id, { categoryId: commercial.id, limitHistory: false }, masterViewer);
+  const flexibleTransfer = await prisma.conversationActivity.findFirst({
+    where: { conversationId: conversation.id, action: "CATEGORY_CHANGED" }, orderBy: { createdAt: "desc" },
+  });
+  assert.equal(flexibleTransfer.details.historyLimited, false);
+  await inbox.updateConversation(conversation.id, { assignedUserId: returningAgent.id }, masterViewer);
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  const commercialIncoming = await prisma.message.create({ data: {
+    conversationId: conversation.id, direction: "RECEBIDA", status: "RECEBIDA", type: "text",
+    text: "Mensagem atual em Comercial", occurredAt: new Date(),
+  } });
+
+  const flexibleViewer = {
+    id: returningAgent.id, role: "ATENDENTE", canViewPreviousMessages: false,
+    canViewUncategorized: false,
+  };
+  const recovered = await inbox.getConversation(conversation.id, flexibleViewer);
+  assert.equal(recovered.messageHistoryLimited, false);
+  assert.deepEqual(recovered.messages.map(({ id }) => id), [firstIncoming.id, firstReply.id, commercialIncoming.id]);
+
+  const commercialReply = await prisma.message.create({ data: {
+    conversationId: conversation.id, direction: "ENVIADA", status: "ENVIADA", type: "text",
+    text: "Resposta do atendente em Comercial", occurredAt: new Date(), sentByUserId: returningAgent.id,
+  } });
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  await inbox.updateConversation(conversation.id, { categoryId: support.id, limitHistory: false }, masterViewer);
+  await inbox.updateConversation(conversation.id, { assignedUserId: differentAgent.id }, masterViewer);
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  const finalIncoming = await prisma.message.create({ data: {
+    conversationId: conversation.id, direction: "RECEBIDA", status: "RECEBIDA", type: "text",
+    text: "Mensagem para outro atendente", occurredAt: new Date(),
+  } });
+  const differentViewer = {
+    id: differentAgent.id, role: "ATENDENTE", canViewPreviousMessages: false,
+    canViewUncategorized: false,
+  };
+  const hiddenFromDifferentAgent = await inbox.getConversation(conversation.id, differentViewer);
+  assert.equal(hiddenFromDifferentAgent.messageHistoryLimited, true);
+  assert.deepEqual(hiddenFromDifferentAgent.messages.map(({ id }) => id), [finalIncoming.id]);
+
+  const masterDetail = await inbox.getConversation(conversation.id, masterViewer);
+  assert.deepEqual(masterDetail.messages.map(({ id }) => id), [
+    firstIncoming.id, firstReply.id, commercialIncoming.id, commercialReply.id, finalIncoming.id,
+  ]);
+  await prisma.conversation.delete({ where: { id: conversation.id } });
+  await prisma.contact.delete({ where: { id: contact.id } });
+  await prisma.user.deleteMany({ where: { id: { in: [returningAgent.id, differentAgent.id] } } });
 });
 
 test("persiste imagens recebidas e enviadas com autoria", async () => {

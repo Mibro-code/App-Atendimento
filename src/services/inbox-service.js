@@ -163,35 +163,107 @@ function messagePreviewForAlert(message) {
   return text.length > 90 ? `${text.slice(0, 87)}...` : text;
 }
 
+function categoryMessageRange(start, end) {
+  const occurredAt = {};
+  if (start) occurredAt.gte = start;
+  if (end) occurredAt.lt = end;
+  return Object.keys(occurredAt).length ? { occurredAt } : {};
+}
+
+function messageInsideRange(message, range) {
+  const occurredAt = new Date(message.occurredAt);
+  return (!range.start || occurredAt >= range.start) && (!range.end || occurredAt < range.end);
+}
+
+async function restrictedMessageVisibility(conversationId, viewer, access) {
+  const activities = await prisma.conversationActivity.findMany({
+    where: { conversationId, action: { in: ["CONVERSATION_TRANSFERRED", "CATEGORY_CHANGED"] } },
+    select: { action: true, createdAt: true, details: true }, orderBy: { createdAt: "asc" },
+  });
+  const categoryIds = [...new Set(activities.flatMap(({ details }) => [
+    details?.fromCategoryId, details?.toCategoryId,
+  ]).filter(Boolean))];
+  const categories = categoryIds.length ? await prisma.category.findMany({
+    where: { id: { in: categoryIds } }, select: { id: true, parentId: true },
+  }) : [];
+  const categorySectors = new Map(categories.map((category) => [category.id, category.parentId || category.id]));
+  const allowedCategoryIds = new Set(await authorization.allowedCategoryIds(viewer));
+  const isSectorChange = (activity) => {
+    if (activity.action !== "CATEGORY_CHANGED") return false;
+    if (typeof activity.details?.sectorChanged === "boolean") return activity.details.sectorChanged;
+    const fromCategoryId = activity.details?.fromCategoryId || null;
+    const toCategoryId = activity.details?.toCategoryId || null;
+    return (categorySectors.get(fromCategoryId) || fromCategoryId)
+      !== (categorySectors.get(toCategoryId) || toCategoryId);
+  };
+  const reversed = [...activities].reverse();
+  const strictBoundary = reversed.find((activity) => {
+    if (activity.action === "CONVERSATION_TRANSFERRED") return activity.details?.toUserId === viewer.id;
+    if (!isSectorChange(activity)) return false;
+    return allowedCategoryIds.has(activity.details?.toCategoryId || null);
+  });
+  const categoryChanges = activities.filter(isSectorChange);
+  const latestCategoryChange = categoryChanges.at(-1);
+  const allowsSameAgentRecovery = latestCategoryChange?.details?.historyLimited === false;
+  if (!allowsSameAgentRecovery || access.assignedUserId !== viewer.id) {
+    return {
+      where: strictBoundary ? { occurredAt: { gte: strictBoundary.createdAt } } : undefined,
+      limited: Boolean(strictBoundary),
+    };
+  }
+
+  const latestDirectTransfer = reversed.find((activity) => (
+    activity.action === "CONVERSATION_TRANSFERRED" && activity.details?.toUserId === viewer.id
+  ));
+  if (!latestCategoryChange) {
+    return {
+      where: latestDirectTransfer ? { occurredAt: { gte: latestDirectTransfer.createdAt } } : undefined,
+      limited: Boolean(latestDirectTransfer),
+    };
+  }
+
+  let currentStart = latestCategoryChange.createdAt;
+  if (latestDirectTransfer?.createdAt > currentStart) currentStart = latestDirectTransfer.createdAt;
+  const historicalSegments = [];
+  let segmentStart = null;
+  let segmentCategoryId = categoryChanges[0].details?.fromCategoryId || null;
+  for (const change of categoryChanges) {
+    historicalSegments.push({ start: segmentStart, end: change.createdAt, categoryId: segmentCategoryId });
+    segmentStart = change.createdAt;
+    segmentCategoryId = change.details?.toCategoryId || null;
+  }
+  const messageMetadata = await prisma.message.findMany({
+    where: { conversationId }, select: { occurredAt: true, direction: true, sentByUserId: true },
+    orderBy: { occurredAt: "asc" },
+  });
+  const visibleRanges = historicalSegments.filter((segment) => {
+    const categoryAllowed = segment.categoryId
+      ? allowedCategoryIds.has(segment.categoryId)
+      : Boolean(viewer.canViewUncategorized);
+    if (!categoryAllowed) return false;
+    const senders = new Set(messageMetadata.filter((message) => (
+      message.direction === "ENVIADA" && message.sentByUserId && messageInsideRange(message, segment)
+    )).map(({ sentByUserId }) => sentByUserId));
+    return senders.size === 1 && senders.has(viewer.id);
+  });
+  visibleRanges.push({ start: currentStart, end: null, categoryId: access.categoryId });
+  const limited = messageMetadata.some((message) => !visibleRanges.some((range) => messageInsideRange(message, range)));
+  return {
+    where: limited ? { OR: visibleRanges.map((range) => categoryMessageRange(range.start, range.end)) } : undefined,
+    limited,
+  };
+}
+
 async function getConversation(id, viewer) {
   const scope = await authorization.conversationScope(viewer);
   const canViewHistory = authorization.isMaster(viewer) || Boolean(viewer.canViewConversationHistory);
   const access = await prisma.conversation.findFirst({
-    where: { AND: [{ id }, scope] }, select: { id: true, assignedUserId: true },
+    where: { AND: [{ id }, scope] }, select: { id: true, categoryId: true, assignedUserId: true },
   });
   if (!access) return null;
-  let messagesSince = null;
+  let messageVisibility = { where: undefined, limited: false };
   if (!authorization.isMaster(viewer) && !viewer.canViewPreviousMessages) {
-    const transfers = await prisma.conversationActivity.findMany({
-      where: { conversationId: id, action: { in: ["CONVERSATION_TRANSFERRED", "CATEGORY_CHANGED"] } },
-      select: { createdAt: true, details: true }, orderBy: { createdAt: "desc" }, take: 100,
-    });
-    const categoryIds = [...new Set(transfers.flatMap(({ details }) => [
-      details?.fromCategoryId, details?.toCategoryId,
-    ]).filter(Boolean))];
-    const categories = categoryIds.length ? await prisma.category.findMany({
-      where: { id: { in: categoryIds } }, select: { id: true, parentId: true },
-    }) : [];
-    const categorySectors = new Map(categories.map((category) => [category.id, category.parentId || category.id]));
-    const allowedCategoryIds = new Set(await authorization.allowedCategoryIds(viewer));
-    messagesSince = transfers.find((activity) => {
-      if (activity.details?.toUserId === viewer.id) return true;
-      const fromCategoryId = activity.details?.fromCategoryId || null;
-      const toCategoryId = activity.details?.toCategoryId || null;
-      if (!allowedCategoryIds.has(toCategoryId)) return false;
-      return (categorySectors.get(fromCategoryId) || fromCategoryId)
-        !== (categorySectors.get(toCategoryId) || toCategoryId);
-    })?.createdAt || null;
+    messageVisibility = await restrictedMessageVisibility(id, viewer, access);
   }
   return prisma.conversation.findFirst({
     where: { AND: [{ id }, scope] },
@@ -199,7 +271,7 @@ async function getConversation(id, viewer) {
       category: { include: { parent: true } },
       assignedUser: { select: { id: true, name: true, email: true } },
       messages: {
-        where: messagesSince ? { occurredAt: { gte: messagesSince } } : undefined,
+        where: messageVisibility.where,
         include: { sentByUser: { select: { id: true, name: true } } },
         orderBy: { occurredAt: "asc" },
       },
@@ -221,7 +293,7 @@ async function getConversation(id, viewer) {
   }).then((conversation) => {
     if (!conversation) return null;
     const { pins, ...result } = conversation;
-    return { ...result, isPinned: pins.length > 0, canViewHistory, messageHistoryLimited: Boolean(messagesSince) };
+    return { ...result, isPinned: pins.length > 0, canViewHistory, messageHistoryLimited: messageVisibility.limited };
   });
 }
 
@@ -375,7 +447,7 @@ async function setContactNotePinned(contactId, noteId, { pinned, conversationId 
   });
 }
 
-async function updateConversation(id, { categoryId, status, assignedUserId }, viewer) {
+async function updateConversation(id, { categoryId, status, assignedUserId, limitHistory }, viewer) {
   const currentAccess = await authorization.assertCanViewConversation(viewer, id);
   const currentSnapshot = await prisma.conversation.findUnique({
     where: { id },
@@ -442,7 +514,7 @@ async function updateConversation(id, { categoryId, status, assignedUserId }, vi
           from: currentSnapshot.category ? categoryLabelForHistory(currentSnapshot.category) : "Sem categoria",
           to: updated.category ? categoryLabelForHistory(updated.category) : "Sem categoria",
           fromCategoryId: currentSnapshot.categoryId, toCategoryId: updated.categoryId,
-          sectorChanged,
+          sectorChanged, historyLimited: limitHistory !== false,
         }));
       }
       if (currentSnapshot.assignedUserId !== updated.assignedUserId) {
@@ -467,7 +539,10 @@ async function updateConversation(id, { categoryId, status, assignedUserId }, vi
         audits.push({
           action: "CONVERSATION_CATEGORY_CHANGED",
           summary: `Alterou a categoria da conversa de ${updated.contact.name || updated.contact.phone}: ${from} → ${to}`,
-          details: { ...contact, from, to, fromCategoryId: currentSnapshot.categoryId, toCategoryId: updated.categoryId },
+          details: {
+            ...contact, from, to, fromCategoryId: currentSnapshot.categoryId,
+            toCategoryId: updated.categoryId, historyLimited: limitHistory !== false,
+          },
         });
       }
       if (currentSnapshot.assignedUserId !== updated.assignedUserId) {
