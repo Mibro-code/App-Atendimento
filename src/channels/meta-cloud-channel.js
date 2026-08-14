@@ -122,9 +122,14 @@ class MetaCloudChannel {
         "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "audio/aac": "aac", "audio/mp4": "m4a",
         "audio/mpeg": "mp3", "audio/amr": "amr", "audio/ogg": "ogg",
         "video/mp4": "mp4", "video/3gpp": "3gp", "video/3gp": "3gp",
-        "application/pdf": "pdf",
+        "application/pdf": "pdf", "text/plain": "txt", "application/msword": "doc",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+        "application/vnd.ms-excel": "xls",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+        "application/vnd.ms-powerpoint": "ppt",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
       })[mimeType] || "bin";
-      const mediaKind = mimeType === "application/pdf" ? "documento"
+      const mediaKind = ["pdf", "txt", "doc", "docx", "xls", "xlsx", "ppt", "pptx"].includes(extension) ? "documento"
         : mimeType === "image/webp" ? "figurinha"
         : (mimeType.startsWith("audio/") ? "audio" : (mimeType.startsWith("video/") ? "video" : "imagem"));
       return {
@@ -189,7 +194,7 @@ class MetaCloudChannel {
       }, { headers: { ...this.authHeaders(), "Content-Type": "application/json" } });
       return { externalId: response.data?.messages?.[0]?.id, mediaId: upload.data.id, data: response.data };
     } catch (error) {
-      throw this.providerFailure(error, "A Meta não aceitou o envio do PDF.");
+      throw this.providerFailure(error, "A Meta não aceitou o envio do documento.");
     }
   }
 }
