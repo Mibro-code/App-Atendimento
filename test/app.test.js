@@ -163,6 +163,10 @@ test("entrega o painel e as APIs básicas da caixa de entrada", async () => {
     documentForm.append("document", new Blob([Buffer.from("%PDF-1.7\nPDF de teste")], { type: "application/pdf" }), "manual.pdf");
     const missingConversationDocument = await fetch(`${base}/api/conversations/inexistente/documents`, { method: "POST", headers: { Cookie: cookie }, body: documentForm });
     assert.equal(missingConversationDocument.status, 404);
+    const videoForm = new FormData();
+    videoForm.append("video", new Blob([Buffer.from("0000ftyp-video")], { type: "video/mp4" }), "produto.mp4");
+    const missingConversationVideo = await fetch(`${base}/api/conversations/inexistente/videos`, { method: "POST", headers: { Cookie: cookie }, body: videoForm });
+    assert.equal(missingConversationVideo.status, 404);
     assert.equal((await fetch(`${base}/api/messages/inexistente/media`, { headers: { Cookie: cookie } })).status, 404);
     assert.equal((await fetch(`${base}/health`)).status, 200);
     const conversations = await fetch(`${base}/api/conversations`, { headers: { Cookie: cookie } });

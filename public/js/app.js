@@ -839,20 +839,23 @@ $("#attachment-input").addEventListener("change", (event) => {
   if (!file) return clearSelectedAttachment();
   const isImage = ["image/jpeg", "image/png"].includes(file.type);
   const isPdf = file.type === "application/pdf";
-  if (!isImage && !isPdf) { clearSelectedAttachment(); return toast("Envie uma imagem JPG/PNG ou um arquivo PDF.", true); }
+  const isVideo = ["video/mp4", "video/3gpp", "video/3gp"].includes(file.type);
+  if (!isImage && !isPdf && !isVideo) { clearSelectedAttachment(); return toast("Envie uma imagem JPG/PNG, vídeo MP4/3GP ou arquivo PDF.", true); }
   if (isImage && file.size > 5 * 1024 * 1024) { clearSelectedAttachment(); return toast("A imagem deve ter no máximo 5 MB.", true); }
+  if (isVideo && file.size > 16 * 1024 * 1024) { clearSelectedAttachment(); return toast("O vídeo deve ter no máximo 16 MB.", true); }
   if (isPdf && file.size > 100 * 1024 * 1024) { clearSelectedAttachment(); return toast("O PDF deve ter no máximo 100 MB.", true); }
   if (attachmentUrl) URL.revokeObjectURL(attachmentUrl);
   attachmentUrl = null;
   selectedAttachment = file;
-  $("#attachment-thumb").hidden = isPdf;
-  $("#attachment-type").hidden = !isPdf;
+  $("#attachment-thumb").hidden = !isImage;
+  $("#attachment-type").hidden = isImage;
+  $("#attachment-type").textContent = isPdf ? "PDF" : "VÍDEO";
   if (isImage) { attachmentUrl = URL.createObjectURL(file); $("#attachment-thumb").src = attachmentUrl; }
   $("#message-input").maxLength = 1024;
   $("#attachment-name").textContent = file.name; $("#attachment-preview").hidden = false; $("#message-input").focus();
 });
 $("#remove-attachment").addEventListener("click", clearSelectedAttachment);
-$("#composer").addEventListener("submit", async (event) => { event.preventDefault(); const input = $("#message-input"); const text = input.value.trim(); if (!text && !selectedAttachment) return; $("#send-button").disabled = true; try { if (selectedAttachment) { const isPdf = selectedAttachment.type === "application/pdf"; const form = new FormData(); form.append(isPdf ? "document" : "image", selectedAttachment); if (text) form.append("caption", text); await api(`/api/conversations/${state.selectedId}/${isPdf ? "documents" : "images"}`, { method:"POST", body:form }); clearSelectedAttachment(); } else { await api(`/api/conversations/${state.selectedId}/messages`, { method:"POST", body:JSON.stringify({ text }) }); } input.value = ""; await openConversation(state.selectedId); } catch (e) { toast(e.message, true); } finally { $("#send-button").disabled = false; input.focus(); } });
+$("#composer").addEventListener("submit", async (event) => { event.preventDefault(); const input = $("#message-input"); const text = input.value.trim(); if (!text && !selectedAttachment) return; $("#send-button").disabled = true; try { if (selectedAttachment) { const isPdf = selectedAttachment.type === "application/pdf"; const isVideo = selectedAttachment.type.startsWith("video/"); const field = isPdf ? "document" : (isVideo ? "video" : "image"); const endpoint = isPdf ? "documents" : (isVideo ? "videos" : "images"); const form = new FormData(); form.append(field, selectedAttachment); if (text) form.append("caption", text); await api(`/api/conversations/${state.selectedId}/${endpoint}`, { method:"POST", body:form }); clearSelectedAttachment(); } else { await api(`/api/conversations/${state.selectedId}/messages`, { method:"POST", body:JSON.stringify({ text }) }); } input.value = ""; await openConversation(state.selectedId); } catch (e) { toast(e.message, true); } finally { $("#send-button").disabled = false; input.focus(); } });
 $("#message-input").addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); $("#composer").requestSubmit(); } });
 $(".chat-header").addEventListener("click", (event) => { if (innerWidth <= 700 && event.offsetX < 45) $("#chat-panel").classList.remove("open"); });
 

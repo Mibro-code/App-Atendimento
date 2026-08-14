@@ -6,7 +6,7 @@ const os = require("node:os");
 const path = require("node:path");
 const prisma = require("../src/database/prisma");
 const { MAX_DOCUMENT_SIZE, resolveImage, resolveMedia } = require("../src/services/media-storage-service");
-const { closingMessage, finalizeConversation, saveIncoming, sendDocument, sendImage, sendText } = require("../src/services/message-service");
+const { closingMessage, finalizeConversation, saveIncoming, sendDocument, sendImage, sendText, sendVideo } = require("../src/services/message-service");
 const inbox = require("../src/services/inbox-service");
 const mediaTestDir = path.join(os.tmpdir(), `app-whats-media-test-${process.pid}`);
 process.env.MEDIA_STORAGE_DIR = mediaTestDir;
@@ -502,4 +502,23 @@ test("persiste vídeo recebido para reprodução no histórico", async () => {
   assert.equal(incoming.message.mediaMimeType, "video/mp4");
   assert.equal(incoming.message.mediaFileName, "produto.mp4");
   assert.deepEqual(await fs.readFile(resolveMedia(incoming.message.mediaStorageKey)), video);
+
+  const conversation = await prisma.conversation.findFirst();
+  const user = await prisma.user.findUnique({ where: { email: "teste@mibro.local" } });
+  let providerVideo;
+  const channel = { sendVideo: async (_phone, data) => {
+    providerVideo = data;
+    return { externalId: "wamid.test.video.out", mediaId: "media.video.out", data: { messages: [{ id: "wamid.test.video.out" }] } };
+  } };
+  const outgoing = await sendVideo({
+    conversationId: conversation.id, buffer: video, mimeType: "video/mp4",
+    fileName: "demonstracao.mp4", caption: "Vídeo enviado", sentByUserId: user.id, channel,
+  });
+  assert.equal(outgoing.message.type, "video");
+  assert.equal(outgoing.message.direction, "ENVIADA");
+  assert.equal(outgoing.message.sentByUserId, user.id);
+  assert.equal(outgoing.message.mediaMimeType, "video/mp4");
+  assert.equal(outgoing.message.mediaFileName, "demonstracao.mp4");
+  assert.equal(providerVideo.caption, "[*Suporte*]\n\nVídeo enviado");
+  assert.deepEqual(await fs.readFile(resolveMedia(outgoing.message.mediaStorageKey)), video);
 });
