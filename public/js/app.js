@@ -856,7 +856,7 @@ function openConversationCategoryTransfer() {
   const primary = $("#category-select").selectedOptions[0]?.textContent || "Sem categoria";
   const secondary = $("#subcategory-select").value ? $("#subcategory-select").selectedOptions[0]?.textContent : "";
   $("#transfer-destination").textContent = `Destino: ${secondary ? `${primary}: ${secondary}` : primary}`;
-  $("#transfer-limit-history").checked = true;
+  $("#transfer-limit-history").checked = false;
   $("#transfer-dialog").showModal();
 }
 async function confirmConversationCategory(event) {
