@@ -4,13 +4,18 @@ const { updateConversationAfterSending } = require("./message-service");
 const CUSTOMER_SERVICE_WINDOW_MS = 24 * 60 * 60 * 1000;
 const PLACEHOLDER = /{{\s*([^{}]+?)\s*}}/g;
 
-function customerServiceWindowFrom(lastCustomerMessageAt, now = new Date()) {
+function templatesConfigured() {
+  return Boolean(process.env.WHATSAPP_BUSINESS_ACCOUNT_ID?.trim());
+}
+
+function customerServiceWindowFrom(lastCustomerMessageAt, now = new Date(), configured = templatesConfigured()) {
   const last = lastCustomerMessageAt ? new Date(lastCustomerMessageAt) : null;
   const expiresAt = last ? new Date(last.getTime() + CUSTOMER_SERVICE_WINDOW_MS) : null;
   const open = Boolean(expiresAt && expiresAt.getTime() > now.getTime());
   return {
+    configured,
     open,
-    requiresTemplate: !open,
+    requiresTemplate: configured && !open,
     lastCustomerMessageAt: last?.toISOString() || null,
     expiresAt: expiresAt?.toISOString() || null,
     remainingSeconds: open ? Math.max(0, Math.ceil((expiresAt.getTime() - now.getTime()) / 1000)) : 0,
@@ -33,7 +38,7 @@ async function getCustomerServiceWindow(conversationId, now = new Date()) {
 
 async function assertFreeFormAllowed(conversationId) {
   const window = await getCustomerServiceWindow(conversationId);
-  if (!window.open) {
+  if (window.requiresTemplate) {
     throw Object.assign(new Error("A janela de 24 horas da Meta está encerrada. Envie um template aprovado para retomar o contato."), {
       statusCode: 409,
       code: "TEMPLATE_REQUIRED",
@@ -189,4 +194,5 @@ module.exports = {
   normalizeTemplate,
   sendApprovedTemplate,
   templateComponents,
+  templatesConfigured,
 };

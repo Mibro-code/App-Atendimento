@@ -377,7 +377,9 @@ async function api(path, options) {
 function toast(message, error = false) { const el = $("#toast"); el.textContent = message; el.className = `toast show${error ? " error" : ""}`; setTimeout(() => el.className = "toast", 2600); }
 
 function syncCustomerServiceWindow() {
+  const configured = Boolean(state.customerServiceWindow?.configured);
   const closed = Boolean(state.selectedId && state.customerServiceWindow?.requiresTemplate);
+  $("#open-templates").hidden = !configured;
   $("#service-window-notice").hidden = !closed;
   $("#composer").classList.toggle("window-closed", closed);
   $("#message-input").disabled = closed;
@@ -423,6 +425,10 @@ function renderTemplateList() {
 
 async function openTemplates() {
   if (!state.selectedId) return;
+  if (!state.customerServiceWindow?.configured) {
+    toast("A integração de templates da Meta ainda não está ativada.", true);
+    return;
+  }
   state.selectedTemplate = null;
   $("#template-search").value = "";
   $("#template-list").innerHTML = `<div class="template-empty">Consultando templates aprovados na Meta...</div>`;
