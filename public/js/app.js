@@ -6,6 +6,7 @@ const state = {
   selectedMessages: [], selectedContactName: "", contactFilesTab: "media",
   expandedCategories: new Set(), adminUsers: [], auditLogs: [], editingUserId: null, assignedUser: "",
   assignedUserActiveOnly: false, alertCursor: null, checkingAlerts: false,
+  customerServiceWindow: null, templates: [], selectedTemplate: null,
 };
 const $ = (selector) => document.querySelector(selector);
 const defaultDocumentTitle = document.title;
@@ -63,6 +64,8 @@ function closeConversationView() {
   state.selectedMessageItems = [];
   state.selectedMessages = [];
   state.selectedContactName = "";
+  state.customerServiceWindow = null;
+  syncCustomerServiceWindow();
   if ($("#contact-files-dialog")?.open) $("#contact-files-dialog").close();
   $("#notes-panel").classList.remove("open");
   $("#history-panel").classList.remove("open");
@@ -363,10 +366,75 @@ async function api(path, options) {
   if (options?.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   const response = await fetch(path, { ...options, headers });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || "Não foi possível concluir a operação.");
+  if (!response.ok) {
+    const error = new Error(data.error || "Não foi possível concluir a operação.");
+    error.code = data.code;
+    error.customerServiceWindow = data.customerServiceWindow;
+    throw error;
+  }
   return data;
 }
 function toast(message, error = false) { const el = $("#toast"); el.textContent = message; el.className = `toast show${error ? " error" : ""}`; setTimeout(() => el.className = "toast", 2600); }
+
+function syncCustomerServiceWindow() {
+  const closed = Boolean(state.selectedId && state.customerServiceWindow?.requiresTemplate);
+  $("#service-window-notice").hidden = !closed;
+  $("#composer").classList.toggle("window-closed", closed);
+  $("#message-input").disabled = closed;
+  $("#attachment-input").disabled = closed;
+  $("#send-button").disabled = closed;
+  $("#message-input").placeholder = closed ? "Use um template aprovado para retomar o contato" : "Digite uma mensagem...";
+}
+
+function templatePreview(template) {
+  let preview = template.previewTemplate || template.preview || "";
+  for (const variable of template.variables || []) {
+    if (!["BODY", "HEADER"].includes(variable.component)) continue;
+    const input = [...document.querySelectorAll("[data-template-variable]")].find((item) => item.dataset.templateVariable === variable.key);
+    preview = preview.replaceAll(`{{${variable.placeholder}}}`, input?.value.trim() || variable.example || `{{${variable.placeholder}}}`);
+  }
+  return preview;
+}
+
+function renderTemplateEditor() {
+  const template = state.selectedTemplate;
+  $("#template-empty").hidden = Boolean(template);
+  $("#template-editor").hidden = !template;
+  if (!template) return;
+  $("#template-selected-name").textContent = template.name;
+  $("#template-selected-details").textContent = `${template.language} • ${template.category}`;
+  $("#template-variables").innerHTML = (template.variables || []).map((variable) => `<label><span>${escapeHtml(variable.label)}</span><input data-template-variable="${escapeHtml(variable.key)}" value="${escapeHtml(variable.example || "")}" placeholder="Digite o valor" required></label>`).join("");
+  $("#template-preview").textContent = templatePreview(template);
+  document.querySelectorAll("[data-template-variable]").forEach((input) => input.addEventListener("input", () => {
+    $("#template-preview").textContent = templatePreview(template);
+  }));
+}
+
+function renderTemplateList() {
+  const search = $("#template-search").value.trim().toLocaleLowerCase("pt-BR");
+  const templates = state.templates.filter((template) => `${template.name} ${template.language} ${template.category}`.toLocaleLowerCase("pt-BR").includes(search));
+  $("#template-list").innerHTML = templates.length ? templates.map((template) => `<button class="template-card ${state.selectedTemplate?.id === template.id ? "selected" : ""}" type="button" data-template-id="${escapeHtml(template.id)}" ${template.supported ? "" : "disabled"} title="${escapeHtml(template.unsupportedReason || "Selecionar template")}"><strong>${escapeHtml(template.name)}</strong><span><b>${escapeHtml(template.language)}</b><b>${escapeHtml(template.category)}</b></span><small>${escapeHtml(template.unsupportedReason || template.preview || "Sem prévia")}</small></button>`).join("") : `<div class="template-empty">Nenhum template aprovado encontrado.</div>`;
+  document.querySelectorAll("[data-template-id]").forEach((button) => button.addEventListener("click", () => {
+    state.selectedTemplate = state.templates.find((template) => template.id === button.dataset.templateId) || null;
+    renderTemplateList();
+    renderTemplateEditor();
+  }));
+}
+
+async function openTemplates() {
+  if (!state.selectedId) return;
+  state.selectedTemplate = null;
+  $("#template-search").value = "";
+  $("#template-list").innerHTML = `<div class="template-empty">Consultando templates aprovados na Meta...</div>`;
+  renderTemplateEditor();
+  $("#template-dialog").showModal();
+  try {
+    state.templates = await api("/api/meta/templates");
+    renderTemplateList();
+  } catch (error) {
+    $("#template-list").innerHTML = `<div class="template-empty">${escapeHtml(error.message)}</div>`;
+  }
+}
 
 function configureNotificationButton() {
   const button = $("#enable-notifications");
@@ -533,6 +601,7 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
     canViewHistory: c.canViewHistory,
     contact: [c.contact.id, c.contact.customName, c.contact.name, c.contact.phone],
     messageHistoryLimited: c.messageHistoryLimited,
+    customerServiceWindow: c.customerServiceWindow,
   });
   const displayMessages = messagesWithReactions(c.messages);
   state.selectedMessages = displayMessages;
@@ -543,6 +612,8 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
   const notesSignature = JSON.stringify((c.contact.notes || []).map((note) => [note.id, note.content, note.pinned, note.createdAt, note.updatedAt, note.author?.name]));
   const activitiesSignature = JSON.stringify((c.activities || []).map((activity) => [activity.id, activity.action, activity.details, activity.createdAt, activity.actorUser?.name]));
   state.selectedContactId = c.contact.id;
+  state.customerServiceWindow = c.customerServiceWindow;
+  syncCustomerServiceWindow();
   $("#empty-state").hidden = true; $("#chat-content").hidden = false; $("#chat-panel").classList.add("open");
   if (headerSignature !== state.selectedHeaderSignature) {
     state.selectedHeaderSignature = headerSignature;
@@ -1152,7 +1223,25 @@ $("#message-input").addEventListener("paste", (event) => {
 });
 
 $("#remove-attachment").addEventListener("click", clearSelectedAttachment);
-$("#composer").addEventListener("submit", async (event) => { event.preventDefault(); const input = $("#message-input"); const text = input.value.trim(); if (!text && !selectedAttachment) return; $("#send-button").disabled = true; try { if (selectedAttachment) { const isDocument = isDocumentMime(selectedAttachment.type); const isVideo = selectedAttachment.type.startsWith("video/"); const field = isDocument ? "document" : (isVideo ? "video" : "image"); const endpoint = isDocument ? "documents" : (isVideo ? "videos" : "images"); const form = new FormData(); form.append(field, selectedAttachment); if (text) form.append("caption", text); await api(`/api/conversations/${state.selectedId}/${endpoint}`, { method:"POST", body:form }); clearSelectedAttachment(); } else { await api(`/api/conversations/${state.selectedId}/messages`, { method:"POST", body:JSON.stringify({ text }) }); } input.value = ""; await openConversation(state.selectedId); } catch (e) { toast(e.message, true); } finally { $("#send-button").disabled = false; input.focus(); } });
+$("#composer").addEventListener("submit", async (event) => { event.preventDefault(); const input = $("#message-input"); const text = input.value.trim(); if (!text && !selectedAttachment) return; $("#send-button").disabled = true; try { if (selectedAttachment) { const isDocument = isDocumentMime(selectedAttachment.type); const isVideo = selectedAttachment.type.startsWith("video/"); const field = isDocument ? "document" : (isVideo ? "video" : "image"); const endpoint = isDocument ? "documents" : (isVideo ? "videos" : "images"); const form = new FormData(); form.append(field, selectedAttachment); if (text) form.append("caption", text); await api(`/api/conversations/${state.selectedId}/${endpoint}`, { method:"POST", body:form }); clearSelectedAttachment(); } else { await api(`/api/conversations/${state.selectedId}/messages`, { method:"POST", body:JSON.stringify({ text }) }); } input.value = ""; await openConversation(state.selectedId); } catch (e) { if (e.customerServiceWindow) state.customerServiceWindow = e.customerServiceWindow; toast(e.message, true); } finally { syncCustomerServiceWindow(); input.focus(); } });
+$("#open-templates").addEventListener("click", openTemplates);
+$("#open-required-template").addEventListener("click", openTemplates);
+$("#close-templates").addEventListener("click", () => $("#template-dialog").close());
+$("#template-dialog").addEventListener("click", (event) => { if (event.target === $("#template-dialog")) $("#template-dialog").close(); });
+$("#template-search").addEventListener("input", renderTemplateList);
+$("#template-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!state.selectedTemplate || !state.selectedId) return;
+  const values = Object.fromEntries([...document.querySelectorAll("[data-template-variable]")].map((input) => [input.dataset.templateVariable, input.value.trim()]));
+  $("#send-template").disabled = true;
+  try {
+    await api(`/api/conversations/${state.selectedId}/templates`, { method:"POST", body:JSON.stringify({ name:state.selectedTemplate.name, language:state.selectedTemplate.language, values }) });
+    $("#template-dialog").close();
+    toast("Template enviado para o cliente.");
+    await openConversation(state.selectedId);
+  } catch (error) { toast(error.message, true); }
+  finally { $("#send-template").disabled = false; }
+});
 $("#message-input").addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); $("#composer").requestSubmit(); } });
 $(".chat-header").addEventListener("click", (event) => { if (innerWidth <= 700 && event.offsetX < 45) $("#chat-panel").classList.remove("open"); });
 

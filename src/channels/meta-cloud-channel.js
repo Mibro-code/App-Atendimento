@@ -6,6 +6,13 @@ class MetaCloudChannel {
     for (const key of required) if (!process.env[key]) throw new Error(`Variável ausente: ${key}`);
   }
 
+  assertTemplatesConfigured() {
+    this.assertConfigured();
+    if (!process.env.WHATSAPP_BUSINESS_ACCOUNT_ID) {
+      throw Object.assign(new Error("Configure WHATSAPP_BUSINESS_ACCOUNT_ID para consultar os templates da Meta."), { statusCode: 503 });
+    }
+  }
+
   apiUrl(resource) {
     return `https://graph.facebook.com/${process.env.GRAPH_VERSION}/${resource}`;
   }
@@ -88,6 +95,49 @@ class MetaCloudChannel {
       return { externalId: response.data?.messages?.[0]?.id, data: response.data };
     } catch (error) {
       throw this.providerFailure(error, "A Meta não aceitou o envio da lista de setores.");
+    }
+  }
+
+  async listMessageTemplates() {
+    this.assertTemplatesConfigured();
+    const templates = [];
+    let after;
+    try {
+      for (let page = 0; page < 20; page += 1) {
+        const response = await axios.get(this.apiUrl(`${process.env.WHATSAPP_BUSINESS_ACCOUNT_ID}/message_templates`), {
+          headers: this.authHeaders(),
+          params: {
+            fields: "id,name,language,status,category,components",
+            limit: 100,
+            ...(after ? { after } : {}),
+          },
+        });
+        templates.push(...(response.data?.data || []));
+        const nextAfter = response.data?.paging?.cursors?.after;
+        if (!response.data?.paging?.next || !nextAfter || nextAfter === after) break;
+        after = nextAfter;
+      }
+      return templates.filter((template) => template.status === "APPROVED");
+    } catch (error) {
+      if (error.statusCode) throw error;
+      throw this.providerFailure(error, "Não foi possível consultar os templates aprovados na Meta.");
+    }
+  }
+
+  async sendTemplate(to, { name, language, components = [] }) {
+    this.assertConfigured();
+    try {
+      const response = await axios.post(this.apiUrl(`${process.env.PHONE_NUMBER_ID}/messages`), {
+        messaging_product: "whatsapp", recipient_type: "individual", to, type: "template",
+        template: {
+          name,
+          language: { code: language },
+          ...(components.length ? { components } : {}),
+        },
+      }, { headers: { ...this.authHeaders(), "Content-Type": "application/json" } });
+      return { externalId: response.data?.messages?.[0]?.id, data: response.data };
+    } catch (error) {
+      throw this.providerFailure(error, "A Meta não aceitou o envio do template.");
     }
   }
 

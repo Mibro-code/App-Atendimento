@@ -1,7 +1,22 @@
 (() => {
-  const APP_VERSION = "0.10.5";
+  const APP_VERSION = "0.11.0";
 
   const CHANGELOG = [
+    {
+      version: "0.11.0",
+      date: "20/08/2026",
+      title: "Templates da Meta e janela de 24 horas",
+      changes: [
+        "Detecta automaticamente se a conversa está dentro da janela de atendimento de 24 horas da Meta.",
+        "Bloqueia mensagens livres e anexos quando a Meta exige o uso de um template aprovado.",
+        "Lista os templates aprovados com nome, idioma, categoria e prévia da mensagem.",
+        "Permite preencher as variáveis do template antes do envio.",
+        "Exibe um aviso de que o envio por template pode gerar cobrança da Meta.",
+        "Registra no histórico da conversa a mensagem enviada por template e o atendente responsável.",
+        "Mantém a finalização manual disponível mesmo quando a janela de 24 horas já terminou."
+      ]
+    },
+
     {
       version: "0.10.5",
       date: "20/08/2026",

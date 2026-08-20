@@ -104,6 +104,8 @@ test("entrega o painel e as APIs básicas da caixa de entrada", async () => {
     assert.match(pageHtml, /Documentos/);
     assert.match(pageHtml, /Atualizar agora/);
     assert.match(pageHtml, /Ocultar histórico anterior para o novo setor/);
+    assert.match(pageHtml, /Templates aprovados/);
+    assert.match(pageHtml, /pode gerar cobrança pela Meta/);
     assert.doesNotMatch(pageHtml, /id="transfer-limit-history"[^>]*checked/);
     const categories = await fetch(`${base}/api/categories`, { headers: { Cookie: cookie } });
     assert.equal(categories.status, 200);

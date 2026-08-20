@@ -7,6 +7,7 @@ const path = require("node:path");
 const prisma = require("../src/database/prisma");
 const { MAX_DOCUMENT_SIZE, resolveImage, resolveMedia, validateDocument } = require("../src/services/media-storage-service");
 const { closingMessage, finalizeConversation, saveIncoming, sendDocument, sendImage, sendText, sendVideo } = require("../src/services/message-service");
+const { getCustomerServiceWindow, sendApprovedTemplate } = require("../src/services/meta-template-service");
 const inbox = require("../src/services/inbox-service");
 const mediaTestDir = path.join(os.tmpdir(), `app-whats-media-test-${process.pid}`);
 process.env.MEDIA_STORAGE_DIR = mediaTestDir;
@@ -37,7 +38,7 @@ test("persiste contato, conversa e mensagem sem duplicar wamid", async () => {
   const event = {
     externalId: "wamid.test.incoming", contactExternalId: "5511999999999",
     phone: "5511999999999", contactName: "Cliente Teste", type: "text", text: "Preciso de suporte",
-    occurredAt: new Date("2026-08-10T12:00:00Z"), rawPayload: { id: "wamid.test.incoming" },
+    occurredAt: new Date(), rawPayload: { id: "wamid.test.incoming" },
   };
   const results = await Promise.all([saveIncoming(event), saveIncoming(event)]);
   assert.deepEqual(results.map((item) => item.duplicate).sort(), [false, true]);
@@ -73,6 +74,49 @@ test("registra mensagem enviada e o atendente autor", async () => {
   assert.equal(await prisma.conversationActivity.count({
     where: { conversationId: conversation.id, action: "CONVERSATION_CLAIMED", actorUserId: user.id },
   }), 1);
+});
+
+test("bloqueia mensagem livre fora da janela de 24h e permite template aprovado", async () => {
+  const user = await prisma.user.findUnique({ where: { email: "teste@mibro.local" } });
+  const contact = await prisma.contact.create({ data: { externalId: "template-window-test", phone: "5511999990011", name: "Cliente Template" } });
+  const conversation = await prisma.conversation.create({ data: { contactId: contact.id } });
+  await prisma.message.create({ data: {
+    conversationId: conversation.id, externalId: "wamid.window.old", channel: "META",
+    direction: "RECEBIDA", status: "RECEBIDA", type: "text", text: "Mensagem antiga",
+    occurredAt: new Date(Date.now() - (25 * 60 * 60 * 1000)),
+  } });
+  await prisma.message.create({ data: {
+    conversationId: conversation.id, externalId: "lp-atacado:window-test", channel: "META",
+    direction: "RECEBIDA", status: "RECEBIDA", type: "text", text: "Lead externo recente",
+    occurredAt: new Date(), rawPayload: { source: "lp_atacado_mibro" },
+  } });
+  const window = await getCustomerServiceWindow(conversation.id);
+  assert.equal(window.open, false);
+  let freeFormCalled = false;
+  await assert.rejects(
+    sendText({ conversationId: conversation.id, text: "Mensagem livre", sentByUserId: user.id, channel: { sendText: async () => { freeFormCalled = true; } } }),
+    (error) => error.code === "TEMPLATE_REQUIRED" && error.statusCode === 409,
+  );
+  assert.equal(freeFormCalled, false);
+  const template = {
+    id: "template-1", name: "retomar_atendimento", language: "pt_BR", category: "UTILITY", status: "APPROVED",
+    components: [{ type: "BODY", text: "Olá, {{1}}. Podemos continuar seu atendimento?", example: { body_text: [["Matheus"]] } }],
+  };
+  let sentTemplate;
+  const result = await sendApprovedTemplate({
+    conversationId: conversation.id, name: template.name, language: template.language,
+    values: { "BODY:1": "Cliente" }, sentByUserId: user.id,
+    channel: {
+      listMessageTemplates: async () => [template],
+      sendTemplate: async (phone, payload) => { sentTemplate = { phone, payload }; return { externalId: "wamid.template.out", data: { messages: [{ id: "wamid.template.out" }] } }; },
+    },
+  });
+  assert.equal(sentTemplate.phone, contact.phone);
+  assert.equal(sentTemplate.payload.components[0].parameters[0].text, "Cliente");
+  assert.equal(result.message.type, "template");
+  assert.equal(result.message.text, "Olá, Cliente. Podemos continuar seu atendimento?");
+  await prisma.conversation.delete({ where: { id: conversation.id } });
+  await prisma.contact.delete({ where: { id: contact.id } });
 });
 
 test("permite apagar conversa somente para Master e remove seus dados relacionados", async () => {
@@ -136,7 +180,7 @@ test("lista, pesquisa, classifica, lê, finaliza e reabre a conversa", async () 
   await saveIncoming({
     externalId: "wamid.test.customer.reply", contactExternalId: "5511999999999",
     phone: "5511999999999", contactName: "Cliente Teste", type: "text", text: "É o modelo X1",
-    occurredAt: new Date("2026-08-10T12:05:00Z"), rawPayload: { id: "wamid.test.customer.reply" },
+    occurredAt: new Date(Date.now() + 1000), rawPayload: { id: "wamid.test.customer.reply" },
   });
   assert.equal((await inbox.getConversation(conversation.id, masterViewer)).status, "AGUARDANDO_RESPOSTA");
 

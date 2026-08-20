@@ -11,6 +11,7 @@ responsável pelas portas 80 e 443.
 - Rede Docker externa `shopify-proxy` já existente.
 - Arquivo `.env` criado diretamente na VPS a partir de `.env.vps.example`.
 - Nunca versionar, imprimir ou copiar o conteúdo de `.env` para logs.
+- Para listar templates aprovados, preencher `WHATSAPP_BUSINESS_ACCOUNT_ID` com o ID da conta do WhatsApp Business exibido na Meta.
 
 ## Rota do Caddy
 
