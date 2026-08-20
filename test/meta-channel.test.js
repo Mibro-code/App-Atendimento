@@ -243,3 +243,64 @@ test("envia lista interativa de setores", async () => {
     }
   }
 });
+
+test("lista somente templates aprovados com paginação da Meta", async () => {
+  const previousEnv = {
+    GRAPH_VERSION: process.env.GRAPH_VERSION,
+    PHONE_NUMBER_ID: process.env.PHONE_NUMBER_ID,
+    WHATSAPP_TOKEN: process.env.WHATSAPP_TOKEN,
+    WHATSAPP_BUSINESS_ACCOUNT_ID: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID,
+  };
+  const previousGet = axios.get;
+  process.env.GRAPH_VERSION = "v-test";
+  process.env.PHONE_NUMBER_ID = "phone-test";
+  process.env.WHATSAPP_TOKEN = "token-test";
+  process.env.WHATSAPP_BUSINESS_ACCOUNT_ID = "waba-test";
+  const requests = [];
+  axios.get = async (url, options) => {
+    requests.push({ url, options });
+    return requests.length === 1
+      ? { data: { data: [{ id: "1", name: "aprovado", status: "APPROVED" }, { id: "2", name: "rejeitado", status: "REJECTED" }], paging: { next: "next", cursors: { after: "cursor-2" } } } }
+      : { data: { data: [{ id: "3", name: "segundo", status: "APPROVED" }] } };
+  };
+  try {
+    const templates = await new MetaCloudChannel().listMessageTemplates();
+    assert.deepEqual(templates.map(({ name }) => name), ["aprovado", "segundo"]);
+    assert.match(requests[0].url, /waba-test\/message_templates$/);
+    assert.equal(requests[1].options.params.after, "cursor-2");
+  } finally {
+    axios.get = previousGet;
+    for (const [key, value] of Object.entries(previousEnv)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
+});
+
+test("envia template aprovado com idioma e variáveis", async () => {
+  const previousEnv = {
+    GRAPH_VERSION: process.env.GRAPH_VERSION,
+    PHONE_NUMBER_ID: process.env.PHONE_NUMBER_ID,
+    WHATSAPP_TOKEN: process.env.WHATSAPP_TOKEN,
+  };
+  const previousPost = axios.post;
+  process.env.GRAPH_VERSION = "v-test";
+  process.env.PHONE_NUMBER_ID = "phone-test";
+  process.env.WHATSAPP_TOKEN = "token-test";
+  let sentBody;
+  axios.post = async (_url, body) => { sentBody = body; return { data: { messages: [{ id: "wamid.template.sent" }] } }; };
+  try {
+    const result = await new MetaCloudChannel().sendTemplate("5511999999999", {
+      name: "retomar_atendimento", language: "pt_BR",
+      components: [{ type: "body", parameters: [{ type: "text", text: "Matheus" }] }],
+    });
+    assert.equal(result.externalId, "wamid.template.sent");
+    assert.equal(sentBody.type, "template");
+    assert.equal(sentBody.template.name, "retomar_atendimento");
+    assert.equal(sentBody.template.language.code, "pt_BR");
+  } finally {
+    axios.post = previousPost;
+    for (const [key, value] of Object.entries(previousEnv)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
+});

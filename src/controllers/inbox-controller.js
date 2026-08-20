@@ -5,6 +5,7 @@ const { finalizeConversation, sendDocument, sendImage, sendText, sendVideo } = r
 const inboxEvents = require("../realtime/inbox-events");
 const authorization = require("../services/authorization-service");
 const internalChat = require("../services/internal-chat-service");
+const { getCustomerServiceWindow, listApprovedTemplates, sendApprovedTemplate } = require("../services/meta-template-service");
 
 
 function createInboxController(channel) {
@@ -21,7 +22,26 @@ function createInboxController(channel) {
       try {
         const conversation = await inbox.getConversation(req.params.id, req.user);
         if (!conversation) return res.status(404).json({ error: "Conversa não encontrada." });
-        return res.json(conversation);
+        return res.json({ ...conversation, customerServiceWindow: await getCustomerServiceWindow(conversation.id) });
+      } catch (error) { return next(error); }
+    },
+    async templates(req, res, next) {
+      try { return res.json(await listApprovedTemplates(channel)); }
+      catch (error) { return next(error); }
+    },
+    async replyTemplate(req, res, next) {
+      try {
+        await authorization.assertCanViewConversation(req.user, req.params.id);
+        const name = String(req.body.name || "").trim();
+        const language = String(req.body.language || "").trim();
+        if (!name || !language) return res.status(400).json({ error: "Selecione um template e seu idioma." });
+        const result = await sendApprovedTemplate({
+          conversationId: req.params.id, name, language,
+          values: req.body.values && typeof req.body.values === "object" ? req.body.values : {},
+          sentByUserId: req.user.id, channel,
+        });
+        inboxEvents.publish();
+        return res.status(201).json(result.message);
       } catch (error) { return next(error); }
     },
     async summary(req, res, next) {

@@ -110,15 +110,39 @@
           <p class="notes-help">Registro de alterações realizadas pela equipe nesta conversa.</p>
           <div id="history-list" class="history-list"></div>
         </aside>
+        <div id="service-window-notice" class="service-window-notice" hidden>
+          <span><b>Janela de 24 horas encerrada</b><small>A Meta permite retomar este contato somente com um template aprovado.</small></span>
+          <button id="open-required-template" type="button">Usar template</button>
+        </div>
         <form id="composer" class="composer">
           <label class="attach-image" title="Anexar imagem, vídeo ou documento" aria-label="Anexar imagem, vídeo ou documento"><input id="attachment-input" type="file" accept="image/jpeg,image/png,video/mp4,video/3gpp,video/3gp,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"><span aria-hidden="true">+</span></label>
           <div id="attachment-preview" class="attachment-preview" hidden><img id="attachment-thumb" alt="Prévia da imagem"><span id="attachment-type" class="attachment-type" hidden>DOC</span><span id="attachment-name"></span><button id="remove-attachment" type="button" aria-label="Remover anexo">×</button></div>
+          <button id="open-templates" class="template-shortcut" type="button" title="Enviar template aprovado pela Meta">Templates</button>
           <textarea id="message-input" rows="1" maxlength="4096" placeholder="Digite uma mensagem..."></textarea>
           <button id="send-button" type="submit">Enviar</button>
         </form>
       </div>
     </section>
   </main>
+  <dialog id="template-dialog" class="template-dialog">
+    <div class="dialog-header"><div><span>WHATSAPP • META</span><h2>Templates aprovados</h2><p>Use uma mensagem previamente aprovada para iniciar ou retomar o atendimento.</p></div><button id="close-templates" type="button" aria-label="Fechar">×</button></div>
+    <div class="template-billing-warning"><b>Atenção à cobrança</b><span>O envio de um template pode gerar cobrança pela Meta, conforme a categoria e as regras vigentes da conta.</span></div>
+    <div class="template-layout">
+      <section class="template-picker">
+        <label class="template-search"><span>Buscar template</span><input id="template-search" type="search" placeholder="Nome, idioma ou categoria"></label>
+        <div id="template-list" class="template-list"></div>
+      </section>
+      <form id="template-form" class="template-form">
+        <div id="template-empty" class="template-empty">Selecione um template para visualizar e preencher.</div>
+        <div id="template-editor" hidden>
+          <div class="template-selected-meta"><strong id="template-selected-name"></strong><span id="template-selected-details"></span></div>
+          <pre id="template-preview" class="template-preview"></pre>
+          <div id="template-variables" class="template-variables"></div>
+          <button id="send-template" type="submit">Enviar template</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
   <dialog id="contact-files-dialog" class="contact-files-dialog">
     <div class="dialog-header"><div><span>CONTEÚDO COMPARTILHADO</span><h2 id="contact-files-title">Arquivos da conversa</h2><p>Somente o conteúdo que sua conta pode visualizar nesta conversa.</p></div><button id="close-contact-files" type="button" aria-label="Fechar">×</button></div>
     <nav class="contact-files-tabs" aria-label="Tipos de conteúdo">
@@ -205,7 +229,7 @@
   <div class="changelog-current">
     <div>
       <small>VERSÃO ATUAL</small>
-      <strong id="changelog-current-version">v0.10.5</strong>
+      <strong id="changelog-current-version">v0.11.0</strong>
     </div>
     <span id="changelog-current-date"></span>
   </div>

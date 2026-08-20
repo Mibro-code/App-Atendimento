@@ -111,6 +111,7 @@ async function updateConversationAfterSending({ conversationId, sentByUserId, oc
 async function sendText({ conversationId, text, sentByUserId, channel }) {
   const conversation = await prisma.conversation.findUnique({ where: { id: conversationId }, include: { contact: true, category: { include: { parent: true } } } });
   if (!conversation) throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
+  await require("./meta-template-service").assertFreeFormAllowed(conversationId);
   const providerText = formatTeamMessage(conversation.category, text);
   if (providerText.length > 4096) {
     throw Object.assign(new Error("A mensagem ficou acima do limite após adicionar o nome da equipe."), { statusCode: 400 });
@@ -128,6 +129,7 @@ async function sendText({ conversationId, text, sentByUserId, channel }) {
 async function sendImage({ conversationId, buffer, mimeType, fileName, caption, sentByUserId, channel }) {
   const conversation = await prisma.conversation.findUnique({ where: { id: conversationId }, include: { contact: true, category: { include: { parent: true } } } });
   if (!conversation) throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
+  await require("./meta-template-service").assertFreeFormAllowed(conversationId);
   const cleanCaption = caption?.trim() || null;
   const providerCaption = formatTeamMessage(conversation.category, cleanCaption || "");
   if (providerCaption.length > 1024) {
@@ -159,6 +161,7 @@ async function sendImage({ conversationId, buffer, mimeType, fileName, caption, 
 async function sendVideo({ conversationId, buffer, mimeType, fileName, caption, sentByUserId, channel }) {
   const conversation = await prisma.conversation.findUnique({ where: { id: conversationId }, include: { contact: true, category: { include: { parent: true } } } });
   if (!conversation) throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
+  await require("./meta-template-service").assertFreeFormAllowed(conversationId);
   const cleanCaption = caption?.trim() || null;
   const providerCaption = formatTeamMessage(conversation.category, cleanCaption || "");
   if (providerCaption.length > 1024) {
@@ -190,6 +193,7 @@ async function sendVideo({ conversationId, buffer, mimeType, fileName, caption, 
 async function sendDocument({ conversationId, buffer, mimeType, fileName, caption, sentByUserId, channel }) {
   const conversation = await prisma.conversation.findUnique({ where: { id: conversationId }, include: { contact: true, category: { include: { parent: true } } } });
   if (!conversation) throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
+  await require("./meta-template-service").assertFreeFormAllowed(conversationId);
   const cleanCaption = caption?.trim() || null;
   const providerCaption = formatTeamMessage(conversation.category, cleanCaption || "");
   if (providerCaption.length > 1024) {
@@ -224,7 +228,10 @@ async function finalizeConversation({ conversationId, sentByUserId, channel }) {
   if (current.status === "FINALIZADO") {
     return { conversation: current, message: null, alreadyFinalized: true };
   }
-  const result = await sendText({ conversationId, text: closingMessage, sentByUserId, channel });
+  const serviceWindow = await require("./meta-template-service").getCustomerServiceWindow(conversationId);
+  const result = serviceWindow.open
+    ? await sendText({ conversationId, text: closingMessage, sentByUserId, channel })
+    : { message: null, providerData: null };
   const conversation = await prisma.conversation.update({ where: { id: conversationId }, data: {
     status: "FINALIZADO", finalizedAt: new Date(),
   } });
@@ -236,4 +243,4 @@ async function sendTextToPhone({ phone, text, channel }) {
   return sendText({ conversationId: conversation.id, text, channel });
 }
 
-module.exports = { closingMessage, finalizeConversation, saveIncoming, sendDocument, sendImage, sendVideo, updateStatus, sendText, sendTextToPhone };
+module.exports = { closingMessage, finalizeConversation, saveIncoming, sendDocument, sendImage, sendVideo, updateConversationAfterSending, updateStatus, sendText, sendTextToPhone };

@@ -208,6 +208,7 @@ app.post(
   app.get("/api/conversations", inbox.list);
   app.get("/api/conversations/summary", inbox.summary);
   app.get("/api/alerts", inbox.alerts);
+  app.get("/api/meta/templates", inbox.templates);
   app.get("/api/conversations/:id", inbox.detail);
   app.patch("/api/conversations/:id", inbox.update);
   app.post(
@@ -219,6 +220,7 @@ app.post(
   app.patch("/api/conversations/:id/pin", inbox.pinConversation);
   app.post("/api/conversations/:id/read", inbox.read);
   app.post("/api/conversations/:id/messages", inbox.reply);
+  app.post("/api/conversations/:id/templates", inbox.replyTemplate);
   app.post("/api/conversations/:id/images", imageUpload, inbox.replyImage);
   app.post("/api/conversations/:id/videos", videoUpload, inbox.replyVideo);
   app.post("/api/conversations/:id/documents", documentUpload, inbox.replyDocument);
@@ -255,6 +257,8 @@ app.post(
     });
     res.status(error.statusCode || 500).json({
       error: error.statusCode ? error.message : "Erro interno do servidor.",
+      ...(error.code ? { code: error.code } : {}),
+      ...(error.details ? error.details : {}),
     });
   });
   return app;
