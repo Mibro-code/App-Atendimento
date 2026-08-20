@@ -1,7 +1,21 @@
 (() => {
-  const APP_VERSION = "0.11.0";
+  const APP_VERSION = "0.11.1";
 
   const CHANGELOG = [
+    {
+      version: "0.11.1",
+      date: "20/08/2026",
+      title: "Nova conversa pelo painel",
+      changes: [
+        "Adiciona o fluxo para iniciar uma conversa informando nome e telefone do contato.",
+        "Cria automaticamente o contato e a conversa quando o número ainda não existe.",
+        "Reaproveita a conversa existente sem duplicar o contato ou o atendimento.",
+        "Exige um template aprovado da Meta para realizar o primeiro envio.",
+        "Permite visualizar o template, preencher suas variáveis e revisar o aviso de possível cobrança.",
+        "Atribui automaticamente ao atendente a conversa iniciada por ele.",
+        "Mantém o recurso desativado com uma explicação enquanto a configuração de templates da Meta não estiver concluída."
+      ]
+    },
     {
       version: "0.11.0",
       date: "20/08/2026",

@@ -208,7 +208,9 @@ app.post(
   app.get("/api/conversations", inbox.list);
   app.get("/api/conversations/summary", inbox.summary);
   app.get("/api/alerts", inbox.alerts);
+  app.get("/api/meta/status", inbox.metaStatus);
   app.get("/api/meta/templates", inbox.templates);
+  app.post("/api/conversations/outbound", inbox.createOutbound);
   app.get("/api/conversations/:id", inbox.detail);
   app.patch("/api/conversations/:id", inbox.update);
   app.post(

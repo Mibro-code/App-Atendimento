@@ -20,7 +20,7 @@
     <div class="app-version-actions">
   <button id="changelog-button" class="changelog-button" type="button" title="Ver novidades e histórico de versões">
     <span class="changelog-icon" aria-hidden="true">▤</span>
-    <span id="app-version-label">v0.10.5</span>
+    <span id="app-version-label">v0.11.1</span>
     <span id="changelog-unread-dot" class="changelog-unread-dot" hidden></span>
   </button>
 
@@ -60,7 +60,7 @@
     </aside>
 
     <section class="conversation-list-panel">
-      <div class="list-heading"><div><h1>Conversas</h1><p id="list-summary">Carregando...</p></div><div class="list-heading-actions"><button id="clear-team-filter" title="Remover filtro de atendente" hidden>×</button><button id="refresh" title="Atualizar">↻</button></div></div>
+      <div class="list-heading"><div><h1>Conversas</h1><p id="list-summary">Carregando...</p></div><div class="list-heading-actions"><button id="new-conversation" class="new-conversation" type="button" title="Iniciar nova conversa">+ Nova</button><button id="clear-team-filter" title="Remover filtro de atendente" hidden>×</button><button id="refresh" title="Atualizar">↻</button></div></div>
       <div id="conversation-list" class="conversation-list"></div>
     </section>
 
@@ -124,6 +124,27 @@
       </div>
     </section>
   </main>
+  <dialog id="outbound-dialog" class="template-dialog outbound-dialog">
+    <div class="dialog-header"><div><span>WHATSAPP • NOVO CONTATO</span><h2>Iniciar conversa</h2><p>Informe o contato e escolha a mensagem aprovada que será enviada pela Meta.</p></div><button id="close-outbound" type="button" aria-label="Fechar">×</button></div>
+    <div class="template-billing-warning"><b>Atenção à cobrança</b><span>O envio inicial usa um template aprovado e pode gerar cobrança pela Meta.</span></div>
+    <form id="outbound-form" class="outbound-layout">
+      <section class="outbound-contact-fields">
+        <label><span>Nome do contato</span><input id="outbound-name" maxlength="160" autocomplete="off" placeholder="Ex.: João Silva" required></label>
+        <label><span>Telefone com DDD</span><input id="outbound-phone" type="tel" maxlength="24" autocomplete="tel" placeholder="Ex.: (11) 99999-9999" required><small>Números do Brasil recebem automaticamente o código 55.</small></label>
+        <div class="outbound-template-heading"><b>Template inicial</b><small>Selecione uma mensagem aprovada.</small></div>
+        <div id="outbound-template-list" class="template-list"></div>
+      </section>
+      <section class="outbound-template-editor">
+        <div id="outbound-template-empty" class="template-empty">Selecione um template para visualizar e preencher.</div>
+        <div id="outbound-template-content" hidden>
+          <div class="template-selected-meta"><strong id="outbound-template-name"></strong><span id="outbound-template-details"></span></div>
+          <pre id="outbound-template-preview" class="template-preview"></pre>
+          <div id="outbound-template-variables" class="template-variables"></div>
+          <button id="send-outbound" type="submit">Criar conversa e enviar</button>
+        </div>
+      </section>
+    </form>
+  </dialog>
   <dialog id="template-dialog" class="template-dialog">
     <div class="dialog-header"><div><span>WHATSAPP • META</span><h2>Templates aprovados</h2><p>Use uma mensagem previamente aprovada para iniciar ou retomar o atendimento.</p></div><button id="close-templates" type="button" aria-label="Fechar">×</button></div>
     <div class="template-billing-warning"><b>Atenção à cobrança</b><span>O envio de um template pode gerar cobrança pela Meta, conforme a categoria e as regras vigentes da conta.</span></div>
@@ -229,7 +250,7 @@
   <div class="changelog-current">
     <div>
       <small>VERSÃO ATUAL</small>
-      <strong id="changelog-current-version">v0.11.0</strong>
+      <strong id="changelog-current-version">v0.11.1</strong>
     </div>
     <span id="changelog-current-date"></span>
   </div>

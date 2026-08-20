@@ -7,6 +7,7 @@ const state = {
   expandedCategories: new Set(), adminUsers: [], auditLogs: [], editingUserId: null, assignedUser: "",
   assignedUserActiveOnly: false, alertCursor: null, checkingAlerts: false,
   customerServiceWindow: null, templates: [], selectedTemplate: null,
+  metaStatus: { templatesConfigured:false }, outboundTemplate: null,
 };
 const $ = (selector) => document.querySelector(selector);
 const defaultDocumentTitle = document.title;
@@ -442,6 +443,64 @@ async function openTemplates() {
   }
 }
 
+function outboundTemplatePreview(template) {
+  let preview = template.previewTemplate || template.preview || "";
+  for (const variable of template.variables || []) {
+    if (!["BODY", "HEADER"].includes(variable.component)) continue;
+    const input = [...document.querySelectorAll("[data-outbound-template-variable]")]
+      .find((item) => item.dataset.outboundTemplateVariable === variable.key);
+    preview = preview.replaceAll(`{{${variable.placeholder}}}`, input?.value.trim() || variable.example || `{{${variable.placeholder}}}`);
+  }
+  return preview;
+}
+
+function renderOutboundTemplateEditor() {
+  const template = state.outboundTemplate;
+  $("#outbound-template-empty").hidden = Boolean(template);
+  $("#outbound-template-content").hidden = !template;
+  if (!template) return;
+  $("#outbound-template-name").textContent = template.name;
+  $("#outbound-template-details").textContent = `${template.language} • ${template.category}`;
+  $("#outbound-template-variables").innerHTML = (template.variables || []).map((variable) => `<label><span>${escapeHtml(variable.label)}</span><input data-outbound-template-variable="${escapeHtml(variable.key)}" value="${escapeHtml(variable.example || "")}" placeholder="Digite o valor" required></label>`).join("");
+  $("#outbound-template-preview").textContent = outboundTemplatePreview(template);
+  document.querySelectorAll("[data-outbound-template-variable]").forEach((input) => input.addEventListener("input", () => {
+    $("#outbound-template-preview").textContent = outboundTemplatePreview(template);
+  }));
+}
+
+function renderOutboundTemplateList() {
+  $("#outbound-template-list").innerHTML = state.templates.length ? state.templates.map((template) => `<button class="template-card ${state.outboundTemplate?.id === template.id ? "selected" : ""}" type="button" data-outbound-template-id="${escapeHtml(template.id)}" ${template.supported ? "" : "disabled"} title="${escapeHtml(template.unsupportedReason || "Selecionar template")}"><strong>${escapeHtml(template.name)}</strong><span><b>${escapeHtml(template.language)}</b><b>${escapeHtml(template.category)}</b></span><small>${escapeHtml(template.unsupportedReason || template.preview || "Sem prévia")}</small></button>`).join("") : `<div class="template-empty">Nenhum template aprovado encontrado.</div>`;
+  document.querySelectorAll("[data-outbound-template-id]").forEach((button) => button.addEventListener("click", () => {
+    state.outboundTemplate = state.templates.find((template) => template.id === button.dataset.outboundTemplateId) || null;
+    renderOutboundTemplateList();
+    renderOutboundTemplateEditor();
+  }));
+}
+
+async function loadMetaStatus() {
+  state.metaStatus = await api("/api/meta/status");
+  const button = $("#new-conversation");
+  button.dataset.unavailable = String(!state.metaStatus.templatesConfigured);
+  button.title = state.metaStatus.templatesConfigured
+    ? "Iniciar nova conversa pelo WhatsApp"
+    : "Disponível após configurar os templates da Meta";
+}
+
+async function openOutboundConversation() {
+  if (!state.metaStatus.templatesConfigured) return toast("A criação de conversas ficará disponível após configurar os templates da Meta.", true);
+  state.outboundTemplate = null;
+  $("#outbound-form").reset();
+  $("#outbound-template-list").innerHTML = `<div class="template-empty">Consultando templates aprovados na Meta...</div>`;
+  renderOutboundTemplateEditor();
+  $("#outbound-dialog").showModal();
+  try {
+    state.templates = await api("/api/meta/templates");
+    renderOutboundTemplateList();
+  } catch (error) {
+    $("#outbound-template-list").innerHTML = `<div class="template-empty">${escapeHtml(error.message)}</div>`;
+  }
+}
+
 function configureNotificationButton() {
   const button = $("#enable-notifications");
   if (!("Notification" in window)) return;
@@ -710,6 +769,7 @@ function activityText(activity) {
   const details = activity.details || {};
   const status = (value) => statusLabel(value || "");
   return ({
+    CONVERSATION_CREATED: "iniciou esta conversa pelo painel",
     CONVERSATION_CLAIMED: "assumiu a conversa como responsável",
     CONVERSATION_TRANSFERRED: `transferiu a conversa de ${details.from || "Sem responsável"} para ${details.to || "Sem responsável"}`,
     ASSIGNEE_REMOVED: `removeu ${details.from || "o atendente"} da responsabilidade pela conversa`,
@@ -837,6 +897,28 @@ document.querySelectorAll("[data-status]").forEach((button) => button.addEventLi
 }));
 let searchTimer; $("#search").addEventListener("input", (event) => { clearTimeout(searchTimer); state.search = event.target.value.trim(); searchTimer = setTimeout(loadConversations, 250); });
 $("#refresh").addEventListener("click", loadConversations);
+$("#new-conversation").addEventListener("click", openOutboundConversation);
+$("#close-outbound").addEventListener("click", () => $("#outbound-dialog").close());
+$("#outbound-dialog").addEventListener("click", (event) => { if (event.target === $("#outbound-dialog")) $("#outbound-dialog").close(); });
+$("#outbound-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!state.outboundTemplate) return toast("Selecione o template inicial.", true);
+  const button = $("#send-outbound");
+  const values = Object.fromEntries([...document.querySelectorAll("[data-outbound-template-variable]")].map((input) => [input.dataset.outboundTemplateVariable, input.value.trim()]));
+  button.disabled = true;
+  try {
+    const result = await api("/api/conversations/outbound", { method:"POST", body:JSON.stringify({
+      phone:$("#outbound-phone").value,
+      customName:$("#outbound-name").value.trim(),
+      template:{ name:state.outboundTemplate.name, language:state.outboundTemplate.language, values },
+    }) });
+    $("#outbound-dialog").close();
+    await loadConversations();
+    await openConversation(result.conversationId);
+    toast(result.created ? "Conversa criada e template enviado." : "Conversa existente aberta e template enviado.");
+  } catch (error) { toast(error.message, true); }
+  finally { button.disabled = false; }
+});
 $("#clear-team-filter").addEventListener("click", () => { state.assignedUser = ""; state.assignedUserActiveOnly = false; loadConversations(); });
 $("#enable-notifications").addEventListener("click", async () => {
   if (!("Notification" in window)) return toast("Este dispositivo não oferece notificações do navegador.", true);
@@ -1253,7 +1335,7 @@ $(".chat-header").addEventListener("click", (event) => { if (innerWidth <= 700 &
 
 syncThemeToggle();
 loadCurrentUser()
-  .then(() => Promise.all([loadUsers(), loadCategories()]))
+  .then(() => Promise.all([loadUsers(), loadCategories(), loadMetaStatus()]))
   .then(loadAdminUsers)
   .then(loadConversations)
   .then(async () => {

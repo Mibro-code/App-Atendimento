@@ -18,7 +18,7 @@ async function allowedCategoryIds(user) {
 async function conversationScope(user) {
   if (isMaster(user)) return {};
   const categoryIds = await allowedCategoryIds(user);
-  const visible = [];
+  const visible = [{ assignedUserId: user.id }];
   if (categoryIds.length) visible.push({ categoryId: { in: categoryIds } });
   if (user.canViewUncategorized) visible.push({ categoryId: null });
   return visible.length ? { OR: visible } : { id: { in: [] } };
