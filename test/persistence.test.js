@@ -8,6 +8,7 @@ const prisma = require("../src/database/prisma");
 const { MAX_DOCUMENT_SIZE, resolveImage, resolveMedia, validateDocument } = require("../src/services/media-storage-service");
 const { closingMessage, finalizeConversation, saveIncoming, sendDocument, sendImage, sendText, sendVideo } = require("../src/services/message-service");
 const { customerServiceWindowFrom, getCustomerServiceWindow, sendApprovedTemplate } = require("../src/services/meta-template-service");
+const { createOutboundConversation, normalizeOutboundPhone } = require("../src/services/outbound-conversation-service");
 const inbox = require("../src/services/inbox-service");
 const mediaTestDir = path.join(os.tmpdir(), `app-whats-media-test-${process.pid}`);
 process.env.MEDIA_STORAGE_DIR = mediaTestDir;
@@ -77,6 +78,8 @@ test("registra mensagem enviada e o atendente autor", async () => {
 });
 
 test("bloqueia mensagem livre fora da janela de 24h e permite template aprovado", async () => {
+  const previousWabaId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+  process.env.WHATSAPP_BUSINESS_ACCOUNT_ID = "waba-window-test";
   const disabledWindow = customerServiceWindowFrom(
     new Date(Date.now() - (25 * 60 * 60 * 1000)),
     new Date(),
@@ -124,6 +127,64 @@ test("bloqueia mensagem livre fora da janela de 24h e permite template aprovado"
   assert.equal(result.message.text, "Olá, Cliente. Podemos continuar seu atendimento?");
   await prisma.conversation.delete({ where: { id: conversation.id } });
   await prisma.contact.delete({ where: { id: contact.id } });
+  if (previousWabaId === undefined) delete process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+  else process.env.WHATSAPP_BUSINESS_ACCOUNT_ID = previousWabaId;
+});
+
+test("cria uma nova conversa pelo painel com nome, telefone e template inicial", async () => {
+  assert.equal(normalizeOutboundPhone("(11) 98888-7766"), "5511988887766");
+  assert.throws(() => normalizeOutboundPhone("123"), /telefone válido/);
+  const previousWabaId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+  process.env.WHATSAPP_BUSINESS_ACCOUNT_ID = "waba-outbound-test";
+  let createdContactId;
+  const user = await prisma.user.findUnique({ where: { email: "teste@mibro.local" } });
+  const template = {
+    id: "template-outbound", name: "iniciar_atendimento", language: "pt_BR",
+    category: "UTILITY", status: "APPROVED",
+    components: [{ type: "BODY", text: "Olá, {{1}}! Podemos iniciar seu atendimento?", example: { body_text: [["Cliente"]] } }],
+  };
+  let sent;
+  const channel = {
+    listMessageTemplates: async () => [template],
+    sendTemplate: async (phone, payload) => {
+      sent = { phone, payload };
+      return { externalId: "wamid.outbound.test", data: { messages: [{ id: "wamid.outbound.test" }] } };
+    },
+  };
+  try {
+    const result = await createOutboundConversation({
+      phone: "(11) 98888-7766", customName: "Cliente Novo",
+      template: { name: template.name, language: template.language, values: { "BODY:1": "Cliente Novo" } },
+      user: { id: user.id, role: user.role }, channel,
+    });
+    assert.equal(result.created, true);
+    assert.equal(sent.phone, "5511988887766");
+    const conversation = await prisma.conversation.findUnique({
+      where: { id: result.conversationId }, include: { contact: true, messages: true },
+    });
+    createdContactId = conversation.contactId;
+    assert.equal(conversation.contact.customName, "Cliente Novo");
+    assert.equal(conversation.assignedUserId, user.id);
+    assert.equal(conversation.status, "EM_ATENDIMENTO");
+    assert.equal(conversation.messages[0].type, "template");
+    assert.equal(await prisma.conversationActivity.count({
+      where: { conversationId: conversation.id, action: "CONVERSATION_CREATED" },
+    }), 1);
+
+    const reused = await createOutboundConversation({
+      phone: "5511988887766", customName: "Cliente Renomeado",
+      template: { name: template.name, language: template.language, values: { "BODY:1": "Cliente" } },
+      user: { id: user.id, role: user.role },
+      channel: { ...channel, sendTemplate: async () => ({ externalId: "wamid.outbound.test.2", data: { messages: [{ id: "wamid.outbound.test.2" }] } }) },
+    });
+    assert.equal(reused.created, false);
+    assert.equal(reused.conversationId, result.conversationId);
+    assert.equal((await prisma.contact.findUnique({ where: { id: conversation.contactId } })).customName, "Cliente Renomeado");
+  } finally {
+    if (createdContactId) await prisma.contact.delete({ where: { id: createdContactId } }).catch(() => {});
+    if (previousWabaId === undefined) delete process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+    else process.env.WHATSAPP_BUSINESS_ACCOUNT_ID = previousWabaId;
+  }
 });
 
 test("permite apagar conversa somente para Master e remove seus dados relacionados", async () => {

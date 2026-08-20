@@ -5,7 +5,8 @@ const { finalizeConversation, sendDocument, sendImage, sendText, sendVideo } = r
 const inboxEvents = require("../realtime/inbox-events");
 const authorization = require("../services/authorization-service");
 const internalChat = require("../services/internal-chat-service");
-const { getCustomerServiceWindow, listApprovedTemplates, sendApprovedTemplate } = require("../services/meta-template-service");
+const { getCustomerServiceWindow, listApprovedTemplates, sendApprovedTemplate, templatesConfigured } = require("../services/meta-template-service");
+const { createOutboundConversation } = require("../services/outbound-conversation-service");
 
 
 function createInboxController(channel) {
@@ -28,6 +29,22 @@ function createInboxController(channel) {
     async templates(req, res, next) {
       try { return res.json(await listApprovedTemplates(channel)); }
       catch (error) { return next(error); }
+    },
+    async metaStatus(_req, res) {
+      return res.json({ templatesConfigured: templatesConfigured() });
+    },
+    async createOutbound(req, res, next) {
+      try {
+        const result = await createOutboundConversation({
+          phone: req.body.phone,
+          customName: req.body.customName,
+          template: req.body.template,
+          user: req.user,
+          channel,
+        });
+        inboxEvents.publish();
+        return res.status(result.created ? 201 : 200).json(result);
+      } catch (error) { return next(error); }
     },
     async replyTemplate(req, res, next) {
       try {
