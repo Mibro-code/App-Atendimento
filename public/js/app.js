@@ -125,14 +125,14 @@ function conversationSignature(conversation) {
     conversation.categoryId, conversation.category?.name, conversation.category?.color, conversation.category?.parent?.name,
     conversation.assignedUserId, conversation.assignedUser?.name,
     conversation.isPinned,
-    conversation.contact.name, conversation.contact.phone, conversation.contact._count?.notes,
+    conversation.contact.customName, conversation.contact.name, conversation.contact.phone, conversation.contact._count?.notes,
     note?.id, note?.content,
     lastMessage?.id, lastMessage?.text, lastMessage?.type,
   ]);
 }
 
 function conversationCardMarkup(c) {
-  const last = c.messages[0]; const name = c.contact.name || c.contact.phone; const note = c.contact.notes?.[0];
+  const last = c.messages[0]; const name = c.contact.customName || c.contact.name || c.contact.phone; const note = c.contact.notes?.[0];
   return `<button class="conversation-card ${c.id === state.selectedId ? "active" : ""}" data-id="${escapeHtml(c.id)}">
     <span class="card-grip" aria-hidden="true"></span><span class="avatar">${escapeHtml(initials(name))}</span><span class="card-main">
     <span class="card-title"><strong>${c.isPinned ? `<i class="conversation-pin" title="Conversa fixada">★</i>` : ""}${escapeHtml(name)}</strong><small>${escapeHtml(c.contact.phone)}</small></span>
@@ -386,12 +386,19 @@ async function checkAlerts() {
     try { localStorage.setItem(`mibro-alert-cursor:${state.currentUser.id}`, state.alertCursor); } catch {}
     if (!result.alerts?.length) return;
     const latest = result.alerts[result.alerts.length - 1];
-    toast(result.alerts.length === 1 ? `${latest.title}: ${latest.text}` : `${result.alerts.length} novos alertas de atendimento.`);
+    toast(
+  result.alerts.length === 1
+    ? latest.title
+    : `${result.alerts.length} novas mensagens.`
+);
     if (document.hidden && typeof window.mibroNotify === "function") {
       for (const alert of result.alerts.slice(-3)) {
         await window.mibroNotify(alert.title, {
-          body: alert.text, tag: alert.id, data: { url: `/?conversation=${encodeURIComponent(alert.conversationId)}` },
-        });
+  tag: alert.id,
+  data: {
+    url: `/?conversation=${encodeURIComponent(alert.conversationId)}`
+  },
+});
       }
     }
   } catch (error) {
@@ -524,12 +531,12 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
     assignedUser: c.assignedUser && [c.assignedUser.id, c.assignedUser.name],
     isPinned: c.isPinned,
     canViewHistory: c.canViewHistory,
-    contact: [c.contact.id, c.contact.name, c.contact.phone],
+    contact: [c.contact.id, c.contact.customName, c.contact.name, c.contact.phone],
     messageHistoryLimited: c.messageHistoryLimited,
   });
   const displayMessages = messagesWithReactions(c.messages);
   state.selectedMessages = displayMessages;
-  state.selectedContactName = c.contact.name || c.contact.phone;
+  state.selectedContactName = c.contact.customName || c.contact.name || c.contact.phone;
   const hasReactionEvents = displayMessages.length !== c.messages.length;
   const messageItems = displayMessages.map((message) => JSON.stringify([message.id, message.externalId, message.direction, message.type, message.text, message.occurredAt, message.mediaStorageKey, message.mediaMimeType, message.mediaFileName, message.mediaSize, message.reactionEmoji, message.sentByUser?.id, message.sentByUser?.name]));
   const messagesSignature = JSON.stringify([c.messageHistoryLimited, messageItems]);
@@ -539,7 +546,7 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
   $("#empty-state").hidden = true; $("#chat-content").hidden = false; $("#chat-panel").classList.add("open");
   if (headerSignature !== state.selectedHeaderSignature) {
     state.selectedHeaderSignature = headerSignature;
-    const name = c.contact.name || c.contact.phone;
+    const name = c.contact.customName || c.contact.name || c.contact.phone;
     $("#contact-avatar").textContent = initials(name); $("#contact-name").textContent = name; $("#contact-phone").textContent = `+${c.contact.phone}`;
     const primaryCategory = c.category?.parent || (c.category && !c.category.parentId ? c.category : null);
     const primaryId = primaryCategory?.id || "";
@@ -636,7 +643,7 @@ function activityText(activity) {
     NOTE_PINNED: `fixou uma nota${details.preview ? `: “${details.preview}”` : ""}`,
     NOTE_UNPINNED: `desafixou uma nota${details.preview ? `: “${details.preview}”` : ""}`,
     BOT_TRIAGE_COMPLETED: `Bot encaminhou a conversa para ${details.categoryName || "o setor selecionado"}`,
-    AUTO_FINALIZED_INACTIVITY: `Sistema finalizou a conversa após ${details.inactivityMinutes || 15} minutos sem resposta do cliente`,
+    AUTO_FINALIZED_INACTIVITY: `Sistema finalizou a conversa após ${details.inactivityMinutes || 1440} minutos sem resposta do cliente`,
   })[activity.action] || "realizou uma atualização na conversa";
 }
 
@@ -771,7 +778,74 @@ $("#user-button").addEventListener("click", async () => { await api("/api/auth/l
 $("#team-button").addEventListener("click", async () => { try { await loadAdminUsers(); resetTeamForm(); $("#new-team-user").hidden = !state.currentUser.isMaster; $("#team-form").hidden = !state.currentUser.isMaster; $("#team-dialog").classList.toggle("activity-only", !state.currentUser.isMaster); $("#team-dialog").showModal(); } catch (e) { toast(e.message, true); } });
 $("#close-team").addEventListener("click", () => $("#team-dialog").close());
 $("#team-dialog").addEventListener("click", (event) => { if (event.target === $("#team-dialog")) $("#team-dialog").close(); });
+
 $("#contact-details").addEventListener("click", openContactFiles);
+$("#signal-transfer").addEventListener("click", async () => {
+  if (!state.selectedId) return;
+
+  const toCategoryId =
+    $("#subcategory-select").value ||
+    $("#category-select").value;
+
+  if (!toCategoryId) {
+    return toast("Selecione um setor para sinalizar.", true);
+  }
+
+  try {
+    await api(
+      `/api/conversations/${state.selectedId}/signal-transfer`,
+      {
+        method: "POST",
+        body: JSON.stringify({ toCategoryId }),
+      }
+    );
+
+    toast("Encaminhamento sinalizado no chat interno.");
+  } catch (error) {
+    toast(error.message, true);
+  }
+});
+$("#edit-contact-name").addEventListener("click", async () => {
+  if (!state.selectedContactId || !state.selectedId) return;
+
+  const conversation = state.conversations.find(
+    (item) => item.id === state.selectedId
+  );
+
+  const currentCustomName = conversation?.contact?.customName || "";
+
+  const value = prompt(
+    "Nome personalizado do contato:\n\nDeixe vazio para voltar ao nome recebido pelo WhatsApp.",
+    currentCustomName
+  );
+
+  if (value === null) return;
+
+  try {
+    await api(`/api/contacts/${state.selectedContactId}/name`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        customName: value.trim(),
+      }),
+    });
+
+    toast(
+      value.trim()
+        ? "Nome do contato atualizado."
+        : "Nome personalizado removido."
+    );
+
+    state.selectedHeaderSignature = "";
+    state.listSignature = "";
+
+    await Promise.all([
+      loadConversations(),
+      openConversation(state.selectedId, { markRead: false }),
+    ]);
+  } catch (error) {
+    toast(error.message, true);
+  }
+});
 $("#close-contact-files").addEventListener("click", () => $("#contact-files-dialog").close());
 $("#contact-files-dialog").addEventListener("click", (event) => { if (event.target === $("#contact-files-dialog")) $("#contact-files-dialog").close(); });
 $(".contact-files-tabs").addEventListener("click", (event) => {
@@ -951,26 +1025,132 @@ function clearSelectedAttachment() {
   $("#message-input").maxLength = 4096;
   if (attachmentUrl) URL.revokeObjectURL(attachmentUrl); attachmentUrl = null;
 }
-$("#attachment-input").addEventListener("change", (event) => {
-  const file = event.target.files[0];
+
+function selectAttachmentFile(file) {
   if (!file) return clearSelectedAttachment();
+
   const isImage = ["image/jpeg", "image/png"].includes(file.type);
   const isDocument = isDocumentMime(file.type);
   const isVideo = ["video/mp4", "video/3gpp", "video/3gp"].includes(file.type);
-  if (!isImage && !isDocument && !isVideo) { clearSelectedAttachment(); return toast("Envie uma imagem JPG/PNG, vídeo MP4/3GP ou documento PDF/TXT/Word/Excel/PowerPoint.", true); }
-  if (isImage && file.size > 5 * 1024 * 1024) { clearSelectedAttachment(); return toast("A imagem deve ter no máximo 5 MB.", true); }
-  if (isVideo && file.size > 16 * 1024 * 1024) { clearSelectedAttachment(); return toast("O vídeo deve ter no máximo 16 MB.", true); }
-  if (isDocument && file.size > 100 * 1024 * 1024) { clearSelectedAttachment(); return toast("O documento deve ter no máximo 100 MB.", true); }
-  if (attachmentUrl) URL.revokeObjectURL(attachmentUrl);
+
+  if (!isImage && !isDocument && !isVideo) {
+    clearSelectedAttachment();
+
+    return toast(
+      "Envie uma imagem JPG/PNG, vídeo MP4/3GP ou documento PDF/TXT/Word/Excel/PowerPoint.",
+      true
+    );
+  }
+
+  if (isImage && file.size > 5 * 1024 * 1024) {
+    clearSelectedAttachment();
+    return toast("A imagem deve ter no máximo 5 MB.", true);
+  }
+
+  if (isVideo && file.size > 16 * 1024 * 1024) {
+    clearSelectedAttachment();
+    return toast("O vídeo deve ter no máximo 16 MB.", true);
+  }
+
+  if (isDocument && file.size > 100 * 1024 * 1024) {
+    clearSelectedAttachment();
+    return toast("O documento deve ter no máximo 100 MB.", true);
+  }
+
+  if (attachmentUrl) {
+    URL.revokeObjectURL(attachmentUrl);
+  }
+
   attachmentUrl = null;
   selectedAttachment = file;
+
   $("#attachment-thumb").hidden = !isImage;
   $("#attachment-type").hidden = isImage;
-  $("#attachment-type").textContent = isDocument ? documentTypeLabel(file.type, file.name) : "VÍDEO";
-  if (isImage) { attachmentUrl = URL.createObjectURL(file); $("#attachment-thumb").src = attachmentUrl; }
+
+  $("#attachment-type").textContent = isDocument
+    ? documentTypeLabel(file.type, file.name)
+    : "VÍDEO";
+
+  if (isImage) {
+    attachmentUrl = URL.createObjectURL(file);
+    $("#attachment-thumb").src = attachmentUrl;
+  }
+
   $("#message-input").maxLength = 1024;
-  $("#attachment-name").textContent = file.name; $("#attachment-preview").hidden = false; $("#message-input").focus();
+  $("#attachment-name").textContent = file.name || "Imagem colada";
+  $("#attachment-preview").hidden = false;
+  $("#message-input").focus();
+}
+
+$("#attachment-input").addEventListener("change", (event) => {
+  selectAttachmentFile(event.target.files[0]);
 });
+
+$("#message-input").addEventListener("paste", (event) => {
+  const files = Array.from(event.clipboardData?.files || []);
+
+  const image = files.find((file) =>
+    ["image/jpeg", "image/png"].includes(file.type)
+  );
+
+  if (!image) return;
+
+  event.preventDefault();
+
+  const extension =
+    image.type === "image/jpeg"
+      ? "jpg"
+      : "png";
+
+  const pastedImage = new File(
+    [image],
+    `imagem-colada-${Date.now()}.${extension}`,
+    {
+      type: image.type,
+    }
+  );
+
+  selectAttachmentFile(pastedImage);
+});
+
+$("#message-input").addEventListener("paste", (event) => {
+  const items = Array.from(event.clipboardData?.items || []);
+
+  const imageItem = items.find(
+    (item) =>
+      item.kind === "file" &&
+      ["image/png", "image/jpeg"].includes(item.type)
+  );
+
+  if (!imageItem) return;
+
+  const file = imageItem.getAsFile();
+  if (!file) return;
+
+  event.preventDefault();
+
+  const extension =
+    file.type === "image/jpeg"
+      ? "jpg"
+      : "png";
+
+  const pastedImage = new File(
+    [file],
+    `imagem-colada-${Date.now()}.${extension}`,
+    { type: file.type }
+  );
+
+  const transfer = new DataTransfer();
+  transfer.items.add(pastedImage);
+
+  const input = $("#attachment-input");
+  input.files = transfer.files;
+
+  input.dispatchEvent(
+    new Event("change", { bubbles: true })
+  );
+});
+
 $("#remove-attachment").addEventListener("click", clearSelectedAttachment);
 $("#composer").addEventListener("submit", async (event) => { event.preventDefault(); const input = $("#message-input"); const text = input.value.trim(); if (!text && !selectedAttachment) return; $("#send-button").disabled = true; try { if (selectedAttachment) { const isDocument = isDocumentMime(selectedAttachment.type); const isVideo = selectedAttachment.type.startsWith("video/"); const field = isDocument ? "document" : (isVideo ? "video" : "image"); const endpoint = isDocument ? "documents" : (isVideo ? "videos" : "images"); const form = new FormData(); form.append(field, selectedAttachment); if (text) form.append("caption", text); await api(`/api/conversations/${state.selectedId}/${endpoint}`, { method:"POST", body:form }); clearSelectedAttachment(); } else { await api(`/api/conversations/${state.selectedId}/messages`, { method:"POST", body:JSON.stringify({ text }) }); } input.value = ""; await openConversation(state.selectedId); } catch (e) { toast(e.message, true); } finally { $("#send-button").disabled = false; input.focus(); } });
 $("#message-input").addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); $("#composer").requestSubmit(); } });

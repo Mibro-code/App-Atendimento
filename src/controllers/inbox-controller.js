@@ -4,6 +4,8 @@ const { resolveMedia } = require("../services/media-storage-service");
 const { finalizeConversation, sendDocument, sendImage, sendText, sendVideo } = require("../services/message-service");
 const inboxEvents = require("../realtime/inbox-events");
 const authorization = require("../services/authorization-service");
+const internalChat = require("../services/internal-chat-service");
+
 
 function createInboxController(channel) {
   return {
@@ -38,6 +40,53 @@ function createInboxController(channel) {
       }
       catch (error) { return next(error); }
     },
+async signalTransfer(req, res, next) {
+  try {
+    const conversation = await authorization.assertCanViewConversation(
+      req.user,
+      req.params.id
+    );
+
+    const toCategoryId = String(
+      req.body.toCategoryId || ""
+    ).trim();
+
+    if (!toCategoryId) {
+      return res.status(400).json({
+        error: "Selecione o setor que deseja sinalizar.",
+      });
+    }
+
+    if (
+      !authorization.canTransfer(req.user) &&
+      !(await authorization.canAccessCategory(req.user, toCategoryId))
+    ) {
+      throw authorization.forbidden(
+        "Você não possui acesso ao setor selecionado."
+      );
+    }
+
+    const message = await internalChat.createTransferNotice({
+      conversationId: req.params.id,
+      fromCategoryId: conversation.categoryId,
+      toCategoryId,
+      actorUserId: req.user.id,
+      note: null,
+    });
+
+    if (!message) {
+      return res.status(404).json({
+        error: "Não foi possível localizar o chat interno desse setor.",
+      });
+    }
+
+    inboxEvents.publish();
+
+    return res.status(201).json(message);
+  } catch (error) {
+    return next(error);
+  }
+},
     async deleteConversation(req, res, next) {
       try {
         const result = await inbox.deleteConversation(req.params.id, req.user);
@@ -64,7 +113,10 @@ function createInboxController(channel) {
     async read(req, res, next) {
       try {
         await authorization.assertCanViewConversation(req.user, req.params.id);
-        const result = await inbox.markAsRead(req.params.id, { channel });
+        const result = await inbox.markAsRead(req.params.id, {
+  channel,
+  viewer: req.user,
+});
         inboxEvents.publish();
         return res.json(result);
       }
@@ -189,6 +241,21 @@ function createInboxController(channel) {
         inboxEvents.publish();
         return res.json(result);
       } catch (error) { return next(error); }
+    },
+async updateContactName(req, res, next) {
+  try {
+    const contact = await inbox.updateContactCustomName(
+      req.params.contactId,
+      req.body.customName,
+      req.user
+    );
+
+    inboxEvents.publish();
+
+    return res.json(contact);
+  } catch (error) {
+    return next(error);
+  }
     },
     async users(req, res, next) {
       try { return res.json(await inbox.listUsers(req.user)); }

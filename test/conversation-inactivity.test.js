@@ -12,9 +12,9 @@ test.after(async () => {
   await prisma.$disconnect();
 });
 
-test("finaliza após 15 minutos somente quando a equipe aguarda o cliente", async () => {
-  const now = new Date("2026-08-12T15:30:00.000Z");
-  const old = new Date("2026-08-12T15:14:00.000Z");
+test("finaliza após 24 horas somente quando a equipe aguarda o cliente", async () => {
+  const now = new Date("2026-08-13T15:30:00.000Z");
+  const old = new Date("2026-08-12T15:29:00.000Z");
   const support = await prisma.category.findUnique({ where: { code: "SUPORTE" } });
   const outgoingContact = await prisma.contact.create({
     data: { externalId: testContacts[0], phone: "5511977770001", name: "Cliente sem retorno" },

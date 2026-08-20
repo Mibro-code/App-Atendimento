@@ -54,25 +54,56 @@ async function updateStatus(event) {
 
 async function updateConversationAfterSending({ conversationId, sentByUserId, occurredAt }) {
   return prisma.$transaction(async (transaction) => {
-    await transaction.conversation.update({ where: { id: conversationId }, data: {
-      lastMessageAt: occurredAt, status: "EM_ATENDIMENTO", finalizedAt: null,
-    } });
-    if (!sentByUserId) return false;
-    const claimed = await transaction.conversation.updateMany({
-      where: { id: conversationId, assignedUserId: null },
-      data: { assignedUserId: sentByUserId },
-    });
-    if (!claimed.count) return false;
-    const sender = await transaction.user.findUnique({
-      where: { id: sentByUserId }, select: { name: true },
-    });
-    await transaction.conversationActivity.create({ data: {
-      conversationId, actorUserId: sentByUserId, action: "CONVERSATION_CLAIMED",
-      details: {
-        from: "Sem responsável", to: sender?.name || "Atendente",
-        fromUserId: null, toUserId: sentByUserId, automatic: true,
+    const current = await transaction.conversation.findUnique({
+      where: { id: conversationId },
+      select: {
+        assignedUserId: true,
+        assignedUser: {
+          select: {
+            name: true,
+          },
+        },
       },
-    } });
+    });
+
+    await transaction.conversation.update({
+      where: { id: conversationId },
+      data: {
+        lastMessageAt: occurredAt,
+        status: "EM_ATENDIMENTO",
+        finalizedAt: null,
+        ...(sentByUserId ? { assignedUserId: sentByUserId } : {}),
+      },
+    });
+
+    if (!sentByUserId) return false;
+
+    if (current?.assignedUserId === sentByUserId) {
+      return false;
+    }
+
+    const sender = await transaction.user.findUnique({
+      where: { id: sentByUserId },
+      select: { name: true },
+    });
+
+    await transaction.conversationActivity.create({
+      data: {
+        conversationId,
+        actorUserId: sentByUserId,
+        action: current?.assignedUserId
+          ? "CONVERSATION_TRANSFERRED"
+          : "CONVERSATION_CLAIMED",
+        details: {
+          from: current?.assignedUser?.name || "Sem responsável",
+          to: sender?.name || "Atendente",
+          fromUserId: current?.assignedUserId || null,
+          toUserId: sentByUserId,
+          automatic: true,
+        },
+      },
+    });
+
     return true;
   });
 }

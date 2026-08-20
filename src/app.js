@@ -19,6 +19,7 @@ const authorization = require("./services/authorization-service");
 const userManagementController = require("./controllers/user-management-controller");
 const auditController = require("./controllers/audit-controller");
 const { documentMimeTypes } = require("./services/media-storage-service");
+const internalChatController = require("./controllers/internal-chat-controller");
 const imageUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024, files: 1 },
@@ -141,7 +142,39 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   app.use(express.static("public", { index: false }));
   app.use("/api", authenticate);
   app.get("/api/events", inboxEvents.handle);
+ app.get("/api/internal-chats", internalChatController.list);
+  app.get("/api/internal-chat-users", internalChatController.users);
 
+app.get(
+  "/api/internal-chats/:id/messages",
+  internalChatController.messages
+);
+
+app.post(
+  "/api/internal-chats/:id/images",
+  imageUpload,
+  internalChatController.image
+);
+
+app.get(
+  "/api/internal-messages/:messageId/media",
+  internalChatController.media
+);
+
+app.post(
+  "/api/internal-chats/:id/messages",
+  internalChatController.send
+);
+
+app.post(
+  "/api/internal-chats/:id/read",
+  internalChatController.read
+);
+
+app.post(
+  "/api/internal-chats/direct/:userId",
+  internalChatController.direct
+);
   app.get("/api/messages", async (req, res, next) => {
     try {
       const scope = await authorization.conversationScope(req.user);
@@ -152,7 +185,7 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
       return res.json(rows.map((item) => ({
         id: item.externalId || item.id, from: item.conversation.contact.phone,
         to: item.direction === "ENVIADA" ? item.conversation.contact.phone : undefined,
-        name: item.conversation.contact.name || item.conversation.contact.phone,
+        name: item.conversation.contact.customName || item.conversation.contact.name || item.conversation.contact.phone,
         type: item.type, text: item.text, timestamp: item.occurredAt.getTime(),
         direction: item.direction === "ENVIADA" ? "sent" : "received",
       })));
@@ -177,6 +210,10 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   app.get("/api/alerts", inbox.alerts);
   app.get("/api/conversations/:id", inbox.detail);
   app.patch("/api/conversations/:id", inbox.update);
+  app.post(
+    "/api/conversations/:id/signal-transfer",
+    inbox.signalTransfer
+  );
   app.delete("/api/conversations/:id", inbox.deleteConversation);
   app.post("/api/conversations/:id/claim", inbox.claim);
   app.patch("/api/conversations/:id/pin", inbox.pinConversation);
@@ -191,6 +228,10 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   app.post("/api/categories", inbox.createCategory);
   app.patch("/api/categories/:id", inbox.updateCategory);
   app.get("/api/users", inbox.users);
+  app.patch(
+    "/api/contacts/:contactId/name",
+    inbox.updateContactName
+  );
   app.post("/api/contacts/:contactId/notes", inbox.addNote);
   app.patch("/api/contacts/:contactId/notes/:noteId", inbox.pinNote);
   app.delete("/api/contacts/:contactId/notes/:noteId", inbox.deleteNote);

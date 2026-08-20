@@ -12,16 +12,89 @@
   let buttonResetTimer = null;
 
   const isStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const setCheckButton = (label, state = "idle") => {
-    if (!checkUpdateButton) return;
-    clearTimeout(buttonResetTimer);
-    checkUpdateButton.textContent = label;
-    checkUpdateButton.dataset.state = state;
-    checkUpdateButton.disabled = state === "checking";
-  };
+  const setCheckButton = (label = "", state = "idle") => {
+  if (!checkUpdateButton) return;
+
+  clearTimeout(buttonResetTimer);
+
+  const icon = checkUpdateButton.querySelector(".check-update-icon");
+  const text = checkUpdateButton.querySelector(".check-update-text");
+
+  checkUpdateButton.dataset.state = state;
+  checkUpdateButton.disabled = state === "checking";
+
+  if (state === "ready") {
+    if (icon) icon.textContent = "↓";
+
+    if (text) {
+      text.textContent = label || "Atualizar";
+      text.hidden = false;
+    }
+
+    checkUpdateButton.title = "Nova atualização disponível";
+    checkUpdateButton.setAttribute(
+      "aria-label",
+      "Baixar e instalar atualização"
+    );
+
+    return;
+  }
+
+  if (text) {
+    text.textContent = "";
+    text.hidden = true;
+  }
+
+  if (state === "checking") {
+    if (icon) icon.textContent = "↻";
+    checkUpdateButton.title = "Verificando atualizações...";
+    checkUpdateButton.setAttribute(
+      "aria-label",
+      "Verificando atualizações"
+    );
+
+    return;
+  }
+
+  if (state === "current") {
+    if (icon) icon.textContent = "✓";
+    checkUpdateButton.title = "Aplicativo atualizado";
+    checkUpdateButton.setAttribute(
+      "aria-label",
+      "Aplicativo atualizado"
+    );
+
+    return;
+  }
+
+  if (state === "error") {
+    if (icon) icon.textContent = "!";
+    checkUpdateButton.title = "Não foi possível verificar. Clique para tentar novamente.";
+    checkUpdateButton.setAttribute(
+      "aria-label",
+      "Tentar verificar atualizações novamente"
+    );
+
+    return;
+  }
+
+  if (icon) icon.textContent = "↻";
+
+  checkUpdateButton.title = "Verificar atualizações";
+  checkUpdateButton.setAttribute(
+    "aria-label",
+    "Verificar atualizações"
+  );
+};
+
+
   const resetCheckButtonLater = () => {
-    buttonResetTimer = setTimeout(() => setCheckButton("Verificar atualização"), 3500);
-  };
+  buttonResetTimer = setTimeout(
+    () => setCheckButton("", "idle"),
+    3500
+  );
+};
+
   const showUpdate = () => {
     if (updateBanner) updateBanner.hidden = false;
     setCheckButton("Atualizar agora", "ready");

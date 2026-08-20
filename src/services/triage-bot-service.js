@@ -117,9 +117,10 @@ async function completeTriage(conversation, categoryId, channel) {
         action: "CONVERSATION_CATEGORY_CHANGED",
         entityType: "CONVERSATION",
         entityId: conversation.id,
-        summary: `Bot encaminhou a conversa de ${conversation.contact.name || conversation.contact.phone} para ${category.name}`,
+        summary: `Bot encaminhou a conversa de ${conversation.contact.customName || conversation.contact.name || conversation.contact.phone} para ${category.name}`,
         details: {
           conversationId: conversation.id,
+          contactCustomName: conversation.contact.customName || null,
           contactName: conversation.contact.name || null,
           contactPhone: conversation.contact.phone,
           from: "Sem categoria",

@@ -1,6 +1,6 @@
 const prisma = require("../database/prisma");
 
-const defaultInactivityMinutes = 15;
+const defaultInactivityMinutes = 1440;
 
 async function finalizeInactiveConversations({
   now = new Date(), inactivityMinutes = defaultInactivityMinutes, client = prisma,

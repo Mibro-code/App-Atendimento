@@ -2,6 +2,7 @@ const prisma = require("../database/prisma");
 const authorization = require("./authorization-service");
 const { removeImage } = require("./media-storage-service");
 const audit = require("./audit-service");
+const internalChat = require("./internal-chat-service");
 
 const conversationStatuses = new Set([
   "NOVO", "EM_ATENDIMENTO", "AGUARDANDO_RESPOSTA", "BOT", "FINALIZADO",
@@ -49,50 +50,195 @@ function categorySectorId(category) {
 function contactAuditSnapshot(conversation) {
   return {
     conversationId: conversation.id,
+    contactCustomName: conversation.contact?.customName || null,
     contactName: conversation.contact?.name || null,
     contactPhone: conversation.contact?.phone || null,
   };
 }
 
+function contactDisplayName(contact) {
+  return contact?.customName || contact?.name || contact?.phone || "Contato";
+}
+
 async function listConversations({ search, category, status, assignedUser, activeOnly }, viewer) {
   const where = {};
+
   if (status) where.status = status;
   else if (activeOnly === "true") where.status = { not: "FINALIZADO" };
-  if (category) where.category = { OR: [
-    { code: category },
-    { parent: { is: { code: category } } },
-  ] };
-  if (search) {
-    where.contact = { OR: [
-      { name: { contains: search, mode: "insensitive" } },
-      { phone: { contains: search } },
-    ] };
+
+  if (category) {
+    where.category = {
+      OR: [
+        { code: category },
+        { parent: { is: { code: category } } },
+      ],
+    };
   }
+
+  if (search) {
+    where.contact = {
+      OR: [
+        { customName: { contains: search, mode: "insensitive" } },
+        { name: { contains: search, mode: "insensitive" } },
+        { phone: { contains: search } },
+      ],
+    };
+  }
+
   if (assignedUser) {
-    if (!authorization.isMaster(viewer) && !viewer.canViewTeamActivity && assignedUser !== viewer.id) {
-      throw authorization.forbidden("Você não pode consultar os atendimentos de outro usuário.");
+    if (
+      !authorization.isMaster(viewer) &&
+      !viewer.canViewTeamActivity &&
+      assignedUser !== viewer.id
+    ) {
+      throw authorization.forbidden(
+        "Você não pode consultar os atendimentos de outro usuário."
+      );
     }
+
     where.assignedUserId = assignedUser;
   }
+
   const scope = await authorization.conversationScope(viewer);
-  return prisma.conversation.findMany({
+  const master = authorization.isMaster(viewer);
+
+  const conversations = await prisma.conversation.findMany({
     where: { AND: [where, scope] },
+
     include: {
       contact: {
         include: {
-          notes: { orderBy: [{ pinned: "desc" }, { createdAt: "desc" }], take: 1 },
-          _count: { select: { notes: true } },
+          notes: {
+            orderBy: [
+              { pinned: "desc" },
+              { createdAt: "desc" },
+            ],
+            take: 1,
+          },
+
+          _count: {
+            select: {
+              notes: true,
+            },
+          },
         },
       },
-      category: { include: { parent: true } },
-      assignedUser: { select: { id: true, name: true, email: true } },
-      messages: { where: { type: { not: "reaction" } }, orderBy: { occurredAt: "desc" }, take: 1 },
-      pins: { where: { userId: viewer.id }, select: { createdAt: true }, take: 1 },
+
+      category: {
+        include: {
+          parent: true,
+        },
+      },
+
+      assignedUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+
+      messages: {
+        where: {
+          type: {
+            not: "reaction",
+          },
+        },
+        orderBy: {
+          occurredAt: "desc",
+        },
+        take: 1,
+      },
+
+      pins: {
+        where: {
+          userId: viewer.id,
+        },
+        select: {
+          createdAt: true,
+        },
+        take: 1,
+      },
+
+      ...(master
+        ? {
+            masterReads: {
+              where: {
+                userId: viewer.id,
+              },
+              select: {
+                readAt: true,
+              },
+              take: 1,
+            },
+          }
+        : {}),
     },
-    orderBy: [{ lastMessageAt: "desc" }, { createdAt: "desc" }],
-  }).then((conversations) => conversations
-    .map(({ pins, ...conversation }) => ({ ...conversation, isPinned: pins.length > 0 }))
-    .sort((left, right) => Number(right.isPinned) - Number(left.isPinned)));
+
+    orderBy: [
+      { lastMessageAt: "desc" },
+      { createdAt: "desc" },
+    ],
+  });
+
+  let masterUnreadCounts = new Map();
+
+  if (master && conversations.length) {
+    const counts = await Promise.all(
+      conversations.map(async (conversation) => {
+        const readAt = conversation.masterReads?.[0]?.readAt;
+
+        /*
+         * O registro será criado para cada Master no deploy.
+         * Este fallback evita contar todo o histórico caso algum
+         * usuário ainda não possua ConversationMasterRead.
+         */
+        if (!readAt) {
+          return [conversation.id, conversation.unreadCount];
+        }
+
+        const unreadCount = await prisma.message.count({
+          where: {
+            conversationId: conversation.id,
+            direction: "RECEBIDA",
+            type: {
+              not: "reaction",
+            },
+            occurredAt: {
+              gt: readAt,
+            },
+          },
+        });
+
+        return [conversation.id, unreadCount];
+      })
+    );
+
+    masterUnreadCounts = new Map(counts);
+  }
+
+  return conversations
+    .map((conversation) => {
+      const {
+        pins,
+        masterReads,
+        ...rest
+      } = conversation;
+
+      return {
+        ...rest,
+
+        unreadCount: master
+          ? masterUnreadCounts.get(conversation.id) || 0
+          : conversation.unreadCount,
+
+        isPinned: pins.length > 0,
+      };
+    })
+    .sort(
+      (left, right) =>
+        Number(right.isPinned) - Number(left.isPinned)
+    );
 }
 
 function alertSince(value) {
@@ -130,12 +276,22 @@ async function getUserAlerts({ since }, viewer) {
       orderBy: { createdAt: "asc" }, take: 30,
     }),
   ]);
-  const incoming = messages.map((message) => ({
-    id: `message:${message.id}`, conversationId: message.conversationId,
-    title: "Cliente aguardando resposta",
-    text: `${message.conversation.contact.name || message.conversation.contact.phone}: ${messagePreviewForAlert(message)}`,
+
+const incoming = messages.map((message) => {
+  const contactName =
+    message.conversation.contact.customName ||
+    message.conversation.contact.name ||
+    message.conversation.contact.phone;
+
+  return {
+    id: `message:${message.id}`,
+    conversationId: message.conversationId,
+    title: `${contactName} mandou uma mensagem`,
+    text: "",
     createdAt: message.occurredAt,
-  }));
+  };
+});
+
   const changes = activities.filter((activity) => {
     if (activity.actorUserId === viewer.id) return false;
     if (activity.action === "CONVERSATION_TRANSFERRED") return activity.details?.toUserId === viewer.id;
@@ -143,7 +299,7 @@ async function getUserAlerts({ since }, viewer) {
   }).map((activity) => ({
     id: `activity:${activity.id}`, conversationId: activity.conversationId,
     title: activity.action === "CONVERSATION_TRANSFERRED" ? "Conversa transferida para você" : "Nova conversa na sua área",
-    text: `${activity.conversation.contact.name || activity.conversation.contact.phone} • ${categoryLabelForHistory(activity.conversation.category) || "Sem categoria"}`,
+    text: `${contactDisplayName(activity.conversation.contact)} • ${categoryLabelForHistory(activity.conversation.category) || "Sem categoria"}`,
     createdAt: activity.createdAt,
   }));
   return {
@@ -152,15 +308,6 @@ async function getUserAlerts({ since }, viewer) {
       .sort((left, right) => new Date(left.createdAt) - new Date(right.createdAt))
       .slice(-30),
   };
-}
-
-function messagePreviewForAlert(message) {
-  if (message.type === "image") return "enviou uma imagem";
-  if (message.type === "audio") return "enviou um áudio";
-  if (message.type === "video") return "enviou um vídeo";
-  if (message.type === "document") return `enviou o documento ${message.mediaFileName || "arquivo"}`;
-  const text = message.text?.trim() || "enviou uma mensagem";
-  return text.length > 90 ? `${text.slice(0, 87)}...` : text;
 }
 
 async function restrictedMessageVisibility(conversationId, viewer) {
@@ -330,7 +477,7 @@ async function deleteConversation(id, viewer) {
       status: true,
       category: { select: { id: true, name: true } },
       assignedUser: { select: { id: true, name: true, email: true } },
-      contact: { select: { id: true, name: true, phone: true } },
+      contact: { select: { id: true, name: true, customName: true, phone: true } },
       _count: { select: { messages: true, activities: true, pins: true } },
       messages: {
         where: { mediaStorageKey: { not: null } },
@@ -347,7 +494,7 @@ async function deleteConversation(id, viewer) {
       action: "CONVERSATION_DELETED",
       entityType: "CONVERSATION",
       entityId: conversation.id,
-      summary: `Apagou a conversa de ${conversation.contact.name || conversation.contact.phone}`,
+      summary: `Apagou a conversa de ${contactDisplayName(conversation.contact)}`,
       details: {
         contact: conversation.contact,
         status: conversation.status,
@@ -448,7 +595,7 @@ async function updateConversation(id, { categoryId, status, assignedUserId, limi
     if (["NOVO", "AGUARDANDO_RESPOSTA", "BOT"].includes(current.status)) data.status = "EM_ATENDIMENTO";
   }
   try {
-    return await prisma.$transaction(async (transaction) => {
+    const result = await prisma.$transaction(async (transaction) => {
       const updated = await transaction.conversation.update({
         where: { id }, data,
         include: { contact: true, category: { include: { parent: true } }, assignedUser: { select: { id: true, name: true, email: true } } },
@@ -484,7 +631,7 @@ async function updateConversation(id, { categoryId, status, assignedUserId, limi
         const to = updated.category ? categoryLabelForHistory(updated.category) : "Sem categoria";
         audits.push({
           action: "CONVERSATION_CATEGORY_CHANGED",
-          summary: `Alterou a categoria da conversa de ${updated.contact.name || updated.contact.phone}: ${from} → ${to}`,
+          summary: `Alterou a categoria da conversa de ${contactDisplayName(updated.contact)}: ${from} → ${to}`,
           details: {
             ...contact, from, to, fromCategoryId: currentSnapshot.categoryId,
             toCategoryId: updated.categoryId, historyLimited: limitHistory === true,
@@ -496,14 +643,14 @@ async function updateConversation(id, { categoryId, status, assignedUserId, limi
         const to = updated.assignedUser?.name || "Sem responsável";
         audits.push({
           action: "CONVERSATION_ASSIGNEE_CHANGED",
-          summary: `Alterou o responsável da conversa de ${updated.contact.name || updated.contact.phone}: ${from} → ${to}`,
+          summary: `Alterou o responsável da conversa de ${contactDisplayName(updated.contact)}: ${from} → ${to}`,
           details: { ...contact, from, to, fromUserId: currentSnapshot.assignedUserId, toUserId: updated.assignedUserId },
         });
       }
       if (currentSnapshot.status !== updated.status) {
         audits.push({
           action: "CONVERSATION_STATUS_CHANGED",
-          summary: `Alterou o status da conversa de ${updated.contact.name || updated.contact.phone}: ${currentSnapshot.status} → ${updated.status}`,
+          summary: `Alterou o status da conversa de ${contactDisplayName(updated.contact)}: ${currentSnapshot.status} → ${updated.status}`,
           details: { ...contact, from: currentSnapshot.status, to: updated.status },
         });
       }
@@ -515,8 +662,14 @@ async function updateConversation(id, { categoryId, status, assignedUserId, limi
           ...entry,
         }, transaction);
       }
-      return updated;
-    });
+           return updated;
+  });
+
+
+
+
+
+    return result;
   } catch (error) {
     if (error.code === "P2025") throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
     throw error;
@@ -550,37 +703,123 @@ async function setConversationPinned(id, { pinned }, viewer) {
       action: pinned ? "CONVERSATION_PINNED" : "CONVERSATION_UNPINNED",
       entityType: "CONVERSATION",
       entityId: id,
-      summary: `${pinned ? "Fixou" : "Desafixou"} a conversa de ${conversation.contact.name || conversation.contact.phone}`,
+      summary: `${pinned ? "Fixou" : "Desafixou"} a conversa de ${contactDisplayName(conversation.contact)}`,
       details: contactAuditSnapshot(conversation),
     }, transaction);
   });
   return { conversationId: id, pinned };
 }
 
-async function markAsRead(id, { channel } = {}) {
+async function markAsRead(id, { channel, viewer } = {}) {
   const latestUnread = await prisma.message.findFirst({
-    where: { conversationId: id, direction: "RECEBIDA", status: { not: "LIDA" }, externalId: { not: null } },
-    orderBy: { occurredAt: "desc" },
-    select: { externalId: true },
+    where: {
+      conversationId: id,
+      direction: "RECEBIDA",
+      status: { not: "LIDA" },
+      externalId: { not: null },
+    },
+    orderBy: {
+      occurredAt: "desc",
+    },
+    select: {
+      externalId: true,
+    },
   });
+
   let readReceiptSent = false;
-  if (latestUnread?.externalId && typeof channel?.markAsRead === "function") {
+
+  if (
+    latestUnread?.externalId &&
+    typeof channel?.markAsRead === "function"
+  ) {
     try {
       await channel.markAsRead(latestUnread.externalId);
       readReceiptSent = true;
+
       await prisma.message.updateMany({
-        where: { conversationId: id, direction: "RECEBIDA", status: { not: "LIDA" } },
-        data: { status: "LIDA" },
+        where: {
+          conversationId: id,
+          direction: "RECEBIDA",
+          status: { not: "LIDA" },
+        },
+        data: {
+          status: "LIDA",
+        },
       });
     } catch (error) {
-      console.error("Não foi possível confirmar a leitura na Meta:", { conversationId: id, message: error.message });
+      console.error(
+        "Não foi possível confirmar a leitura na Meta:",
+        {
+          conversationId: id,
+          message: error.message,
+        }
+      );
     }
   }
+
   try {
-    const conversation = await prisma.conversation.update({ where: { id }, data: { unreadCount: 0 } });
-    return { ...conversation, readReceiptSent };
+    if (authorization.isMaster(viewer)) {
+      await prisma.conversationMasterRead.upsert({
+        where: {
+          userId_conversationId: {
+            userId: viewer.id,
+            conversationId: id,
+          },
+        },
+        update: {
+          readAt: new Date(),
+        },
+        create: {
+          userId: viewer.id,
+          conversationId: id,
+        },
+      });
+
+      const conversation = await prisma.conversation.findUnique({
+        where: {
+          id,
+        },
+      });
+
+      if (!conversation) {
+        throw Object.assign(
+          new Error("Conversa não encontrada."),
+          {
+            statusCode: 404,
+          }
+        );
+      }
+
+      return {
+        ...conversation,
+        unreadCount: 0,
+        readReceiptSent,
+      };
+    }
+
+    const conversation = await prisma.conversation.update({
+      where: {
+        id,
+      },
+      data: {
+        unreadCount: 0,
+      },
+    });
+
+    return {
+      ...conversation,
+      readReceiptSent,
+    };
   } catch (error) {
-    if (error.code === "P2025") throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
+    if (error.code === "P2025") {
+      throw Object.assign(
+        new Error("Conversa não encontrada."),
+        {
+          statusCode: 404,
+        }
+      );
+    }
+
     throw error;
   }
 }
@@ -682,6 +921,28 @@ async function updateCategory(id, data, viewer) {
   }
 }
 
+async function updateContactCustomName(contactId, customName, viewer) {
+  await authorization.assertCanAccessContact(viewer, contactId);
+
+  const value = String(customName || "").trim();
+
+  if (value.length > 120) {
+    throw Object.assign(
+      new Error("O nome personalizado deve ter no máximo 120 caracteres."),
+      { statusCode: 400 }
+    );
+  }
+
+  const contact = await prisma.contact.update({
+    where: { id: contactId },
+    data: {
+      customName: value || null,
+    },
+  });
+
+  return contact;
+}
+
 async function listUsers(viewer) {
   const where = authorization.isMaster(viewer) || viewer.canViewTeamActivity || viewer.canTransferConversations
     ? { active: true } : { id: viewer.id, active: true };
@@ -695,5 +956,5 @@ async function listUsers(viewer) {
 module.exports = {
   addContactNote, conversationStatuses, createCategory, deleteContactNote, deleteConversation, getConversation, getConversationSummary, getUserAlerts, listCategories,
   listConversations, listUsers, markAsRead, recordConversationActivity, setContactNotePinned, setConversationPinned,
-  updateCategory, updateConversation,
+  updateCategory, updateContactCustomName, updateConversation,
 };
