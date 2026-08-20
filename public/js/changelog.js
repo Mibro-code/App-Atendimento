@@ -5,15 +5,14 @@
     {
       version: "0.11.0",
       date: "20/08/2026",
-      title: "Templates da Meta e janela de 24 horas",
+      title: "Base para templates da Meta",
       changes: [
-        "Detecta automaticamente se a conversa está dentro da janela de atendimento de 24 horas da Meta.",
-        "Bloqueia mensagens livres e anexos quando a Meta exige o uso de um template aprovado.",
-        "Lista os templates aprovados com nome, idioma, categoria e prévia da mensagem.",
-        "Permite preencher as variáveis do template antes do envio.",
-        "Exibe um aviso de que o envio por template pode gerar cobrança da Meta.",
-        "Registra no histórico da conversa a mensagem enviada por template e o atendente responsável.",
-        "Mantém a finalização manual disponível mesmo quando a janela de 24 horas já terminou."
+        "Prepara a integração com templates aprovados da Meta para ativação futura.",
+        "Inclui consulta por nome, idioma, categoria e prévia da mensagem.",
+        "Prepara o preenchimento de variáveis e o registro do atendente responsável.",
+        "Inclui o aviso de possível cobrança da Meta no fluxo futuro de templates.",
+        "Mantém o envio atual funcionando normalmente enquanto a integração não estiver configurada.",
+        "O botão de templates e o bloqueio da janela de 24 horas permanecem inativos até a configuração do WABA ID."
       ]
     },
 

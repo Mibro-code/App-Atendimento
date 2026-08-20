@@ -7,7 +7,7 @@ const path = require("node:path");
 const prisma = require("../src/database/prisma");
 const { MAX_DOCUMENT_SIZE, resolveImage, resolveMedia, validateDocument } = require("../src/services/media-storage-service");
 const { closingMessage, finalizeConversation, saveIncoming, sendDocument, sendImage, sendText, sendVideo } = require("../src/services/message-service");
-const { getCustomerServiceWindow, sendApprovedTemplate } = require("../src/services/meta-template-service");
+const { customerServiceWindowFrom, getCustomerServiceWindow, sendApprovedTemplate } = require("../src/services/meta-template-service");
 const inbox = require("../src/services/inbox-service");
 const mediaTestDir = path.join(os.tmpdir(), `app-whats-media-test-${process.pid}`);
 process.env.MEDIA_STORAGE_DIR = mediaTestDir;
@@ -77,6 +77,13 @@ test("registra mensagem enviada e o atendente autor", async () => {
 });
 
 test("bloqueia mensagem livre fora da janela de 24h e permite template aprovado", async () => {
+  const disabledWindow = customerServiceWindowFrom(
+    new Date(Date.now() - (25 * 60 * 60 * 1000)),
+    new Date(),
+    false,
+  );
+  assert.equal(disabledWindow.configured, false);
+  assert.equal(disabledWindow.requiresTemplate, false);
   const user = await prisma.user.findUnique({ where: { email: "teste@mibro.local" } });
   const contact = await prisma.contact.create({ data: { externalId: "template-window-test", phone: "5511999990011", name: "Cliente Template" } });
   const conversation = await prisma.conversation.create({ data: { contactId: contact.id } });
