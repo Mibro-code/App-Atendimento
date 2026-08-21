@@ -66,7 +66,9 @@ async function listConversations({ search, category, status, assignedUser, activ
   if (status) where.status = status;
   else if (activeOnly === "true") where.status = { not: "FINALIZADO" };
 
-  if (category) {
+  if (category === "UNCATEGORIZED") {
+    where.categoryId = null;
+  } else if (category) {
     where.category = {
       OR: [
         { code: category },
@@ -414,7 +416,7 @@ async function getConversationSummary(viewer) {
     prisma.conversation.groupBy({ by: ["status"], where: scope, _count: { _all: true } }),
     prisma.conversation.groupBy({
       by: ["categoryId"],
-      where: { AND: [{ categoryId: { not: null } }, scope] },
+      where: scope,
       _count: { _all: true },
     }),
     prisma.conversation.findMany({
@@ -878,14 +880,40 @@ async function listCategories(viewer) {
       { children: { some: { id: { in: categoryIds } } } },
     ] };
   }
-  const categories = await prisma.category.findMany({
+  const [categories, preferences] = await Promise.all([prisma.category.findMany({
     where,
     include: { parent: { select: { id: true, name: true, code: true, active: true } } },
     orderBy: [{ displayOrder: "asc" }, { name: "asc" }],
-  });
+  }), prisma.user.findUnique({
+    where: { id: viewer.id },
+    select: { hideUncategorized: true, hiddenCategories: { select: { categoryId: true } } },
+  })]);
+  const hiddenIds = new Set(preferences?.hiddenCategories.map(({ categoryId }) => categoryId) || []);
   return categories.map((category) => ({
-    ...category, selectable: selectableIds ? selectableIds.has(category.id) : true,
+    ...category, selectable: selectableIds ? selectableIds.has(category.id) : true, hidden: hiddenIds.has(category.id),
   }));
+}
+
+async function getCategoryVisibility(viewer) {
+  const preferences = await prisma.user.findUnique({
+    where: { id: viewer.id },
+    select: { hideUncategorized: true, hiddenCategories: { select: { categoryId: true } } },
+  });
+  return { hideUncategorized: Boolean(preferences?.hideUncategorized), hiddenCategoryIds: preferences?.hiddenCategories.map(({ categoryId }) => categoryId) || [] };
+}
+
+async function setCategoryVisibility({ categoryId, hidden }, viewer) {
+  if (typeof hidden !== "boolean") throw Object.assign(new Error("Informe se a categoria deve ficar oculta."), { statusCode: 400 });
+  if (categoryId === null || categoryId === "UNCATEGORIZED") {
+    if (!authorization.isMaster(viewer) && !viewer.canViewUncategorized) throw authorization.forbidden("Você não possui acesso a Sem categoria.");
+    await prisma.user.update({ where: { id: viewer.id }, data: { hideUncategorized: hidden } });
+    return getCategoryVisibility(viewer);
+  }
+  const visibleCategories = await listCategories(viewer);
+  if (!visibleCategories.some(({ id }) => id === categoryId)) throw Object.assign(new Error("Categoria não encontrada."), { statusCode: 404 });
+  if (hidden) await prisma.userHiddenCategory.upsert({ where: { userId_categoryId: { userId: viewer.id, categoryId } }, update: {}, create: { userId: viewer.id, categoryId } });
+  else await prisma.userHiddenCategory.deleteMany({ where: { userId: viewer.id, categoryId } });
+  return getCategoryVisibility(viewer);
 }
 
 async function createCategory(data, viewer) {
@@ -999,5 +1027,5 @@ async function listUsers(viewer) {
 module.exports = {
   addContactNote, conversationStatuses, createCategory, deleteContactNote, deleteConversation, getConversation, getConversationSummary, getUserAlerts, listCategories,
   listConversations, listUsers, markAsRead, recordConversationActivity, setContactNotePinned, setConversationPinned,
-  updateCategory, updateContactCustomName, updateConversation,
+  getCategoryVisibility, setCategoryVisibility, updateCategory, updateContactCustomName, updateConversation,
 };

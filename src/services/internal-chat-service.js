@@ -1,7 +1,7 @@
 const prisma = require("../database/prisma");
 const authorization = require("./authorization-service");
 const {
-  storeImage,
+  storeInternalFile,
   resolveMedia,
 } = require("./media-storage-service");
 function forbidden(message = "Você não possui acesso a este chat.") {
@@ -492,17 +492,17 @@ async function createTransferNotice({
   });
 }
 
-async function sendImage(chatId, file, caption, viewer) {
+async function sendFile(chatId, file, caption, viewer) {
   await assertMember(chatId, viewer);
 
   if (!file) {
     throw Object.assign(
-      new Error("Selecione uma imagem."),
+      new Error("Selecione um arquivo."),
       { statusCode: 400 }
     );
   }
 
-  const media = await storeImage({
+  const media = await storeInternalFile({
     buffer: file.buffer,
     mimeType: file.mimetype,
     fileName: file.originalname,
@@ -521,6 +521,7 @@ async function sendImage(chatId, file, caption, viewer) {
           mimeType: media.mimeType,
           fileName: media.fileName,
           size: media.size,
+          safeImage: media.safeImage,
         },
       },
     },
@@ -558,19 +559,23 @@ async function getMessageMedia(messageId, viewer) {
   });
 
   if (!message) {
-    throw notFound("Imagem não encontrada.");
+    throw notFound("Arquivo não encontrado.");
   }
 
   const media = message.metadata?.media;
 
   if (!media?.storageKey) {
-    throw notFound("Esta mensagem não possui imagem.");
+    throw notFound("Esta mensagem não possui arquivo.");
   }
 
   return {
     path: resolveMedia(media.storageKey),
     mimeType: media.mimeType || "application/octet-stream",
-    fileName: media.fileName || "imagem",
+    fileName: media.fileName || "arquivo",
+    size: media.size || null,
+    safeImage: media.safeImage === true || (
+      media.safeImage !== false && /[.](jpg|png)$/.test(media.storageKey)
+    ),
   };
 }
 
@@ -582,7 +587,7 @@ module.exports = {
   listMessages,
   markAsRead,
   openDirectChat,
-  sendImage,
+  sendFile,
   sendMessage,
   syncSystemChats,
 };

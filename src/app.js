@@ -50,6 +50,10 @@ const documentUpload = multer({
     return callback(null, true);
   },
 }).single("document");
+const internalFileUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 100 * 1024 * 1024, files: 1 },
+}).single("file");
 
 function createApp({ channel = new MetaCloudChannel() } = {}) {
   const app = express();
@@ -151,9 +155,17 @@ app.get(
 );
 
 app.post(
+  "/api/internal-chats/:id/files",
+  internalFileUpload,
+  internalChatController.file
+);
+
+
+// Compatibilidade com versões antigas da PWA ainda armazenadas em cache.
+app.post(
   "/api/internal-chats/:id/images",
   imageUpload,
-  internalChatController.image
+  internalChatController.file
 );
 
 app.get(
@@ -229,6 +241,8 @@ app.post(
   app.post("/api/conversations/:id/finalize", inbox.finalize);
   app.get("/api/messages/:messageId/media", inbox.media);
   app.get("/api/categories", inbox.categories);
+  app.get("/api/category-visibility", inbox.categoryVisibility);
+  app.patch("/api/category-visibility", inbox.updateCategoryVisibility);
   app.post("/api/categories", inbox.createCategory);
   app.patch("/api/categories/:id", inbox.updateCategory);
   app.get("/api/users", inbox.users);
@@ -248,7 +262,8 @@ app.post(
   app.use((error, _req, res, _next) => {
     if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
       return res.status(413).json({
-        error: error.field === "document" ? "O documento deve ter no máximo 100 MB."
+        error: error.field === "file" ? "O arquivo deve ter no máximo 100 MB."
+          : error.field === "document" ? "O documento deve ter no máximo 100 MB."
           : (error.field === "video" ? "O vídeo deve ter no máximo 16 MB." : "A imagem deve ter no máximo 5 MB."),
       });
     }

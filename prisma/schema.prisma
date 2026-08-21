@@ -150,12 +150,14 @@ model User {
   canViewTeamActivity        Boolean                  @default(false)
   canViewConversationHistory Boolean                  @default(false)
   canViewPreviousMessages    Boolean                  @default(false)
+  hideUncategorized          Boolean                  @default(false)
   createdAt                  DateTime                 @default(now())
   updatedAt                  DateTime                 @updatedAt
   assignedConversations      Conversation[]           @relation("AssignedConversations")
   sentMessages               Message[]                @relation("SentMessages")
   contactNotes               ContactNote[]            @relation("ContactNotes")
   categoryAccess             UserCategoryAccess[]
+  hiddenCategories           UserHiddenCategory[]
   conversationPins           ConversationPin[]
   conversationMasterReads    ConversationMasterRead[]
   conversationActivities     ConversationActivity[]   @relation("ConversationActivityActor")
@@ -233,12 +235,24 @@ model Category {
   parent        Category?            @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
   children      Category[]           @relation("CategoryHierarchy")
   userAccess    UserCategoryAccess[]
+  hiddenByUsers UserHiddenCategory[]
   internalChats InternalChat[]
 
   @@index([parentId, displayOrder])
 }
 
 model UserCategoryAccess {
+  userId     String
+  categoryId String
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([userId, categoryId])
+  @@index([categoryId])
+}
+
+model UserHiddenCategory {
   userId     String
   categoryId String
   createdAt  DateTime @default(now())

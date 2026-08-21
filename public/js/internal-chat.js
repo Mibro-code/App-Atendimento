@@ -3,12 +3,23 @@
     chats: [],
     currentChatId: null,
     currentUser: null,
-    selectedImage: null,
-    selectedImageUrl: null,
+    selectedFile: null,
+    selectedFileUrl: null,
     openSequence: 0,
   };
 
   const $ = (selector) => document.querySelector(selector);
+
+  const formatFileSize = (bytes = 0) => bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.ceil(bytes / 1024))} KB`;
+
+  async function isSafeImageFile(file) {
+    const bytes = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+    const ascii = String.fromCharCode(...bytes);
+    if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return true;
+    if (bytes.length >= 8 && [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every((value, index) => bytes[index] === value)) return true;
+    if (ascii.startsWith("GIF87a") || ascii.startsWith("GIF89a")) return true;
+    return ascii.startsWith("RIFF") && ascii.slice(8, 12) === "WEBP";
+  }
 
   const escapeHtml = (value = "") =>
     String(value).replace(/[&<>'"]/g, (char) => ({
@@ -88,11 +99,11 @@
     container.innerHTML = state.chats.map((chat) => {
       const active = chat.id === state.currentChatId;
       const preview = chat.lastMessage?.text
-        || (
-          chat.lastMessage?.type === "TRANSFER"
+        || (chat.lastMessage?.metadata?.media?.fileName
+          ? `📎 ${chat.lastMessage.metadata.media.fileName}`
+          : (chat.lastMessage?.type === "TRANSFER"
             ? "Nova transferência"
-            : "Sem mensagens"
-        );
+            : "Sem mensagens"));
 
       return `
         <button
@@ -193,29 +204,20 @@
 
       const media = message.metadata?.media;
 
-const image = media?.storageKey
-  ? `
-      <a
-        href="/api/internal-messages/${encodeURIComponent(message.id)}/media"
-        target="_blank"
-        rel="noopener"
-        class="internal-message-image-link"
-      >
-        <img
-          class="internal-message-image"
-          src="/api/internal-messages/${encodeURIComponent(message.id)}/media"
-          alt="${escapeHtml(media.fileName || "Imagem")}"
-          loading="lazy"
-        >
-      </a>
-    `
+const mediaUrl = `/api/internal-messages/${encodeURIComponent(message.id)}/media`;
+const isImage = media?.safeImage === true || (
+  media?.safeImage !== false && /[.](jpg|png)$/.test(media?.storageKey || "")
+);
+const attachment = media?.storageKey ? (isImage
+  ? `<a href="${mediaUrl}" target="_blank" rel="noopener" class="internal-message-image-link"><img class="internal-message-image" src="${mediaUrl}" alt="${escapeHtml(media.fileName || "Imagem")}" loading="lazy"></a>`
+  : `<a href="${mediaUrl}" class="internal-message-file"><span>📎</span><span><b>${escapeHtml(media.fileName || "Arquivo")}</b><small>${formatFileSize(media.size)}</small></span><strong>Baixar</strong></a>`)
   : "";
 
       return `
         <div class="internal-message-row ${own ? "own" : ""}">
           <div class="internal-message-bubble">
   <strong>${escapeHtml(message.senderUser?.name || "Sistema")}</strong>
-  ${image}
+  ${attachment}
   ${
     message.text
       ? `<p>${escapeHtml(message.text)}</p>`
@@ -250,6 +252,7 @@ const image = media?.storageKey
     }[chat.type] || "CHAT INTERNO";
 
     $("#internal-chat-input").disabled = false;
+    $("#internal-chat-file-input").disabled = false;
     $("#internal-chat-send").disabled = false;
 
     renderChatList();
@@ -360,12 +363,12 @@ const image = media?.storageKey
   }
 });
 
-function clearInternalImage() {
-  state.selectedImage = null;
+function clearInternalFile() {
+  state.selectedFile = null;
 
-  if (state.selectedImageUrl) {
-    URL.revokeObjectURL(state.selectedImageUrl);
-    state.selectedImageUrl = null;
+  if (state.selectedFileUrl) {
+    URL.revokeObjectURL(state.selectedFileUrl);
+    state.selectedFileUrl = null;
   }
 
   const preview = $("#internal-chat-image-preview");
@@ -378,29 +381,18 @@ function clearInternalImage() {
   }
 }
 
-function selectInternalImage(file) {
+async function selectInternalFile(file) {
   if (!file) return;
-
-  if (
-    !["image/jpeg", "image/png"].includes(file.type)
-  ) {
-    alert("Cole uma imagem JPG ou PNG.");
-    return;
-  }
-
-  if (file.size > 5 * 1024 * 1024) {
-    alert("A imagem deve ter no máximo 5 MB.");
-    return;
-  }
-
-  clearInternalImage();
-
-  state.selectedImage = file;
-  state.selectedImageUrl = URL.createObjectURL(file);
-
-  $("#internal-chat-image-thumb").src =
-    state.selectedImageUrl;
-
+  if (!file.size) { alert("O arquivo está vazio."); return; }
+  if (file.size > 100 * 1024 * 1024) { alert("O arquivo deve ter no máximo 100 MB."); return; }
+  clearInternalFile();
+  state.selectedFile = file;
+  const image = await isSafeImageFile(file);
+  const thumb = $("#internal-chat-image-thumb");
+  thumb.hidden = !image;
+  if (image) { state.selectedFileUrl = URL.createObjectURL(file); thumb.src = state.selectedFileUrl; }
+  $("#internal-chat-file-name").textContent = file.name || "Arquivo";
+  $("#internal-chat-file-size").textContent = formatFileSize(file.size);
   $("#internal-chat-image-preview").hidden = false;
 }
 
@@ -431,7 +423,7 @@ $("#internal-chat-input")?.addEventListener(
         ? "jpg"
         : "png";
 
-    selectInternalImage(
+    selectInternalFile(
       new File(
         [file],
         `imagem-colada-${Date.now()}.${extension}`,
@@ -439,61 +431,60 @@ $("#internal-chat-input")?.addEventListener(
           type: file.type,
         }
       )
-    );
+    ).catch((error) => alert(error.message));
   }
 );
+$("#internal-chat-file-input")?.addEventListener("change", (event) => {
+  selectInternalFile(event.target.files?.[0]).catch((error) => alert(error.message));
+  event.target.value = "";
+});
 $("#internal-chat-remove-image")?.addEventListener(
   "click",
-  clearInternalImage
+  clearInternalFile
 );
   $("#internal-chat-form")?.addEventListener(
     "submit",
     async (event) => {
       event.preventDefault();
-
       if (!state.currentChatId) return;
 
       const input = $("#internal-chat-input");
+      const fileInput = $("#internal-chat-file-input");
+      const sendButton = $("#internal-chat-send");
       const text = input.value.trim();
+      if (!text && !state.selectedFile) return;
 
-if (!text && !state.selectedImage) return;
-
-      $("#internal-chat-send").disabled = true;
+      sendButton.disabled = true;
+      fileInput.disabled = true;
 
       try {
-         if (state.selectedImage) {
-  const form = new FormData();
+        if (state.selectedFile) {
+          const form = new FormData();
+          form.append("file", state.selectedFile);
+          if (text) form.append("caption", text);
 
-  form.append("image", state.selectedImage);
-
-  if (text) {
-    form.append("caption", text);
-  }
-
-  await api(
-    `/api/internal-chats/${encodeURIComponent(state.currentChatId)}/images`,
-    {
-      method: "POST",
-      body: form,
-    }
-  );
-
-  clearInternalImage();
-} else {
-  await api(
-    `/api/internal-chats/${encodeURIComponent(state.currentChatId)}/messages`,
-    {
-      method: "POST",
-      body: JSON.stringify({ text }),
-    }
-  );
-}
+          await api(
+            `/api/internal-chats/${encodeURIComponent(state.currentChatId)}/files`,
+            { method: "POST", body: form }
+          );
+          clearInternalFile();
+        } else {
+          await api(
+            `/api/internal-chats/${encodeURIComponent(state.currentChatId)}/messages`,
+            {
+              method: "POST",
+              body: JSON.stringify({ text }),
+            }
+          );
+        }
 
         input.value = "";
-
         await openChat(state.currentChatId);
+      } catch (error) {
+        alert(error.message);
       } finally {
-        $("#internal-chat-send").disabled = false;
+        sendButton.disabled = false;
+        fileInput.disabled = false;
         input.focus();
       }
     }

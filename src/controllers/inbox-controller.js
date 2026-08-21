@@ -243,6 +243,14 @@ async signalTransfer(req, res, next) {
       try { return res.json(await inbox.listCategories(req.user)); }
       catch (error) { return next(error); }
     },
+    async categoryVisibility(req, res, next) {
+      try { return res.json(await inbox.getCategoryVisibility(req.user)); }
+      catch (error) { return next(error); }
+    },
+    async updateCategoryVisibility(req, res, next) {
+      try { return res.json(await inbox.setCategoryVisibility(req.body, req.user)); }
+      catch (error) { return next(error); }
+    },
     async createCategory(req, res, next) {
       try {
         const category = await inbox.createCategory(req.body, req.user);
