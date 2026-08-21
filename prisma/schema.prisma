@@ -53,6 +53,18 @@ enum InternalMessageType {
   SYSTEM
 }
 
+enum BotStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+}
+
+enum BotFallbackAction {
+  USE_BOT_FALLBACK
+  TRANSFER_TO_CATEGORY
+  TRANSFER_TO_HUMAN
+}
+
 model Contact {
   id            String         @id @default(cuid())
   channel       Channel        @default(META)
@@ -222,23 +234,92 @@ model ConversationActivity {
 }
 
 model Category {
-  id            String               @id @default(cuid())
-  parentId      String?
-  code          String               @unique
-  name          String
-  color         String?
-  active        Boolean              @default(true)
-  displayOrder  Int                  @default(0)
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
-  conversations Conversation[]
-  parent        Category?            @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
-  children      Category[]           @relation("CategoryHierarchy")
-  userAccess    UserCategoryAccess[]
-  hiddenByUsers UserHiddenCategory[]
-  internalChats InternalChat[]
+  id             String               @id @default(cuid())
+  parentId       String?
+  code           String               @unique
+  name           String
+  color          String?
+  active         Boolean              @default(true)
+  displayOrder   Int                  @default(0)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  conversations  Conversation[]
+  parent         Category?            @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children       Category[]           @relation("CategoryHierarchy")
+  userAccess     UserCategoryAccess[]
+  hiddenByUsers  UserHiddenCategory[]
+  internalChats  InternalChat[]
+  defaultForBots Bot[]
+  botIntents     BotIntent[]
 
   @@index([parentId, displayOrder])
+}
+
+model Bot {
+  id                  String        @id @default(cuid())
+  name                String
+  description         String?
+  status              BotStatus     @default(DRAFT)
+  channel             Channel
+  initialMessage      String        @db.Text
+  outsideHoursMessage String        @db.Text
+  fallbackMessage     String        @db.Text
+  timezone            String        @default("America/Sao_Paulo")
+  defaultCategoryId   String?
+  archivedAt          DateTime?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  defaultCategory     Category?     @relation(fields: [defaultCategoryId], references: [id], onDelete: SetNull)
+  schedules           BotSchedule[]
+  intents             BotIntent[]
+
+  @@index([status, channel])
+  @@index([defaultCategoryId])
+}
+
+model BotSchedule {
+  id        String   @id @default(cuid())
+  botId     String
+  dayOfWeek Int
+  enabled   Boolean  @default(true)
+  startTime String   @db.VarChar(5)
+  endTime   String   @db.VarChar(5)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  bot       Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@unique([botId, dayOfWeek])
+  @@index([botId])
+}
+
+model BotIntent {
+  id              String             @id @default(cuid())
+  botId           String
+  name            String
+  description     String?
+  responseMessage String?            @db.Text
+  priority        Int                @default(0)
+  active          Boolean            @default(true)
+  fallbackAction  BotFallbackAction  @default(USE_BOT_FALLBACK)
+  categoryId      String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  bot             Bot                @relation(fields: [botId], references: [id], onDelete: Cascade)
+  category        Category?          @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  examples        BotIntentExample[]
+
+  @@index([botId, active, priority])
+  @@index([categoryId])
+}
+
+model BotIntentExample {
+  id        String    @id @default(cuid())
+  intentId  String
+  text      String    @db.Text
+  createdAt DateTime  @default(now())
+  intent    BotIntent @relation(fields: [intentId], references: [id], onDelete: Cascade)
+
+  @@index([intentId])
 }
 
 model UserCategoryAccess {
