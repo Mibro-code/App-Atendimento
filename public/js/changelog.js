@@ -1,7 +1,19 @@
 (() => {
-  const APP_VERSION = "0.11.2";
+  const APP_VERSION = "0.11.3";
 
   const CHANGELOG = [
+    {
+      version: "0.11.3",
+      date: "21/08/2026",
+      title: "Categorias pessoais e arquivos no chat interno",
+      changes: [
+        "Permite que cada conta oculte ou restaure individualmente as categorias às quais possui acesso.",
+        "Inclui Sem categoria nas preferências individuais de visibilidade.",
+        "Mantém os alertas de novas mensagens ativos mesmo quando a categoria está oculta.",
+        "Permite enviar qualquer tipo de arquivo no chat interno da equipe, com limite de 100 MB por anexo.",
+        "Exibe imagens com prévia e disponibiliza os demais arquivos para download seguro."
+      ]
+    },
     {
       version: "0.11.2",
       date: "21/08/2026",

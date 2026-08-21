@@ -35,15 +35,15 @@ module.exports = {
     }
   },
 
-  async image(req, res, next) {
+  async file(req, res, next) {
   try {
     if (!req.file) {
       return res.status(400).json({
-        error: "Cole ou selecione uma imagem JPG ou PNG.",
+        error: "Selecione um arquivo de até 100 MB.",
       });
     }
 
-    const message = await chats.sendImage(
+    const message = await chats.sendFile(
       req.params.id,
       req.file,
       req.body.caption,
@@ -65,7 +65,10 @@ async media(req, res, next) {
       req.user
     );
 
-    res.type(media.mimeType);
+    res.type(media.mimeType || "application/octet-stream");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Content-Disposition", `${media.safeImage ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(media.fileName)}`);
+
     res.setHeader(
       "Cache-Control",
       "private, max-age=86400"

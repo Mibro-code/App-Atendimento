@@ -324,6 +324,60 @@ test("cria e edita categorias com código único e cor validada", async () => {
   await assert.rejects(() => inbox.createCategory({ name: "Cor inválida", color: "laranja" }, masterViewer), /Cor da categoria inválida/);
 });
 
+test("categorias ocultas são preferências individuais e não alteram acesso nem alertas", async () => {
+  const support = await prisma.category.findUnique({ where: { code: "SUPORTE" } });
+  const commercial = await prisma.category.findUnique({ where: { code: "COMERCIAL" } });
+  const user = await prisma.user.create({ data: {
+    name: "Preferências visuais", email: "categorias-ocultas@mibro.local", role: "ATENDENTE",
+    canViewUncategorized: true,
+    categoryAccess: { create: [{ categoryId: support.id }] },
+  } });
+  const viewer = { id: user.id, role: "ATENDENTE", canViewUncategorized: true };
+  const conversation = await prisma.conversation.findFirst();
+  const original = {
+    categoryId: conversation.categoryId, status: conversation.status,
+    assignedUserId: conversation.assignedUserId, unreadCount: conversation.unreadCount,
+  };
+  const since = new Date(Date.now() - 1000).toISOString();
+  let message;
+
+  try {
+    await inbox.updateConversation(conversation.id, {
+      categoryId: support.id, status: "AGUARDANDO_RESPOSTA", assignedUserId: null,
+    }, masterViewer);
+    message = await prisma.message.create({ data: {
+      conversationId: conversation.id, externalId: "wamid.hidden-category-alert",
+      direction: "RECEBIDA", status: "RECEBIDA", type: "text",
+      text: "Mensagem em categoria oculta", occurredAt: new Date(),
+    } });
+    await prisma.conversation.update({ where: { id: conversation.id }, data: { unreadCount: 1 } });
+
+    const hidden = await inbox.setCategoryVisibility({ categoryId: support.id, hidden: true }, viewer);
+    assert.ok(hidden.hiddenCategoryIds.includes(support.id));
+    assert.equal((await inbox.listCategories(viewer)).find(({ id }) => id === support.id).hidden, true);
+    assert.equal((await inbox.listCategories(masterViewer)).find(({ id }) => id === support.id).hidden, false);
+    assert.ok((await inbox.listConversations({ category: "SUPORTE" }, viewer)).some(({ id }) => id === conversation.id));
+    assert.ok((await inbox.getUserAlerts({ since }, viewer)).alerts.some(({ id }) => id === `message:${message.id}`));
+
+    await inbox.setCategoryVisibility({ categoryId: "UNCATEGORIZED", hidden: true }, viewer);
+    assert.equal((await inbox.getCategoryVisibility(viewer)).hideUncategorized, true);
+    await assert.rejects(
+      () => inbox.setCategoryVisibility({ categoryId: commercial.id, hidden: true }, viewer),
+      /Categoria não encontrada/
+    );
+
+    await inbox.setCategoryVisibility({ categoryId: support.id, hidden: false }, viewer);
+    await inbox.setCategoryVisibility({ categoryId: "UNCATEGORIZED", hidden: false }, viewer);
+    assert.deepEqual(await inbox.getCategoryVisibility(viewer), {
+      hideUncategorized: false,
+      hiddenCategoryIds: [],
+    });
+  } finally {
+    if (message) await prisma.message.delete({ where: { id: message.id } });
+    await prisma.conversation.update({ where: { id: conversation.id }, data: original });
+    await prisma.user.delete({ where: { id: user.id } });
+  }
+});
 test("salva notas no contato e mantém busca pelo nome", async () => {
   const conversation = await prisma.conversation.findFirst({ include: { contact: true } });
   const note = await inbox.addContactNote(conversation.contactId, { content: "Cliente prefere atendimento no período da tarde." }, masterViewer);

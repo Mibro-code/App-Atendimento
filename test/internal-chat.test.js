@@ -1,13 +1,18 @@
 require("dotenv").config();
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs/promises");
+const os = require("node:os");
+const path = require("node:path");
 const prisma = require("../src/database/prisma");
 const internalChat = require("../src/services/internal-chat-service");
 const inbox = require("../src/services/inbox-service");
+const { resolveMedia } = require("../src/services/media-storage-service");
 
 const testEmails = [
   "chat-interno-a@mibro.test",
   "chat-interno-b@mibro.test",
+  "chat-interno-fora@mibro.test",
 ];
 const testContactExternalId = "internal-chat-custom-name-test";
 
@@ -141,4 +146,49 @@ test("busca de conversas encontra o nome personalizado do contato", async () => 
   assert.equal(results.length, 1);
   assert.equal(results[0].id, conversation.id);
   assert.equal(results[0].contact.customName, "Cliente Prioritário");
+});
+
+test("arquivos internos aceitam formatos diversos com prévia e download restritos", async () => {
+  const previousStorage = process.env.MEDIA_STORAGE_DIR;
+  const storageDir = await fs.mkdtemp(path.join(os.tmpdir(), "app-whats-internal-files-"));
+  process.env.MEDIA_STORAGE_DIR = storageDir;
+
+  try {
+    const [sender, recipient, outsider] = await Promise.all([
+      prisma.user.create({ data: { name: "Remetente", email: testEmails[0], role: "ADMIN" } }),
+      prisma.user.create({ data: { name: "Destinatário", email: testEmails[1], role: "ADMIN" } }),
+      prisma.user.create({ data: { name: "Sem acesso", email: testEmails[2], role: "ADMIN" } }),
+    ]);
+    const direct = await internalChat.openDirectChat(recipient.id, sender);
+    const png = Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      Buffer.from("imagem-segura"),
+    ]);
+    const imageMessage = await internalChat.sendFile(direct.id, {
+      buffer: png, mimetype: "application/octet-stream", originalname: "../../produto.png",
+    }, "Prévia", sender);
+
+    assert.equal(imageMessage.metadata.media.fileName, "produto.png");
+    assert.equal(imageMessage.metadata.media.mimeType, "image/png");
+    assert.equal(imageMessage.metadata.media.safeImage, true);
+    assert.deepEqual(await fs.readFile(resolveMedia(imageMessage.metadata.media.storageKey)), png);
+
+    const fakeImage = await internalChat.sendFile(direct.id, {
+      buffer: Buffer.from("<script>alert('x')</script>"),
+      mimetype: "image/png",
+      originalname: "../../relatorio.html",
+    }, "", sender);
+    assert.equal(fakeImage.metadata.media.safeImage, false);
+    assert.equal(fakeImage.metadata.media.fileName, "relatorio.html");
+
+    const recipientMedia = await internalChat.getMessageMedia(fakeImage.id, recipient);
+    assert.equal(recipientMedia.safeImage, false);
+    assert.match(recipientMedia.path, new RegExp(`${path.sep}app-whats-internal-files-`));
+    await assert.rejects(() => internalChat.getMessageMedia(fakeImage.id, outsider), /não encontrado/i);
+    assert.throws(() => resolveMedia("../../segredo.env"), /Mídia inválida/);
+  } finally {
+    if (previousStorage === undefined) delete process.env.MEDIA_STORAGE_DIR;
+    else process.env.MEDIA_STORAGE_DIR = previousStorage;
+    await fs.rm(storageDir, { recursive: true, force: true });
+  }
 });

@@ -7,7 +7,7 @@ const state = {
   expandedCategories: new Set(), adminUsers: [], auditLogs: [], editingUserId: null, assignedUser: "",
   assignedUserActiveOnly: false, alertCursor: null, checkingAlerts: false,
   customerServiceWindow: null, templates: [], selectedTemplate: null,
-  metaStatus: { templatesConfigured:false }, outboundTemplate: null,
+  metaStatus: { templatesConfigured:false }, outboundTemplate: null, categoryVisibility: { hideUncategorized:false, hiddenCategoryIds:[] }, visibilityMode:false,
 };
 const $ = (selector) => document.querySelector(selector);
 const defaultDocumentTitle = document.title;
@@ -539,52 +539,58 @@ async function checkAlerts() {
   } finally { state.checkingAlerts = false; }
 }
 
+async function setCategoryHidden(categoryId, hidden) {
+  state.categoryVisibility = await api("/api/category-visibility", { method:"PATCH", body:JSON.stringify({ categoryId, hidden }) });
+  state.categorySignature = "";
+  await loadCategories();
+  toast(hidden ? "Categoria ocultada para sua conta." : "Categoria exibida novamente.");
+}
+
 async function loadCategories() {
   const previousPrimaryCategory = $("#category-select").value;
   const previousSubcategory = $("#subcategory-select").value;
-  const categories = await api("/api/categories");
-  const signature = JSON.stringify(categories.map((category) => [category.id, category.parentId, category.parent?.name, category.code, category.name, category.color, category.active, category.displayOrder]));
+  const [categories, visibility] = await Promise.all([api("/api/categories"), api("/api/category-visibility")]);
   state.categories = categories;
+  state.categoryVisibility = visibility;
+  const signature = JSON.stringify([state.visibilityMode, visibility, categories.map((category) => [category.id, category.parentId, category.parent?.name, category.code, category.name, category.color, category.active, category.displayOrder, category.hidden])]);
   if (signature === state.categorySignature) return;
   state.categorySignature = signature;
   state.selectedHeaderSignature = "";
-  const activeIds = new Set(state.categories.filter((category) => category.active).map((category) => category.id));
-  const activeCategories = orderedCategories(state.categories.filter((category) => category.active && (!category.parentId || activeIds.has(category.parentId))));
-  if (state.category && !activeCategories.some((c) => c.code === state.category)) state.category = "";
-  const roots = activeCategories.filter((category) => !category.parentId);
-  $("#category-filters").innerHTML = roots.map((root) => {
-    const children = activeCategories.filter((category) => category.parentId === root.id);
-    const expanded = state.expandedCategories.has(root.id);
-    return `<div class="category-filter-group"><button class="filter category-parent-filter" data-category="${root.code}" data-category-group="${root.id}" aria-expanded="${expanded}"><span><i class="category-dot" style="background:${root.color || "#999"}"></i>${escapeHtml(root.name)}${children.length ? `<i class="category-chevron" aria-hidden="true">${expanded ? "⌃" : "⌄"}</i>` : ""}</span><strong data-category-count="${root.id}">0</strong></button>${children.length ? `<div class="subcategory-filters" data-category-children="${root.id}" ${expanded ? "" : "hidden"}>${children.map((child) => `<button class="filter subcategory-filter" data-category="${child.code}"><span><i class="category-dot" style="background:${child.color || root.color || "#999"}"></i>↳ ${escapeHtml(child.name)}</span><strong data-category-count="${child.id}">0</strong></button>`).join("")}</div>` : ""}</div>`;
+  const activeIds = new Set(categories.filter((category) => category.active).map((category) => category.id));
+  const allActive = orderedCategories(categories.filter((category) => category.active && (!category.parentId || activeIds.has(category.parentId))));
+  const shown = state.visibilityMode ? allActive : allActive.filter((category) => !category.hidden);
+  if (state.category === "UNCATEGORIZED" && visibility.hideUncategorized && !state.visibilityMode) state.category = "";
+  if (state.category && state.category !== "UNCATEGORIZED" && !shown.some((category) => category.code === state.category)) state.category = "";
+  const roots = allActive.filter((category) => !category.parentId);
+  const displayRoots = roots.filter((root) => state.visibilityMode
+    || !root.hidden
+    || shown.some((category) => category.parentId === root.id));
+  const uncategorized = state.currentUser?.canViewUncategorized
+    ? `<div class="category-filter-item ${visibility.hideUncategorized ? "category-hidden" : ""}" ${visibility.hideUncategorized && !state.visibilityMode ? "hidden" : ""}><button class="filter" data-category="UNCATEGORIZED"><span><i class="category-dot uncategorized-dot"></i>Sem categoria</span><strong data-uncategorized-count>0</strong></button><button class="category-eye" data-hide-category="UNCATEGORIZED" data-hidden="${visibility.hideUncategorized}" title="${visibility.hideUncategorized ? "Exibir" : "Ocultar"}">${visibility.hideUncategorized ? "◉" : "⊘"}</button></div>`
+    : "";
+  $("#category-filters").innerHTML = uncategorized + displayRoots.map((root) => {
+    const children = shown.filter((category) => category.parentId === root.id);
+    const rootShown = state.visibilityMode || !root.hidden;
+    const expanded = !rootShown || state.expandedCategories.has(root.id);
+    const row = (category, child = false) => `<div class="category-filter-item ${category.hidden ? "category-hidden" : ""}"><button class="filter ${child ? "subcategory-filter" : "category-parent-filter"}" data-category="${category.code}" ${!child ? `data-category-group="${category.id}" aria-expanded="${expanded}"` : ""}><span><i class="category-dot" style="background:${category.color || root.color || "#999"}"></i>${child ? "↳ " : ""}${escapeHtml(category.name)}${!child && children.length ? `<i class="category-chevron">${expanded ? "⌃" : "⌄"}</i>` : ""}</span><strong data-category-count="${category.id}">0</strong></button><button class="category-eye" data-hide-category="${category.id}" data-hidden="${category.hidden}" title="${category.hidden ? "Exibir" : "Ocultar"}">${category.hidden ? "◉" : "⊘"}</button></div>`;
+    const rootRow = rootShown ? row(root) : `<div class="category-group-label"><i class="category-dot" style="background:${root.color || "#999"}"></i><span>${escapeHtml(root.name)}</span><small>principal oculta</small></div>`;
+    return `<div class="category-filter-group">${rootRow}${children.length ? `<div class="subcategory-filters" data-category-children="${root.id}" ${expanded ? "" : "hidden"}>${children.map((child) => row(child, true)).join("")}</div>` : ""}</div>`;
   }).join("");
   $("#category-select").innerHTML = `${state.currentUser?.canViewUncategorized ? `<option value="">Sem categoria</option>` : `<option value="" disabled>Selecione a categoria</option>`}` + roots.map((category) => `<option value="${category.id}" data-selectable="${category.selectable !== false}">${escapeHtml(category.name)}</option>`).join("");
   $("#category-parent").innerHTML = `<option value="">Categoria principal</option>` + roots.map((category) => `<option value="${category.id}">${escapeHtml(category.name)}</option>`).join("");
   if ([...$("#category-select").options].some((option) => option.value === previousPrimaryCategory)) $("#category-select").value = previousPrimaryCategory;
   populateSubcategorySelect($("#category-select").value, previousSubcategory);
+  document.querySelectorAll("[data-hide-category]").forEach((button) => button.addEventListener("click", () => setCategoryHidden(button.dataset.hideCategory, button.dataset.hidden !== "true").catch((error) => toast(error.message, true))));
   document.querySelectorAll("[data-category]").forEach((button) => button.addEventListener("click", () => {
     if (button.dataset.categoryGroup) {
       const groupId = button.dataset.categoryGroup; const children = document.querySelector(`[data-category-children="${groupId}"]`);
-      if (children) {
-        children.hidden = !children.hidden;
-        button.setAttribute("aria-expanded", String(!children.hidden));
-        button.querySelector(".category-chevron").textContent = children.hidden ? "⌄" : "⌃";
-        if (children.hidden) state.expandedCategories.delete(groupId); else state.expandedCategories.add(groupId);
-      }
+      if (children) { children.hidden = !children.hidden; button.setAttribute("aria-expanded", String(!children.hidden)); button.querySelector(".category-chevron").textContent = children.hidden ? "⌄" : "⌃"; if (children.hidden) state.expandedCategories.delete(groupId); else state.expandedCategories.add(groupId); }
     }
     document.querySelectorAll(".filter").forEach((item) => item.classList.remove("active")); button.classList.add("active"); state.category = button.dataset.category; state.status = ""; loadConversations();
   }));
   document.querySelectorAll(".filter").forEach((item) => item.classList.remove("active"));
-  const selectedFilter = state.category
-    ? [...document.querySelectorAll("[data-category]")].find((item) => item.dataset.category === state.category)
-    : [...document.querySelectorAll("[data-status]")].find((item) => item.dataset.status === state.status);
+  const selectedFilter = state.category ? [...document.querySelectorAll("[data-category]")].find((item) => item.dataset.category === state.category) : [...document.querySelectorAll("[data-status]")].find((item) => item.dataset.status === state.status);
   selectedFilter?.classList.add("active");
-  if (selectedFilter?.closest(".subcategory-filters")) {
-    const children = selectedFilter.closest(".subcategory-filters"); const groupId = children.dataset.categoryChildren;
-    children.hidden = false; state.expandedCategories.add(groupId);
-    const parentButton = document.querySelector(`[data-category-group="${groupId}"]`);
-    parentButton?.setAttribute("aria-expanded", "true");
-    if (parentButton?.querySelector(".category-chevron")) parentButton.querySelector(".category-chevron").textContent = "⌃";
-  }
   renderCategoryManager();
 }
 
@@ -631,6 +637,7 @@ async function loadConversations() {
     const childIds = category?.parentId ? [] : state.categories.filter((item) => item.parentId === categoryId).map((item) => item.id);
     counter.textContent = [categoryId, ...childIds].reduce((total, id) => total + (summary.categories[id] || 0), 0);
   });
+  document.querySelector("[data-uncategorized-count]")?.replaceChildren(String(summary.categories.null || 0));
   const signature = JSON.stringify({
     selectedId: state.selectedId,
     conversations: state.conversations.map(conversationSignature),
@@ -1143,6 +1150,12 @@ $("#close-transfer").addEventListener("click", () => $("#transfer-dialog").close
 $("#cancel-transfer").addEventListener("click", () => $("#transfer-dialog").close());
 $("#transfer-dialog").addEventListener("click", (event) => { if (event.target === $("#transfer-dialog")) $("#transfer-dialog").close(); });
 $("#assignee-select").addEventListener("change", async (event) => { try { await api(`/api/conversations/${state.selectedId}`, { method:"PATCH", body:JSON.stringify({ assignedUserId:event.target.value || null }) }); toast(event.target.value ? "Responsável atualizado." : "Conversa sem responsável."); await openConversation(state.selectedId); } catch (e) { toast(e.message, true); } });
+$("#toggle-hidden-categories").addEventListener("click", async () => {
+  state.visibilityMode = !state.visibilityMode;
+  $("#toggle-hidden-categories").classList.toggle("active", state.visibilityMode);
+  $("#toggle-hidden-categories").title = state.visibilityMode ? "Ocultar categorias escondidas" : "Mostrar categorias ocultas";
+  state.categorySignature = ""; await loadCategories();
+});
 $("#claim-conversation").addEventListener("click", async () => { try { await api(`/api/conversations/${state.selectedId}/claim`, { method:"POST" }); toast("Conversa atribuída a você."); await openConversation(state.selectedId); } catch (e) { toast(e.message, true); } });
 $("#manage-categories").addEventListener("click", () => { renderCategoryManager(); $("#category-dialog").showModal(); });
 $("#close-categories").addEventListener("click", () => $("#category-dialog").close());

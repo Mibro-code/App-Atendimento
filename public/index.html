@@ -20,7 +20,7 @@
     <div class="app-version-actions">
   <button id="changelog-button" class="changelog-button" type="button" title="Ver novidades e histórico de versões">
     <span class="changelog-icon" aria-hidden="true">▤</span>
-    <span id="app-version-label">v0.11.2</span>
+    <span id="app-version-label">v0.11.3</span>
     <span id="changelog-unread-dot" class="changelog-unread-dot" hidden></span>
   </button>
 
@@ -46,7 +46,7 @@
         <button class="filter" data-status="AGUARDANDO_RESPOSTA"><span>Aguardando resposta</span><strong id="count-waiting">0</strong></button>
         <button class="filter" data-status="BOT"><span>Bot</span><strong id="count-bot">0</strong></button>
         <button class="filter" data-status="FINALIZADO"><span>Finalizados</span><strong id="count-finalized">0</strong></button>
-        <div class="categories-heading"><p class="nav-title categories-title">CATEGORIAS</p><button id="manage-categories" type="button" title="Criar e editar categorias" aria-label="Gerenciar categorias">+</button></div>
+        <div class="categories-heading"><p class="nav-title categories-title">CATEGORIAS</p><span><button id="toggle-hidden-categories" type="button" title="Mostrar categorias ocultas" aria-label="Mostrar categorias ocultas">◉</button><button id="manage-categories" type="button" title="Criar e editar categorias" aria-label="Gerenciar categorias">+</button></span></div>
         <div id="category-filters"></div>
 <div class="internal-chat-nav">
   <p class="nav-title">COMUNICAÇÃO</p>
@@ -249,7 +249,7 @@
   <div class="changelog-current">
     <div>
       <small>VERSÃO ATUAL</small>
-      <strong id="changelog-current-version">v0.11.2</strong>
+      <strong id="changelog-current-version">v0.11.3</strong>
     </div>
     <span id="changelog-current-date"></span>
   </div>
@@ -301,13 +301,15 @@
         <div id="internal-chat-image-preview" class="internal-chat-image-preview" hidden>
           <img id="internal-chat-image-thumb" alt="Imagem pronta para envio">
 
+          <span class="internal-chat-file-info"><b id="internal-chat-file-name"></b><small id="internal-chat-file-size"></small></span>
   <button
     id="internal-chat-remove-image"
     type="button"
-    title="Remover imagem"
-    aria-label="Remover imagem"
+    title="Remover arquivo"
+    aria-label="Remover arquivo"
   >×</button>
         </div>
+        <label class="internal-chat-attach" title="Anexar arquivo de até 100 MB"><input id="internal-chat-file-input" type="file" disabled><span>📎</span></label>
         <textarea
           id="internal-chat-input"
           maxlength="4000"

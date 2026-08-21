@@ -7,6 +7,7 @@ const MAX_STICKER_SIZE = 500 * 1024;
 const MAX_AUDIO_SIZE = 16 * 1024 * 1024;
 const MAX_VIDEO_SIZE = 16 * 1024 * 1024;
 const MAX_DOCUMENT_SIZE = 100 * 1024 * 1024;
+const MAX_INTERNAL_FILE_SIZE = 100 * 1024 * 1024;
 const documentMimeTypes = new Set([
   "text/plain", "application/pdf", "application/msword", "application/vnd.ms-excel",
   "application/vnd.ms-powerpoint", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -134,13 +135,22 @@ function storageRoot() {
 }
 
 function safeFileName(value, mimeType) {
-  const mediaKind = documentMimeTypes.has(mimeType) ? "documento"
-    : mimeType === "image/webp" ? "figurinha"
-    : (mimeType.startsWith("audio/") ? "audio" : (mimeType.startsWith("video/") ? "video" : "imagem"));
-  const fallback = `${mediaKind}${mediaExtensions.get(mimeType)}`;
+  const fallback = `arquivo${mediaExtensions.get(mimeType) || ".bin"}`;
   const name = path.basename(typeof value === "string" ? value : fallback)
     .replace(/[^a-zA-Z0-9._ -]/g, "_").slice(0, 120);
   return name || fallback;
+}
+
+function detectSafeImageMimeType(buffer) {
+  if (!Buffer.isBuffer(buffer)) return null;
+  const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return "image/jpeg";
+  if (buffer.length >= pngSignature.length && buffer.subarray(0, pngSignature.length).equals(pngSignature)) return "image/png";
+  if (buffer.length >= 6 && ["GIF87a", "GIF89a"].includes(buffer.subarray(0, 6).toString("ascii"))) return "image/gif";
+  if (buffer.length >= 12
+    && buffer.subarray(0, 4).toString("ascii") === "RIFF"
+    && buffer.subarray(8, 12).toString("ascii") === "WEBP") return "image/webp";
+  return null;
 }
 
 async function storeMedia({ buffer, mimeType, fileName, stableId, kind }) {
@@ -149,15 +159,24 @@ async function storeMedia({ buffer, mimeType, fileName, stableId, kind }) {
   else if (kind === "video") validateVideo({ buffer, mimeType });
   else if (kind === "sticker") validateSticker({ buffer, mimeType });
   else if (kind === "document") validateDocument({ buffer, mimeType });
+  else if (kind === "internal") validateInternalFile({ buffer });
   else validateImage({ buffer, mimeType });
-  const extension = mediaExtensions.get(mimeType);
+  const safeImageMimeType = kind === "internal" ? detectSafeImageMimeType(buffer) : null;
+  if (safeImageMimeType) mimeType = safeImageMimeType;
+  const extension = kind === "internal" ? ".bin" : mediaExtensions.get(mimeType);
   const identity = stableId
     ? crypto.createHash("sha256").update(String(stableId)).digest("hex")
     : crypto.randomUUID().replaceAll("-", "");
   const storageKey = `${identity}${extension}`;
   await fs.mkdir(storageRoot(), { recursive: true });
   await fs.writeFile(path.join(storageRoot(), storageKey), buffer);
-  return { storageKey, mimeType, fileName: safeFileName(fileName, mimeType), size: buffer.length };
+  return {
+    storageKey,
+    mimeType: mimeType || "application/octet-stream",
+    fileName: safeFileName(fileName, mimeType),
+    size: buffer.length,
+    ...(kind === "internal" ? { safeImage: Boolean(safeImageMimeType) } : {}),
+  };
 }
 
 async function storeImage(options) {
@@ -171,6 +190,17 @@ async function storeAudio(options) {
 async function storeVideo(options) {
   return storeMedia({ ...options, kind: "video" });
 }
+function validateInternalFile({ buffer }) {
+  if (!Buffer.isBuffer(buffer) || !buffer.length) {
+    throw Object.assign(new Error("O arquivo está vazio."), { statusCode: 400 });
+  }
+  if (buffer.length > MAX_INTERNAL_FILE_SIZE) {
+    throw Object.assign(new Error("O arquivo deve ter no máximo 100 MB."), { statusCode: 413 });
+  }
+}
+
+async function storeInternalFile(options) { return storeMedia({ ...options, kind: "internal" }); }
+
 
 async function storeSticker(options) {
   return storeMedia({ ...options, kind: "sticker" });
@@ -181,7 +211,7 @@ async function storeDocument(options) {
 }
 
 function resolveMedia(storageKey) {
-  if (!/^[a-f0-9]{32,64}\.(jpg|png|webp|aac|m4a|mp3|amr|ogg|mp4|3gp|pdf|txt|doc|docx|xls|xlsx|ppt|pptx)$/.test(storageKey || "")) {
+  if (!/^[a-f0-9]{32,64}\.(jpg|png|webp|aac|m4a|mp3|amr|ogg|mp4|3gp|pdf|txt|doc|docx|xls|xlsx|ppt|pptx|bin)$/.test(storageKey || "")) {
     throw Object.assign(new Error("Mídia inválida."), { statusCode: 404 });
   }
   return path.join(storageRoot(), storageKey);
@@ -195,6 +225,6 @@ async function removeImage(storageKey) {
 }
 
 module.exports = {
-  MAX_AUDIO_SIZE, MAX_DOCUMENT_SIZE, MAX_IMAGE_SIZE, MAX_STICKER_SIZE, MAX_VIDEO_SIZE, documentMimeTypes, normalizeMimeType, removeImage, resolveImage, resolveMedia,
-  storeAudio, storeDocument, storeImage, storeSticker, storeVideo, validateAudio, validateDocument, validateImage, validateSticker, validateVideo,
+  MAX_AUDIO_SIZE, MAX_DOCUMENT_SIZE, MAX_IMAGE_SIZE, MAX_INTERNAL_FILE_SIZE, MAX_STICKER_SIZE, MAX_VIDEO_SIZE, detectSafeImageMimeType, documentMimeTypes, normalizeMimeType, removeImage, resolveImage, resolveMedia,
+  storeAudio, storeDocument, storeImage, storeInternalFile, storeSticker, storeVideo, validateAudio, validateDocument, validateImage, validateInternalFile, validateSticker, validateVideo,
 };
