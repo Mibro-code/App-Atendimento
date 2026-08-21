@@ -286,6 +286,8 @@ html[data-theme="dark"] .audit-main pre { color:#cbd1d8; background:#24282e; }
 .team-dialog .team-form-actions { z-index:3; bottom:0; box-shadow:0 -10px 20px #ffffffee; }
 .team-category-groups { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 .team-category-group { overflow:hidden; border:1px solid #e3e6e9; border-radius:10px; background:#fafafa; }
+.team-category-group.uncategorized { align-self:start; }
+.uncategorized-dot { background:#8a929b; }
 .team-category-option.root { min-height:48px; border-radius:0; background:#f1f3f5; }
 .team-category-option.root > span { min-width:0; }
 .team-category-option.root b,.team-category-option.root small { display:block; }

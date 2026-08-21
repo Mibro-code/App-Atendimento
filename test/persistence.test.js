@@ -380,6 +380,7 @@ test("fixa conversas por conta, restringe exclusão de notas e registra o histó
     conversationId: conversation.id, externalId: "wamid.alert.assigned", direction: "RECEBIDA",
     status: "RECEBIDA", type: "text", text: "Resposta para o responsável", occurredAt: new Date(),
   } });
+  await prisma.conversation.update({ where: { id: conversation.id }, data: { unreadCount: 1 } });
   const assignedAlerts = await inbox.getUserAlerts({ since: assignedAlertStart }, { id: otherMaster.id, role: "ADMIN" });
   const unrelatedAlerts = await inbox.getUserAlerts({ since: assignedAlertStart }, { id: master.id, role: "ADMIN" });
   assert.ok(assignedAlerts.alerts.some(({ id }) => id === `message:${assignedMessage.id}`));
@@ -387,12 +388,21 @@ test("fixa conversas por conta, restringe exclusão de notas e registra o histó
   assert.equal((await inbox.getConversationSummary({ id: otherMaster.id, role: "ADMIN" })).attentionWaiting, 1);
   assert.equal((await inbox.getConversationSummary({ id: master.id, role: "ADMIN" })).attentionWaiting, 0);
 
+  await inbox.markAsRead(conversation.id, { viewer: { id: otherMaster.id, role: "ADMIN" } });
+  assert.equal((await inbox.getConversationSummary({ id: otherMaster.id, role: "ADMIN" })).attentionWaiting, 0);
+  assert.equal((await inbox.getConversation(conversation.id, { id: otherMaster.id, role: "ADMIN" })).status, "AGUARDANDO_RESPOSTA");
+
   await prisma.conversation.update({ where: { id: conversation.id }, data: { assignedUserId: null } });
+  await prisma.conversationMasterRead.update({
+    where: { userId_conversationId: { userId: otherMaster.id, conversationId: conversation.id } },
+    data: { readAt: new Date(Date.now() - 1000) },
+  });
   const openAlertStart = new Date(Date.now() - 1000).toISOString();
   const openMessage = await prisma.message.create({ data: {
     conversationId: conversation.id, externalId: "wamid.alert.unassigned", direction: "RECEBIDA",
     status: "RECEBIDA", type: "text", text: "Resposta sem responsável", occurredAt: new Date(),
   } });
+  await prisma.conversation.update({ where: { id: conversation.id }, data: { unreadCount: 1 } });
   const openAlertsForMaster = await inbox.getUserAlerts({ since: openAlertStart }, { id: master.id, role: "ADMIN" });
   const openAlertsForOther = await inbox.getUserAlerts({ since: openAlertStart }, { id: otherMaster.id, role: "ADMIN" });
   assert.ok(openAlertsForMaster.alerts.some(({ id }) => id === `message:${openMessage.id}`));

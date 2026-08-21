@@ -1,7 +1,21 @@
 (() => {
-  const APP_VERSION = "0.11.1";
+  const APP_VERSION = "0.11.2";
 
   const CHANGELOG = [
+    {
+      version: "0.11.2",
+      date: "21/08/2026",
+      title: "Alertas por leitura e acesso sem categoria",
+      changes: [
+        "Mantém as conversas em Aguardando resposta mesmo depois que a mensagem do cliente é visualizada.",
+        "Interrompe o alerta vermelho, o título piscando e as notificações assim que a mensagem é visualizada.",
+        "Marca como visualizadas as novas mensagens que chegam enquanto a conversa está aberta.",
+        "Preserva o controle de leitura individual para cada conta Master.",
+        "Adiciona Sem categoria ao quadro de categorias liberadas de cada membro da equipe.",
+        "Permite definir exatamente quais usuários podem visualizar conversas ainda não classificadas.",
+        "Fortalece o controle de leitura para mensagens recebidas com atraso pelo webhook."
+      ]
+    },
     {
       version: "0.11.1",
       date: "20/08/2026",

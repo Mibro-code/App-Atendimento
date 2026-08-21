@@ -204,7 +204,7 @@ async function listConversations({ search, category, status, assignedUser, activ
             type: {
               not: "reaction",
             },
-            occurredAt: {
+            createdAt: {
               gt: readAt,
             },
           },
@@ -252,6 +252,7 @@ async function getUserAlerts({ since }, viewer) {
   const checkedAt = new Date();
   const occurredAfter = alertSince(since);
   const scope = await authorization.conversationScope(viewer);
+  const master = authorization.isMaster(viewer);
   const waitingForViewer = {
     AND: [scope, { status: "AGUARDANDO_RESPOSTA" }, {
       OR: [{ assignedUserId: null }, { assignedUserId: viewer.id }],
@@ -260,11 +261,17 @@ async function getUserAlerts({ since }, viewer) {
   const [messages, activities] = await Promise.all([
     prisma.message.findMany({
       where: {
-        occurredAt: { gt: occurredAfter, lte: checkedAt }, direction: "RECEBIDA", type: { not: "reaction" },
+        createdAt: { gt: occurredAfter, lte: checkedAt }, direction: "RECEBIDA", type: { not: "reaction" },
         conversation: { is: waitingForViewer },
       },
-      include: { conversation: { include: { contact: true, category: { include: { parent: true } } } } },
-      orderBy: { occurredAt: "asc" }, take: 30,
+      include: { conversation: { include: {
+        contact: true,
+        category: { include: { parent: true } },
+        ...(master ? { masterReads: {
+          where: { userId: viewer.id }, select: { readAt: true }, take: 1,
+        } } : {}),
+      } } },
+      orderBy: { createdAt: "asc" }, take: 30,
     }),
     prisma.conversationActivity.findMany({
       where: {
@@ -277,7 +284,13 @@ async function getUserAlerts({ since }, viewer) {
     }),
   ]);
 
-const incoming = messages.map((message) => {
+const incoming = messages.filter((message) => {
+  if (!master) return message.conversation.unreadCount > 0;
+  const readAt = message.conversation.masterReads?.[0]?.readAt;
+  return readAt
+    ? new Date(message.createdAt) > new Date(readAt)
+    : message.conversation.unreadCount > 0;
+}).map((message) => {
   const contactName =
     message.conversation.contact.customName ||
     message.conversation.contact.name ||
@@ -392,7 +405,11 @@ async function getConversation(id, viewer) {
 
 async function getConversationSummary(viewer) {
   const scope = await authorization.conversationScope(viewer);
-  const [total, statuses, categories, attentionWaiting] = await Promise.all([
+  const master = authorization.isMaster(viewer);
+  const attentionScope = { AND: [scope, { status: "AGUARDANDO_RESPOSTA" }, {
+    OR: [{ assignedUserId: null }, { assignedUserId: viewer.id }],
+  }] };
+  const [total, statuses, categories, waitingConversations] = await Promise.all([
     prisma.conversation.count({ where: scope }),
     prisma.conversation.groupBy({ by: ["status"], where: scope, _count: { _all: true } }),
     prisma.conversation.groupBy({
@@ -400,15 +417,32 @@ async function getConversationSummary(viewer) {
       where: { AND: [{ categoryId: { not: null } }, scope] },
       _count: { _all: true },
     }),
-    prisma.conversation.count({
-      where: { AND: [scope, { status: "AGUARDANDO_RESPOSTA" }, {
-        OR: [{ assignedUserId: null }, { assignedUserId: viewer.id }],
-      }] },
+    prisma.conversation.findMany({
+      where: attentionScope,
+      select: {
+        id: true,
+        unreadCount: true,
+        ...(master ? { masterReads: {
+          where: { userId: viewer.id }, select: { readAt: true }, take: 1,
+        } } : {}),
+      },
     }),
   ]);
+  const unreadWaiting = master
+    ? await Promise.all(waitingConversations.map(async (conversation) => {
+        const readAt = conversation.masterReads?.[0]?.readAt;
+        if (!readAt) return conversation.unreadCount > 0;
+        return (await prisma.message.count({ where: {
+          conversationId: conversation.id,
+          direction: "RECEBIDA",
+          type: { not: "reaction" },
+          createdAt: { gt: readAt },
+        } })) > 0;
+      }))
+    : waitingConversations.map((conversation) => conversation.unreadCount > 0);
   return {
     total,
-    attentionWaiting,
+    attentionWaiting: unreadWaiting.filter(Boolean).length,
     statuses: Object.fromEntries(statuses.map((item) => [item.status, item._count._all])),
     categories: Object.fromEntries(categories.map((item) => [item.categoryId, item._count._all])),
   };
@@ -711,20 +745,25 @@ async function setConversationPinned(id, { pinned }, viewer) {
 }
 
 async function markAsRead(id, { channel, viewer } = {}) {
-  const latestUnread = await prisma.message.findFirst({
-    where: {
-      conversationId: id,
-      direction: "RECEBIDA",
-      status: { not: "LIDA" },
-      externalId: { not: null },
-    },
-    orderBy: {
-      occurredAt: "desc",
-    },
-    select: {
-      externalId: true,
-    },
-  });
+  const [latestUnread, latestIncoming] = await Promise.all([
+    prisma.message.findFirst({
+      where: {
+        conversationId: id,
+        direction: "RECEBIDA",
+        status: { not: "LIDA" },
+        externalId: { not: null },
+      },
+      orderBy: { occurredAt: "desc" },
+      select: { externalId: true },
+    }),
+    prisma.message.findFirst({
+      where: { conversationId: id, direction: "RECEBIDA", type: { not: "reaction" } },
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true },
+    }),
+  ]);
+  const now = new Date();
+  const viewedAt = latestIncoming?.createdAt > now ? latestIncoming.createdAt : now;
 
   let readReceiptSent = false;
 
@@ -767,11 +806,12 @@ async function markAsRead(id, { channel, viewer } = {}) {
           },
         },
         update: {
-          readAt: new Date(),
+          readAt: viewedAt,
         },
         create: {
           userId: viewer.id,
           conversationId: id,
+          readAt: viewedAt,
         },
       });
 

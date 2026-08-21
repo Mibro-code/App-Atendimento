@@ -744,7 +744,7 @@ async function refreshInbox() {
   realtimeRefreshRunning = true;
   try {
     await loadCategories();
-    if (state.selectedId) await openConversation(state.selectedId, { refreshList:false, markRead:false });
+    if (state.selectedId) await openConversation(state.selectedId, { refreshList:false, markRead:!document.hidden });
     await loadConversations();
     await checkAlerts();
   } finally {
@@ -790,16 +790,20 @@ function renderActivities(activities) {
 
 const roleLabel = (role) => ({ ADMIN:"Master", SUPERVISOR:"Supervisor", ATENDENTE:"Atendente" })[role] || role;
 
-function renderTeamCategoryAccess(selectedIds = []) {
+function renderTeamCategoryAccess(selectedIds = [], canViewUncategorized = false) {
   const selected = new Set(selectedIds);
   const active = state.categories.filter((category) => category.active);
   const roots = active.filter((category) => !category.parentId);
-  $("#team-category-access").innerHTML = `<div class="team-category-groups">${roots.map((root) => {
+  $("#team-category-access").innerHTML = `<div class="team-category-groups">
+    <section class="team-category-group uncategorized">
+      <label class="team-category-option root"><input id="permission-uncategorized" type="checkbox" ${canViewUncategorized ? "checked" : ""}><i class="category-dot uncategorized-dot"></i><span><b>Sem categoria</b><small>Conversas que ainda não foram classificadas.</small></span></label>
+    </section>
+    ${roots.map((root) => {
     const children = active.filter((category) => category.parentId === root.id);
     const rootSelected = selected.has(root.id);
     return `<section class="team-category-group" data-category-group="${escapeHtml(root.id)}">
-      <label class="team-category-option root"><input class="team-category-root" type="checkbox" value="${escapeHtml(root.id)}" ${rootSelected ? "checked" : ""}><i class="category-dot" style="background:${root.color || "#999"}"></i><span><b>${escapeHtml(root.name)}</b><small>${children.length ? `${children.length} subcategoria${children.length === 1 ? "" : "s"}` : "Categoria principal"}</small></span></label>
-      ${children.length ? `<div class="team-subcategory-list">${children.map((child) => `<label class="team-category-option child"><input type="checkbox" value="${escapeHtml(child.id)}" ${selected.has(child.id) ? "checked" : ""}><i class="category-dot" style="background:${child.color || root.color || "#999"}"></i><span>${escapeHtml(child.name)}</span></label>`).join("")}</div>` : ""}
+      <label class="team-category-option root"><input class="team-category-root team-category-access-input" type="checkbox" value="${escapeHtml(root.id)}" ${rootSelected ? "checked" : ""}><i class="category-dot" style="background:${root.color || "#999"}"></i><span><b>${escapeHtml(root.name)}</b><small>${children.length ? `${children.length} subcategoria${children.length === 1 ? "" : "s"}` : "Categoria principal"}</small></span></label>
+      ${children.length ? `<div class="team-subcategory-list">${children.map((child) => `<label class="team-category-option child"><input class="team-category-access-input" type="checkbox" value="${escapeHtml(child.id)}" ${selected.has(child.id) ? "checked" : ""}><i class="category-dot" style="background:${child.color || root.color || "#999"}"></i><span>${escapeHtml(child.name)}</span></label>`).join("")}</div>` : ""}
     </section>`;
   }).join("")}</div>`;
 }
@@ -835,7 +839,6 @@ function editTeamUser(userId) {
   $("#team-password-label").textContent = "Nova senha (opcional)";
   $("#team-active").checked = user.active;
   $("#team-active-field").hidden = false;
-  $("#permission-uncategorized").checked = user.canViewUncategorized;
   $("#permission-categories").checked = user.canManageCategories;
   $("#permission-transfer").checked = user.canTransferConversations;
   $("#permission-team").checked = user.canViewTeamActivity;
@@ -843,7 +846,7 @@ function editTeamUser(userId) {
   $("#permission-previous-messages").checked = user.canViewPreviousMessages;
   $("#team-form-eyebrow").textContent = "EDITAR CONTA";
   $("#team-form-title").textContent = user.name;
-  renderTeamCategoryAccess(user.categoryAccess.map((access) => access.categoryId));
+  renderTeamCategoryAccess(user.categoryAccess.map((access) => access.categoryId), user.canViewUncategorized);
   syncMasterForm();
 }
 
@@ -1040,7 +1043,7 @@ $("#team-form").addEventListener("submit", async (event) => {
     canViewTeamActivity: $("#permission-team").checked,
     canViewConversationHistory: $("#permission-history").checked,
     canViewPreviousMessages: $("#permission-previous-messages").checked,
-    categoryIds: [...document.querySelectorAll("#team-category-access input:checked")].map((input) => input.value),
+    categoryIds: [...document.querySelectorAll("#team-category-access .team-category-access-input:checked")].map((input) => input.value),
   };
   if (password) body.password = password;
   if (state.editingUserId) body.active = $("#team-active").checked;
