@@ -10,7 +10,7 @@ const { saveIncoming, updateStatus, sendTextToPhone } = require("./services/mess
 const { handleIncomingTriage } = require("./services/triage-bot-service");
 const { createInboxController } = require("./controllers/inbox-controller");
 const authController = require("./controllers/auth-controller");
-const { authenticate, requirePageAuth } = require("./middleware/auth");
+const { authenticate, requireMasterPage, requirePageAuth } = require("./middleware/auth");
 const verifyMetaSignature = require("./middleware/meta-signature");
 const integrationAuth = require("./middleware/integration-auth");
 const { registerExternalLead } = require("./services/external-lead-service");
@@ -19,6 +19,7 @@ const authorization = require("./services/authorization-service");
 const userManagementController = require("./controllers/user-management-controller");
 const auditController = require("./controllers/audit-controller");
 const { documentMimeTypes } = require("./services/media-storage-service");
+const botController = require("./controllers/bot-controller");
 const internalChatController = require("./controllers/internal-chat-controller");
 const imageUpload = multer({
   storage: multer.memoryStorage(),
@@ -139,6 +140,9 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   app.post("/api/auth/logout", authController.logout);
 
   app.get(["/", "/index.html"], requirePageAuth, (_req, res) => res.sendFile(path.join(process.cwd(), "public", "index.html")));
+  app.get(["/bots", "/bots.html"], requireMasterPage, (_req, res) => (
+    res.sendFile(path.join(process.cwd(), "public", "bots.html"))
+  ));
   app.get("/service-worker.js", (_req, res) => {
     res.set("Cache-Control", "no-cache, no-store, must-revalidate");
     return res.sendFile(path.join(process.cwd(), "public", "service-worker.js"));
@@ -258,6 +262,17 @@ app.post(
   app.post("/api/admin/users", userManagementController.create);
   app.patch("/api/admin/users/:id", userManagementController.update);
   app.get("/api/team/users", userManagementController.activity);
+  app.get("/api/bots", botController.list);
+  app.post("/api/bots", botController.create);
+  app.get("/api/bots/:botId", botController.detail);
+  app.patch("/api/bots/:botId", botController.update);
+  app.patch("/api/bots/:botId/status", botController.status);
+  app.delete("/api/bots/:botId", botController.archive);
+  app.put("/api/bots/:botId/schedules", botController.schedules);
+  app.post("/api/bots/:botId/intents", botController.createIntent);
+  app.patch("/api/bots/:botId/intents/:intentId", botController.updateIntent);
+  app.delete("/api/bots/:botId/intents/:intentId", botController.deleteIntent);
+  app.post("/api/bots/:botId/simulate", botController.simulate);
 
   app.use((error, _req, res, _next) => {
     if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {

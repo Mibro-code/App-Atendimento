@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#ef5b2a">
+  <link rel="icon" type="image/png" sizes="192x192" href="/assets/app-icon-192.png">
+  <title>Bots &bull; Central de Atendimento</title>
+  <script>try{const saved=localStorage.getItem("mibro-theme");document.documentElement.dataset.theme=saved||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch{}</script>
+  <link rel="stylesheet" href="/css/bots.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/"><img src="/assets/mibro-logo.png" alt="Mibro"><span></span><small>Gerenciamento de Bots</small></a>
+    <div class="phase-badge">FASE 1 &bull; CONFIGURAÇÃO LOCAL</div>
+    <a class="back-link" href="/">&larr; Central</a>
+    <button id="theme-toggle" class="round-button" type="button" title="Alternar tema">&#9790;</button>
+    <button id="logout" class="user-button" type="button"><span id="current-user">Master</span> &bull; Sair</button>
+  </header>
+
+  <main class="bots-shell">
+    <aside class="bots-sidebar">
+      <div class="sidebar-heading">
+        <div><span>AUTOMAÇÕES</span><h1>Bots</h1><p id="bot-count">Carregando...</p></div>
+        <button id="new-bot" type="button">+ Novo</button>
+      </div>
+      <div id="bot-list" class="bot-list"></div>
+      <div class="safety-note"><b>Ambiente seguro</b><p>Ativar um Bot nesta fase não altera o webhook, a triagem atual ou os envios da Meta.</p></div>
+    </aside>
+
+    <section class="bots-workspace">
+      <div id="empty-state" class="empty-state">
+        <div>?</div><h2>Configure seus Bots</h2>
+        <p>Crie mensagens, horários e intenções. Tudo pode ser testado localmente antes de qualquer integração.</p>
+        <button id="empty-new-bot" type="button">Criar primeiro Bot</button>
+      </div>
+
+      <div id="editor" hidden>
+        <header class="editor-heading">
+          <div><span id="editor-eyebrow">BOT SELECIONADO</span><h2 id="editor-title">Novo Bot</h2><p id="editor-description">Configuração administrativa isolada do atendimento real.</p></div>
+          <div id="status-actions" class="status-actions" hidden>
+            <span id="status-badge" class="status-badge">RASCUNHO</span>
+            <button type="button" data-status="DRAFT">Rascunho</button>
+            <button type="button" data-status="ACTIVE">Ativar</button>
+            <button type="button" data-status="PAUSED">Pausar</button>
+            <button id="archive-bot" class="danger" type="button">Arquivar</button>
+          </div>
+        </header>
+
+        <div class="editor-grid">
+          <form id="bot-form" class="card basic-card">
+            <div class="card-heading"><div><span>CONFIGURAÇÃO</span><h3>Identidade e mensagens</h3></div><button type="submit">Salvar Bot</button></div>
+            <div class="fields two-columns">
+              <label><span>Nome *</span><input id="bot-name" maxlength="100" required placeholder="Ex.: Atendimento inicial"></label>
+              <label><span>Canal *</span><select id="bot-channel" required><option value="META">WhatsApp (Meta)</option><option value="ZENVIA">Zenvia (preparação)</option></select></label>
+              <label class="full"><span>Descrição</span><input id="bot-description" maxlength="500" placeholder="Objetivo deste Bot"></label>
+              <label><span>Timezone *</span><input id="bot-timezone" maxlength="100" value="America/Sao_Paulo" required></label>
+              <label><span>Categoria padrão</span><select id="bot-category"></select></label>
+              <label class="full"><span>Mensagem inicial *</span><textarea id="bot-initial" maxlength="4000" required placeholder="Mensagem apresentada no início do fluxo"></textarea></label>
+              <label class="full"><span>Mensagem fora do horário *</span><textarea id="bot-outside" maxlength="4000" required placeholder="Resposta usada fora do horário configurado"></textarea></label>
+              <label class="full"><span>Mensagem de fallback *</span><textarea id="bot-fallback" maxlength="4000" required placeholder="Resposta usada quando nenhuma intenção corresponder"></textarea></label>
+            </div>
+          </form>
+
+          <form id="schedule-form" class="card requires-bot">
+            <div class="card-heading"><div><span>DISPONIBILIDADE</span><h3>Horários</h3></div><button type="submit">Salvar horários</button></div>
+            <p class="card-help">Sem horários salvos, o simulador considera o Bot disponível.</p>
+            <div id="schedule-list" class="schedule-list"></div>
+          </form>
+
+          <section class="card requires-bot intentions-card">
+            <div class="card-heading"><div><span>REGRAS</span><h3>Intenções</h3></div><button id="new-intent" type="button">+ Intenção</button></div>
+            <div id="intent-list" class="intent-list"></div>
+            <form id="intent-form" class="intent-form" hidden>
+              <input id="intent-id" type="hidden">
+              <div class="fields two-columns">
+                <label><span>Nome *</span><input id="intent-name" maxlength="100" required></label>
+                <label><span>Prioridade</span><input id="intent-priority" type="number" min="-1000" max="1000" value="0" required></label>
+                <label class="full"><span>Descrição</span><input id="intent-description" maxlength="500"></label>
+                <label class="full"><span>Resposta</span><textarea id="intent-response" maxlength="4000" placeholder="Se ficar vazia, será usado o fallback do Bot"></textarea></label>
+                <label><span>Ação</span><select id="intent-action"><option value="USE_BOT_FALLBACK">Usar fallback</option><option value="TRANSFER_TO_CATEGORY">Transferir para categoria</option><option value="TRANSFER_TO_HUMAN">Transferir para humano</option></select></label>
+                <label><span>Categoria</span><select id="intent-category"></select></label>
+                <label class="full"><span>Exemplos - um por linha</span><textarea id="intent-examples" maxlength="10000" placeholder="segunda via&#10;acompanhar pedido"></textarea></label>
+                <label class="checkbox"><input id="intent-active" type="checkbox" checked><span>Intenção ativa</span></label>
+              </div>
+              <div class="form-actions"><button id="cancel-intent" type="button">Cancelar</button><button type="submit">Salvar intenção</button></div>
+            </form>
+          </section>
+
+          <form id="simulator-form" class="card requires-bot simulator-card">
+            <div class="card-heading"><div><span>TESTE SEGURO</span><h3>Simulador</h3></div><span class="local-only">NÃO ENVIA MENSAGENS</span></div>
+            <label class="simulator-input"><span>Mensagem do cliente</span><textarea id="simulator-message" required placeholder="Digite uma mensagem para testar o fluxo"></textarea></label>
+            <button type="submit">Executar simulação</button>
+            <div id="simulator-result" class="simulator-result"><p>O resultado da simulação aparecerá aqui.</p></div>
+          </form>
+        </div>
+      </div>
+    </section>
+  </main>
+  <div id="toast" class="toast" role="status"></div>
+  <script src="/js/bots.js"></script>
+</body>
+</html>

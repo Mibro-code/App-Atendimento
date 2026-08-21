@@ -1,7 +1,7 @@
 const prisma = require("../database/prisma");
 const authorization = require("./authorization-service");
 
-const entityTypes = new Set(["USER", "CONVERSATION", "CATEGORY", "NOTE"]);
+const entityTypes = new Set(["USER", "CONVERSATION", "CATEGORY", "NOTE", "BOT"]);
 
 function actorSnapshot(actor) {
   return {

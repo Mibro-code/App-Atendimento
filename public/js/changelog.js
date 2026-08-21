@@ -1,7 +1,21 @@
 (() => {
-  const APP_VERSION = "0.11.4";
+  const APP_VERSION = "0.12.0";
 
   const CHANGELOG = [
+    {
+      version: "0.12.0",
+      date: "21/08/2026",
+      title: "Gerenciamento e simulação de Bots",
+      changes: [
+        "Adiciona uma área interna de Bots, protegida e disponível somente para contas Master.",
+        "Permite criar, editar, ativar, pausar e arquivar configurações de Bots.",
+        "Inclui mensagens iniciais, respostas fora do horário, fallback, timezone e categoria padrão.",
+        "Permite configurar horários semanais, intenções, prioridades, exemplos, respostas e ações de transferência.",
+        "Adiciona um simulador determinístico e local que não envia mensagens nem acessa a API da Meta.",
+        "Registra as alterações administrativas de Bots na auditoria geral.",
+        "Mantém o bot de triagem, o webhook e a integração WhatsApp Cloud API existentes sem alterações de comportamento."
+      ]
+    },
     {
       version: "0.11.4",
       date: "21/08/2026",

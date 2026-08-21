@@ -350,6 +350,7 @@ async function loadCurrentUser() {
   if (!status.authenticated) return location.replace("/login.html");
   state.currentUser = status.user;
   $("#current-user").textContent = status.user.name;
+  $("#bots-button").hidden = !status.user.isMaster;
   $("#team-button").hidden = !status.user.isMaster && !status.user.canViewTeamActivity;
   $("#open-audit").hidden = !status.user.isMaster;
   $("#manage-categories").hidden = !status.user.canManageCategories;
@@ -876,6 +877,10 @@ const auditActionLabel = (action) => ({
   CONVERSATION_UNPINNED:"Conversa desafixada", CONVERSATION_CATEGORY_CHANGED:"Categoria da conversa",
   CONVERSATION_ASSIGNEE_CHANGED:"Responsável da conversa", CONVERSATION_STATUS_CHANGED:"Status da conversa",
   CATEGORY_CREATED:"Categoria criada", CATEGORY_UPDATED:"Categoria alterada", NOTE_DELETED:"Nota apagada",
+  BOT_CREATED:"Bot criado", BOT_UPDATED:"Bot alterado", BOT_STATUS_CHANGED:"Status do Bot",
+  BOT_ARCHIVED:"Bot arquivado", BOT_SCHEDULES_UPDATED:"Horários do Bot",
+  BOT_INTENT_CREATED:"Intenção criada", BOT_INTENT_UPDATED:"Intenção alterada",
+  BOT_INTENT_DELETED:"Intenção removida",
 })[action] || action;
 
 function renderAuditLogs() {
@@ -951,6 +956,7 @@ $("#theme-toggle").addEventListener("click", () => {
   try { localStorage.setItem("mibro-theme", theme); } catch {}
   syncThemeToggle();
 });
+$("#bots-button").addEventListener("click", () => { location.href = "/bots"; });
 $("#user-button").addEventListener("click", async () => { await api("/api/auth/logout", { method:"POST" }); location.replace("/login.html"); });
 $("#team-button").addEventListener("click", async () => { try { await loadAdminUsers(); resetTeamForm(); $("#new-team-user").hidden = !state.currentUser.isMaster; $("#team-form").hidden = !state.currentUser.isMaster; $("#team-dialog").classList.toggle("activity-only", !state.currentUser.isMaster); $("#team-dialog").showModal(); } catch (e) { toast(e.message, true); } });
 $("#close-team").addEventListener("click", () => $("#team-dialog").close());

@@ -1,15 +1,17 @@
 // Versão do cache da aplicação.
 // Altere somente APP_VERSION a cada nova publicação.
-const APP_VERSION = "0.11.4";
+const APP_VERSION = "0.12.0";
 const CACHE_NAME = `mibro-shell-v${APP_VERSION}`;
 
 const STATIC_ASSETS = [
   "/manifest.webmanifest",
 
   "/css/app.css",
+  "/css/bots.css",
   "/css/login.css",
 
   "/js/app.js",
+  "/js/bots.js",
   "/js/login.js",
   "/js/changelog.js",
   "/js/internal-chat.js",
