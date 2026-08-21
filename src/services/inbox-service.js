@@ -910,9 +910,18 @@ async function setCategoryVisibility({ categoryId, hidden }, viewer) {
     return getCategoryVisibility(viewer);
   }
   const visibleCategories = await listCategories(viewer);
-  if (!visibleCategories.some(({ id }) => id === categoryId)) throw Object.assign(new Error("Categoria não encontrada."), { statusCode: 404 });
-  if (hidden) await prisma.userHiddenCategory.upsert({ where: { userId_categoryId: { userId: viewer.id, categoryId } }, update: {}, create: { userId: viewer.id, categoryId } });
-  else await prisma.userHiddenCategory.deleteMany({ where: { userId: viewer.id, categoryId } });
+  const target = visibleCategories.find(({ id }) => id === categoryId);
+  if (!target) throw Object.assign(new Error("Categoria não encontrada."), { statusCode: 404 });
+  if (hidden) {
+    const cascadeIds = target.parentId
+      ? [categoryId]
+      : [categoryId, ...visibleCategories.filter((category) => category.parentId === categoryId).map(({ id }) => id)];
+    await prisma.$transaction(cascadeIds.map((id) => prisma.userHiddenCategory.upsert({
+      where: { userId_categoryId: { userId: viewer.id, categoryId: id } }, update: {}, create: { userId: viewer.id, categoryId: id },
+    })));
+  } else {
+    await prisma.userHiddenCategory.deleteMany({ where: { userId: viewer.id, categoryId } });
+  }
   return getCategoryVisibility(viewer);
 }
 
