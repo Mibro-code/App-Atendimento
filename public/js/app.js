@@ -121,6 +121,12 @@ function formatFileSize(value, typeLabel = "ARQUIVO") {
   return `${(bytes / (1024 * 1024)).toFixed(1).replace(".0", "")} MB • ${typeLabel}`;
 }
 
+function isConversationCategoryHidden(conversation) {
+  const visibility = state.categoryVisibility;
+  if (!conversation.categoryId) return Boolean(visibility.hideUncategorized);
+  return visibility.hiddenCategoryIds.includes(conversation.categoryId);
+}
+
 function conversationSignature(conversation) {
   const lastMessage = conversation.messages?.[0];
   const note = conversation.contact.notes?.[0];
@@ -542,7 +548,9 @@ async function checkAlerts() {
 async function setCategoryHidden(categoryId, hidden) {
   state.categoryVisibility = await api("/api/category-visibility", { method:"PATCH", body:JSON.stringify({ categoryId, hidden }) });
   state.categorySignature = "";
+  state.listSignature = "";
   await loadCategories();
+  if (!state.category) await loadConversations();
   toast(hidden ? "Categoria ocultada para sua conta." : "Categoria exibida novamente.");
 }
 
@@ -619,7 +627,7 @@ async function loadConversations() {
     api(`/api/conversations?${params}`),
     api("/api/conversations/summary"),
   ]);
-  state.conversations = conversations;
+  state.conversations = state.category ? conversations : conversations.filter((c) => c.id === state.selectedId || c.unreadCount > 0 || !isConversationCategoryHidden(c));
   const filteredUser = state.adminUsers.find((user) => user.id === state.assignedUser);
   $("#list-summary").textContent = `${state.conversations.length} atendimento${state.conversations.length === 1 ? "" : "s"}${filteredUser ? ` ativo${state.conversations.length === 1 ? "" : "s"} • ${filteredUser.name}` : ""}`;
   $("#clear-team-filter").hidden = !state.assignedUser;

@@ -30,6 +30,7 @@ test.after(async () => {
     { code: { startsWith: "FINANCEIRO_TESTE" } },
     { code: { startsWith: "SUPORTE_VIP_TESTE" } },
     { code: { startsWith: "SUPORTE_FILHO_RESPONSAVEL_TESTE" } },
+    { code: { startsWith: "CASCATA_TESTE" } },
   ] } });
   await fs.rm(mediaTestDir, { recursive: true, force: true });
   await prisma.$disconnect();
@@ -378,6 +379,40 @@ test("categorias ocultas são preferências individuais e não alteram acesso ne
     await prisma.user.delete({ where: { id: user.id } });
   }
 });
+
+test("ocultar categoria principal oculta automaticamente as subcategorias, sem forçar o inverso", async () => {
+  const parent = await inbox.createCategory({ name: "Cascata Teste Principal", color: "#101010" }, masterViewer);
+  const childA = await inbox.createCategory({ name: "Cascata Teste Filho A", color: "#202020", parentId: parent.id }, masterViewer);
+  const childB = await inbox.createCategory({ name: "Cascata Teste Filho B", color: "#303030", parentId: parent.id }, masterViewer);
+  const user = await prisma.user.create({ data: {
+    name: "Cascata Visual", email: "cascata-oculta@mibro.local", role: "ATENDENTE",
+    categoryAccess: { create: [{ categoryId: parent.id }, { categoryId: childA.id }, { categoryId: childB.id }] },
+  } });
+  const viewer = { id: user.id, role: "ATENDENTE" };
+
+  try {
+    const hidden = await inbox.setCategoryVisibility({ categoryId: parent.id, hidden: true }, viewer);
+    assert.ok(hidden.hiddenCategoryIds.includes(parent.id));
+    assert.ok(hidden.hiddenCategoryIds.includes(childA.id));
+    assert.ok(hidden.hiddenCategoryIds.includes(childB.id));
+
+    const afterChildRestore = await inbox.setCategoryVisibility({ categoryId: childA.id, hidden: false }, viewer);
+    assert.ok(!afterChildRestore.hiddenCategoryIds.includes(childA.id));
+    assert.ok(afterChildRestore.hiddenCategoryIds.includes(parent.id));
+    assert.ok(afterChildRestore.hiddenCategoryIds.includes(childB.id));
+
+    const afterParentRestore = await inbox.setCategoryVisibility({ categoryId: parent.id, hidden: false }, viewer);
+    assert.ok(!afterParentRestore.hiddenCategoryIds.includes(parent.id));
+    assert.ok(afterParentRestore.hiddenCategoryIds.includes(childB.id));
+
+    const isolatedHide = await inbox.setCategoryVisibility({ categoryId: childA.id, hidden: true }, viewer);
+    assert.ok(isolatedHide.hiddenCategoryIds.includes(childA.id));
+    assert.ok(!isolatedHide.hiddenCategoryIds.includes(parent.id));
+  } finally {
+    await prisma.user.delete({ where: { id: user.id } });
+  }
+});
+
 test("salva notas no contato e mantém busca pelo nome", async () => {
   const conversation = await prisma.conversation.findFirst({ include: { contact: true } });
   const note = await inbox.addContactNote(conversation.contactId, { content: "Cliente prefere atendimento no período da tarde." }, masterViewer);

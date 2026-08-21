@@ -1,7 +1,20 @@
 (() => {
-  const APP_VERSION = "0.11.3";
+  const APP_VERSION = "0.11.4";
 
   const CHANGELOG = [
+    {
+      version: "0.11.4",
+      date: "21/08/2026",
+      title: "Ocultação em cascata de categorias e contatos",
+      changes: [
+        "Ao ocultar uma categoria principal, as subcategorias associadas são ocultadas automaticamente junto com ela.",
+        "Ocultar uma categoria agora também oculta os contatos vinculados a ela na lista geral de atendimento.",
+        "Um contato oculto volta a aparecer automaticamente ao receber uma nova mensagem do cliente.",
+        "Um contato oculto também reaparece assim que a categoria é reabilitada para a conta.",
+        "Abrir diretamente a categoria oculta no atendimento continua exibindo todos os seus contatos normalmente.",
+        "A ocultação continua sendo apenas uma preferência visual por conta: acesso, permissões e alertas não são afetados."
+      ]
+    },
     {
       version: "0.11.3",
       date: "21/08/2026",
