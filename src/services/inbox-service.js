@@ -774,17 +774,6 @@ async function markAsRead(id, { channel, viewer } = {}) {
     try {
       await channel.markAsRead(latestUnread.externalId);
       readReceiptSent = true;
-
-      await prisma.message.updateMany({
-        where: {
-          conversationId: id,
-          direction: "RECEBIDA",
-          status: { not: "LIDA" },
-        },
-        data: {
-          status: "LIDA",
-        },
-      });
     } catch (error) {
       console.error(
         "Não foi possível confirmar a leitura na Meta:",
@@ -795,6 +784,20 @@ async function markAsRead(id, { channel, viewer } = {}) {
       );
     }
   }
+
+  // A leitura no painel é válida mesmo quando a Meta recusa o recibo
+  // (por exemplo, para uma mensagem antiga). Isso também impede novas
+  // tentativas a cada atualização da conversa aberta.
+  await prisma.message.updateMany({
+    where: {
+      conversationId: id,
+      direction: "RECEBIDA",
+      status: { not: "LIDA" },
+    },
+    data: {
+      status: "LIDA",
+    },
+  });
 
   try {
     if (authorization.isMaster(viewer)) {

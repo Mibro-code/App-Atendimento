@@ -257,6 +257,24 @@ test("lista, pesquisa, classifica, lê, finaliza e reabre a conversa", async () 
   assert.equal(readMessageId, "wamid.test.customer.reply");
   assert.equal(readResult.readReceiptSent, true);
   assert.equal((await inbox.getConversation(conversation.id, masterViewer)).unreadCount, 0);
+
+  await saveIncoming({
+    externalId: "wamid.test.read.rejected", contactExternalId: "5511999999999",
+    phone: "5511999999999", contactName: "Cliente Teste", type: "text", text: "Nova mensagem para leitura local",
+    occurredAt: new Date(), rawPayload: { id: "wamid.test.read.rejected" },
+  });
+  const originalConsoleError = console.error;
+  console.error = () => {};
+  let rejectedRead;
+  try {
+    rejectedRead = await inbox.markAsRead(conversation.id, { channel: { markAsRead: async () => { throw new Error("Meta recusou"); } } });
+  } finally {
+    console.error = originalConsoleError;
+  }
+  assert.equal(rejectedRead.readReceiptSent, false);
+  assert.equal((await prisma.message.findUnique({ where: { externalId: "wamid.test.read.rejected" } })).status, "LIDA");
+  assert.equal((await inbox.getConversation(conversation.id, masterViewer)).unreadCount, 0);
+
   await inbox.updateConversation(conversation.id, { status: "FINALIZADO" }, masterViewer);
   assert.ok((await inbox.getConversation(conversation.id, masterViewer)).finalizedAt);
   await inbox.updateConversation(conversation.id, { status: "NOVO" }, masterViewer);
