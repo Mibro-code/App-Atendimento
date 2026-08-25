@@ -68,6 +68,55 @@ test("observa a intenção do Bot ativo sem enviar mensagem nem alterar a conver
   assert.equal(conversationAfter.status, "NOVO");
   assert.equal(conversationAfter.categoryId, null);
   assert.equal(await prisma.message.count({ where: { conversationId: conversation.id } }), 1);
+
+  const observation = await prisma.botObservation.findUnique({ where: { messageId: message.id } });
+  assert.ok(observation, "deveria persistir a observação para comparação futura");
+  assert.equal(observation.conversationId, conversation.id);
+  assert.equal(observation.botId, bot.id);
+  assert.equal(observation.botName, botName);
+  assert.equal(observation.withinHours, true);
+  assert.equal(observation.intentName, "Rastreamento");
+  assert.equal(observation.matchedExample, "rastrear meu pedido");
+  assert.equal(observation.fallbackAction, "USE_BOT_FALLBACK");
+});
+
+test("persiste fallback quando nenhuma intenção é reconhecida, sem alterar a conversa", async () => {
+  await cleanup();
+  const contact = await prisma.contact.create({
+    data: { externalId, phone: "5511988880002", name: "Cliente Fallback" },
+  });
+  const conversation = await prisma.conversation.create({ data: { contactId: contact.id } });
+  const message = await prisma.message.create({ data: {
+    conversationId: conversation.id, externalId: "wamid.observation.fallback", direction: "RECEBIDA",
+    status: "RECEBIDA", type: "text", text: "mensagem sem intenção cadastrada", occurredAt: new Date(),
+  } });
+  const bot = await prisma.bot.create({
+    data: {
+      name: botName,
+      status: "ACTIVE",
+      channel: "META",
+      initialMessage: "Olá!",
+      outsideHoursMessage: "Fora do horário.",
+      fallbackMessage: "Não entendi.",
+    },
+  });
+
+  const result = await observeIncomingMessage(
+    { type: "text", text: message.text }, message, { now: new Date("2026-08-12T14:00:00.000Z") },
+  );
+
+  assert.equal(result.intent, null);
+  assert.equal(result.fallbackAction, "USE_BOT_FALLBACK");
+
+  const observation = await prisma.botObservation.findUnique({ where: { messageId: message.id } });
+  assert.ok(observation);
+  assert.equal(observation.botId, bot.id);
+  assert.equal(observation.intentName, null);
+  assert.equal(observation.fallbackAction, "USE_BOT_FALLBACK");
+
+  const conversationAfter = await prisma.conversation.findUnique({ where: { id: conversation.id } });
+  assert.equal(conversationAfter.status, "NOVO");
+  assert.equal(conversationAfter.categoryId, null);
 });
 
 test("ignora mensagens que não são texto e retorna null sem consultar o Bot", async () => {

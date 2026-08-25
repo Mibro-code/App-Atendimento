@@ -116,6 +116,7 @@ model Conversation {
   pins             ConversationPin[]
   masterReads      ConversationMasterRead[]
   internalMessages InternalMessage[]
+  botObservations  BotObservation[]
 
   @@unique([contactId, channel])
   @@index([status, lastMessageAt])
@@ -143,6 +144,7 @@ model Message {
   updatedAt       DateTime         @updatedAt
   conversation    Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sentByUser      User?            @relation("SentMessages", fields: [sentByUserId], references: [id], onDelete: SetNull)
+  botObservation  BotObservation?
 
   @@index([conversationId, occurredAt])
   @@index([sentByUserId])
@@ -234,44 +236,46 @@ model ConversationActivity {
 }
 
 model Category {
-  id             String               @id @default(cuid())
-  parentId       String?
-  code           String               @unique
-  name           String
-  color          String?
-  active         Boolean              @default(true)
-  displayOrder   Int                  @default(0)
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
-  conversations  Conversation[]
-  parent         Category?            @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
-  children       Category[]           @relation("CategoryHierarchy")
-  userAccess     UserCategoryAccess[]
-  hiddenByUsers  UserHiddenCategory[]
-  internalChats  InternalChat[]
-  defaultForBots Bot[]
-  botIntents     BotIntent[]
+  id              String               @id @default(cuid())
+  parentId        String?
+  code            String               @unique
+  name            String
+  color           String?
+  active          Boolean              @default(true)
+  displayOrder    Int                  @default(0)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  conversations   Conversation[]
+  parent          Category?            @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children        Category[]           @relation("CategoryHierarchy")
+  userAccess      UserCategoryAccess[]
+  hiddenByUsers   UserHiddenCategory[]
+  internalChats   InternalChat[]
+  defaultForBots  Bot[]
+  botIntents      BotIntent[]
+  botObservations BotObservation[]
 
   @@index([parentId, displayOrder])
 }
 
 model Bot {
-  id                  String        @id @default(cuid())
+  id                  String           @id @default(cuid())
   name                String
   description         String?
-  status              BotStatus     @default(DRAFT)
+  status              BotStatus        @default(DRAFT)
   channel             Channel
-  initialMessage      String        @db.Text
-  outsideHoursMessage String        @db.Text
-  fallbackMessage     String        @db.Text
-  timezone            String        @default("America/Sao_Paulo")
+  initialMessage      String           @db.Text
+  outsideHoursMessage String           @db.Text
+  fallbackMessage     String           @db.Text
+  timezone            String           @default("America/Sao_Paulo")
   defaultCategoryId   String?
   archivedAt          DateTime?
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
-  defaultCategory     Category?     @relation(fields: [defaultCategoryId], references: [id], onDelete: SetNull)
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  defaultCategory     Category?        @relation(fields: [defaultCategoryId], references: [id], onDelete: SetNull)
   schedules           BotSchedule[]
   intents             BotIntent[]
+  observations        BotObservation[]
 
   @@index([status, channel])
   @@index([defaultCategoryId])
@@ -320,6 +324,32 @@ model BotIntentExample {
   intent    BotIntent @relation(fields: [intentId], references: [id], onDelete: Cascade)
 
   @@index([intentId])
+}
+
+model BotObservation {
+  id             String             @id @default(cuid())
+  conversationId String
+  messageId      String             @unique
+  botId          String?
+  botName        String
+  channel        Channel            @default(META)
+  withinHours    Boolean
+  intentId       String?
+  intentName     String?
+  matchedExample String?
+  categoryId     String?
+  categoryName   String?
+  fallbackAction BotFallbackAction?
+  createdAt      DateTime           @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message      Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  bot          Bot?         @relation(fields: [botId], references: [id], onDelete: SetNull)
+  category     Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, createdAt])
+  @@index([botId, createdAt])
+  @@index([categoryId])
 }
 
 model UserCategoryAccess {
