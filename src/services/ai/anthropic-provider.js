@@ -69,7 +69,8 @@ class AnthropicProvider extends AIProvider {
     if (!apiKey) throw new Error("ANTHROPIC_API_KEY não configurada.");
     this.apiKey = apiKey;
     this.model = model;
-    this.timeoutMs = timeoutMs;
+    this.timeoutMs = Number.isFinite(timeoutMs) && timeoutMs >= 1000 && timeoutMs <= 30000
+      ? timeoutMs : DEFAULT_TIMEOUT_MS;
   }
 
   async classifyIntent({ bot, message, context }) {

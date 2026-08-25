@@ -5,6 +5,7 @@
 const { normalizeText } = require("./bot-simulator-service");
 const { extractEntities, mergeEntities } = require("./bot-entity-extractor");
 const { getPrimaryProvider, getFallbackProvider } = require("./ai/get-ai-provider");
+const { DEFAULT_HIGH_CONFIDENCE_THRESHOLD } = require("./bot-constants");
 
 const affirmativePattern = /^(sim|s|ok|okay|claro|pode ser|isso|isso mesmo|exatamente|confirmo|correto)[.!]*$/;
 
@@ -22,7 +23,10 @@ function carryOverFromContext(bot, normalizedMessage, state) {
   if (!intent) return null;
   return {
     intentId: intent.id,
-    confidence: Math.max(state.lastConfidence || 0, 0.75),
+    confidence: Math.max(
+      state.lastConfidence || 0,
+      bot.highConfidenceThreshold ?? DEFAULT_HIGH_CONFIDENCE_THRESHOLD,
+    ),
     matchedExample: null,
     providerName: "CONTEXT_CARRYOVER",
     entities: {},

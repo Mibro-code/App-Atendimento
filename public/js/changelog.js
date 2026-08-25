@@ -1,7 +1,21 @@
 (() => {
-  const APP_VERSION = "0.12.1";
+  const APP_VERSION = "0.13.0";
 
   const CHANGELOG = [
+    {
+      version: "0.13.0",
+      date: "25/08/2026",
+      title: "Motor de interpretação inteligente de Bots",
+      changes: [
+        "Adiciona interpretação de intenções com faixas configuráveis de confiança alta, média e baixa.",
+        "Inclui fallback local tolerante a variações de texto e suporte opcional ao provider Anthropic.",
+        "Extrai e sanitiza entidades como pedido, CPF, CNPJ, série, e-mail e código de rastreio.",
+        "Evolui o simulador para conversas com múltiplas mensagens, contexto temporário e resultado detalhado.",
+        "Adiciona a aba Observações para comparar interpretações do Bot com a triagem real.",
+        "Persiste estado e observações enriquecidas sem responder pela Meta nem alterar categoria, responsável ou status da conversa real.",
+        "Mantém tools e base de conhecimento como estruturas inativas para evolução futura."
+      ]
+    },
     {
       version: "0.12.1",
       date: "25/08/2026",

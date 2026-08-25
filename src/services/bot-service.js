@@ -3,7 +3,10 @@ const authorization = require("./authorization-service");
 const audit = require("./audit-service");
 const { normalizeText } = require("./bot-simulator-service");
 const { simulateOrchestration } = require("./bot-orchestrator-service");
-const { validateConfidenceThresholds, DEFAULT_HIGH_CONFIDENCE_THRESHOLD, DEFAULT_LOW_CONFIDENCE_THRESHOLD } = require("./bot-constants");
+const {
+  CONTEXT_MESSAGE_LIMIT, DEFAULT_HIGH_CONFIDENCE_THRESHOLD, DEFAULT_LOW_CONFIDENCE_THRESHOLD,
+  MAX_FAILED_INTERPRETATIONS, validateConfidenceThresholds,
+} = require("./bot-constants");
 
 const botStatuses = new Set(["DRAFT", "ACTIVE", "PAUSED"]);
 const botChannels = new Set([
@@ -435,8 +438,10 @@ function normalizeSimulatorState(state) {
   return {
     activeBotId: typeof state.activeBotId === "string" ? state.activeBotId : null,
     lastIntentId: typeof state.lastIntentId === "string" ? state.lastIntentId : null,
-    lastConfidence: typeof state.lastConfidence === "number" ? state.lastConfidence : null,
-    failedInterpretations: Number.isInteger(state.failedInterpretations) ? state.failedInterpretations : 0,
+    lastConfidence: Number.isFinite(state.lastConfidence)
+      ? Math.min(1, Math.max(0, state.lastConfidence)) : null,
+    failedInterpretations: Number.isInteger(state.failedInterpretations)
+      ? Math.min(MAX_FAILED_INTERPRETATIONS, Math.max(0, state.failedInterpretations)) : 0,
     pendingClarification: Boolean(state.pendingClarification),
     extractedEntities: state.extractedEntities && typeof state.extractedEntities === "object" ? state.extractedEntities : {},
   };
@@ -446,10 +451,10 @@ function normalizeSimulatorHistory(history) {
   if (!Array.isArray(history)) return [];
   return history
     .filter((entry) => entry && typeof entry.text === "string")
-    .slice(-20)
+    .slice(-CONTEXT_MESSAGE_LIMIT)
     .map((entry) => ({
       direction: entry.direction === "ENVIADA" ? "ENVIADA" : "RECEBIDA",
-      text: entry.text,
+      text: entry.text.slice(0, 4000),
     }));
 }
 
@@ -459,10 +464,10 @@ function normalizeSimulatorHistory(history) {
 async function simulate(botId, message, viewer, { state, history } = {}) {
   assertBotManager(viewer);
   const bot = await ensureBot(botId, prisma, botInclude);
-  if (typeof message !== "string" || !message.trim()) throw fail("Digite uma mensagem para executar a simulação.");
+  const simulatorMessage = requiredText(message, "Mensagem da simulação", 4000);
   const result = await simulateOrchestration({
     bot,
-    message,
+    message: simulatorMessage,
     context: normalizeSimulatorHistory(history),
     state: normalizeSimulatorState(state),
   });
@@ -475,13 +480,26 @@ async function listObservations(filters, viewer) {
   if (filters.botId) where.botId = filters.botId;
   if (filters.intentId) where.intentId = filters.intentId;
   if (filters.intentName) where.intentName = { contains: filters.intentName, mode: "insensitive" };
-  if (filters.minConfidence !== undefined) where.confidence = { gte: Number(filters.minConfidence) };
-  if (filters.from || filters.to) {
-    where.createdAt = {};
-    if (filters.from) where.createdAt.gte = new Date(filters.from);
-    if (filters.to) where.createdAt.lte = new Date(filters.to);
+  if (filters.minConfidence !== undefined && filters.minConfidence !== "") {
+    const minConfidence = Number(filters.minConfidence);
+    if (!Number.isFinite(minConfidence) || minConfidence < 0 || minConfidence > 1) {
+      throw fail("A confiança mínima deve estar entre 0 e 1.");
+    }
+    where.confidence = { gte: minConfidence };
   }
-  const take = Math.min(Number(filters.limit) || 50, 200);
+  if (filters.from || filters.to) {
+    const from = filters.from ? new Date(filters.from) : null;
+    const to = filters.to ? new Date(filters.to) : null;
+    if (from && Number.isNaN(from.getTime())) throw fail("Data inicial inválida.");
+    if (to && Number.isNaN(to.getTime())) throw fail("Data final inválida.");
+    if (to && /^\d{4}-\d{2}-\d{2}$/.test(filters.to)) to.setUTCHours(23, 59, 59, 999);
+    if (from && to && from > to) throw fail("A data inicial deve ser anterior à data final.");
+    where.createdAt = { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) };
+  }
+  const take = filters.limit === undefined || filters.limit === "" ? 50 : Number(filters.limit);
+  if (!Number.isInteger(take) || take < 1 || take > 200) {
+    throw fail("O limite de observações deve ser um inteiro entre 1 e 200.");
+  }
   const rows = await prisma.botObservation.findMany({
     where,
     include: {

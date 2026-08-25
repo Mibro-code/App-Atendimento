@@ -46,6 +46,7 @@ test("terceira falha consecutiva encaminha para humano", () => {
   });
   assert.equal(decision.action, "HANDOFF_HUMAN");
   assert.equal(decision.shouldHandoff, true);
+  assert.equal(decision.failureCount, 3);
 });
 
 test("bot pausado nunca age, mesmo com intenção clara", () => {
@@ -61,6 +62,7 @@ test("pedido explícito de atendente humano tem prioridade sobre a intenção", 
   });
   assert.equal(decision.action, "HANDOFF_HUMAN");
   assert.equal(decision.shouldHandoff, true);
+  assert.equal(decision.withinHours, true);
 });
 
 test("intenção configurada para transferir para categoria sugere troca de Bot", () => {
@@ -84,4 +86,18 @@ test("fora do horário configurado, a ação usa a mensagem de fora do horário"
     now: new Date("2026-08-23T23:00:00.000Z"),
   });
   assert.equal(decision.outsideHours, true);
+});
+
+test("fora do horário, pedido de humano não promete transferência imediata", () => {
+  const bot = botFixture({
+    schedules: [{ dayOfWeek: 0, enabled: true, startTime: "08:00", endTime: "09:00" }],
+  });
+  const decision = decide({
+    bot, interpretation: interpretationFixture({ confidence: 0.95 }),
+    message: "quero falar com um atendente",
+    now: new Date("2026-08-23T23:00:00.000Z"),
+  });
+  assert.equal(decision.action, "RESPOND");
+  assert.equal(decision.outsideHours, true);
+  assert.equal(decision.shouldHandoff, false);
 });

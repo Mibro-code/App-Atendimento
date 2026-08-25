@@ -32,7 +32,7 @@ async function resolveBot(activeBotId, channel, client) {
   return client.bot.findFirst({
     where: { channel, status: "ACTIVE", archivedAt: null },
     include: botInclude,
-    orderBy: { createdAt: "asc" },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
   });
 }
 
@@ -43,7 +43,7 @@ async function resolveSwitchTarget(categoryId, channel, currentBotId, client) {
       defaultCategoryId: categoryId, id: { not: currentBotId },
     },
     include: botInclude,
-    orderBy: { createdAt: "asc" },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
   });
 }
 
@@ -80,12 +80,12 @@ function toStandardResult({ bot, targetBot, interpretation, decision, responseTe
 
 // Interpreta e decide para uma conversa REAL, persistindo o estado do Bot
 // nessa conversa (ConversationBotState). Não altera Conversation/Message.
-async function orchestrate({ conversationId, channel = "META", message, now = new Date() }, client = prisma) {
+async function orchestrate({ conversationId, channel = "META", messageId = null, message, now = new Date() }, client = prisma) {
   const state = await getState(conversationId, client);
   const bot = await resolveBot(state?.activeBotId, channel, client);
   if (!bot) return null;
 
-  const context = await getRecentContext(conversationId, {}, client);
+  const context = await getRecentContext(conversationId, { beforeMessageId: messageId }, client);
   const interpretation = await interpret({ bot, message, context, state });
   const decision = decide({ bot, interpretation, message, state, now });
 
@@ -105,8 +105,11 @@ async function orchestrate({ conversationId, channel = "META", message, now = ne
 // fornecido pelo cliente (nunca a tabela ConversationBotState) e nunca troca
 // de Bot fora da lista de Bots ativos do canal — apenas sinaliza a sugestão.
 async function simulateOrchestration({ bot, message, context = [], state = null, now = new Date() }) {
-  const interpretation = await interpret({ bot, message, context, state });
-  const decision = decide({ bot, interpretation, message, state, now });
+  // O simulador deve permitir testar configurações em rascunho sem ativá-las
+  // no modo observação. A cópia em memória nunca é persistida.
+  const simulationBot = bot.status === "ACTIVE" ? bot : { ...bot, status: "ACTIVE" };
+  const interpretation = await interpret({ bot: simulationBot, message, context, state });
+  const decision = decide({ bot: simulationBot, interpretation, message, state, now });
 
   let targetBot = bot;
   if (decision.action === "SWITCH_BOT" && decision.categoryId) {

@@ -75,6 +75,8 @@
               <label class="full"><span>Descrição</span><input id="bot-description" maxlength="500" placeholder="Objetivo deste Bot"></label>
               <label><span>Timezone *</span><input id="bot-timezone" maxlength="100" value="America/Sao_Paulo" required></label>
               <label><span>Categoria padrão</span><select id="bot-category"></select></label>
+              <label><span>Confiança baixa</span><input id="bot-low-confidence" type="number" min="0" max="1" step="0.01" value="0.55" required></label>
+              <label><span>Confiança alta</span><input id="bot-high-confidence" type="number" min="0" max="1" step="0.01" value="0.8" required></label>
               <label class="full"><span>Mensagem inicial *</span><textarea id="bot-initial" maxlength="4000" required placeholder="Mensagem apresentada no início do fluxo"></textarea></label>
               <label class="full"><span>Mensagem fora do horário *</span><textarea id="bot-outside" maxlength="4000" required placeholder="Resposta usada fora do horário configurado"></textarea></label>
               <label class="full"><span>Mensagem de fallback *</span><textarea id="bot-fallback" maxlength="4000" required placeholder="Resposta usada quando nenhuma intenção corresponder"></textarea></label>

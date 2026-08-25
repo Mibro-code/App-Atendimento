@@ -72,6 +72,16 @@ test("simulador nunca chama o canal real da Meta e mantém contexto entre mensag
     assert.equal(second.status, 200);
     const secondResult = await second.json();
     assert.equal(secondResult.intentId, firstResult.intentId, "o contexto de 'sim' deve manter a intenção anterior");
+    assert.equal(secondResult.action, "RESPOND", "a confirmação deve concluir o esclarecimento");
+
+    const invalidConfidence = await fetch(`${base}/api/bot-observations?minConfidence=abc`, { headers: { Cookie: cookie } });
+    assert.equal(invalidConfidence.status, 400);
+
+    const oversized = await fetch(`${base}/api/bots/${bot.id}/simulate`, {
+      method: "POST", headers: { Cookie: cookie, "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "x".repeat(4001) }),
+    });
+    assert.equal(oversized.status, 400);
 
     assert.equal(channelCalls, 0, "o simulador não pode ter chamado o canal real da Meta em nenhum momento");
 

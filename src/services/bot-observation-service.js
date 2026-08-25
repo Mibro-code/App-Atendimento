@@ -13,6 +13,7 @@ async function observeIncomingMessage(event, message, { now = new Date() } = {})
 
     const result = await orchestrate({
       conversationId: message.conversationId,
+      messageId: message.id,
       channel: "META",
       message: event.text,
       now,

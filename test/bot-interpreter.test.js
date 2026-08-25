@@ -87,6 +87,7 @@ test("contexto de esclarecimento: 'sim' reafirma a última intenção sem chamar
   });
   assert.equal(result.intentId, "intent-pedido");
   assert.equal(result.provider, "CONTEXT_CARRYOVER");
+  assert.equal(result.confidence, 0.8);
   assert.equal(called, false);
 });
 

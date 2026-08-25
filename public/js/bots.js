@@ -101,6 +101,8 @@ function fillBotForm(bot = null) {
   $("#bot-channel").value = bot?.channel || "META";
   $("#bot-timezone").value = bot?.timezone || "America/Sao_Paulo";
   $("#bot-category").innerHTML = categoryOptions(bot?.defaultCategoryId || "");
+  $("#bot-low-confidence").value = bot?.lowConfidenceThreshold ?? 0.55;
+  $("#bot-high-confidence").value = bot?.highConfidenceThreshold ?? 0.8;
   $("#bot-initial").value = bot?.initialMessage || "";
   $("#bot-outside").value = bot?.outsideHoursMessage || "";
   $("#bot-fallback").value = bot?.fallbackMessage || "";
@@ -173,6 +175,8 @@ function botPayload() {
     channel: $("#bot-channel").value,
     timezone: $("#bot-timezone").value,
     defaultCategoryId: $("#bot-category").value || null,
+    lowConfidenceThreshold: Number($("#bot-low-confidence").value),
+    highConfidenceThreshold: Number($("#bot-high-confidence").value),
     initialMessage: $("#bot-initial").value,
     outsideHoursMessage: $("#bot-outside").value,
     fallbackMessage: $("#bot-fallback").value,

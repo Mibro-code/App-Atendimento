@@ -23,18 +23,18 @@ function decide({ bot, interpretation, message, state = null, now = new Date() }
     };
   }
 
-  if (requestsHuman(message)) {
-    return {
-      action: "HANDOFF_HUMAN", categoryId: bot.defaultCategoryId || null, needsClarification: false,
-      shouldHandoff: true, withinHours: null, summary: "Cliente pediu para falar com um atendente humano.",
-    };
-  }
-
   const hours = scheduleState(bot, now);
   if (!hours.withinHours) {
     return {
       action: "RESPOND", categoryId: null, needsClarification: false, shouldHandoff: false,
       withinHours: false, outsideHours: true, summary: "Fora do horário configurado para este Bot.",
+    };
+  }
+
+  if (requestsHuman(message)) {
+    return {
+      action: "HANDOFF_HUMAN", categoryId: bot.defaultCategoryId || null, needsClarification: false,
+      shouldHandoff: true, withinHours: true, summary: "Cliente pediu para falar com um atendente humano.",
     };
   }
 
@@ -46,7 +46,7 @@ function decide({ bot, interpretation, message, state = null, now = new Date() }
     if (failureCount >= MAX_FAILED_INTERPRETATIONS) {
       return {
         action: "HANDOFF_HUMAN", categoryId: bot.defaultCategoryId || null, needsClarification: false,
-        shouldHandoff: true, withinHours: true,
+        shouldHandoff: true, withinHours: true, failureCount,
         summary: "Cliente não foi compreendido após múltiplas tentativas; encaminhar para humano.",
       };
     }

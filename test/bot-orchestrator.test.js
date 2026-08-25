@@ -3,6 +3,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const prisma = require("../src/database/prisma");
 const { orchestrate, simulateOrchestration, botInclude } = require("../src/services/bot-orchestrator-service");
+const { getRecentContext } = require("../src/services/bot-conversation-state-service");
 
 const botNamePrefix = "Bot Orquestrador Teste";
 const externalId = "bot-orchestrator-test-contact";
@@ -72,6 +73,21 @@ test("orchestrate() nunca altera Conversation e retorna null sem Bot ativo no ca
   assert.equal(state, null);
 });
 
+test("getRecentContext exclui a mensagem atual do histórico anterior", async () => {
+  await cleanup();
+  const conversation = await seedConversation("5511977770003");
+  await prisma.message.create({ data: {
+    conversationId: conversation.id, externalId: "context.previous", direction: "RECEBIDA",
+    status: "RECEBIDA", type: "text", text: "mensagem anterior", occurredAt: new Date("2026-08-25T10:00:00Z"),
+  } });
+  const current = await prisma.message.create({ data: {
+    conversationId: conversation.id, externalId: "context.current", direction: "RECEBIDA",
+    status: "RECEBIDA", type: "text", text: "mensagem atual", occurredAt: new Date("2026-08-25T10:01:00Z"),
+  } });
+  const context = await getRecentContext(conversation.id, { beforeMessageId: current.id });
+  assert.deepEqual(context.map(({ text }) => text), ["mensagem anterior"]);
+});
+
 test("simulateOrchestration nunca grava ConversationBotState (estado fica só no retorno)", async () => {
   await cleanup();
   const conversation = await seedConversation("5511977770002");
@@ -80,7 +96,7 @@ test("simulateOrchestration nunca grava ConversationBotState (estado fica só no
     include: botInclude,
   }) || await prisma.bot.create({
     data: {
-      name: `${botNamePrefix} Simulador`, status: "ACTIVE", channel: "META",
+      name: `${botNamePrefix} Simulador`, status: "DRAFT", channel: "META",
       initialMessage: "Olá!", outsideHoursMessage: "Fora.", fallbackMessage: "Não entendi.",
     },
     include: botInclude,
@@ -88,6 +104,7 @@ test("simulateOrchestration nunca grava ConversationBotState (estado fica só no
 
   const result = await simulateOrchestration({ bot, message: "oi, tudo bem?", now: new Date("2026-08-12T14:00:00.000Z") });
   assert.ok(result.nextState);
+  assert.notEqual(result.action, "NO_ACTION", "o simulador deve testar Bots em rascunho");
   assert.equal(result.nextState.activeBotId, bot.id);
 
   const state = await prisma.conversationBotState.findUnique({ where: { conversationId: conversation.id } });
