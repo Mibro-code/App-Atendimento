@@ -164,6 +164,7 @@ html[data-theme="dark"] .contact-files-dialog { color:#eef0f3; background:#1b1e2
 .conversation-id-analyze { color:#7a3418; border-color:#f1d0c5; background:#fff8f5; }
 html[data-theme="dark"] .conversation-id-label code { color:#eef0f3; background:#2b3037; }
 html[data-theme="dark"] .conversation-id-copy { color:#eef0f3; border-color:#383e46; background:#24282e; }
+html[data-theme="dark"] .conversation-id-analyze { color:#ffb39a; border-color:#6b3829; background:#34231e; }
 html[data-theme="dark"] .contact-files-tabs button { border-color:#383e46; color:#cdd2d8; background:#24282e; }
 html[data-theme="dark"] .contact-files-tabs button.active { border-color:var(--orange); color:#fff; background:var(--orange); }
 html[data-theme="dark"] .shared-media-card,html[data-theme="dark"] .shared-document-card,html[data-theme="dark"] .shared-link-card { border-color:#373d45; background:#22262c; }

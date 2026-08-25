@@ -1042,9 +1042,14 @@ $("#copy-conversation-id").addEventListener("click", async () => {
     toast("Não foi possível copiar o ID.", true);
   }
 });
-$("#analyze-conversation-learning").addEventListener("click", async () => {
+$("#analyze-conversation-learning").addEventListener("click", async (event) => {
   const conversationId = state.selectedId;
   if (!conversationId) { toast("Nenhuma conversa selecionada.", true); return; }
+  const button = event.currentTarget;
+  if (button.disabled) return;
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "Analisando...";
   try {
     const result = await api(`/api/bot-learning/conversations/${encodeURIComponent(conversationId)}/analyze`, { method: "POST" });
     if (result.analyzed) {
@@ -1056,7 +1061,12 @@ $("#analyze-conversation-learning").addEventListener("click", async () => {
     } else {
       toast("Não foi possível analisar esta conversa agora.", true);
     }
-  } catch (error) { toast(error.message, true); }
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
 });
 $("#contact-files-dialog").addEventListener("click", (event) => { if (event.target === $("#contact-files-dialog")) $("#contact-files-dialog").close(); });
 $(".contact-files-tabs").addEventListener("click", (event) => {
