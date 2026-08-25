@@ -9,6 +9,7 @@ const botNamePrefix = "Bot Rating Teste";
 const externalId = "bot-rating-test-contact";
 const masterEmail = "master-rating-test@teste.local";
 let master;
+const submitRating = (data) => ratings.submitRating(data, master);
 
 async function cleanup() {
   await prisma.bot.deleteMany({ where: { name: { startsWith: botNamePrefix } } });
@@ -46,7 +47,7 @@ test("rating OFF no Bot rejeita a submissão (não solicita avaliação)", async
     name: `${botNamePrefix} OFF`, status: "ACTIVE", channel: "META",
     initialMessage: "Olá!", outsideHoursMessage: "Fora.", fallbackMessage: "Não entendi.", ratingEnabled: false,
   } });
-  await assert.rejects(() => ratings.submitRating({ botId: bot.id, score: 5 }));
+  await assert.rejects(() => submitRating({ botId: bot.id, score: 5 }));
 });
 
 test("rating é persistido quando habilitado, e a mesma conversa não pode ser avaliada duas vezes", async () => {
@@ -56,10 +57,10 @@ test("rating é persistido quando habilitado, e a mesma conversa não pode ser a
     initialMessage: "Olá!", outsideHoursMessage: "Fora.", fallbackMessage: "Não entendi.", ratingEnabled: true,
   } });
   const conversation = await seedConversation();
-  const created = await ratings.submitRating({ botId: bot.id, conversationId: conversation.id, score: 5, resolvedByBot: true });
+  const created = await submitRating({ botId: bot.id, conversationId: conversation.id, score: 5, resolvedByBot: true });
   assert.equal(created.score, 5);
 
-  await assert.rejects(() => ratings.submitRating({ botId: bot.id, conversationId: conversation.id, score: 1 }));
+  await assert.rejects(() => submitRating({ botId: bot.id, conversationId: conversation.id, score: 1 }));
 });
 
 test("nota fora de 1-5 é rejeitada", async () => {
@@ -68,8 +69,8 @@ test("nota fora de 1-5 é rejeitada", async () => {
     name: `${botNamePrefix} Faixa`, status: "ACTIVE", channel: "META",
     initialMessage: "Olá!", outsideHoursMessage: "Fora.", fallbackMessage: "Não entendi.", ratingEnabled: true,
   } });
-  await assert.rejects(() => ratings.submitRating({ botId: bot.id, score: 0 }));
-  await assert.rejects(() => ratings.submitRating({ botId: bot.id, score: 6 }));
+  await assert.rejects(() => submitRating({ botId: bot.id, score: 0 }));
+  await assert.rejects(() => submitRating({ botId: bot.id, score: 6 }));
 });
 
 test("nota baixa não cria nenhuma sugestão de aprendizado automaticamente", async () => {
@@ -79,7 +80,7 @@ test("nota baixa não cria nenhuma sugestão de aprendizado automaticamente", as
     initialMessage: "Olá!", outsideHoursMessage: "Fora.", fallbackMessage: "Não entendi.", ratingEnabled: true,
   } });
   const conversation = await seedConversation();
-  await ratings.submitRating({ botId: bot.id, conversationId: conversation.id, score: 1, comment: "péssimo" });
+  await submitRating({ botId: bot.id, conversationId: conversation.id, score: 1, comment: "péssimo" });
   const suggestions = await prisma.botLearningSuggestion.findMany({ where: { botId: bot.id } });
   assert.equal(suggestions.length, 0);
 });
@@ -106,13 +107,41 @@ test("métricas separam diagnóstico (Observação) de atendimento real (Rating)
   assert.equal(metrics.attendance.resolvedByBot, 0, "observação sozinha não pode contar como atendimento real");
   assert.equal(metrics.ratings.total, 0);
 
-  await ratings.submitRating({ botId: bot.id, conversationId: conversation.id, score: 5, resolvedByBot: true });
+  await submitRating({ botId: bot.id, conversationId: conversation.id, score: 5, resolvedByBot: true });
   const metricsAfter = await ratings.ratingMetrics(bot.id, {}, master);
   assert.equal(metricsAfter.attendance.resolvedByBot, 1);
   assert.equal(metricsAfter.ratings.total, 1);
   assert.equal(metricsAfter.ratings.positivePct, null, "amostra pequena não deveria mostrar percentual");
 });
 
+test("métrica de baixa confiança respeita o limite configurado no Bot", async () => {
+  await cleanup();
+  const bot = await prisma.bot.create({ data: {
+    name: botNamePrefix + " LimiteConfigurado", status: "ACTIVE", channel: "META",
+    initialMessage: "Olá!", outsideHoursMessage: "Fora.", fallbackMessage: "Não entendi.",
+    ratingEnabled: true, lowConfidenceThreshold: 0.7, highConfidenceThreshold: 0.85,
+  } });
+  const conversation = await seedConversation();
+  const message = await prisma.message.create({ data: {
+    conversationId: conversation.id, externalId: "rating-threshold-" + conversation.id, direction: "RECEBIDA",
+    status: "RECEBIDA", type: "text", text: "talvez", occurredAt: new Date(),
+  } });
+  await prisma.botObservation.create({ data: {
+    conversationId: conversation.id, messageId: message.id, botId: bot.id, botName: bot.name,
+    withinHours: true, confidence: 0.6, action: "ASK_CLARIFICATION",
+  } });
+
+  const metrics = await ratings.ratingMetrics(bot.id, {}, master);
+  assert.equal(metrics.interpretation.lowConfidence, 1);
+});
+
+test("submissão manual de avaliação exige Master", async () => {
+  const attendant = { id: "atendente-rating-test", role: "ATENDENTE" };
+  await assert.rejects(
+    () => ratings.submitRating({ botId: "qualquer-id", score: 5 }, attendant),
+    (error) => error.statusCode === 403,
+  );
+});
 test("ranking ignora Bots abaixo da amostra mínima e não é enganoso com 1 avaliação", async () => {
   await cleanup();
   await prisma.botGlobalSettings.update({ where: { id: "singleton" }, data: { rankingEnabled: true, minimumRatingsForRanking: 3 } });
@@ -121,7 +150,7 @@ test("ranking ignora Bots abaixo da amostra mínima e não é enganoso com 1 ava
     initialMessage: "Olá!", outsideHoursMessage: "Fora.", fallbackMessage: "Não entendi.", ratingEnabled: true,
   } });
   const conversation = await seedConversation();
-  await ratings.submitRating({ botId: botFewRatings.id, conversationId: conversation.id, score: 5 });
+  await submitRating({ botId: botFewRatings.id, conversationId: conversation.id, score: 5 });
 
   const ranking = await ratings.getRanking(master);
   assert.equal(ranking.enabled, true);

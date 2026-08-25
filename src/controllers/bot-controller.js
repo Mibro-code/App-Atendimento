@@ -134,7 +134,7 @@ module.exports = {
 
   // Governança / configuração global.
   async globalSettings(req, res, next) {
-    try { return res.json(await governance.getGlobalSettings()); }
+    try { return res.json(await governance.getGlobalSettingsForManager(req.user)); }
     catch (error) { return next(error); }
   },
   async updateGlobalSettings(req, res, next) {
@@ -170,7 +170,7 @@ module.exports = {
 
   // Avaliação (ratings) e ranking.
   async submitRating(req, res, next) {
-    try { return res.status(201).json(await ratings.submitRating(req.body)); }
+    try { return res.status(201).json(await ratings.submitRating(req.body, req.user)); }
     catch (error) { return next(error); }
   },
   async listRatings(req, res, next) {

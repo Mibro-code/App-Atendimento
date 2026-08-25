@@ -44,10 +44,12 @@ function periodRange(period) {
   return { gte: from, lte: now };
 }
 
-// Não é autenticado por RBAC de usuário interno — quem "avalia" é o
-// cliente/atendimento real. Validação é toda de dado (Bot existente,
-// toggles ligados, nota no intervalo, uma avaliação por conversa).
-async function submitRating(data) {
+// Enquanto não existir um fluxo de avaliação do cliente com token assinado,
+// a submissão manual fica restrita a Master. Isso impede que contas internas
+// comuns contaminem métricas/ranking. A validação de dados continua exigindo
+// Bot e conversa válidos, toggles ligados e uma avaliação por conversa.
+async function submitRating(data, actor) {
+  assertBotManager(actor);
   const botId = data?.botId;
   if (!botId) throw fail("Bot é obrigatório para registrar a avaliação.");
   const bot = await prisma.bot.findFirst({ where: { id: botId, archivedAt: null } });
@@ -55,6 +57,18 @@ async function submitRating(data) {
   if (!bot.ratingEnabled) throw fail("A avaliação do atendimento não está habilitada para este Bot.");
   const globalSettings = await getGlobalSettings();
   if (!globalSettings.ratingsEnabled) throw fail("As avaliações estão desativadas globalmente.");
+
+  let conversation = null;
+  if (data.conversationId) {
+    conversation = await prisma.conversation.findUnique({
+      where: { id: data.conversationId }, select: { id: true, channel: true },
+    });
+    if (!conversation) throw fail("Conversa não encontrada.", 404);
+  }
+  if (data.intentId) {
+    const intent = await prisma.botIntent.findFirst({ where: { id: data.intentId, botId }, select: { id: true } });
+    if (!intent) throw fail("A intenção informada não pertence a este Bot.");
+  }
 
   const score = Number(data.score);
   if (!Number.isInteger(score) || score < RATING_SCORE_MIN || score > RATING_SCORE_MAX) {
@@ -68,7 +82,7 @@ async function submitRating(data) {
       data: {
         botId,
         conversationId: data.conversationId || null,
-        channel: data.channel || "META",
+        channel: conversation?.channel || bot.channel,
         score,
         comment,
         resolvedByBot: Boolean(data.resolvedByBot),
@@ -105,6 +119,10 @@ function classifyScore(score) {
 async function ratingMetrics(botId, filters, viewer) {
   assertBotManager(viewer);
   if (!botId) throw fail("Bot é obrigatório.");
+  const bot = await prisma.bot.findFirst({
+    where: { id: botId, archivedAt: null }, select: { lowConfidenceThreshold: true },
+  });
+  if (!bot) throw fail("Bot não encontrado.", 404);
   const createdAt = periodRange(filters);
   const ratingWhere = { botId, ...(createdAt ? { createdAt } : {}) };
 
@@ -113,7 +131,7 @@ async function ratingMetrics(botId, filters, viewer) {
     prisma.botObservation.count({ where: { botId, ...(createdAt ? { createdAt } : {}) } }),
     prisma.botObservation.count({ where: { botId, action: "HANDOFF_HUMAN", ...(createdAt ? { createdAt } : {}) } }),
     prisma.botObservation.count({ where: { botId, intentId: null, ...(createdAt ? { createdAt } : {}) } }),
-    prisma.botObservation.count({ where: { botId, confidence: { lt: 0.55 }, ...(createdAt ? { createdAt } : {}) } }),
+    prisma.botObservation.count({ where: { botId, confidence: { lt: bot.lowConfidenceThreshold }, ...(createdAt ? { createdAt } : {}) } }),
   ]);
 
   const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };

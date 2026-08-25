@@ -44,3 +44,11 @@ test("governança exige conta Master", () => {
   const nonMaster = { id: "u1", role: "ATENDENTE" };
   assert.throws(() => governance.assertBotManager(nonMaster), (error) => error.statusCode === 403);
 });
+
+test("leitura administrativa das configurações globais exige Master", async () => {
+  const nonMaster = { id: "u1", role: "ATENDENTE" };
+  await assert.rejects(
+    () => governance.getGlobalSettingsForManager(nonMaster),
+    (error) => error.statusCode === 403,
+  );
+});

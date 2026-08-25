@@ -802,6 +802,11 @@ async function loadGlobalSettings() {
     const pill = $("#global-automation-status");
     pill.textContent = settings.automationEnabled ? "AUTOMAÇÃO ON" : "AUTOMAÇÃO OFF";
     pill.className = `global-status-pill ${settings.automationEnabled ? "on" : "off"}`;
+    const killSwitch = $("#kill-switch");
+    killSwitch.dataset.automationEnabled = String(settings.automationEnabled);
+    killSwitch.textContent = settings.automationEnabled
+      ? "DESATIVAR AUTOMAÇÃO DOS BOTS"
+      : "REATIVAR AUTOMAÇÃO DOS BOTS";
   } catch (error) { toast(error.message, true); }
 }
 
@@ -823,7 +828,7 @@ $("#save-global-settings").addEventListener("click", async () => {
 });
 
 $("#kill-switch").addEventListener("click", async () => {
-  const willActivate = $("#global-automation").checked;
+  const willActivate = $("#kill-switch").dataset.automationEnabled === "true";
   const action = willActivate ? "desativar" : "reativar";
   if (!confirm(`Tem certeza que deseja ${action} a automação de TODOS os Bots agora? Atendimento humano e recebimento de mensagens continuam funcionando normalmente.`)) return;
   try {

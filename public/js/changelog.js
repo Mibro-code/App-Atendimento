@@ -1,7 +1,19 @@
 (() => {
-  const APP_VERSION = "0.14.3";
+  const APP_VERSION = "0.15.0";
 
   const CHANGELOG = [
+    {
+      version: "0.15.0",
+      date: "25/08/2026",
+      title: "Governança, versões e qualidade dos Bots",
+      changes: [
+        "Adiciona controles globais de governança e kill switch auditado, sem interromper atendimento humano, triagem ou recebimento de mensagens.",
+        "Inclui identidade por Bot, versões com prévia de restauração e rollback que preserva todo o histórico.",
+        "Adiciona proteções contra loops, ping-pong entre Bots e pausa automática quando um atendente assume a conversa.",
+        "Disponibiliza métricas separadas de interpretação e atendimento, avaliações opcionais e ranking com amostra mínima.",
+        "Mantém respostas automáticas, ferramentas, avaliações e ranking desativados por padrão para uma ativação controlada."
+      ]
+    },
     {
       version: "0.14.3",
       date: "25/08/2026",

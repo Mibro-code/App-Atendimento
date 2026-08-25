@@ -101,7 +101,9 @@ function toStandardResult({ bot, targetBot, interpretation, decision, responseTe
 // desligado ou a sessão tiver expirado. `guardState` alimenta as proteções
 // de loop/troca de Bot/apresentação — só é null quando a sessão realmente
 // expirou (essas proteções não dependem de contextEnabled).
-async function runDecisionPipeline({ bot, message, context, state, guardState, flags, now, channel, client, sessionExpired = false }) {
+async function runDecisionPipeline({
+  bot, message, context, state, guardState, previousIntroducedAt, flags, now, channel, client, sessionExpired = false,
+}) {
   const interpretation = await interpret({ bot, message, context, state });
   let decision = decide({ bot, interpretation, message, state, now, flags });
 
@@ -130,9 +132,10 @@ async function runDecisionPipeline({ bot, message, context, state, guardState, f
 
   let responseText = respond({ bot: targetBot, decision, interpretation });
 
-  const priorIntroducedAt = guardState?.introducedAt || null;
+  const priorIntroducedAt = previousIntroducedAt === undefined
+    ? (guardState?.introducedAt || null) : previousIntroducedAt;
   const shouldIntroduce = Boolean(targetBot.introduceWithName) && Boolean(responseText)
-    && (!priorIntroducedAt || sessionExpired);
+    && (!priorIntroducedAt || (sessionExpired && targetBot.reintroduceOnNewSession));
   if (shouldIntroduce) {
     const presentation = renderPresentationMessage(targetBot.presentationMessage, { botName: targetBot.name });
     responseText = `${presentation} ${responseText}`;
@@ -177,7 +180,7 @@ async function orchestrate({ conversationId, channel = "META", messageId = null,
 
   const { interpretation, decision, targetBot, responseText, operational } = await runDecisionPipeline({
     bot, message, context, state: conversationalState, guardState: operationalState,
-    flags, now, channel, client, sessionExpired,
+    previousIntroducedAt: state?.introducedAt || null, flags, now, channel, client, sessionExpired,
   });
 
   let humanPaused = false;

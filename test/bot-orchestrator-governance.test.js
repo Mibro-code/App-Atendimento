@@ -70,6 +70,36 @@ test("apresentação: liga uma vez, não repete na mesma sessão, nunca aparece 
   await prisma.bot.update({ where: { id: withoutName.id }, data: { archivedAt: new Date() } });
 });
 
+test("sessão expirada respeita reintroduceOnNewSession", async () => {
+  await cleanup();
+  const bot = await prisma.bot.create({ data: {
+    name: botNamePrefix + " Reapresentação", status: "ACTIVE", channel: "META",
+    initialMessage: "Olá!", outsideHoursMessage: "Fora.", fallbackMessage: "Não entendi.",
+    introduceWithName: true, presentationMessage: "Eu sou {{botName}}.",
+    reintroduceOnNewSession: false, featureFlags: { contextExpirationMinutes: 30 },
+  } });
+  const conversation = await seedConversation();
+  const oldDate = new Date(Date.now() - 60 * 60 * 1000);
+  await prisma.conversationBotState.create({ data: {
+    conversationId: conversation.id, activeBotId: bot.id, introducedAt: oldDate, updatedAt: oldDate,
+  } });
+
+  const firstMessage = await addMessage(conversation, "bom dia");
+  const withoutReintroduction = await orchestrate({
+    conversationId: conversation.id, messageId: firstMessage.id, message: firstMessage.text,
+  });
+  assert.doesNotMatch(withoutReintroduction.response, /Eu sou Bot Governança Teste Reapresentação/);
+
+  await prisma.bot.update({ where: { id: bot.id }, data: { reintroduceOnNewSession: true } });
+  await prisma.conversationBotState.update({
+    where: { conversationId: conversation.id }, data: { introducedAt: oldDate, updatedAt: oldDate },
+  });
+  const secondMessage = await addMessage(conversation, "olá novamente", new Date(Date.now() + 1000));
+  const withReintroduction = await orchestrate({
+    conversationId: conversation.id, messageId: secondMessage.id, message: secondMessage.text,
+  });
+  assert.match(withReintroduction.response, /Eu sou Bot Governança Teste Reapresentação/);
+});
 test("contexto expira: falhas antigas não contam para uma mensagem após a janela de expiração", async () => {
   await cleanup();
   const bot = await prisma.bot.create({ data: {
@@ -214,4 +244,8 @@ test("automationBlocked: reflete autoReplyEnabled do Bot e o kill switch global"
   assert.ok(auditEntries >= 1);
 
   await governance.reactivateAutomation(master);
+  const reactivated = await governance.getGlobalSettings();
+  assert.equal(reactivated.automationEnabled, true);
+  assert.equal(reactivated.killSwitchActivatedAt, null);
+  assert.equal(reactivated.killSwitchActivatedByUserId, null);
 });

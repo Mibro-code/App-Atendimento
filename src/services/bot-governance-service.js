@@ -92,9 +92,14 @@ function renderPresentationMessage(template, { botName }) {
 const GLOBAL_SETTINGS_ID = "singleton";
 
 async function getGlobalSettings(client = prisma) {
-  const existing = await client.botGlobalSettings.findUnique({ where: { id: GLOBAL_SETTINGS_ID } });
-  if (existing) return existing;
-  return client.botGlobalSettings.create({ data: { id: GLOBAL_SETTINGS_ID } });
+  return client.botGlobalSettings.upsert({
+    where: { id: GLOBAL_SETTINGS_ID }, update: {}, create: { id: GLOBAL_SETTINGS_ID },
+  });
+}
+
+async function getGlobalSettingsForManager(viewer) {
+  assertBotManager(viewer);
+  return getGlobalSettings();
 }
 
 async function updateGlobalSettings(data, actor) {
@@ -150,7 +155,8 @@ async function reactivateAutomation(actor) {
   assertBotManager(actor);
   await getGlobalSettings();
   const settings = await prisma.botGlobalSettings.update({
-    where: { id: GLOBAL_SETTINGS_ID }, data: { automationEnabled: true },
+    where: { id: GLOBAL_SETTINGS_ID },
+    data: { automationEnabled: true, killSwitchActivatedAt: null, killSwitchActivatedByUserId: null },
   });
   await audit.recordAudit({
     actor, action: "BOT_KILL_SWITCH_DEACTIVATED", entityType: "BOT", entityId: null,
@@ -164,6 +170,7 @@ module.exports = {
   deactivateAutomation,
   fail,
   getGlobalSettings,
+  getGlobalSettingsForManager,
   reactivateAutomation,
   renderPresentationMessage,
   resolveFeatureFlags,

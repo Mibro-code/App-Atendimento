@@ -35,3 +35,12 @@ test("botões secundários mantêm contraste nos temas claro e escuro", () => {
   );
   assert.doesNotMatch(css, /color:var\(--ink\);background:#edf0f2/);
 });
+
+test("kill switch global usa o estado autoritativo e o checkbox é somente indicador", () => {
+  const javascript = fs.readFileSync(path.join(process.cwd(), "public", "js", "bots.js"), "utf8");
+  assert.match(html, /<input id="global-automation" type="checkbox" disabled/);
+  assert.match(javascript, /killSwitch\.dataset\.automationEnabled = String\(settings\.automationEnabled\)/);
+  assert.match(javascript, /REATIVAR AUTOMAÇÃO DOS BOTS/);
+  assert.match(javascript, /const willActivate = \$\("#kill-switch"\)\.dataset\.automationEnabled === "true"/);
+  assert.doesNotMatch(javascript, /const willActivate = \$\("#global-automation"\)\.checked/);
+});
