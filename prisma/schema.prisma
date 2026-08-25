@@ -121,6 +121,16 @@ enum BotLearningSuggestionStatus {
   EDITED
 }
 
+enum KnowledgeSourceType {
+  FAQ
+  MANUAL
+  PRODUCT
+  POLICY
+  WARRANTY
+  PROCEDURE
+  OTHER
+}
+
 model Contact {
   id            String         @id @default(cuid())
   channel       Channel        @default(META)
@@ -176,6 +186,8 @@ model Conversation {
   botState            ConversationBotState?
   learningSuggestions BotLearningSuggestion[]
   learningState       ConversationLearningState?
+  rating              BotRating?
+  agentFeedback       BotAgentFeedback[]
 
   @@unique([contactId, channel])
   @@index([status, lastMessageAt])
@@ -239,6 +251,8 @@ model User {
   internalMessages            InternalMessage[]
   observationFeedback         BotObservation[]         @relation("ObservationFeedbackUser")
   reviewedLearningSuggestions BotLearningSuggestion[]  @relation("LearningSuggestionReviewer")
+  botVersions                 BotVersion[]             @relation("BotVersionAuthor")
+  agentFeedback               BotAgentFeedback[]
 }
 
 model AuditLog {
@@ -320,27 +334,53 @@ model Category {
 }
 
 model Bot {
-  id                      String                  @id @default(cuid())
+  id                      String    @id @default(cuid())
   name                    String
   description             String?
-  status                  BotStatus               @default(DRAFT)
+  status                  BotStatus @default(DRAFT)
   channel                 Channel
-  initialMessage          String                  @db.Text
-  outsideHoursMessage     String                  @db.Text
-  fallbackMessage         String                  @db.Text
-  timezone                String                  @default("America/Sao_Paulo")
+  initialMessage          String    @db.Text
+  outsideHoursMessage     String    @db.Text
+  fallbackMessage         String    @db.Text
+  timezone                String    @default("America/Sao_Paulo")
   defaultCategoryId       String?
-  highConfidenceThreshold Float                   @default(0.8)
-  lowConfidenceThreshold  Float                   @default(0.55)
-  archivedAt              DateTime?
-  createdAt               DateTime                @default(now())
-  updatedAt               DateTime                @updatedAt
-  defaultCategory         Category?               @relation(fields: [defaultCategoryId], references: [id], onDelete: SetNull)
-  schedules               BotSchedule[]
-  intents                 BotIntent[]
-  observations            BotObservation[]
-  conversationStates      ConversationBotState[]
-  learningSuggestions     BotLearningSuggestion[]
+  highConfidenceThreshold Float     @default(0.8)
+  lowConfidenceThreshold  Float     @default(0.55)
+
+  // Identidade (fase de governança) — ver bot-governance-service.js.
+  introduceWithName       Boolean @default(false)
+  presentationMessage     String? @db.Text
+  reintroduceOnNewSession Boolean @default(true)
+
+  // Toggles críticos (nunca ligar sozinho num Bot já existente): ficam como
+  // colunas dedicadas para leitura rápida no kill switch e nas queries do
+  // ranking/dashboard. Os demais recursos (menos arriscados) ficam validados
+  // dentro de featureFlags/toolPermissions — ver bot-governance-service.js.
+  autoReplyEnabled Boolean @default(false)
+  toolsEnabled     Boolean @default(false)
+  ratingEnabled    Boolean @default(false)
+  featureFlags     Json    @default("{}")
+  toolPermissions  Json    @default("{}")
+
+  // Avaliação do atendimento (BotRating) — ver bot-rating-service.js.
+  ratingMessage         String? @db.Text
+  ratingFollowupMessage String? @db.Text
+  requestRatingOn       String  @default("BOT_COMPLETED")
+  requestRatingComment  Boolean @default(false)
+
+  archivedAt          DateTime?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  defaultCategory     Category?               @relation(fields: [defaultCategoryId], references: [id], onDelete: SetNull)
+  schedules           BotSchedule[]
+  intents             BotIntent[]
+  observations        BotObservation[]
+  conversationStates  ConversationBotState[]
+  learningSuggestions BotLearningSuggestion[]
+  versions            BotVersion[]
+  ratings             BotRating[]
+  agentFeedback       BotAgentFeedback[]
+  knowledgeSources    KnowledgeSource[]
 
   @@index([status, channel])
   @@index([defaultCategoryId])
@@ -379,6 +419,7 @@ model BotIntent {
   conversationStates   ConversationBotState[]
   feedbackObservations BotObservation[]        @relation("ObservationFeedbackIntent")
   learningSuggestions  BotLearningSuggestion[]
+  ratings              BotRating[]
 
   @@index([botId, active, priority])
   @@index([categoryId])
@@ -437,16 +478,32 @@ model BotObservation {
 }
 
 model ConversationBotState {
-  id                    String   @id @default(cuid())
-  conversationId        String   @unique
+  id                    String  @id @default(cuid())
+  conversationId        String  @unique
   activeBotId           String?
   lastIntentId          String?
   lastConfidence        Float?
-  failedInterpretations Int      @default(0)
-  pendingClarification  Boolean  @default(false)
+  failedInterpretations Int     @default(0)
+  pendingClarification  Boolean @default(false)
   extractedEntities     Json?
-  updatedAt             DateTime @updatedAt
-  createdAt             DateTime @default(now())
+
+  // Identidade: já se apresentou nesta sessão operacional?
+  introducedAt DateTime?
+
+  // Proteção contra loop (bot-loop-guard-service.js): mesma resposta
+  // repetida N vezes seguidas.
+  lastResponseHash        String?
+  lastResponseRepeatCount Int     @default(0)
+
+  // Proteção contra ping-pong de SWITCH_BOT numa janela de tempo.
+  switchCount           Int       @default(0)
+  switchWindowStartedAt DateTime?
+
+  // Pausa quando um humano assume a conversa (handoffAutoPause).
+  humanPausedAt DateTime?
+
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   activeBot    Bot?         @relation(fields: [activeBotId], references: [id], onDelete: SetNull)
@@ -498,6 +555,111 @@ model BotLearningSuggestion {
   @@index([status, createdAt])
   @@index([botId, status])
   @@index([type, status])
+}
+
+// Snapshot completo do Bot (campos + intenções + horários + featureFlags) em
+// um ponto no tempo. Criado sob demanda ("Salvar versão"/"Publicar"), nunca a
+// cada edição — ver bot-version-service.js. Restaurar cria uma versão NOVA a
+// partir de uma antiga; nunca apaga histórico.
+model BotVersion {
+  id                  String   @id @default(cuid())
+  botId               String
+  version             Int
+  label               String?
+  description         String?
+  snapshot            Json
+  restoredFromVersion Int?
+  createdAt           DateTime @default(now())
+  createdByUserId     String?
+  createdByName       String?
+
+  bot           Bot   @relation(fields: [botId], references: [id], onDelete: Cascade)
+  createdByUser User? @relation("BotVersionAuthor", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([botId, version])
+  @@index([botId, createdAt])
+}
+
+// Avaliação do atendimento feita pelo CLIENTE (customerRating). Nunca gerada
+// pelo modo Observação — só existe quando o Bot realmente atendeu (ver
+// bot-rating-service.js). Uma conversa recebe no máximo uma avaliação.
+model BotRating {
+  id              String   @id @default(cuid())
+  botId           String
+  conversationId  String?  @unique
+  channel         Channel  @default(META)
+  score           Int
+  comment         String?  @db.Text
+  resolvedByBot   Boolean  @default(false)
+  intentId        String?
+  handoffOccurred Boolean  @default(false)
+  metadata        Json?
+  createdAt       DateTime @default(now())
+
+  bot          Bot           @relation(fields: [botId], references: [id], onDelete: Cascade)
+  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  intent       BotIntent?    @relation(fields: [intentId], references: [id], onDelete: SetNull)
+
+  @@index([botId, createdAt])
+  @@index([botId, score])
+  @@index([intentId])
+}
+
+// Feedback do ATENDENTE ("o bot ajudou?") após um handoff — sinal distinto
+// da avaliação do cliente (BotRating), nunca misturado com ela.
+model BotAgentFeedback {
+  id             String   @id @default(cuid())
+  conversationId String
+  botId          String?
+  userId         String
+  helpful        Boolean
+  comment        String?  @db.Text
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  bot          Bot?         @relation(fields: [botId], references: [id], onDelete: SetNull)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([botId])
+}
+
+// Arquitetura-base para futura base de conhecimento (sem RAG nesta fase).
+// Rastreabilidade: tipo, origem, versão e janela de validade.
+model KnowledgeSource {
+  id         String              @id @default(cuid())
+  botId      String?
+  title      String
+  type       KnowledgeSourceType
+  source     String?
+  content    String?             @db.Text
+  version    Int                 @default(1)
+  active     Boolean             @default(true)
+  validFrom  DateTime?
+  validUntil DateTime?
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  bot Bot? @relation(fields: [botId], references: [id], onDelete: SetNull)
+
+  @@index([botId, active])
+  @@index([type])
+}
+
+// Configuração global de automação de Bots — inclui o kill switch
+// ("Automação de Bots"). Registro único (id fixo "singleton").
+model BotGlobalSettings {
+  id                          String    @id @default("singleton")
+  automationEnabled           Boolean   @default(true)
+  observationEnabled          Boolean   @default(true)
+  learningEnabled             Boolean   @default(true)
+  ratingsEnabled              Boolean   @default(false)
+  rankingEnabled              Boolean   @default(false)
+  minimumRatingsForRanking    Int       @default(20)
+  killSwitchActivatedAt       DateTime?
+  killSwitchActivatedByUserId String?
+  updatedAt                   DateTime  @updatedAt
+  createdAt                   DateTime  @default(now())
 }
 
 model UserCategoryAccess {

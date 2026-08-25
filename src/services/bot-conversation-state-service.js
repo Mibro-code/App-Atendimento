@@ -8,29 +8,27 @@ async function getState(conversationId, client = prisma) {
   return client.conversationBotState.findUnique({ where: { conversationId } });
 }
 
-async function persistDecision({ conversationId, bot, interpretation, decision }, client = prisma) {
+// `operational` carrega os campos de governança calculados pelo orquestrador
+// (apresentação, loop guard, janela de troca de Bot) — mantidos aqui como um
+// objeto à parte para não inflar a assinatura desta função a cada novo
+// controle adicionado.
+async function persistDecision({ conversationId, bot, interpretation, decision, operational = {} }, client = prisma) {
   const failedInterpretations = decision.action === "ASK_CLARIFICATION" || decision.action === "HANDOFF_HUMAN"
     ? (decision.failureCount ?? 0)
     : 0;
+  const shared = {
+    activeBotId: bot.id,
+    lastIntentId: interpretation.intentId || null,
+    lastConfidence: interpretation.confidence ?? null,
+    failedInterpretations,
+    pendingClarification: decision.needsClarification || false,
+    extractedEntities: interpretation.entities || {},
+    ...operational,
+  };
   return client.conversationBotState.upsert({
     where: { conversationId },
-    create: {
-      conversationId,
-      activeBotId: bot.id,
-      lastIntentId: interpretation.intentId || null,
-      lastConfidence: interpretation.confidence ?? null,
-      failedInterpretations,
-      pendingClarification: decision.needsClarification || false,
-      extractedEntities: interpretation.entities || {},
-    },
-    update: {
-      activeBotId: bot.id,
-      lastIntentId: interpretation.intentId || null,
-      lastConfidence: interpretation.confidence ?? null,
-      failedInterpretations,
-      pendingClarification: decision.needsClarification || false,
-      extractedEntities: interpretation.entities || {},
-    },
+    create: { conversationId, ...shared },
+    update: shared,
   });
 }
 

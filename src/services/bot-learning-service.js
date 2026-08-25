@@ -11,6 +11,7 @@ const authorization = require("./authorization-service");
 const { normalizeText } = require("./bot-simulator-service");
 const { similarity } = require("./ai/local-fallback-provider");
 const { sanitizeForLearning } = require("./bot-learning-sanitizer");
+const { getGlobalSettings, resolveFeatureFlags } = require("./bot-governance-service");
 const {
   DEFAULT_HIGH_CONFIDENCE_THRESHOLD, LEARNING_MESSAGE_LIMIT, LEARNING_SIMILARITY_CONTENT_THRESHOLD,
   LEARNING_SIMILARITY_TOPIC_THRESHOLD, RESOLUTION_NEGATIVE_PATTERNS, RESOLUTION_POSITIVE_PATTERNS,
@@ -122,6 +123,9 @@ async function upsertResponseSuggestion(client, { botId, topic, content, convers
 // aprendizado.
 async function analyzeConversation(conversationId, { force = false, client = prisma } = {}) {
   try {
+    const globalSettings = await getGlobalSettings(client);
+    if (!globalSettings.learningEnabled) return { analyzed: false, reason: "LEARNING_DISABLED_GLOBALLY" };
+
     const conversation = await client.conversation.findUnique({
       where: { id: conversationId },
       include: {
@@ -150,8 +154,11 @@ async function analyzeConversation(conversationId, { force = false, client = pri
     const suggestions = [];
 
     if (firstCustomerMessage && resolutionSignal === "POSITIVE") {
-      const observation = await client.botObservation.findFirst({ where: { messageId: firstCustomerMessage.id } });
-      const needsExample = !observation || observation.confidence == null || observation.confidence < DEFAULT_HIGH_CONFIDENCE_THRESHOLD;
+      const observation = await client.botObservation.findFirst({
+        where: { messageId: firstCustomerMessage.id }, include: { bot: { select: { featureFlags: true } } },
+      });
+      const botLearningEnabled = !observation?.bot || resolveFeatureFlags(observation.bot).learningEnabled;
+      const needsExample = botLearningEnabled && (!observation || observation.confidence == null || observation.confidence < DEFAULT_HIGH_CONFIDENCE_THRESHOLD);
       const sanitizedExample = sanitizeForLearning(firstCustomerMessage.text);
       if (needsExample && sanitizedExample) {
         const botId = observation?.botId || null;
@@ -179,7 +186,7 @@ async function analyzeConversation(conversationId, { force = false, client = pri
       const lastAgentMessage = [...messages].reverse()
         .find((item) => item.direction === "ENVIADA" && item.sentByUserId && (item.text || "").trim().length > 15);
       const sanitizedSolution = lastAgentMessage ? sanitizeForLearning(lastAgentMessage.text) : null;
-      if (sanitizedSolution && sanitizedExample) {
+      if (botLearningEnabled && sanitizedSolution && sanitizedExample) {
         suggestions.push(await upsertResponseSuggestion(client, {
           botId: observation?.botId || null, topic: sanitizedExample, content: sanitizedSolution, conversationId,
         }));

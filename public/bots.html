@@ -12,7 +12,7 @@
 <body>
   <header class="topbar">
     <a class="brand" href="/"><img src="/assets/mibro-logo.png" alt="Mibro"><span></span><small>Gerenciamento de Bots</small></a>
-    <div class="phase-badge">FASE 3 &bull; OBSERVAÇÃO + APRENDIZADO SUPERVISIONADO</div>
+    <div class="phase-badge">FASE 4 &bull; GOVERNANÇA E AVALIAÇÃO</div>
     <a class="back-link" href="/">&larr; Central</a>
     <button id="theme-toggle" class="round-button" type="button" title="Alternar tema">&#9790;</button>
     <button id="logout" class="user-button" type="button"><span id="current-user">Master</span> &bull; Sair</button>
@@ -26,6 +26,18 @@
       </div>
       <div id="bot-list" class="bot-list"></div>
       <div class="safety-note"><b>Ambiente seguro</b><p>Ativar um Bot nesta fase não altera o webhook, a triagem atual ou os envios da Meta.</p></div>
+      <div class="global-settings-card">
+        <div class="global-settings-heading"><b>Configurações dos Bots</b><span id="global-automation-status" class="global-status-pill">...</span></div>
+        <p class="card-help">Controla automação, observação, aprendizado, avaliações e ranking para TODOS os Bots de uma vez.</p>
+        <label class="global-toggle-row"><span>Automação de Bots</span><input id="global-automation" type="checkbox"></label>
+        <label class="global-toggle-row"><span>Modo Observação global</span><input id="global-observation" type="checkbox"></label>
+        <label class="global-toggle-row"><span>Aprendizado global</span><input id="global-learning" type="checkbox"></label>
+        <label class="global-toggle-row"><span>Avaliações globais</span><input id="global-ratings" type="checkbox"></label>
+        <label class="global-toggle-row"><span>Ranking de Bots</span><input id="global-ranking" type="checkbox"></label>
+        <label class="global-toggle-row"><span>Amostra mínima p/ ranking</span><input id="global-min-ratings" type="number" min="1" max="10000" style="width:56px"></label>
+        <button id="save-global-settings" type="button" class="global-save-button">Salvar configurações</button>
+        <button id="kill-switch" type="button" class="kill-switch-button">DESATIVAR AUTOMAÇÃO DOS BOTS</button>
+      </div>
     </aside>
 
     <section class="bots-workspace">
@@ -33,6 +45,9 @@
         <button type="button" class="tab-button active" data-tab="config">Configuração</button>
         <button type="button" class="tab-button" data-tab="observations">Observações</button>
         <button type="button" class="tab-button" data-tab="learning">Aprendizado</button>
+        <button type="button" class="tab-button" data-tab="performance">Desempenho</button>
+        <button type="button" class="tab-button" data-tab="versions">Versões</button>
+        <button type="button" class="tab-button" data-tab="ranking">Ranking</button>
       </nav>
 
       <div id="empty-state" class="empty-state">
@@ -81,6 +96,49 @@
               <label class="full"><span>Mensagem inicial *</span><textarea id="bot-initial" maxlength="4000" required placeholder="Mensagem apresentada no início do fluxo"></textarea></label>
               <label class="full"><span>Mensagem fora do horário *</span><textarea id="bot-outside" maxlength="4000" required placeholder="Resposta usada fora do horário configurado"></textarea></label>
               <label class="full"><span>Mensagem de fallback *</span><textarea id="bot-fallback" maxlength="4000" required placeholder="Resposta usada quando nenhuma intenção corresponder"></textarea></label>
+            </div>
+
+            <div class="fields-heading">IDENTIDADE</div>
+            <div class="fields two-columns">
+              <label class="checkbox"><input id="bot-introduce" type="checkbox"><span>Apresentar-se pelo nome</span></label>
+              <label class="checkbox"><input id="bot-reintroduce" type="checkbox" checked><span>Apresentar novamente em nova sessão</span></label>
+              <label class="full"><span>Mensagem de apresentação (use {{botName}})</span><textarea id="bot-presentation" maxlength="500" placeholder="Olá! Eu sou a {{botName}}, assistente virtual da Mibro."></textarea></label>
+            </div>
+
+            <div class="fields-heading">RECURSOS DO BOT</div>
+            <div class="fields two-columns feature-flags-grid">
+              <label class="checkbox critical-toggle"><input id="flag-autoReplyEnabled" type="checkbox"><span>Resposta automática (envia mensagem real)</span></label>
+              <label class="checkbox critical-toggle"><input id="flag-toolsEnabled" type="checkbox"><span>Uso de Tools</span></label>
+              <label class="checkbox critical-toggle"><input id="flag-ratingEnabled" type="checkbox"><span>Avaliação do atendimento</span></label>
+              <label class="checkbox"><input id="flag-interpretationEnabled" type="checkbox" checked><span>Interpretação inteligente</span></label>
+              <label class="checkbox"><input id="flag-conversationalBehaviorEnabled" type="checkbox" checked><span>Comportamento conversacional</span></label>
+              <label class="checkbox"><input id="flag-contextEnabled" type="checkbox" checked><span>Contexto de conversa</span></label>
+              <label class="checkbox"><input id="flag-autoSwitchEnabled" type="checkbox" checked><span>Troca automática de Bot</span></label>
+              <label class="checkbox"><input id="flag-observationEnabled" type="checkbox" checked><span>Observação</span></label>
+              <label class="checkbox"><input id="flag-learningEnabled" type="checkbox" checked><span>Aprendizado supervisionado</span></label>
+              <label class="checkbox"><input id="flag-knowledgeSuggestionsEnabled" type="checkbox" checked><span>Sugestões de conhecimento</span></label>
+              <label class="checkbox"><input id="flag-knowledgeBaseEnabled" type="checkbox"><span>Base de conhecimento</span></label>
+              <label class="checkbox"><input id="flag-handoffAutoPauseEnabled" type="checkbox" checked><span>Pausar ao humano assumir</span></label>
+              <label><span>Máx. mensagens de contexto</span><input id="flag-contextMaxMessages" type="number" min="1" max="30" value="10"></label>
+              <label><span>Expiração de contexto (min)</span><input id="flag-contextExpirationMinutes" type="number" min="5" max="1440" value="120"></label>
+              <label><span>Máx. trocas de Bot / janela</span><input id="flag-maxSwitchesPerWindow" type="number" min="1" max="20" value="3"></label>
+              <label><span>Janela de troca de Bot (min)</span><input id="flag-switchWindowMinutes" type="number" min="1" max="180" value="10"></label>
+            </div>
+          </form>
+
+          <form id="rating-config-form" class="card requires-bot">
+            <div class="card-heading"><div><span>QUALIDADE</span><h3>Avaliação do atendimento</h3></div><button type="submit">Salvar avaliação</button></div>
+            <div class="fields two-columns">
+              <label class="checkbox"><input id="rating-enabled" type="checkbox"><span>Ativar avaliação</span></label>
+              <label class="checkbox"><input id="rating-request-comment" type="checkbox"><span>Solicitar comentário</span></label>
+              <label><span>Solicitar avaliação quando</span><select id="rating-request-on">
+                <option value="BOT_COMPLETED">Atendimento do Bot for concluído</option>
+                <option value="BEFORE_HANDOFF">Antes de handoff humano</option>
+                <option value="MANUAL">Somente manualmente</option>
+                <option value="NEVER">Nunca</option>
+              </select></label>
+              <label class="full"><span>Mensagem de avaliação</span><textarea id="rating-message" maxlength="500" placeholder="Antes de finalizar, como você avalia meu atendimento?"></textarea></label>
+              <label class="full"><span>Mensagem após avaliação</span><textarea id="rating-followup" maxlength="500" placeholder="Obrigado pela sua avaliação!"></textarea></label>
             </div>
           </form>
 
@@ -181,6 +239,60 @@
           </div>
           <div id="learning-list" class="learning-list"></div>
           <div id="learning-empty" class="intent-empty" hidden>Nenhuma sugestão nesse filtro.</div>
+        </div>
+      </div>
+
+      <div id="performance-panel" class="observations-panel" hidden>
+        <div class="card observations-card">
+          <div class="card-heading"><div><span>DESEMPENHO</span><h3>Métricas do Bot selecionado</h3></div></div>
+          <p class="card-help">Interpretação (Observação) e atendimento real (Avaliação) aparecem separados — Observação nunca conta como atendimento.</p>
+          <div class="observations-toolbar">
+            <select id="perf-period">
+              <option value="">Tudo</option>
+              <option value="today">Hoje</option>
+              <option value="7d">7 dias</option>
+              <option value="30d">30 dias</option>
+              <option value="90d">90 dias</option>
+            </select>
+            <button id="perf-refresh" type="button">Atualizar</button>
+          </div>
+          <div class="metrics-strip" id="perf-interpretation-metrics"></div>
+          <div class="metrics-strip" id="perf-attendance-metrics"></div>
+          <div class="rating-distribution" id="perf-distribution"></div>
+          <div class="card-heading"><div><span>INTENÇÕES</span><h3>Desempenho por intenção</h3></div></div>
+          <div class="observations-table-wrap">
+            <table class="observations-table">
+              <thead><tr><th>Intenção</th><th>Acionamentos</th><th>Confiança média</th><th>Handoffs</th><th>Avaliações</th><th>Nota média</th></tr></thead>
+              <tbody id="intent-metrics-body"></tbody>
+            </table>
+          </div>
+          <div class="card-heading"><div><span>QUALIDADE</span><h3>Possíveis conflitos entre intenções</h3></div></div>
+          <div id="intent-conflicts-list" class="learning-list"></div>
+        </div>
+      </div>
+
+      <div id="versions-panel" class="observations-panel" hidden>
+        <div class="card observations-card">
+          <div class="card-heading"><div><span>VERSIONAMENTO</span><h3>Versões do Bot selecionado</h3></div></div>
+          <p class="card-help">Restaurar cria uma versão NOVA a partir da antiga — o histórico nunca é apagado.</p>
+          <div class="observations-toolbar">
+            <input id="version-label" type="text" placeholder="Rótulo (opcional)" maxlength="100">
+            <input id="version-description" type="text" placeholder="Descrição (opcional)" maxlength="500">
+            <button id="save-version" type="button">Salvar versão</button>
+          </div>
+          <div id="versions-list" class="learning-list"></div>
+          <div id="versions-empty" class="intent-empty" hidden>Nenhuma versão salva ainda.</div>
+        </div>
+      </div>
+
+      <div id="ranking-panel" class="observations-panel" hidden>
+        <div class="card observations-card">
+          <div class="card-heading"><div><span>QUALIDADE</span><h3>Ranking dos Bots</h3></div></div>
+          <p class="card-help">Score equilibrado (média Bayesiana): pondera nota média e volume de avaliações contra a amostra mínima configurada — não é só "maior nota média".</p>
+          <div id="ranking-disabled-notice" class="intent-empty" hidden>Ranking desativado nas configurações globais.</div>
+          <div id="ranking-list" class="learning-list"></div>
+          <div id="ranking-excluded-heading" class="card-heading" hidden><div><span>DADOS INSUFICIENTES</span><h3>Abaixo da amostra mínima</h3></div></div>
+          <div id="ranking-excluded-list" class="learning-list"></div>
         </div>
       </div>
     </section>

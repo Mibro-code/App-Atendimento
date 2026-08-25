@@ -19,6 +19,10 @@ async function observeIncomingMessage(event, message, { now = new Date() } = {})
       now,
     });
     if (!result) return null;
+    // Toggle global + por Bot ("Observação"). Interpretar continua rodando
+    // (é o que garante o estado da conversa/proteções ficarem corretos), só
+    // o registro/log é que fica condicionado ao toggle.
+    if (!result.observationAllowed) return result;
 
     console.log("[BOT_OBSERVATION]", JSON.stringify({
       conversationId: message.conversationId,

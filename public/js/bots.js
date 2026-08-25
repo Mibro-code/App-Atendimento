@@ -95,6 +95,20 @@ function renderIntents() {
   document.querySelectorAll("[data-delete-intent]").forEach((button) => button.addEventListener("click", () => removeIntent(button.dataset.deleteIntent)));
 }
 
+const booleanFeatureFlags = [
+  "interpretationEnabled", "conversationalBehaviorEnabled", "contextEnabled", "autoSwitchEnabled",
+  "observationEnabled", "learningEnabled", "knowledgeSuggestionsEnabled", "knowledgeBaseEnabled",
+  "handoffAutoPauseEnabled",
+];
+const numericFeatureFlags = {
+  contextMaxMessages: 10, contextExpirationMinutes: 120, maxSwitchesPerWindow: 3, switchWindowMinutes: 10,
+};
+const defaultBooleanFeatureFlags = {
+  interpretationEnabled: true, conversationalBehaviorEnabled: true, contextEnabled: true, autoSwitchEnabled: true,
+  observationEnabled: true, learningEnabled: true, knowledgeSuggestionsEnabled: true, knowledgeBaseEnabled: false,
+  handoffAutoPauseEnabled: true,
+};
+
 function fillBotForm(bot = null) {
   $("#bot-name").value = bot?.name || "";
   $("#bot-description").value = bot?.description || "";
@@ -106,6 +120,27 @@ function fillBotForm(bot = null) {
   $("#bot-initial").value = bot?.initialMessage || "";
   $("#bot-outside").value = bot?.outsideHoursMessage || "";
   $("#bot-fallback").value = bot?.fallbackMessage || "";
+
+  $("#bot-introduce").checked = Boolean(bot?.introduceWithName);
+  $("#bot-reintroduce").checked = bot ? Boolean(bot.reintroduceOnNewSession) : true;
+  $("#bot-presentation").value = bot?.presentationMessage || "";
+
+  $("#flag-autoReplyEnabled").checked = Boolean(bot?.autoReplyEnabled);
+  $("#flag-toolsEnabled").checked = Boolean(bot?.toolsEnabled);
+  $("#flag-ratingEnabled").checked = Boolean(bot?.ratingEnabled);
+  const flags = bot?.featureFlags || {};
+  for (const key of booleanFeatureFlags) {
+    $(`#flag-${key}`).checked = flags[key] !== undefined ? Boolean(flags[key]) : defaultBooleanFeatureFlags[key];
+  }
+  for (const [key, fallback] of Object.entries(numericFeatureFlags)) {
+    $(`#flag-${key}`).value = flags[key] ?? fallback;
+  }
+
+  $("#rating-enabled").checked = Boolean(bot?.ratingEnabled);
+  $("#rating-request-comment").checked = Boolean(bot?.requestRatingComment);
+  $("#rating-request-on").value = bot?.requestRatingOn || "BOT_COMPLETED";
+  $("#rating-message").value = bot?.ratingMessage || "";
+  $("#rating-followup").value = bot?.ratingFollowupMessage || "";
 }
 
 function renderEditor() {
@@ -169,6 +204,9 @@ function startNewBot() {
 }
 
 function botPayload() {
+  const featureFlags = {};
+  for (const key of booleanFeatureFlags) featureFlags[key] = $(`#flag-${key}`).checked;
+  for (const key of Object.keys(numericFeatureFlags)) featureFlags[key] = Number($(`#flag-${key}`).value);
   return {
     name: $("#bot-name").value,
     description: $("#bot-description").value,
@@ -180,6 +218,13 @@ function botPayload() {
     initialMessage: $("#bot-initial").value,
     outsideHoursMessage: $("#bot-outside").value,
     fallbackMessage: $("#bot-fallback").value,
+    introduceWithName: $("#bot-introduce").checked,
+    reintroduceOnNewSession: $("#bot-reintroduce").checked,
+    presentationMessage: $("#bot-presentation").value || null,
+    autoReplyEnabled: $("#flag-autoReplyEnabled").checked,
+    toolsEnabled: $("#flag-toolsEnabled").checked,
+    ratingEnabled: $("#flag-ratingEnabled").checked,
+    featureFlags,
   };
 }
 
@@ -224,6 +269,24 @@ $("#bot-form").addEventListener("submit", async (event) => {
       : await api("/api/bots", { method: "POST", body: JSON.stringify(botPayload()) });
     toast(state.selected ? "Bot atualizado." : "Bot criado como rascunho.");
     await loadBots(bot.id);
+  } catch (error) { toast(error.message, true); }
+});
+
+$("#rating-config-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  try {
+    await api(`/api/bots/${state.selected.id}/rating-config`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        ratingEnabled: $("#rating-enabled").checked,
+        requestRatingComment: $("#rating-request-comment").checked,
+        requestRatingOn: $("#rating-request-on").value,
+        ratingMessage: $("#rating-message").value || null,
+        ratingFollowupMessage: $("#rating-followup").value || null,
+      }),
+    });
+    toast("Configuração de avaliação salva.");
+    await selectBot(state.selected.id);
   } catch (error) { toast(error.message, true); }
 });
 
@@ -580,6 +643,9 @@ function setActiveTab(tab) {
   document.querySelectorAll(".tab-button").forEach((button) => button.classList.toggle("active", button.dataset.tab === tab));
   $("#observations-panel").hidden = tab !== "observations";
   $("#learning-panel").hidden = tab !== "learning";
+  $("#performance-panel").hidden = tab !== "performance";
+  $("#versions-panel").hidden = tab !== "versions";
+  $("#ranking-panel").hidden = tab !== "ranking";
   if (tab === "config") {
     renderEditor();
     return;
@@ -593,8 +659,180 @@ function setActiveTab(tab) {
     loadObservations();
   } else if (tab === "learning") {
     loadLearning();
+  } else if (tab === "performance") {
+    loadPerformance();
+  } else if (tab === "versions") {
+    loadVersions();
+  } else if (tab === "ranking") {
+    loadRanking();
   }
 }
+
+function requireSelectedBot() {
+  if (!state.selected) { toast("Selecione um Bot primeiro.", true); return null; }
+  return state.selected.id;
+}
+
+async function loadPerformance() {
+  const botId = requireSelectedBot();
+  if (!botId) return;
+  const period = $("#perf-period").value;
+  try {
+    const [metrics, intentRows, conflicts] = await Promise.all([
+      api(`/api/bots/${botId}/rating-metrics?${period ? `preset=${period}` : ""}`),
+      api(`/api/bots/${botId}/intent-metrics`),
+      api(`/api/bots/${botId}/intent-conflicts`),
+    ]);
+    $("#perf-interpretation-metrics").innerHTML = [
+      metricTile(metrics.interpretation.totalObserved, "Mensagens interpretadas (diagnóstico)"),
+      metricTile(metrics.interpretation.handoffs, "Handoffs (interpretador)"),
+      metricTile(metrics.interpretation.fallbacks, "Fallbacks (sem intenção)"),
+      metricTile(metrics.interpretation.lowConfidence, "Baixa confiança"),
+    ].join("");
+    $("#perf-attendance-metrics").innerHTML = [
+      metricTile(metrics.ratings.total, "Avaliações recebidas"),
+      metricTile(metrics.ratings.average ?? "-", "Nota média"),
+      metricTile(metrics.ratings.positive, "Ajudou (4-5★)"),
+      metricTile(metrics.ratings.neutral, "Neutro (3★)"),
+      metricTile(metrics.ratings.negative, "Não ajudou (1-2★)"),
+      metricTile(metrics.attendance.resolvedByBot, "Atendimentos concluídos pelo Bot"),
+      metricTile(metrics.attendance.handoffOccurred, "Handoffs (avaliados)"),
+    ].join("");
+    const maxCount = Math.max(1, ...Object.values(metrics.ratings.distribution));
+    $("#perf-distribution").innerHTML = [5, 4, 3, 2, 1].map((score) => {
+      const count = metrics.ratings.distribution[score] || 0;
+      const pct = Math.round((count / maxCount) * 100);
+      return `<div class="rating-distribution-row"><span>${score} estrela${score === 1 ? "" : "s"}</span><span class="rating-distribution-bar"><span style="width:${pct}%"></span></span><span>${count}</span></div>`;
+    }).join("") + (metrics.ratings.sampleWarning ? `<p class="card-help">${escapeHtml(metrics.ratings.sampleWarning)}</p>` : "");
+
+    $("#intent-metrics-body").innerHTML = intentRows.length ? intentRows.map((row) => `
+      <tr><td>${escapeHtml(row.intentName)}</td><td>${row.triggeredCount}</td>
+      <td>${row.averageConfidence != null ? `${Math.round(row.averageConfidence * 100)}%` : "-"}</td>
+      <td>${row.handoffCount}</td><td>${row.ratingsCount}</td>
+      <td>${row.averageRating != null ? row.averageRating : "-"}</td></tr>
+    `).join("") : `<tr><td colspan="6">Sem dados ainda.</td></tr>`;
+
+    $("#intent-conflicts-list").innerHTML = conflicts.length ? conflicts.map((conflict) => `
+      <article class="learning-card"><p><b>${escapeHtml(conflict.intentAName)}</b> &harr; <b>${escapeHtml(conflict.intentBName)}</b>
+      <span class="learning-conflict">${Math.round(conflict.similarity * 100)}% parecidas</span></p>
+      <p class="learning-meta">${escapeHtml(conflict.reason)}</p></article>
+    `).join("") : `<div class="intent-empty">Nenhum conflito identificado entre as intenções ativas.</div>`;
+  } catch (error) { toast(error.message, true); }
+}
+$("#perf-refresh").addEventListener("click", loadPerformance);
+
+function renderVersions(rows) {
+  $("#versions-empty").hidden = rows.length > 0;
+  $("#versions-list").innerHTML = rows.map((row) => `
+    <article class="learning-card">
+      <header><span class="learning-type">v${row.version}</span>
+      <span class="learning-meta">${row.createdByName ? escapeHtml(row.createdByName) : "-"} &bull; ${new Date(row.createdAt).toLocaleString("pt-BR")}${row.restoredFromVersion ? ` &bull; restaurada da v${row.restoredFromVersion}` : ""}</span></header>
+      <p><b>${escapeHtml(row.label || "Sem rótulo")}</b></p>
+      ${row.description ? `<p class="learning-meta">${escapeHtml(row.description)}</p>` : ""}
+      <div class="learning-actions"><button type="button" class="restore-version" data-version="${row.version}">Restaurar esta versão</button></div>
+    </article>
+  `).join("");
+  document.querySelectorAll(".restore-version").forEach((button) => button.addEventListener("click", async () => {
+    const version = button.dataset.version;
+    try {
+      const preview = await api(`/api/bots/${state.selected.id}/versions/${version}/preview-restore`);
+      const changed = Object.keys(preview.target).filter((key) => JSON.stringify(preview.target[key]) !== JSON.stringify(preview.current[key]));
+      const confirmMessage = changed.length
+        ? `Restaurar v${version} vai alterar: ${changed.join(", ")}. Isso cria uma nova versão (não apaga o histórico). Confirmar?`
+        : `Restaurar v${version}? Isso cria uma nova versão (não apaga o histórico).`;
+      if (!confirm(confirmMessage)) return;
+      await api(`/api/bots/${state.selected.id}/versions/${version}/restore`, { method: "POST", body: JSON.stringify({}) });
+      toast(`Versão restaurada a partir da v${version}.`);
+      await loadVersions();
+      await selectBot(state.selected.id);
+    } catch (error) { toast(error.message, true); }
+  }));
+}
+
+async function loadVersions() {
+  const botId = requireSelectedBot();
+  if (!botId) return;
+  try {
+    renderVersions(await api(`/api/bots/${botId}/versions`));
+  } catch (error) { toast(error.message, true); }
+}
+
+$("#save-version").addEventListener("click", async () => {
+  const botId = requireSelectedBot();
+  if (!botId) return;
+  try {
+    await api(`/api/bots/${botId}/versions`, {
+      method: "POST",
+      body: JSON.stringify({ label: $("#version-label").value || undefined, description: $("#version-description").value || undefined }),
+    });
+    toast("Versão salva.");
+    $("#version-label").value = ""; $("#version-description").value = "";
+    await loadVersions();
+  } catch (error) { toast(error.message, true); }
+});
+
+async function loadRanking() {
+  try {
+    const result = await api("/api/bot-ranking");
+    $("#ranking-disabled-notice").hidden = result.enabled;
+    if (!result.enabled) { $("#ranking-list").innerHTML = ""; $("#ranking-excluded-list").innerHTML = ""; $("#ranking-excluded-heading").hidden = true; return; }
+    $("#ranking-list").innerHTML = result.ranked.length ? result.ranked.map((entry, index) => `
+      <div class="ranking-card"><span class="ranking-position">${index + 1}</span>
+      <div class="ranking-info"><b>${escapeHtml(entry.botName)}</b>
+      <small>Nota ${entry.averageScore} &bull; ${entry.ratingsCount} avaliação(ões) &bull; score ${entry.rankingScore}</small></div></div>
+    `).join("") : `<div class="intent-empty">Nenhum Bot atingiu a amostra mínima ainda.</div>`;
+    $("#ranking-excluded-heading").hidden = result.excluded.length === 0;
+    $("#ranking-excluded-list").innerHTML = result.excluded.map((entry) => `
+      <div class="ranking-card"><span class="ranking-position">-</span>
+      <div class="ranking-info"><b>${escapeHtml(entry.botName)}</b>
+      <small>${entry.ratingsCount}/${result.minimumRatingsForRanking} avaliações &bull; Dados insuficientes para ranking</small></div></div>
+    `).join("");
+  } catch (error) { toast(error.message, true); }
+}
+
+async function loadGlobalSettings() {
+  try {
+    const settings = await api("/api/bot-settings");
+    $("#global-automation").checked = settings.automationEnabled;
+    $("#global-observation").checked = settings.observationEnabled;
+    $("#global-learning").checked = settings.learningEnabled;
+    $("#global-ratings").checked = settings.ratingsEnabled;
+    $("#global-ranking").checked = settings.rankingEnabled;
+    $("#global-min-ratings").value = settings.minimumRatingsForRanking;
+    const pill = $("#global-automation-status");
+    pill.textContent = settings.automationEnabled ? "AUTOMAÇÃO ON" : "AUTOMAÇÃO OFF";
+    pill.className = `global-status-pill ${settings.automationEnabled ? "on" : "off"}`;
+  } catch (error) { toast(error.message, true); }
+}
+
+$("#save-global-settings").addEventListener("click", async () => {
+  try {
+    await api("/api/bot-settings", {
+      method: "PATCH",
+      body: JSON.stringify({
+        observationEnabled: $("#global-observation").checked,
+        learningEnabled: $("#global-learning").checked,
+        ratingsEnabled: $("#global-ratings").checked,
+        rankingEnabled: $("#global-ranking").checked,
+        minimumRatingsForRanking: Number($("#global-min-ratings").value),
+      }),
+    });
+    toast("Configurações globais salvas.");
+    await loadGlobalSettings();
+  } catch (error) { toast(error.message, true); }
+});
+
+$("#kill-switch").addEventListener("click", async () => {
+  const willActivate = $("#global-automation").checked;
+  const action = willActivate ? "desativar" : "reativar";
+  if (!confirm(`Tem certeza que deseja ${action} a automação de TODOS os Bots agora? Atendimento humano e recebimento de mensagens continuam funcionando normalmente.`)) return;
+  try {
+    if (willActivate) await api("/api/bot-settings/kill-switch/activate", { method: "POST" });
+    else await api("/api/bot-settings/kill-switch/deactivate", { method: "POST" });
+    toast(willActivate ? "Automação dos Bots desativada." : "Automação dos Bots reativada.");
+    await loadGlobalSettings();
+  } catch (error) { toast(error.message, true); }
+});
 
 document.querySelectorAll(".tab-button").forEach((button) => button.addEventListener("click", () => setActiveTab(button.dataset.tab)));
 $("#obs-refresh").addEventListener("click", loadObservations);
@@ -609,5 +847,6 @@ $("#obs-refresh").addEventListener("click", loadObservations);
     $("#intent-category").innerHTML = categoryOptions();
     renderSchedules();
     await loadBots();
+    await loadGlobalSettings();
   } catch (error) { toast(error.message, true); }
 })();

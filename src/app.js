@@ -247,6 +247,7 @@ app.post(
   app.post("/api/conversations/:id/videos", videoUpload, inbox.replyVideo);
   app.post("/api/conversations/:id/documents", documentUpload, inbox.replyDocument);
   app.post("/api/conversations/:id/finalize", inbox.finalize);
+  app.post("/api/conversations/:id/bot-feedback", inbox.botFeedback);
   app.get("/api/messages/:messageId/media", inbox.media);
   app.get("/api/categories", inbox.categories);
   app.get("/api/category-visibility", inbox.categoryVisibility);
@@ -286,6 +287,31 @@ app.post(
   app.post("/api/bot-learning/suggestions/:suggestionId/reject", botController.rejectLearningSuggestion);
   app.patch("/api/bot-learning/suggestions/:suggestionId", botController.editLearningSuggestion);
   app.post("/api/bot-learning/conversations/:conversationId/analyze", botController.analyzeConversationForLearning);
+  app.get("/api/bots/:botId/intent-conflicts", botController.intentConflicts);
+  app.get("/api/bots/:botId/intent-metrics", botController.intentMetrics);
+
+  app.get("/api/bot-settings", botController.globalSettings);
+  app.patch("/api/bot-settings", botController.updateGlobalSettings);
+  app.post("/api/bot-settings/kill-switch/activate", botController.activateKillSwitch);
+  app.post("/api/bot-settings/kill-switch/deactivate", botController.deactivateKillSwitch);
+
+  app.get("/api/bots/:botId/versions", botController.listVersions);
+  app.post("/api/bots/:botId/versions", botController.createVersion);
+  app.get("/api/bots/:botId/versions/:version/preview-restore", botController.previewRestoreVersion);
+  app.post("/api/bots/:botId/versions/:version/restore", botController.restoreVersion);
+
+  app.post("/api/bot-ratings", botController.submitRating);
+  app.get("/api/bot-ratings", botController.listRatings);
+  app.get("/api/bots/:botId/rating-metrics", botController.ratingMetrics);
+  app.get("/api/bots/:botId/rating-timeseries", botController.ratingTimeSeries);
+  app.get("/api/bots/:botId/observation-timeseries", botController.observationTimeSeries);
+  app.patch("/api/bots/:botId/rating-config", botController.updateRatingConfig);
+  app.get("/api/bot-ranking", botController.ranking);
+
+  app.get("/api/knowledge-sources", botController.listKnowledgeSources);
+  app.post("/api/knowledge-sources", botController.createKnowledgeSource);
+  app.patch("/api/knowledge-sources/:sourceId", botController.updateKnowledgeSource);
+  app.delete("/api/knowledge-sources/:sourceId", botController.deleteKnowledgeSource);
 
   app.use((error, _req, res, _next) => {
     if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {

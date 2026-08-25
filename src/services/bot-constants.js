@@ -67,6 +67,65 @@ const RESOLUTION_NEGATIVE_PATTERNS = [
   /\bnao resolveu\b/, /\bcontinua igual\b/, /\bnao deu certo\b/, /\bainda nao\b/, /\bpiorou\b/,
 ];
 
+// Ordem de prioridade da decisão (bot-decision-service.js) — centralizada
+// aqui só como referência/documentação; a ordem real de execução vive nos
+// `if` sequenciais de decide(), mas deve sempre corresponder a esta lista.
+const DECISION_PRIORITY_ORDER = Object.freeze([
+  "BOT_INACTIVE",
+  "GLOBAL_AUTOMATION_OFF",
+  "OUTSIDE_HOURS",
+  "HUMAN_REQUEST",
+  "LOOP_PROTECTION",
+  "SWITCH_PING_PONG_PROTECTION",
+  "PENDING_CONTEXT",
+  "BUSINESS_INTENT",
+  "SMALL_TALK",
+  "FALLBACK",
+]);
+
+// Feature flags por Bot (Bot.featureFlags, JSON validado/normalizado — ver
+// bot-governance-service.js). Nunca usar strings soltas fora desta lista.
+// Os três marcados como CRÍTICOS ficam em colunas dedicadas no Bot
+// (autoReplyEnabled/toolsEnabled/ratingEnabled), não aqui.
+const FEATURE_FLAG_DEFAULTS = Object.freeze({
+  interpretationEnabled: true,
+  conversationalBehaviorEnabled: true,
+  contextEnabled: true,
+  autoSwitchEnabled: true,
+  observationEnabled: true,
+  learningEnabled: true,
+  knowledgeSuggestionsEnabled: true,
+  knowledgeBaseEnabled: false,
+  handoffAutoPauseEnabled: true,
+  contextMaxMessages: CONTEXT_MESSAGE_LIMIT,
+  contextExpirationMinutes: 120,
+  maxSwitchesPerWindow: 3,
+  switchWindowMinutes: 10,
+});
+const BOOLEAN_FEATURE_FLAG_KEYS = Object.freeze([
+  "interpretationEnabled", "conversationalBehaviorEnabled", "contextEnabled", "autoSwitchEnabled",
+  "observationEnabled", "learningEnabled", "knowledgeSuggestionsEnabled", "knowledgeBaseEnabled",
+  "handoffAutoPauseEnabled",
+]);
+const NUMERIC_FEATURE_FLAG_RANGES = Object.freeze({
+  contextMaxMessages: { min: 1, max: 30 },
+  contextExpirationMinutes: { min: 5, max: 1440 },
+  maxSwitchesPerWindow: { min: 1, max: 20 },
+  switchWindowMinutes: { min: 1, max: 180 },
+});
+
+const RATING_REQUEST_MODES = Object.freeze(["BOT_COMPLETED", "BEFORE_HANDOFF", "MANUAL", "NEVER"]);
+const RATING_SCORE_MIN = 1;
+const RATING_SCORE_MAX = 5;
+const RATING_POSITIVE_MIN_SCORE = 4;
+const RATING_NEGATIVE_MAX_SCORE = 2;
+
+const LOOP_REPEAT_LIMIT = 2; // mesma resposta N vezes seguidas já é loop.
+const MINIMUM_RATINGS_FOR_METRICS_PERCENTAGE = 5;
+
+const PRESENTATION_ALLOWED_VARS = Object.freeze(["botName"]);
+const DEFAULT_PRESENTATION_MESSAGE = "Olá! Eu sou a {{botName}}, assistente virtual da Mibro.";
+
 function confidenceBand(bot, confidence) {
   const high = typeof bot?.highConfidenceThreshold === "number" ? bot.highConfidenceThreshold : DEFAULT_HIGH_CONFIDENCE_THRESHOLD;
   const low = typeof bot?.lowConfidenceThreshold === "number" ? bot.lowConfidenceThreshold : DEFAULT_LOW_CONFIDENCE_THRESHOLD;
@@ -81,11 +140,15 @@ function validateConfidenceThresholds(low, high) {
 }
 
 module.exports = {
+  BOOLEAN_FEATURE_FLAG_KEYS,
   BOT_ACTIONS,
   CONFIRMATION_PATTERN,
   CONTEXT_MESSAGE_LIMIT,
+  DECISION_PRIORITY_ORDER,
   DEFAULT_HIGH_CONFIDENCE_THRESHOLD,
   DEFAULT_LOW_CONFIDENCE_THRESHOLD,
+  DEFAULT_PRESENTATION_MESSAGE,
+  FEATURE_FLAG_DEFAULTS,
   GOODBYE_PATTERNS,
   GREETING_PHRASES,
   HUMAN_HANDOFF_PATTERNS,
@@ -93,8 +156,17 @@ module.exports = {
   LEARNING_SIMILARITY_CONTENT_THRESHOLD,
   LEARNING_SIMILARITY_TOPIC_THRESHOLD,
   LEARNING_TEXT_MAX_LENGTH,
+  LOOP_REPEAT_LIMIT,
   MAX_FAILED_INTERPRETATIONS,
+  MINIMUM_RATINGS_FOR_METRICS_PERCENTAGE,
   NEGATION_PATTERN,
+  NUMERIC_FEATURE_FLAG_RANGES,
+  PRESENTATION_ALLOWED_VARS,
+  RATING_NEGATIVE_MAX_SCORE,
+  RATING_POSITIVE_MIN_SCORE,
+  RATING_REQUEST_MODES,
+  RATING_SCORE_MAX,
+  RATING_SCORE_MIN,
   RESOLUTION_NEGATIVE_PATTERNS,
   RESOLUTION_POSITIVE_PATTERNS,
   SMALL_TALK_PATTERNS,
