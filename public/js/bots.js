@@ -1,4 +1,15 @@
-const state = { bots: [], categories: [], selected: null };
+const state = {
+  bots: [], categories: [], selected: null,
+  simulatorHistory: [], simulatorState: null,
+};
+const actionLabels = {
+  RESPOND: "Responder",
+  ASK_CLARIFICATION: "Pedir esclarecimento",
+  HANDOFF_HUMAN: "Encaminhar para humano",
+  SWITCH_BOT: "Trocar de Bot",
+  QUERY_TOOL: "Consultar ferramenta",
+  NO_ACTION: "Nenhuma ação",
+};
 const $ = (selector) => document.querySelector(selector);
 const statusLabels = { DRAFT: "RASCUNHO", ACTIVE: "ATIVO", PAUSED: "PAUSADO" };
 const channelLabels = {
@@ -127,10 +138,17 @@ async function loadBots(selectId = state.selected?.id) {
   }
 }
 
+function resetSimulator() {
+  state.simulatorHistory = [];
+  state.simulatorState = null;
+  $("#simulator-transcript").innerHTML = "";
+  $("#simulator-result").innerHTML = "<p>O resultado da simulação aparecerá aqui.</p>";
+}
+
 async function selectBot(botId) {
   state.selected = await api(`/api/bots/${encodeURIComponent(botId)}`);
   closeIntentForm();
-  $("#simulator-result").innerHTML = "<p>O resultado da simulação aparecerá aqui.</p>";
+  resetSimulator();
   renderEditor();
 }
 
@@ -242,21 +260,47 @@ $("#intent-form").addEventListener("submit", async (event) => {
   } catch (error) { toast(error.message, true); }
 });
 
+function renderSimulatorTranscript() {
+  $("#simulator-transcript").innerHTML = state.simulatorHistory.map((entry) => (
+    `<div class="transcript-bubble ${entry.direction === "ENVIADA" ? "bot" : "customer"}">${escapeHtml(entry.text)}</div>`
+  )).join("");
+  const transcript = $("#simulator-transcript");
+  transcript.scrollTop = transcript.scrollHeight;
+}
+
+function entitiesSummary(entities) {
+  const entries = Object.entries(entities || {});
+  if (!entries.length) return "Nenhuma";
+  return entries.map(([key, value]) => `${key}: ${value}`).join(", ");
+}
+
 $("#simulator-form").addEventListener("submit", async (event) => {
   event.preventDefault();
+  const message = $("#simulator-message").value;
+  if (!message.trim()) return;
   try {
     const result = await api(`/api/bots/${state.selected.id}/simulate`, {
       method: "POST",
-      body: JSON.stringify({ message: $("#simulator-message").value }),
+      body: JSON.stringify({ message, state: state.simulatorState, history: state.simulatorHistory }),
     });
-    $("#simulator-result").innerHTML = `<b>${escapeHtml(result.response)}</b><div class="result-grid">
-      <span>Horário<strong>${result.withinHours ? "Dentro do horário" : "Fora do horário"}</strong></span>
-      <span>Intenção<strong>${escapeHtml(result.intent?.name || "Fallback")}</strong></span>
-      <span>Exemplo<strong>${escapeHtml(result.matchedExample || "Nenhum")}</strong></span>
-      <span>Categoria<strong>${escapeHtml(result.category?.name || "Nenhuma")}</strong></span>
+    state.simulatorHistory.push({ direction: "RECEBIDA", text: message });
+    if (result.response) state.simulatorHistory.push({ direction: "ENVIADA", text: result.response });
+    state.simulatorState = result.nextState;
+    renderSimulatorTranscript();
+    $("#simulator-message").value = "";
+
+    $("#simulator-result").innerHTML = `<b>${escapeHtml(result.response || "Sem resposta automática")}</b><div class="result-grid">
+      <span>Bot<strong>${escapeHtml(result.botName || "-")}</strong></span>
+      <span>Intenção<strong>${escapeHtml(result.intentName || "Nenhuma")}</strong></span>
+      <span>Confiança<strong>${result.confidence != null ? `${Math.round(result.confidence * 100)}%` : "-"}</strong></span>
+      <span>Ação<strong>${escapeHtml(actionLabels[result.action] || result.action || "-")}</strong></span>
+      <span>Categoria<strong>${escapeHtml(result.categoryName || "Nenhuma")}</strong></span>
+      <span>Entidades<strong>${escapeHtml(entitiesSummary(result.extractedEntities))}</strong></span>
     </div><p>${escapeHtml(result.warning)}</p>`;
   } catch (error) { toast(error.message, true); }
 });
+
+$("#simulator-clear").addEventListener("click", resetSimulator);
 
 document.querySelectorAll("[data-status]").forEach((button) => button.addEventListener("click", async () => {
   try {
@@ -295,6 +339,86 @@ $("#logout").addEventListener("click", async () => {
   await api("/api/auth/logout", { method: "POST" });
   location.replace("/login.html");
 });
+
+function confidenceClass(confidence) {
+  if (confidence == null) return "";
+  if (confidence >= 0.8) return "obs-confidence-high";
+  if (confidence >= 0.55) return "obs-confidence-medium";
+  return "obs-confidence-low";
+}
+
+function observationDetail(row) {
+  const lines = [
+    `Provider: ${row.provider || "-"}`,
+    `Status: ${row.status || "-"}${row.errorCode ? ` (${row.errorCode})` : ""}`,
+    `Entidades: ${entitiesSummary(row.extractedEntities)}`,
+  ];
+  return lines.join("\n");
+}
+
+function renderObservations(rows) {
+  $("#obs-empty").hidden = rows.length > 0;
+  $("#obs-table-body").innerHTML = rows.map((row) => `
+    <tr class="obs-row" data-obs-id="${escapeHtml(row.id)}">
+      <td>${new Date(row.createdAt).toLocaleString("pt-BR")}</td>
+      <td>${escapeHtml(row.contact || "-")}</td>
+      <td class="obs-message">${escapeHtml(row.message || "-")}</td>
+      <td>${escapeHtml(row.botName || "-")}</td>
+      <td>${escapeHtml(row.intentName || "Nenhuma")}</td>
+      <td class="${confidenceClass(row.confidence)}">${row.confidence != null ? `${Math.round(row.confidence * 100)}%` : "-"}</td>
+      <td>${escapeHtml(actionLabels[row.action] || row.action || "-")}</td>
+      <td>${escapeHtml(row.categoryName || "-")}</td>
+      <td>${escapeHtml(row.status || "-")}</td>
+    </tr>
+  `).join("");
+  document.querySelectorAll(".obs-row").forEach((tr) => tr.addEventListener("click", () => {
+    const next = tr.nextElementSibling;
+    if (next?.classList.contains("obs-detail")) { next.remove(); return; }
+    document.querySelectorAll(".obs-detail").forEach((detail) => detail.remove());
+    const row = rows.find((item) => item.id === tr.dataset.obsId);
+    const detailRow = document.createElement("tr");
+    detailRow.className = "obs-detail";
+    detailRow.innerHTML = `<td colspan="9">${escapeHtml(observationDetail(row))}</td>`;
+    tr.after(detailRow);
+  }));
+}
+
+async function loadObservations() {
+  const params = new URLSearchParams();
+  const botId = $("#obs-filter-bot").value;
+  const intentName = $("#obs-filter-intent").value.trim();
+  const minConfidence = $("#obs-filter-confidence").value;
+  const from = $("#obs-filter-from").value;
+  const to = $("#obs-filter-to").value;
+  if (botId) params.set("botId", botId);
+  if (intentName) params.set("intentName", intentName);
+  if (minConfidence) params.set("minConfidence", minConfidence);
+  if (from) params.set("from", new Date(from).toISOString());
+  if (to) params.set("to", new Date(`${to}T23:59:59`).toISOString());
+  try {
+    const rows = await api(`/api/bot-observations?${params.toString()}`);
+    renderObservations(rows);
+  } catch (error) { toast(error.message, true); }
+}
+
+function setActiveTab(tab) {
+  document.querySelectorAll(".tab-button").forEach((button) => button.classList.toggle("active", button.dataset.tab === tab));
+  const showConfig = tab === "config";
+  $("#observations-panel").hidden = showConfig;
+  if (showConfig) {
+    renderEditor();
+  } else {
+    $("#empty-state").hidden = true;
+    $("#editor").hidden = true;
+    $("#obs-filter-bot").innerHTML = `<option value="">Todos os Bots</option>${state.bots.map((bot) => (
+      `<option value="${escapeHtml(bot.id)}">${escapeHtml(bot.name)}</option>`
+    )).join("")}`;
+    loadObservations();
+  }
+}
+
+document.querySelectorAll(".tab-button").forEach((button) => button.addEventListener("click", () => setActiveTab(button.dataset.tab)));
+$("#obs-refresh").addEventListener("click", loadObservations);
 
 (async () => {
   try {

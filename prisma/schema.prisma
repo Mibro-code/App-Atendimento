@@ -79,6 +79,15 @@ enum BotFallbackAction {
   TRANSFER_TO_HUMAN
 }
 
+enum BotAction {
+  RESPOND
+  ASK_CLARIFICATION
+  HANDOFF_HUMAN
+  SWITCH_BOT
+  QUERY_TOOL
+  NO_ACTION
+}
+
 model Contact {
   id            String         @id @default(cuid())
   channel       Channel        @default(META)
@@ -131,6 +140,7 @@ model Conversation {
   masterReads      ConversationMasterRead[]
   internalMessages InternalMessage[]
   botObservations  BotObservation[]
+  botState         ConversationBotState?
 
   @@unique([contactId, channel])
   @@index([status, lastMessageAt])
@@ -273,23 +283,26 @@ model Category {
 }
 
 model Bot {
-  id                  String           @id @default(cuid())
-  name                String
-  description         String?
-  status              BotStatus        @default(DRAFT)
-  channel             Channel
-  initialMessage      String           @db.Text
-  outsideHoursMessage String           @db.Text
-  fallbackMessage     String           @db.Text
-  timezone            String           @default("America/Sao_Paulo")
-  defaultCategoryId   String?
-  archivedAt          DateTime?
-  createdAt           DateTime         @default(now())
-  updatedAt           DateTime         @updatedAt
-  defaultCategory     Category?        @relation(fields: [defaultCategoryId], references: [id], onDelete: SetNull)
-  schedules           BotSchedule[]
-  intents             BotIntent[]
-  observations        BotObservation[]
+  id                      String                 @id @default(cuid())
+  name                    String
+  description             String?
+  status                  BotStatus              @default(DRAFT)
+  channel                 Channel
+  initialMessage          String                 @db.Text
+  outsideHoursMessage     String                 @db.Text
+  fallbackMessage         String                 @db.Text
+  timezone                String                 @default("America/Sao_Paulo")
+  defaultCategoryId       String?
+  highConfidenceThreshold Float                  @default(0.8)
+  lowConfidenceThreshold  Float                  @default(0.55)
+  archivedAt              DateTime?
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
+  defaultCategory         Category?              @relation(fields: [defaultCategoryId], references: [id], onDelete: SetNull)
+  schedules               BotSchedule[]
+  intents                 BotIntent[]
+  observations            BotObservation[]
+  conversationStates      ConversationBotState[]
 
   @@index([status, channel])
   @@index([defaultCategoryId])
@@ -311,20 +324,21 @@ model BotSchedule {
 }
 
 model BotIntent {
-  id              String             @id @default(cuid())
-  botId           String
-  name            String
-  description     String?
-  responseMessage String?            @db.Text
-  priority        Int                @default(0)
-  active          Boolean            @default(true)
-  fallbackAction  BotFallbackAction  @default(USE_BOT_FALLBACK)
-  categoryId      String?
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
-  bot             Bot                @relation(fields: [botId], references: [id], onDelete: Cascade)
-  category        Category?          @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  examples        BotIntentExample[]
+  id                 String                 @id @default(cuid())
+  botId              String
+  name               String
+  description        String?
+  responseMessage    String?                @db.Text
+  priority           Int                    @default(0)
+  active             Boolean                @default(true)
+  fallbackAction     BotFallbackAction      @default(USE_BOT_FALLBACK)
+  categoryId         String?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  bot                Bot                    @relation(fields: [botId], references: [id], onDelete: Cascade)
+  category           Category?              @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  examples           BotIntentExample[]
+  conversationStates ConversationBotState[]
 
   @@index([botId, active, priority])
   @@index([categoryId])
@@ -341,20 +355,27 @@ model BotIntentExample {
 }
 
 model BotObservation {
-  id             String             @id @default(cuid())
-  conversationId String
-  messageId      String             @unique
-  botId          String?
-  botName        String
-  channel        Channel            @default(META)
-  withinHours    Boolean
-  intentId       String?
-  intentName     String?
-  matchedExample String?
-  categoryId     String?
-  categoryName   String?
-  fallbackAction BotFallbackAction?
-  createdAt      DateTime           @default(now())
+  id                String             @id @default(cuid())
+  conversationId    String
+  messageId         String             @unique
+  botId             String?
+  botName           String
+  channel           Channel            @default(META)
+  withinHours       Boolean
+  intentId          String?
+  intentName        String?
+  matchedExample    String?
+  categoryId        String?
+  categoryName      String?
+  fallbackAction    BotFallbackAction?
+  confidence        Float?
+  action            BotAction?
+  extractedEntities Json?
+  provider          String?
+  mode              String             @default("OBSERVATION")
+  status            String             @default("OK")
+  errorCode         String?
+  createdAt         DateTime           @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   message      Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)
@@ -364,6 +385,27 @@ model BotObservation {
   @@index([conversationId, createdAt])
   @@index([botId, createdAt])
   @@index([categoryId])
+  @@index([createdAt])
+}
+
+model ConversationBotState {
+  id                    String   @id @default(cuid())
+  conversationId        String   @unique
+  activeBotId           String?
+  lastIntentId          String?
+  lastConfidence        Float?
+  failedInterpretations Int      @default(0)
+  pendingClarification  Boolean  @default(false)
+  extractedEntities     Json?
+  updatedAt             DateTime @updatedAt
+  createdAt             DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  activeBot    Bot?         @relation(fields: [activeBotId], references: [id], onDelete: SetNull)
+  lastIntent   BotIntent?   @relation(fields: [lastIntentId], references: [id], onDelete: SetNull)
+
+  @@index([activeBotId])
+  @@index([lastIntentId])
 }
 
 model UserCategoryAccess {

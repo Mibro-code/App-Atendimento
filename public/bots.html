@@ -12,7 +12,7 @@
 <body>
   <header class="topbar">
     <a class="brand" href="/"><img src="/assets/mibro-logo.png" alt="Mibro"><span></span><small>Gerenciamento de Bots</small></a>
-    <div class="phase-badge">FASE 1 &bull; CONFIGURAÇÃO LOCAL</div>
+    <div class="phase-badge">FASE 2 &bull; MODO OBSERVAÇÃO</div>
     <a class="back-link" href="/">&larr; Central</a>
     <button id="theme-toggle" class="round-button" type="button" title="Alternar tema">&#9790;</button>
     <button id="logout" class="user-button" type="button"><span id="current-user">Master</span> &bull; Sair</button>
@@ -29,6 +29,11 @@
     </aside>
 
     <section class="bots-workspace">
+      <nav class="workspace-tabs">
+        <button type="button" class="tab-button active" data-tab="config">Configuração</button>
+        <button type="button" class="tab-button" data-tab="observations">Observações</button>
+      </nav>
+
       <div id="empty-state" class="empty-state">
         <div>?</div><h2>Configure seus Bots</h2>
         <p>Crie mensagens, horários e intenções. Tudo pode ser testado localmente antes de qualquer integração.</p>
@@ -103,10 +108,44 @@
 
           <form id="simulator-form" class="card requires-bot simulator-card">
             <div class="card-heading"><div><span>TESTE SEGURO</span><h3>Simulador</h3></div><span class="local-only">NÃO ENVIA MENSAGENS</span></div>
+            <div id="simulator-transcript" class="simulator-transcript"></div>
             <label class="simulator-input"><span>Mensagem do cliente</span><textarea id="simulator-message" required placeholder="Digite uma mensagem para testar o fluxo"></textarea></label>
-            <button type="submit">Executar simulação</button>
+            <div class="simulator-actions">
+              <button type="submit">Executar simulação</button>
+              <button id="simulator-clear" type="button">Limpar conversa</button>
+            </div>
             <div id="simulator-result" class="simulator-result"><p>O resultado da simulação aparecerá aqui.</p></div>
           </form>
+        </div>
+      </div>
+
+      <div id="observations-panel" class="observations-panel" hidden>
+        <div class="card observations-card">
+          <div class="card-heading"><div><span>COMPARAÇÃO</span><h3>Observações do motor de interpretação</h3></div></div>
+          <p class="card-help">Mensagens reais recebidas pela Meta, interpretadas em paralelo à triagem — nada aqui é enviado ao cliente.</p>
+          <div class="observations-toolbar">
+            <select id="obs-filter-bot"><option value="">Todos os Bots</option></select>
+            <input id="obs-filter-intent" type="text" placeholder="Filtrar por intenção">
+            <select id="obs-filter-confidence">
+              <option value="">Qualquer confiança</option>
+              <option value="0.8">Alta (&ge; 80%)</option>
+              <option value="0.55">Média (&ge; 55%)</option>
+              <option value="0">Baixa (todas)</option>
+            </select>
+            <input id="obs-filter-from" type="date" aria-label="De">
+            <input id="obs-filter-to" type="date" aria-label="Até">
+            <button id="obs-refresh" type="button">Filtrar</button>
+          </div>
+          <div class="observations-table-wrap">
+            <table class="observations-table">
+              <thead><tr>
+                <th>Data</th><th>Contato</th><th>Mensagem</th><th>Bot</th><th>Intenção</th>
+                <th>Confiança</th><th>Ação</th><th>Categoria</th><th>Status</th>
+              </tr></thead>
+              <tbody id="obs-table-body"></tbody>
+            </table>
+          </div>
+          <div id="obs-empty" class="intent-empty" hidden>Nenhuma observação registrada ainda.</div>
         </div>
       </div>
     </section>

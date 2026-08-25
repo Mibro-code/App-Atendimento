@@ -65,7 +65,15 @@ module.exports = {
   },
 
   async simulate(req, res, next) {
-    try { return res.json(await bots.simulate(req.params.botId, req.body.message, req.user)); }
+    try {
+      return res.json(await bots.simulate(req.params.botId, req.body.message, req.user, {
+        state: req.body.state, history: req.body.history,
+      }));
+    } catch (error) { return next(error); }
+  },
+
+  async observations(req, res, next) {
+    try { return res.json(await bots.listObservations(req.query, req.user)); }
     catch (error) { return next(error); }
   },
 };
