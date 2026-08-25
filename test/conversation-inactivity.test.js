@@ -51,6 +51,15 @@ test("finaliza após 24 horas somente quando a equipe aguarda o cliente", async 
   assert.equal(await prisma.conversationActivity.count({
     where: { conversationId: outgoingConversation.id, action: "AUTO_FINALIZED_INACTIVITY" },
   }), 1);
+
+  // O disparo do aprendizado é fire-and-forget: aguarda a análise assíncrona
+  // terminar (ou o teste falha por timeout do runner, nunca trava para sempre).
+  let learningState = null;
+  for (let attempt = 0; attempt < 20 && !learningState; attempt += 1) {
+    learningState = await prisma.conversationLearningState.findUnique({ where: { conversationId: outgoingConversation.id } });
+    if (!learningState) await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  assert.ok(learningState, "a finalização automática por inatividade deveria disparar a análise de aprendizado");
 });
 
 test("nova mensagem em conversa finalizada remove setor para reiniciar a triagem", async () => {

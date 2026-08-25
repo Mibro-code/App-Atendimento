@@ -7,6 +7,7 @@ const authorization = require("../services/authorization-service");
 const internalChat = require("../services/internal-chat-service");
 const { getCustomerServiceWindow, listApprovedTemplates, sendApprovedTemplate, templatesConfigured } = require("../services/meta-template-service");
 const { createOutboundConversation } = require("../services/outbound-conversation-service");
+const { analyzeConversation } = require("../services/bot-learning-service");
 
 
 function createInboxController(channel) {
@@ -219,6 +220,7 @@ async signalTransfer(req, res, next) {
           action: "STATUS_CHANGED", details: { from: result.previousStatus, to: "FINALIZADO" },
         });
         inboxEvents.publish();
+        if (!result.alreadyFinalized) analyzeConversation(req.params.id).catch(() => {});
         return res.json(result);
       } catch (error) { return next(error); }
     },

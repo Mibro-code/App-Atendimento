@@ -278,6 +278,14 @@ app.post(
   app.delete("/api/bots/:botId/intents/:intentId", botController.deleteIntent);
   app.post("/api/bots/:botId/simulate", botController.simulate);
   app.get("/api/bot-observations", botController.observations);
+  app.get("/api/bot-observations/metrics", botController.observationMetrics);
+  app.post("/api/bot-observations/:observationId/feedback", botController.observationFeedback);
+  app.get("/api/bot-learning/suggestions", botController.learningSuggestions);
+  app.get("/api/bot-learning/metrics", botController.learningMetrics);
+  app.post("/api/bot-learning/suggestions/:suggestionId/approve", botController.approveLearningSuggestion);
+  app.post("/api/bot-learning/suggestions/:suggestionId/reject", botController.rejectLearningSuggestion);
+  app.patch("/api/bot-learning/suggestions/:suggestionId", botController.editLearningSuggestion);
+  app.post("/api/bot-learning/conversations/:conversationId/analyze", botController.analyzeConversationForLearning);
 
   app.use((error, _req, res, _next) => {
     if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {

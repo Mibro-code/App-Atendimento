@@ -355,9 +355,34 @@ function observationDetail(row) {
   const lines = [
     `Provider: ${row.provider || "-"}`,
     `Status: ${row.status || "-"}${row.errorCode ? ` (${row.errorCode})` : ""}`,
+    `Comportamento social: ${row.socialBehavior || "Nenhum"}`,
     `Entidades: ${entitiesSummary(row.extractedEntities)}`,
   ];
   return lines.join("\n");
+}
+
+const botIntentsCache = new Map();
+async function loadBotIntentsCached(botId) {
+  if (!botId) return [];
+  if (!botIntentsCache.has(botId)) botIntentsCache.set(botId, api(`/api/bots/${encodeURIComponent(botId)}`).then((bot) => bot.intents || []));
+  return botIntentsCache.get(botId);
+}
+
+function feedbackButtonsHtml(row) {
+  return `<div class="obs-feedback" data-obs-feedback="${escapeHtml(row.id)}">
+    <button type="button" class="fb-correct ${row.feedback === "CORRECT" ? "active-correct" : ""}">Correto</button>
+    <button type="button" class="fb-incorrect ${row.feedback === "INCORRECT" ? "active-incorrect" : ""}">Incorreto</button>
+    <span class="fb-status">${row.feedback && row.feedback !== "UNREVIEWED" ? `Marcado como ${row.feedback === "CORRECT" ? "correto" : "incorreto"}` : "Ainda sem revisão"}</span>
+  </div><div class="fb-correction" hidden></div>`;
+}
+
+async function submitObservationFeedback(observationId, payload, onDone) {
+  try {
+    await api(`/api/bot-observations/${observationId}/feedback`, { method: "POST", body: JSON.stringify(payload) });
+    toast("Feedback registrado.");
+    onDone?.();
+    await loadObservationMetrics();
+  } catch (error) { toast(error.message, true); }
 }
 
 function renderObservations(rows) {
@@ -375,16 +400,61 @@ function renderObservations(rows) {
       <td>${escapeHtml(row.status || "-")}</td>
     </tr>
   `).join("");
-  document.querySelectorAll(".obs-row").forEach((tr) => tr.addEventListener("click", () => {
+  document.querySelectorAll(".obs-row").forEach((tr) => tr.addEventListener("click", (event) => {
+    if (event.target.closest(".obs-feedback, .fb-correction")) return;
     const next = tr.nextElementSibling;
     if (next?.classList.contains("obs-detail")) { next.remove(); return; }
     document.querySelectorAll(".obs-detail").forEach((detail) => detail.remove());
     const row = rows.find((item) => item.id === tr.dataset.obsId);
     const detailRow = document.createElement("tr");
     detailRow.className = "obs-detail";
-    detailRow.innerHTML = `<td colspan="9">${escapeHtml(observationDetail(row))}</td>`;
+    detailRow.innerHTML = `<td colspan="9">${escapeHtml(observationDetail(row))}${feedbackButtonsHtml(row)}</td>`;
     tr.after(detailRow);
+
+    detailRow.querySelector(".fb-correct").addEventListener("click", () => (
+      submitObservationFeedback(row.id, { feedback: "CORRECT" }, () => { row.feedback = "CORRECT"; tr.click(); tr.click(); })
+    ));
+    detailRow.querySelector(".fb-incorrect").addEventListener("click", async () => {
+      const box = detailRow.querySelector(".fb-correction");
+      if (!box.hidden) { box.hidden = true; return; }
+      box.hidden = false;
+      const intents = await loadBotIntentsCached(row.botId);
+      box.innerHTML = `<label>Intenção correta:
+        <select class="fb-intent"><option value="">Selecionar...</option>${intents.map((intent) => (
+          `<option value="${escapeHtml(intent.id)}">${escapeHtml(intent.name)}</option>`
+        )).join("")}</select>
+      </label><label><input type="checkbox" class="fb-add-example" checked><span>Adicionar como exemplo dessa intenção</span></label>
+      <button type="button" class="fb-save">Salvar</button>`;
+      box.querySelector(".fb-save").addEventListener("click", () => {
+        const intentId = box.querySelector(".fb-intent").value;
+        if (!intentId) { toast("Selecione a intenção correta.", true); return; }
+        submitObservationFeedback(row.id, {
+          feedback: "INCORRECT", correctedIntentId: intentId, addAsExample: box.querySelector(".fb-add-example").checked,
+        }, () => { row.feedback = "INCORRECT"; tr.click(); tr.click(); });
+      });
+    });
   }));
+}
+
+function metricTile(value, label) {
+  return `<div class="metric-tile"><b>${escapeHtml(String(value))}</b><span>${escapeHtml(label)}</span></div>`;
+}
+
+async function loadObservationMetrics() {
+  try {
+    const metrics = await api("/api/bot-observations/metrics");
+    $("#obs-metrics").innerHTML = [
+      metricTile(metrics.total, "Total analisado"),
+      metricTile(metrics.highConfidence, "Alta confiança"),
+      metricTile(metrics.mediumConfidence, "Média confiança"),
+      metricTile(metrics.lowConfidence, "Baixa confiança"),
+      metricTile(metrics.correct, "Corretos"),
+      metricTile(metrics.incorrect, "Incorretos"),
+      metricTile(metrics.noIntent, "Sem classificação"),
+      metricTile(metrics.humanRequests, "Pedidos de humano"),
+      metricTile(metrics.accuracy != null ? `${Math.round(metrics.accuracy * 100)}%` : "-", "Precisão (feedback)"),
+    ].join("");
+  } catch (error) { toast(error.message, true); }
 }
 
 async function loadObservations() {
@@ -402,22 +472,127 @@ async function loadObservations() {
   try {
     const rows = await api(`/api/bot-observations?${params.toString()}`);
     renderObservations(rows);
+    await loadObservationMetrics();
   } catch (error) { toast(error.message, true); }
 }
 
+const learningTypeLabels = {
+  INTENT_EXAMPLE: "Novo exemplo", NEW_INTENT: "Nova intenção", RESPONSE: "Resposta recomendada",
+  CLARIFICATION: "Esclarecimento", KNOWLEDGE: "Conhecimento", ENTITY_PATTERN: "Padrão de entidade",
+};
+
+function renderLearningSuggestions(rows) {
+  $("#learning-empty").hidden = rows.length > 0;
+  $("#learning-list").innerHTML = rows.map((row) => `
+    <article class="learning-card" data-suggestion-id="${escapeHtml(row.id)}">
+      <header>
+        <span class="learning-type">${escapeHtml(learningTypeLabels[row.type] || row.type)}</span>
+        ${row.metadata?.conflict ? '<span class="learning-conflict">CONFLITO</span>' : ""}
+        <span class="learning-meta">${escapeHtml(row.bot?.name || "Sem Bot")} ${row.intent ? `&bull; ${escapeHtml(row.intent.name)}` : ""} &bull; ${row.sourceCount} conversa(s) &bull; ${new Date(row.createdAt).toLocaleDateString("pt-BR")}</span>
+      </header>
+      <p><b>${escapeHtml(row.title)}</b></p>
+      <textarea class="learning-content" ${row.status !== "PENDING" && row.status !== "EDITED" ? "disabled" : ""}>${escapeHtml(row.suggestedContent)}</textarea>
+      ${row.status === "PENDING" || row.status === "EDITED" ? `
+        <div class="learning-actions">
+          ${row.type === "INTENT_EXAMPLE" ? `<select class="learning-intent-select"><option value="">Intenção...</option></select>` : ""}
+          <button type="button" class="learning-approve">Aprovar</button>
+          <button type="button" class="learning-edit secondary">Salvar edição</button>
+          <button type="button" class="learning-reject reject">Ignorar</button>
+        </div>` : `<p class="learning-meta">Status: ${escapeHtml(row.status)}</p>`}
+    </article>
+  `).join("");
+
+  rows.forEach((row) => {
+    const card = document.querySelector(`[data-suggestion-id="${row.id}"]`);
+    if (!card) return;
+    const select = card.querySelector(".learning-intent-select");
+    if (select && row.botId) {
+      loadBotIntentsCached(row.botId).then((intents) => {
+        select.innerHTML = `<option value="">Intenção...</option>${intents.map((intent) => (
+          `<option value="${escapeHtml(intent.id)}" ${intent.id === row.intentId ? "selected" : ""}>${escapeHtml(intent.name)}</option>`
+        )).join("")}`;
+      });
+    }
+    card.querySelector(".learning-approve")?.addEventListener("click", async () => {
+      try {
+        const intentId = select ? select.value : undefined;
+        await api(`/api/bot-learning/suggestions/${row.id}/approve`, { method: "POST", body: JSON.stringify(intentId ? { intentId } : {}) });
+        toast("Sugestão aprovada.");
+        await loadLearning();
+      } catch (error) { toast(error.message, true); }
+    });
+    card.querySelector(".learning-edit")?.addEventListener("click", async () => {
+      try {
+        const content = card.querySelector(".learning-content").value.trim();
+        await api(`/api/bot-learning/suggestions/${row.id}`, { method: "PATCH", body: JSON.stringify({ suggestedContent: content }) });
+        toast("Sugestão editada. Revise e aprove quando estiver pronta.");
+        await loadLearning();
+      } catch (error) { toast(error.message, true); }
+    });
+    card.querySelector(".learning-reject")?.addEventListener("click", async () => {
+      try {
+        await api(`/api/bot-learning/suggestions/${row.id}/reject`, { method: "POST" });
+        toast("Sugestão ignorada.");
+        await loadLearning();
+      } catch (error) { toast(error.message, true); }
+    });
+  });
+}
+
+async function loadLearningMetrics() {
+  try {
+    const metrics = await api("/api/bot-learning/metrics");
+    $("#learning-metrics").innerHTML = [
+      metricTile(metrics.pending, "Pendentes"),
+      metricTile(metrics.approved, "Aprovadas"),
+      metricTile(metrics.rejected, "Rejeitadas"),
+      metricTile(metrics.byType?.INTENT_EXAMPLE || 0, "Novos exemplos"),
+      metricTile(metrics.byType?.NEW_INTENT || 0, "Novas intenções"),
+    ].join("");
+  } catch (error) { toast(error.message, true); }
+}
+
+async function loadLearning() {
+  const params = new URLSearchParams();
+  const status = $("#learning-filter-status").value;
+  const type = $("#learning-filter-type").value;
+  if (status) params.set("status", status);
+  if (type) params.set("type", type);
+  try {
+    const rows = await api(`/api/bot-learning/suggestions?${params.toString()}`);
+    renderLearningSuggestions(rows);
+    await loadLearningMetrics();
+  } catch (error) { toast(error.message, true); }
+}
+
+$("#analyze-conversation").addEventListener("click", async () => {
+  const conversationId = $("#analyze-conversation-id").value.trim();
+  if (!conversationId) { toast("Informe o ID da conversa.", true); return; }
+  try {
+    const result = await api(`/api/bot-learning/conversations/${encodeURIComponent(conversationId)}/analyze`, { method: "POST" });
+    toast(result.analyzed ? `Análise concluída: ${result.suggestionsGenerated} sugestão(ões).` : `Não analisada: ${result.reason}`);
+    await loadLearning();
+  } catch (error) { toast(error.message, true); }
+});
+$("#learning-refresh").addEventListener("click", loadLearning);
+
 function setActiveTab(tab) {
   document.querySelectorAll(".tab-button").forEach((button) => button.classList.toggle("active", button.dataset.tab === tab));
-  const showConfig = tab === "config";
-  $("#observations-panel").hidden = showConfig;
-  if (showConfig) {
+  $("#observations-panel").hidden = tab !== "observations";
+  $("#learning-panel").hidden = tab !== "learning";
+  if (tab === "config") {
     renderEditor();
-  } else {
-    $("#empty-state").hidden = true;
-    $("#editor").hidden = true;
+    return;
+  }
+  $("#empty-state").hidden = true;
+  $("#editor").hidden = true;
+  if (tab === "observations") {
     $("#obs-filter-bot").innerHTML = `<option value="">Todos os Bots</option>${state.bots.map((bot) => (
       `<option value="${escapeHtml(bot.id)}">${escapeHtml(bot.name)}</option>`
     )).join("")}`;
     loadObservations();
+  } else if (tab === "learning") {
+    loadLearning();
   }
 }
 

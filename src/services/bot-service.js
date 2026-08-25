@@ -3,10 +3,12 @@ const authorization = require("./authorization-service");
 const audit = require("./audit-service");
 const { normalizeText } = require("./bot-simulator-service");
 const { simulateOrchestration } = require("./bot-orchestrator-service");
+const learning = require("./bot-learning-service");
 const {
   CONTEXT_MESSAGE_LIMIT, DEFAULT_HIGH_CONFIDENCE_THRESHOLD, DEFAULT_LOW_CONFIDENCE_THRESHOLD,
   MAX_FAILED_INTERPRETATIONS, validateConfidenceThresholds,
 } = require("./bot-constants");
+const observationFeedbackValues = new Set(["CORRECT", "INCORRECT"]);
 
 const botStatuses = new Set(["DRAFT", "ACTIVE", "PAUSED"]);
 const botChannels = new Set([
@@ -521,6 +523,7 @@ async function listObservations(filters, viewer) {
     botName: row.botName,
     intentId: row.intentId,
     intentName: row.intentName,
+    socialBehavior: row.socialBehavior,
     confidence: row.confidence,
     action: row.action,
     categoryId: row.categoryId,
@@ -529,7 +532,73 @@ async function listObservations(filters, viewer) {
     status: row.status,
     errorCode: row.errorCode,
     extractedEntities: row.extractedEntities,
+    feedback: row.feedback,
+    feedbackIntentId: row.feedbackIntentId,
   }));
+}
+
+// Métricas simples da tela de Observações (req. "não mostrar percentual
+// enganoso de precisão" quando ainda há pouco feedback humano registrado).
+async function observationMetrics(viewer) {
+  assertBotManager(viewer);
+  const [total, high, medium, low, correct, incorrect, noIntent, humanRequests] = await Promise.all([
+    prisma.botObservation.count(),
+    prisma.botObservation.count({ where: { confidence: { gte: DEFAULT_HIGH_CONFIDENCE_THRESHOLD } } }),
+    prisma.botObservation.count({ where: { confidence: { gte: DEFAULT_LOW_CONFIDENCE_THRESHOLD, lt: DEFAULT_HIGH_CONFIDENCE_THRESHOLD } } }),
+    prisma.botObservation.count({ where: { OR: [{ confidence: { lt: DEFAULT_LOW_CONFIDENCE_THRESHOLD } }, { confidence: null }] } }),
+    prisma.botObservation.count({ where: { feedback: "CORRECT" } }),
+    prisma.botObservation.count({ where: { feedback: "INCORRECT" } }),
+    prisma.botObservation.count({ where: { intentId: null } }),
+    prisma.botObservation.count({ where: { socialBehavior: "HUMAN_REQUEST" } }),
+  ]);
+  const reviewed = correct + incorrect;
+  return {
+    total, highConfidence: high, mediumConfidence: medium, lowConfidence: low,
+    correct, incorrect, reviewed,
+    accuracy: reviewed >= 5 ? correct / reviewed : null,
+    noIntent, humanRequests,
+  };
+}
+
+// Feedback humano sobre uma observação (nunca sobre a conversa real).
+// Quando incorreta + intenção correta informada, opcionalmente vira uma
+// sugestão de aprendizado (mesma trilha de aprovação humana de sempre).
+async function recordObservationFeedback(observationId, data, actor) {
+  assertBotManager(actor);
+  const observation = await prisma.botObservation.findUnique({ where: { id: observationId } });
+  if (!observation) throw fail("Observação não encontrada.", 404);
+  if (!observationFeedbackValues.has(data.feedback)) {
+    throw fail("Informe se a observação estava correta ou incorreta.");
+  }
+
+  let correctedIntentId = null;
+  if (data.feedback === "INCORRECT" && data.correctedIntentId) {
+    const intent = await prisma.botIntent.findFirst({
+      where: { id: data.correctedIntentId, ...(observation.botId ? { botId: observation.botId } : {}) },
+    });
+    if (!intent) throw fail("Intenção correta não encontrada para este Bot.");
+    correctedIntentId = intent.id;
+  }
+
+  const updated = await prisma.botObservation.update({
+    where: { id: observationId },
+    data: {
+      feedback: data.feedback, feedbackIntentId: correctedIntentId,
+      feedbackByUserId: actor.id, feedbackAt: new Date(),
+    },
+  });
+
+  if (data.addAsExample && correctedIntentId) {
+    const message = await prisma.message.findUnique({ where: { id: observation.messageId }, select: { text: true } });
+    if (message?.text) {
+      await learning.createSuggestionFromObservationFeedback({
+        observationMessageText: message.text, botId: observation.botId, intentId: correctedIntentId,
+        conversationId: observation.conversationId,
+      });
+    }
+  }
+
+  return updated;
 }
 
 module.exports = {
@@ -541,6 +610,8 @@ module.exports = {
   getBot,
   listBots,
   listObservations,
+  observationMetrics,
+  recordObservationFeedback,
   replaceSchedules,
   simulate,
   updateBot,

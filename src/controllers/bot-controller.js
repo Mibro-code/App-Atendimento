@@ -1,4 +1,5 @@
 const bots = require("../services/bot-service");
+const learning = require("../services/bot-learning-service");
 
 module.exports = {
   async list(req, res, next) {
@@ -74,6 +75,46 @@ module.exports = {
 
   async observations(req, res, next) {
     try { return res.json(await bots.listObservations(req.query, req.user)); }
+    catch (error) { return next(error); }
+  },
+
+  async observationMetrics(req, res, next) {
+    try { return res.json(await bots.observationMetrics(req.user)); }
+    catch (error) { return next(error); }
+  },
+
+  async observationFeedback(req, res, next) {
+    try { return res.json(await bots.recordObservationFeedback(req.params.observationId, req.body, req.user)); }
+    catch (error) { return next(error); }
+  },
+
+  async learningSuggestions(req, res, next) {
+    try { return res.json(await learning.listSuggestions(req.query, req.user)); }
+    catch (error) { return next(error); }
+  },
+
+  async learningMetrics(req, res, next) {
+    try { return res.json(await learning.learningMetrics(req.user)); }
+    catch (error) { return next(error); }
+  },
+
+  async approveLearningSuggestion(req, res, next) {
+    try { return res.json(await learning.approveSuggestion(req.params.suggestionId, req.body, req.user)); }
+    catch (error) { return next(error); }
+  },
+
+  async rejectLearningSuggestion(req, res, next) {
+    try { return res.json(await learning.rejectSuggestion(req.params.suggestionId, req.user)); }
+    catch (error) { return next(error); }
+  },
+
+  async editLearningSuggestion(req, res, next) {
+    try { return res.json(await learning.editSuggestion(req.params.suggestionId, req.body, req.user)); }
+    catch (error) { return next(error); }
+  },
+
+  async analyzeConversationForLearning(req, res, next) {
+    try { return res.json(await learning.analyzeConversationManually(req.params.conversationId, req.user)); }
     catch (error) { return next(error); }
   },
 };

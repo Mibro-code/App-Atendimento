@@ -6,19 +6,18 @@ const { normalizeText } = require("./bot-simulator-service");
 const { extractEntities, mergeEntities } = require("./bot-entity-extractor");
 const { getPrimaryProvider, getFallbackProvider } = require("./ai/get-ai-provider");
 const { DEFAULT_HIGH_CONFIDENCE_THRESHOLD } = require("./bot-constants");
-
-const affirmativePattern = /^(sim|s|ok|okay|claro|pode ser|isso|isso mesmo|exatamente|confirmo|correto)[.!]*$/;
+const { detectSocialBehavior } = require("./bot-social-behavior-service");
 
 function findIntent(bot, intentId) {
   if (!intentId) return null;
   return (bot.intents || []).find((intent) => intent.id === intentId) || null;
 }
 
-// Curto-circuito de contexto: "sim" após uma pergunta de esclarecimento deve
-// reafirmar a última intenção, sem precisar de um provider para isso.
-function carryOverFromContext(bot, normalizedMessage, state) {
+// Curto-circuito de contexto: "sim"/"ss"/"correto" após uma pergunta de
+// esclarecimento deve reafirmar a última intenção, sem precisar de provider.
+function carryOverFromContext(bot, socialBehavior, state) {
+  if (socialBehavior !== "CONFIRMATION") return null;
   if (!state?.pendingClarification || !state?.lastIntentId) return null;
-  if (!affirmativePattern.test(normalizedMessage)) return null;
   const intent = findIntent(bot, state.lastIntentId);
   if (!intent) return null;
   return {
@@ -49,10 +48,13 @@ async function interpretWithProviders({ bot, message, context = [], state = null
     return {
       intentId: null, intentName: null, confidence: 0, matchedExample: null,
       entities: localEntities, provider: "NONE", status: "EMPTY_MESSAGE", errorCode: null,
+      socialBehavior: null,
     };
   }
 
-  const carryOver = carryOverFromContext(bot, normalizedMessage, state);
+  const { socialBehavior, greetingReply } = detectSocialBehavior(message);
+
+  const carryOver = carryOverFromContext(bot, socialBehavior, state);
   if (carryOver) {
     return {
       intentId: carryOver.intentId,
@@ -63,6 +65,8 @@ async function interpretWithProviders({ bot, message, context = [], state = null
       provider: carryOver.providerName,
       status: "OK",
       errorCode: null,
+      socialBehavior,
+      greetingReply,
     };
   }
 
@@ -96,7 +100,7 @@ async function interpretWithProviders({ bot, message, context = [], state = null
     return {
       intentId: null, intentName: null, confidence: 0, matchedExample: null,
       entities: localEntities, provider: status === "PROVIDER_ERROR" ? fallback.name : primary.name,
-      status, errorCode,
+      status, errorCode, socialBehavior, greetingReply,
     };
   }
 
@@ -110,6 +114,8 @@ async function interpretWithProviders({ bot, message, context = [], state = null
     provider: result.providerName,
     status,
     errorCode,
+    socialBehavior,
+    greetingReply,
   };
 }
 

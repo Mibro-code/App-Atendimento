@@ -6,29 +6,53 @@ const genericClarificationQuestions = [
   "Não tenho certeza se entendi. Você pode explicar com mais detalhes o que precisa?",
   "Para te ajudar melhor, você pode me dizer, em poucas palavras, qual é o assunto? Por exemplo: pedido, garantia ou dúvida sobre produto.",
 ];
+const negationClarificationQuestion = "Sem problemas! Pode me contar, com suas palavras, o que você precisa?";
 
 const handoffMessage = "Vou te encaminhar para um de nossos atendentes, só um instante.";
+
+// Respostas curtas para comportamento puramente social (sem intenção de
+// negócio junto). GREETING usa decision.greetingReply, que já ecoa o
+// cumprimento do cliente ("Boa tarde!"), por isso não aparece aqui.
+const socialReplies = {
+  THANKS: "Por nada! Qualquer coisa, é só chamar.",
+  GOODBYE: "Até mais! Se precisar de algo, é só chamar por aqui.",
+  SMALL_TALK: "Sou o assistente virtual da Mibro, por aqui para ajudar com pedidos, produtos e suporte. Como posso ajudar?",
+};
 
 function findIntent(bot, intentId) {
   return (bot.intents || []).find((intent) => intent.id === intentId) || null;
 }
 
+// Prefixa a resposta de negócio com o cumprimento quando a mensagem
+// combinava saudação + intenção (ex.: "boa tarde, meu pedido não chegou").
+function withGreetingPrefix(decision, text) {
+  if (!decision.greetingReply) return text;
+  return `${decision.greetingReply} ${text}`;
+}
+
 function respond({ bot, decision, interpretation }) {
   if (decision.action === "NO_ACTION") return null;
   if (decision.outsideHours) return bot.outsideHoursMessage;
-  if (decision.action === "HANDOFF_HUMAN") return handoffMessage;
+
+  if (!interpretation.intentId && decision.socialBehavior && decision.socialBehavior !== "NEGATION") {
+    if (decision.socialBehavior === "GREETING") return `${decision.greetingReply} Como posso te ajudar?`;
+    return socialReplies[decision.socialBehavior] || bot.fallbackMessage;
+  }
+
+  if (decision.action === "HANDOFF_HUMAN") return withGreetingPrefix(decision, handoffMessage);
 
   if (decision.action === "ASK_CLARIFICATION") {
+    if (decision.socialBehavior === "NEGATION") return negationClarificationQuestion;
     const intent = findIntent(bot, interpretation.intentId);
-    if (intent) return `Você quis dizer "${intent.name}"? Pode confirmar ou me dar mais detalhes?`;
+    if (intent) return withGreetingPrefix(decision, `Você quis dizer "${intent.name}"? Pode confirmar ou me dar mais detalhes?`);
     const index = Math.min((decision.failureCount || 1) - 1, genericClarificationQuestions.length - 1);
-    return genericClarificationQuestions[index];
+    return withGreetingPrefix(decision, genericClarificationQuestions[index]);
   }
 
   // RESPOND e SWITCH_BOT usam a mesma resposta configurada: a troca de Bot é
   // interna, o cliente não deve perceber que "outro robô" assumiu.
   const intent = findIntent(bot, interpretation.intentId);
-  return intent?.responseMessage || bot.fallbackMessage;
+  return withGreetingPrefix(decision, intent?.responseMessage || bot.fallbackMessage);
 }
 
 module.exports = { respond };

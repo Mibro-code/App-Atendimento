@@ -66,4 +66,4 @@ function mergeEntities(...sources) {
   return merged;
 }
 
-module.exports = { allowedEntityKeys, extractEntities, mergeEntities, sanitizeEntities };
+module.exports = { allowedEntityKeys, extractEntities, mergeEntities, patterns, sanitizeEntities };

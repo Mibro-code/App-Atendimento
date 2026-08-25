@@ -1,15 +1,9 @@
 // Camada de DECISÃO: recebe uma interpretação já pronta e decide o que fazer
 // (bot-interpreter-service.js não sabe nada sobre ações). Não gera texto de
 // resposta (isso é bot-response-service.js) nem envia nada a ninguém.
-const { normalizeText, scheduleState } = require("./bot-simulator-service");
-const {
-  HUMAN_HANDOFF_PATTERNS, MAX_FAILED_INTERPRETATIONS, confidenceBand,
-} = require("./bot-constants");
-
-function requestsHuman(message) {
-  const normalized = normalizeText(message);
-  return HUMAN_HANDOFF_PATTERNS.some((pattern) => pattern.test(normalized));
-}
+const { scheduleState } = require("./bot-simulator-service");
+const { detectSocialBehavior } = require("./bot-social-behavior-service");
+const { MAX_FAILED_INTERPRETATIONS, confidenceBand } = require("./bot-constants");
 
 function findIntent(bot, intentId) {
   return (bot.intents || []).find((intent) => intent.id === intentId) || null;
@@ -31,10 +25,24 @@ function decide({ bot, interpretation, message, state = null, now = new Date() }
     };
   }
 
-  if (requestsHuman(message)) {
+  const { socialBehavior, greetingReply } = detectSocialBehavior(message);
+
+  if (socialBehavior === "HUMAN_REQUEST") {
     return {
       action: "HANDOFF_HUMAN", categoryId: bot.defaultCategoryId || null, needsClarification: false,
-      shouldHandoff: true, withinHours: true, summary: "Cliente pediu para falar com um atendente humano.",
+      shouldHandoff: true, withinHours: true, socialBehavior,
+      summary: "Cliente pediu para falar com um atendente humano.",
+    };
+  }
+
+  // Mensagem puramente social (ex.: "bom dia", "obrigado"), sem nenhuma
+  // intenção de negócio reconhecida junto: responde com o comportamento
+  // social e NÃO conta como falha de interpretação.
+  if (!interpretation.intentId && socialBehavior && socialBehavior !== "NEGATION") {
+    return {
+      action: "RESPOND", categoryId: null, needsClarification: false, shouldHandoff: false,
+      withinHours: true, socialBehavior, greetingReply,
+      summary: `Comportamento social identificado (${socialBehavior}), sem intenção de negócio associada.`,
     };
   }
 
@@ -46,16 +54,18 @@ function decide({ bot, interpretation, message, state = null, now = new Date() }
     if (failureCount >= MAX_FAILED_INTERPRETATIONS) {
       return {
         action: "HANDOFF_HUMAN", categoryId: bot.defaultCategoryId || null, needsClarification: false,
-        shouldHandoff: true, withinHours: true, failureCount,
+        shouldHandoff: true, withinHours: true, failureCount, socialBehavior,
         summary: "Cliente não foi compreendido após múltiplas tentativas; encaminhar para humano.",
       };
     }
     return {
       action: "ASK_CLARIFICATION", categoryId: null, needsClarification: true, shouldHandoff: false,
-      withinHours: true, failureCount,
-      summary: failureCount >= 2
-        ? "Segunda tentativa sem entender o cliente; fazer uma pergunta mais objetiva."
-        : "Mensagem não identificada com confiança; pedir esclarecimento ao cliente.",
+      withinHours: true, failureCount, socialBehavior,
+      summary: socialBehavior === "NEGATION"
+        ? "Cliente indicou que a intenção sugerida está errada; pedir para descrever o que precisa."
+        : (failureCount >= 2
+          ? "Segunda tentativa sem entender o cliente; fazer uma pergunta mais objetiva."
+          : "Mensagem não identificada com confiança; pedir esclarecimento ao cliente."),
     };
   }
 
@@ -65,28 +75,32 @@ function decide({ bot, interpretation, message, state = null, now = new Date() }
   if (band === "MEDIUM") {
     return {
       action: "ASK_CLARIFICATION", categoryId, needsClarification: true, shouldHandoff: false,
-      withinHours: true, summary: `Confiança média para "${intent?.name}"; confirmar com o cliente antes de prosseguir.`,
+      withinHours: true, socialBehavior, greetingReply,
+      summary: `Confiança média para "${intent?.name}"; confirmar com o cliente antes de prosseguir.`,
     };
   }
 
   if (intent?.fallbackAction === "TRANSFER_TO_HUMAN") {
     return {
       action: "HANDOFF_HUMAN", categoryId, needsClarification: false, shouldHandoff: true,
-      withinHours: true, summary: `Intenção "${intent.name}" configurada para encaminhamento humano.`,
+      withinHours: true, socialBehavior, greetingReply,
+      summary: `Intenção "${intent.name}" configurada para encaminhamento humano.`,
     };
   }
 
   if (intent?.fallbackAction === "TRANSFER_TO_CATEGORY" && categoryId) {
     return {
       action: "SWITCH_BOT", categoryId, needsClarification: false, shouldHandoff: false,
-      withinHours: true, summary: `Cliente deseja tratar de "${intent.name}"; avaliar troca de Bot responsável pela categoria.`,
+      withinHours: true, socialBehavior, greetingReply,
+      summary: `Cliente deseja tratar de "${intent.name}"; avaliar troca de Bot responsável pela categoria.`,
     };
   }
 
   return {
     action: "RESPOND", categoryId, needsClarification: false, shouldHandoff: false,
-    withinHours: true, summary: `Cliente demonstrou a intenção "${intent?.name}".`,
+    withinHours: true, socialBehavior, greetingReply,
+    summary: `Cliente demonstrou a intenção "${intent?.name}".`,
   };
 }
 
-module.exports = { decide, requestsHuman };
+module.exports = { decide };

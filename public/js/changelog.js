@@ -1,7 +1,21 @@
 (() => {
-  const APP_VERSION = "0.13.0";
+  const APP_VERSION = "0.14.0";
 
   const CHANGELOG = [
+    {
+      version: "0.14.0",
+      date: "25/08/2026",
+      title: "Comportamento conversacional, Observação e Aprendizado supervisionado",
+      changes: [
+        "Reconhece saudação, agradecimento, despedida, small talk, confirmação e negação ao lado da intenção de negócio, sem virar intenção cadastrada.",
+        "Modo Observação evoluído: shadow mode completo, sem nunca enviar mensagem, mudar categoria/responsável ou finalizar a conversa real.",
+        "Adiciona feedback humano (correto/incorreto) nas Observações, com métricas de confiança e precisão.",
+        "Nova aba Aprendizado: analisa conversas finalizadas e sugere novos exemplos, intenções e respostas — sempre aguardando aprovação humana antes de virar conhecimento ativo.",
+        "Sanitiza automaticamente dados pessoais (CPF, CNPJ, e-mail, telefone, pedido) antes de qualquer sugestão de aprendizado.",
+        "Detecta conflitos entre soluções diferentes para o mesmo problema e evita reprocessar a mesma conversa.",
+        "Ajusta o contraste das bolhas de conversa do simulador."
+      ]
+    },
     {
       version: "0.13.0",
       date: "25/08/2026",

@@ -88,6 +88,39 @@ enum BotAction {
   NO_ACTION
 }
 
+enum BotSocialBehavior {
+  GREETING
+  THANKS
+  GOODBYE
+  SMALL_TALK
+  CONFIRMATION
+  NEGATION
+  HUMAN_REQUEST
+  BUSINESS_INTENT
+}
+
+enum BotObservationFeedback {
+  UNREVIEWED
+  CORRECT
+  INCORRECT
+}
+
+enum BotLearningSuggestionType {
+  INTENT_EXAMPLE
+  NEW_INTENT
+  RESPONSE
+  CLARIFICATION
+  KNOWLEDGE
+  ENTITY_PATTERN
+}
+
+enum BotLearningSuggestionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EDITED
+}
+
 model Contact {
   id            String         @id @default(cuid())
   channel       Channel        @default(META)
@@ -120,27 +153,29 @@ model ContactNote {
 }
 
 model Conversation {
-  id               String                   @id @default(cuid())
-  contactId        String
-  channel          Channel                  @default(META)
-  categoryId       String?
-  assignedUserId   String?
-  status           ConversationStatus       @default(NOVO)
-  unreadCount      Int                      @default(0)
-  lastMessageAt    DateTime?
-  finalizedAt      DateTime?
-  createdAt        DateTime                 @default(now())
-  updatedAt        DateTime                 @updatedAt
-  contact          Contact                  @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  category         Category?                @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  assignedUser     User?                    @relation("AssignedConversations", fields: [assignedUserId], references: [id], onDelete: SetNull)
-  messages         Message[]
-  activities       ConversationActivity[]
-  pins             ConversationPin[]
-  masterReads      ConversationMasterRead[]
-  internalMessages InternalMessage[]
-  botObservations  BotObservation[]
-  botState         ConversationBotState?
+  id                  String                     @id @default(cuid())
+  contactId           String
+  channel             Channel                    @default(META)
+  categoryId          String?
+  assignedUserId      String?
+  status              ConversationStatus         @default(NOVO)
+  unreadCount         Int                        @default(0)
+  lastMessageAt       DateTime?
+  finalizedAt         DateTime?
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+  contact             Contact                    @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  category            Category?                  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  assignedUser        User?                      @relation("AssignedConversations", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  messages            Message[]
+  activities          ConversationActivity[]
+  pins                ConversationPin[]
+  masterReads         ConversationMasterRead[]
+  internalMessages    InternalMessage[]
+  botObservations     BotObservation[]
+  botState            ConversationBotState?
+  learningSuggestions BotLearningSuggestion[]
+  learningState       ConversationLearningState?
 
   @@unique([contactId, channel])
   @@index([status, lastMessageAt])
@@ -175,33 +210,35 @@ model Message {
 }
 
 model User {
-  id                         String                   @id @default(cuid())
-  name                       String
-  email                      String                   @unique
-  passwordHash               String?
-  role                       UserRole                 @default(ATENDENTE)
-  active                     Boolean                  @default(true)
-  sessionVersion             Int                      @default(0)
-  canViewUncategorized       Boolean                  @default(false)
-  canManageCategories        Boolean                  @default(false)
-  canTransferConversations   Boolean                  @default(false)
-  canViewTeamActivity        Boolean                  @default(false)
-  canViewConversationHistory Boolean                  @default(false)
-  canViewPreviousMessages    Boolean                  @default(false)
-  hideUncategorized          Boolean                  @default(false)
-  createdAt                  DateTime                 @default(now())
-  updatedAt                  DateTime                 @updatedAt
-  assignedConversations      Conversation[]           @relation("AssignedConversations")
-  sentMessages               Message[]                @relation("SentMessages")
-  contactNotes               ContactNote[]            @relation("ContactNotes")
-  categoryAccess             UserCategoryAccess[]
-  hiddenCategories           UserHiddenCategory[]
-  conversationPins           ConversationPin[]
-  conversationMasterReads    ConversationMasterRead[]
-  conversationActivities     ConversationActivity[]   @relation("ConversationActivityActor")
-  auditLogs                  AuditLog[]               @relation("AuditLogActor")
-  internalChatMemberships    InternalChatMember[]
-  internalMessages           InternalMessage[]
+  id                          String                   @id @default(cuid())
+  name                        String
+  email                       String                   @unique
+  passwordHash                String?
+  role                        UserRole                 @default(ATENDENTE)
+  active                      Boolean                  @default(true)
+  sessionVersion              Int                      @default(0)
+  canViewUncategorized        Boolean                  @default(false)
+  canManageCategories         Boolean                  @default(false)
+  canTransferConversations    Boolean                  @default(false)
+  canViewTeamActivity         Boolean                  @default(false)
+  canViewConversationHistory  Boolean                  @default(false)
+  canViewPreviousMessages     Boolean                  @default(false)
+  hideUncategorized           Boolean                  @default(false)
+  createdAt                   DateTime                 @default(now())
+  updatedAt                   DateTime                 @updatedAt
+  assignedConversations       Conversation[]           @relation("AssignedConversations")
+  sentMessages                Message[]                @relation("SentMessages")
+  contactNotes                ContactNote[]            @relation("ContactNotes")
+  categoryAccess              UserCategoryAccess[]
+  hiddenCategories            UserHiddenCategory[]
+  conversationPins            ConversationPin[]
+  conversationMasterReads     ConversationMasterRead[]
+  conversationActivities      ConversationActivity[]   @relation("ConversationActivityActor")
+  auditLogs                   AuditLog[]               @relation("AuditLogActor")
+  internalChatMemberships     InternalChatMember[]
+  internalMessages            InternalMessage[]
+  observationFeedback         BotObservation[]         @relation("ObservationFeedbackUser")
+  reviewedLearningSuggestions BotLearningSuggestion[]  @relation("LearningSuggestionReviewer")
 }
 
 model AuditLog {
@@ -283,26 +320,27 @@ model Category {
 }
 
 model Bot {
-  id                      String                 @id @default(cuid())
+  id                      String                  @id @default(cuid())
   name                    String
   description             String?
-  status                  BotStatus              @default(DRAFT)
+  status                  BotStatus               @default(DRAFT)
   channel                 Channel
-  initialMessage          String                 @db.Text
-  outsideHoursMessage     String                 @db.Text
-  fallbackMessage         String                 @db.Text
-  timezone                String                 @default("America/Sao_Paulo")
+  initialMessage          String                  @db.Text
+  outsideHoursMessage     String                  @db.Text
+  fallbackMessage         String                  @db.Text
+  timezone                String                  @default("America/Sao_Paulo")
   defaultCategoryId       String?
-  highConfidenceThreshold Float                  @default(0.8)
-  lowConfidenceThreshold  Float                  @default(0.55)
+  highConfidenceThreshold Float                   @default(0.8)
+  lowConfidenceThreshold  Float                   @default(0.55)
   archivedAt              DateTime?
-  createdAt               DateTime               @default(now())
-  updatedAt               DateTime               @updatedAt
-  defaultCategory         Category?              @relation(fields: [defaultCategoryId], references: [id], onDelete: SetNull)
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+  defaultCategory         Category?               @relation(fields: [defaultCategoryId], references: [id], onDelete: SetNull)
   schedules               BotSchedule[]
   intents                 BotIntent[]
   observations            BotObservation[]
   conversationStates      ConversationBotState[]
+  learningSuggestions     BotLearningSuggestion[]
 
   @@index([status, channel])
   @@index([defaultCategoryId])
@@ -324,21 +362,23 @@ model BotSchedule {
 }
 
 model BotIntent {
-  id                 String                 @id @default(cuid())
-  botId              String
-  name               String
-  description        String?
-  responseMessage    String?                @db.Text
-  priority           Int                    @default(0)
-  active             Boolean                @default(true)
-  fallbackAction     BotFallbackAction      @default(USE_BOT_FALLBACK)
-  categoryId         String?
-  createdAt          DateTime               @default(now())
-  updatedAt          DateTime               @updatedAt
-  bot                Bot                    @relation(fields: [botId], references: [id], onDelete: Cascade)
-  category           Category?              @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  examples           BotIntentExample[]
-  conversationStates ConversationBotState[]
+  id                   String                  @id @default(cuid())
+  botId                String
+  name                 String
+  description          String?
+  responseMessage      String?                 @db.Text
+  priority             Int                     @default(0)
+  active               Boolean                 @default(true)
+  fallbackAction       BotFallbackAction       @default(USE_BOT_FALLBACK)
+  categoryId           String?
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+  bot                  Bot                     @relation(fields: [botId], references: [id], onDelete: Cascade)
+  category             Category?               @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  examples             BotIntentExample[]
+  conversationStates   ConversationBotState[]
+  feedbackObservations BotObservation[]        @relation("ObservationFeedbackIntent")
+  learningSuggestions  BotLearningSuggestion[]
 
   @@index([botId, active, priority])
   @@index([categoryId])
@@ -355,12 +395,12 @@ model BotIntentExample {
 }
 
 model BotObservation {
-  id                String             @id @default(cuid())
+  id                String                 @id @default(cuid())
   conversationId    String
-  messageId         String             @unique
+  messageId         String                 @unique
   botId             String?
   botName           String
-  channel           Channel            @default(META)
+  channel           Channel                @default(META)
   withinHours       Boolean
   intentId          String?
   intentName        String?
@@ -370,22 +410,30 @@ model BotObservation {
   fallbackAction    BotFallbackAction?
   confidence        Float?
   action            BotAction?
+  socialBehavior    BotSocialBehavior?
   extractedEntities Json?
   provider          String?
-  mode              String             @default("OBSERVATION")
-  status            String             @default("OK")
+  mode              String                 @default("OBSERVATION")
+  status            String                 @default("OK")
   errorCode         String?
-  createdAt         DateTime           @default(now())
+  feedback          BotObservationFeedback @default(UNREVIEWED)
+  feedbackIntentId  String?
+  feedbackByUserId  String?
+  feedbackAt        DateTime?
+  createdAt         DateTime               @default(now())
 
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  message      Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  bot          Bot?         @relation(fields: [botId], references: [id], onDelete: SetNull)
-  category     Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message        Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  bot            Bot?         @relation(fields: [botId], references: [id], onDelete: SetNull)
+  category       Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  feedbackIntent BotIntent?   @relation("ObservationFeedbackIntent", fields: [feedbackIntentId], references: [id], onDelete: SetNull)
+  feedbackByUser User?        @relation("ObservationFeedbackUser", fields: [feedbackByUserId], references: [id], onDelete: SetNull)
 
   @@index([conversationId, createdAt])
   @@index([botId, createdAt])
   @@index([categoryId])
   @@index([createdAt])
+  @@index([feedback])
 }
 
 model ConversationBotState {
@@ -406,6 +454,50 @@ model ConversationBotState {
 
   @@index([activeBotId])
   @@index([lastIntentId])
+}
+
+// Rastreia se/quando uma conversa já foi analisada pelo motor de
+// aprendizado, para nunca reprocessar a mesma conversa (bot-learning-service.js).
+model ConversationLearningState {
+  id                     String    @id @default(cuid())
+  conversationId         String    @unique
+  lastAnalyzedAt         DateTime?
+  messageCountAtAnalysis Int       @default(0)
+  suggestionCount        Int       @default(0)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+}
+
+// Sugestão gerada a partir da observação/análise de conversas reais. Nunca é
+// aplicada automaticamente: só passa a valer quando um humano aprova
+// (bot-learning-service.js). Conteúdo sempre sanitizado (sem dados pessoais).
+model BotLearningSuggestion {
+  id               String                      @id @default(cuid())
+  botId            String?
+  conversationId   String?
+  intentId         String?
+  type             BotLearningSuggestionType
+  status           BotLearningSuggestionStatus @default(PENDING)
+  title            String
+  suggestedContent String                      @db.Text
+  sourceCount      Int                         @default(1)
+  confidence       Float?
+  metadata         Json?
+  createdAt        DateTime                    @default(now())
+  updatedAt        DateTime                    @updatedAt
+  reviewedAt       DateTime?
+  reviewedByUserId String?
+
+  bot            Bot?          @relation(fields: [botId], references: [id], onDelete: SetNull)
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  intent         BotIntent?    @relation(fields: [intentId], references: [id], onDelete: SetNull)
+  reviewedByUser User?         @relation("LearningSuggestionReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([botId, status])
+  @@index([type, status])
 }
 
 model UserCategoryAccess {
