@@ -49,6 +49,7 @@ test("pedido de humano tem prioridade sobre qualquer outro comportamento social"
 
 test("mensagem de negócio pura não recebe rótulo social", () => {
   assert.equal(detectSocialBehavior("meu pedido não chegou").socialBehavior, null);
+  assert.equal(detectSocialBehavior("essa coisa não funciona").socialBehavior, null);
 });
 
 test("mensagem vazia não recebe rótulo social", () => {

@@ -79,7 +79,7 @@ test("gera sugestão de exemplo para uma intenção com baixa confiança quando 
   assert.equal(suggestions[0].status, "PENDING");
   assert.doesNotMatch(suggestions[0].suggestedContent, /\bcel\b.*\d{6,}/);
 
-  const rerun = await learning.analyzeConversation(conversation.id);
+  const rerun = await learning.analyzeConversationManually(conversation.id, master);
   assert.equal(rerun.analyzed, false);
   assert.equal(rerun.reason, "ALREADY_ANALYZED");
 });
@@ -157,6 +157,46 @@ test("agrupa RESPONSE por tópico e marca CONFLITO quando soluções divergem", 
   assert.ok(afterConflict.every((row) => row.metadata?.conflict === true));
 });
 
+test("mantém sugestões de resposta isoladas por Bot", async () => {
+  await cleanup();
+  const botA = await prisma.bot.create({ data: {
+    name: `${botNamePrefix} Isolado A`, status: "ACTIVE", channel: "META",
+    initialMessage: "Olá!", outsideHoursMessage: "Fora.", fallbackMessage: "Não entendi.",
+  } });
+  const botB = await prisma.bot.create({ data: {
+    name: `${botNamePrefix} Isolado B`, status: "ACTIVE", channel: "META",
+    initialMessage: "Olá!", outsideHoursMessage: "Fora.", fallbackMessage: "Não entendi.",
+  } });
+  const topic = "relogio nao recebe notificacoes";
+  const solution = "Ative novamente o acesso às notificações no celular.";
+  await prisma.botLearningSuggestion.create({ data: {
+    botId: botA.id, type: "RESPONSE", title: "Notificações",
+    suggestedContent: solution, metadata: { topic },
+  } });
+
+  const conversation = await seedConversation();
+  const firstMessage = await addMessage(conversation, { direction: "RECEBIDA", text: topic, offsetSeconds: 0 });
+  await addMessage(conversation, {
+    direction: "ENVIADA", text: solution, sentByUserId: master.id, offsetSeconds: 10,
+  });
+  await addMessage(conversation, { direction: "RECEBIDA", text: "funcionou", offsetSeconds: 20 });
+  await prisma.botObservation.create({ data: {
+    conversationId: conversation.id, messageId: firstMessage.id,
+    botId: botB.id, botName: botB.name, withinHours: true,
+  } });
+
+  const result = await learning.analyzeConversation(conversation.id);
+  assert.equal(result.analyzed, true);
+  const [responsesA, responsesB] = await Promise.all([
+    prisma.botLearningSuggestion.findMany({ where: { botId: botA.id, type: "RESPONSE" } }),
+    prisma.botLearningSuggestion.findMany({ where: { botId: botB.id, type: "RESPONSE" } }),
+  ]);
+  assert.equal(responsesA.length, 1);
+  assert.equal(responsesA[0].sourceCount, 1);
+  assert.equal(responsesB.length, 1);
+  assert.equal(responsesB[0].sourceCount, 1);
+});
+
 test("não analisa conversas que ainda não foram finalizadas", async () => {
   await cleanup();
   const conversation = await seedConversation({ status: "NOVO" });
@@ -211,7 +251,12 @@ test("editar uma sugestão pendente muda o status para EDITED e o conteúdo", as
   const suggestion = await prisma.botLearningSuggestion.create({ data: {
     botId: bot.id, type: "NEW_INTENT", title: "Rascunho", suggestedContent: "texto original",
   } });
-  const edited = await learning.editSuggestion(suggestion.id, { suggestedContent: "texto revisado pelo humano" }, master);
+  const edited = await learning.editSuggestion(
+    suggestion.id,
+    { suggestedContent: "texto revisado pelo humano com CPF 111.222.333-44" },
+    master,
+  );
   assert.equal(edited.status, "EDITED");
-  assert.equal(edited.suggestedContent, "texto revisado pelo humano");
+  assert.equal(edited.suggestedContent, "texto revisado pelo humano com CPF");
+  assert.doesNotMatch(edited.suggestedContent, /111\.222\.333-44/);
 });

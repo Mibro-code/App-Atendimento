@@ -13,7 +13,10 @@ function matchesAny(patterns, normalized) {
 }
 
 function findGreeting(normalized) {
-  return GREETING_PHRASES.find(([phrase]) => normalized.includes(phrase)) || null;
+  return GREETING_PHRASES.find(([phrase]) => {
+    const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(^|[^\\p{L}\\p{N}])${escaped}(?=$|[^\\p{L}\\p{N}])`, "u").test(normalized);
+  }) || null;
 }
 
 // Retorna { socialBehavior, greetingReply } — greetingReply só é preenchido

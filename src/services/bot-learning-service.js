@@ -78,7 +78,7 @@ async function upsertSuggestion(client, { botId, intentId, type, title, suggeste
 // serem aprendidas silenciosamente como se fossem a mesma coisa.
 async function upsertResponseSuggestion(client, { botId, topic, content, conversationId }) {
   const candidates = await client.botLearningSuggestion.findMany({
-    where: { type: "RESPONSE", status: "PENDING" },
+    where: { type: "RESPONSE", status: "PENDING", botId: botId ?? null },
     take: 100,
   });
   const normalizedTopic = normalizeText(topic);
@@ -126,9 +126,10 @@ async function analyzeConversation(conversationId, { force = false, client = pri
       where: { id: conversationId },
       include: {
         learningState: true,
+        _count: { select: { messages: { where: { type: "text" } } } },
         messages: {
           where: { type: "text" },
-          orderBy: { occurredAt: "asc" },
+          orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }],
           take: LEARNING_MESSAGE_LIMIT,
           select: { id: true, direction: true, text: true, sentByUserId: true },
         },
@@ -137,9 +138,10 @@ async function analyzeConversation(conversationId, { force = false, client = pri
     if (!conversation) return { analyzed: false, reason: "CONVERSATION_NOT_FOUND" };
     if (conversation.status !== "FINALIZADO") return { analyzed: false, reason: "CONVERSATION_NOT_FINALIZED" };
 
-    const messages = conversation.messages;
+    const messages = [...conversation.messages].reverse();
+    const messageCount = conversation._count.messages;
     if (!messages.length) return { analyzed: false, reason: "NO_TEXT_MESSAGES" };
-    if (!force && conversation.learningState?.messageCountAtAnalysis === messages.length) {
+    if (!force && conversation.learningState?.messageCountAtAnalysis === messageCount) {
       return { analyzed: false, reason: "ALREADY_ANALYZED" };
     }
 
@@ -186,20 +188,20 @@ async function analyzeConversation(conversationId, { force = false, client = pri
 
     await client.conversationLearningState.upsert({
       where: { conversationId },
-      create: { conversationId, lastAnalyzedAt: new Date(), messageCountAtAnalysis: messages.length, suggestionCount: suggestions.length },
-      update: { lastAnalyzedAt: new Date(), messageCountAtAnalysis: messages.length, suggestionCount: { increment: suggestions.length } },
+      create: { conversationId, lastAnalyzedAt: new Date(), messageCountAtAnalysis: messageCount, suggestionCount: suggestions.length },
+      update: { lastAnalyzedAt: new Date(), messageCountAtAnalysis: messageCount, suggestionCount: { increment: suggestions.length } },
     });
 
     return { analyzed: true, resolutionSignal, suggestionsGenerated: suggestions.length };
   } catch (error) {
     console.error("[BOT_LEARNING] falha ao analisar conversa (ignorada)", error.message);
-    return { analyzed: false, reason: "ERROR", error: error.message };
+    return { analyzed: false, reason: "ERROR" };
   }
 }
 
 async function analyzeConversationManually(conversationId, viewer) {
   assertBotManager(viewer);
-  return analyzeConversation(conversationId, { force: true });
+  return analyzeConversation(conversationId);
 }
 
 async function listSuggestions(filters, viewer) {
@@ -246,9 +248,9 @@ async function editSuggestion(suggestionId, data, actor) {
   const update = {};
   if (data.title !== undefined) update.title = String(data.title).trim().slice(0, 200) || suggestion.title;
   if (data.suggestedContent !== undefined) {
-    const text = String(data.suggestedContent).trim();
-    if (!text) throw fail("O conteúdo da sugestão não pode ficar vazio.");
-    update.suggestedContent = text.slice(0, 4000);
+    const text = sanitizeForLearning(data.suggestedContent);
+    if (!text) throw fail("O conteúdo da sugestão não pode ficar vazio após remover dados pessoais.");
+    update.suggestedContent = text;
   }
   update.status = "EDITED";
   return prisma.botLearningSuggestion.update({ where: { id: suggestionId }, data: update });
@@ -268,8 +270,10 @@ async function approveSuggestion(suggestionId, data, actor) {
 
   if (suggestion.type === "INTENT_EXAMPLE") {
     if (!intentId) throw fail("Selecione a intenção que deve receber este exemplo.");
-    const intent = await prisma.botIntent.findUnique({ where: { id: intentId } });
-    if (!intent) throw fail("Intenção não encontrada.", 404);
+    const intent = await prisma.botIntent.findFirst({
+      where: { id: intentId, ...(suggestion.botId ? { botId: suggestion.botId } : {}) },
+    });
+    if (!intent) throw fail("Intenção não encontrada para este Bot.", 404);
     const existingExamples = await prisma.botIntentExample.findMany({ where: { intentId }, select: { text: true } });
     const normalizedCandidate = normalizeText(suggestedContent);
     const isDuplicate = existingExamples.some((example) => normalizeText(example.text) === normalizedCandidate);
