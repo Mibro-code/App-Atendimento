@@ -1,7 +1,12 @@
 const prisma = require("../database/prisma");
 const authorization = require("./authorization-service");
 const audit = require("./audit-service");
-const { normalizeText, simulateBot } = require("./bot-simulator-service");
+const { normalizeText } = require("./bot-simulator-service");
+const { simulateOrchestration } = require("./bot-orchestrator-service");
+const {
+  CONTEXT_MESSAGE_LIMIT, DEFAULT_HIGH_CONFIDENCE_THRESHOLD, DEFAULT_LOW_CONFIDENCE_THRESHOLD,
+  MAX_FAILED_INTERPRETATIONS, validateConfidenceThresholds,
+} = require("./bot-constants");
 
 const botStatuses = new Set(["DRAFT", "ACTIVE", "PAUSED"]);
 const botChannels = new Set([
@@ -100,6 +105,15 @@ function validatePriority(value) {
   return priority;
 }
 
+function validateThresholds(low, high) {
+  const lowValue = low === undefined ? DEFAULT_LOW_CONFIDENCE_THRESHOLD : Number(low);
+  const highValue = high === undefined ? DEFAULT_HIGH_CONFIDENCE_THRESHOLD : Number(high);
+  if (!validateConfidenceThresholds(lowValue, highValue)) {
+    throw fail("Os limites de confiança devem satisfazer 0 <= baixo <= alto <= 1.");
+  }
+  return { lowConfidenceThreshold: lowValue, highConfidenceThreshold: highValue };
+}
+
 function validateFallbackAction(value) {
   const action = value || "USE_BOT_FALLBACK";
   if (!fallbackActions.has(action)) throw fail("Ação de fallback inválida.");
@@ -194,6 +208,7 @@ async function createBot(data, actor) {
     fallbackMessage: requiredText(data.fallbackMessage, "Mensagem de fallback"),
     timezone: validateTimezone(data.timezone),
     defaultCategoryId: await validateCategoryId(data.defaultCategoryId),
+    ...validateThresholds(data.lowConfidenceThreshold, data.highConfidenceThreshold),
   };
   return prisma.$transaction(async (transaction) => {
     const bot = await transaction.bot.create({ data: create, include: botInclude });
@@ -221,6 +236,12 @@ async function updateBot(botId, data, actor) {
   if (data.fallbackMessage !== undefined) update.fallbackMessage = requiredText(data.fallbackMessage, "Mensagem de fallback");
   if (data.timezone !== undefined) update.timezone = validateTimezone(data.timezone);
   if (data.defaultCategoryId !== undefined) update.defaultCategoryId = await validateCategoryId(data.defaultCategoryId);
+  if (data.lowConfidenceThreshold !== undefined || data.highConfidenceThreshold !== undefined) {
+    Object.assign(update, validateThresholds(
+      data.lowConfidenceThreshold !== undefined ? data.lowConfidenceThreshold : existing.lowConfidenceThreshold,
+      data.highConfidenceThreshold !== undefined ? data.highConfidenceThreshold : existing.highConfidenceThreshold,
+    ));
+  }
   if (!Object.keys(update).length) throw fail("Informe ao menos um campo para atualizar.");
 
   return prisma.$transaction(async (transaction) => {
@@ -412,10 +433,103 @@ async function deleteIntent(botId, intentId, actor) {
   });
 }
 
-async function simulate(botId, message, viewer, options = {}) {
+function normalizeSimulatorState(state) {
+  if (!state || typeof state !== "object") return null;
+  return {
+    activeBotId: typeof state.activeBotId === "string" ? state.activeBotId : null,
+    lastIntentId: typeof state.lastIntentId === "string" ? state.lastIntentId : null,
+    lastConfidence: Number.isFinite(state.lastConfidence)
+      ? Math.min(1, Math.max(0, state.lastConfidence)) : null,
+    failedInterpretations: Number.isInteger(state.failedInterpretations)
+      ? Math.min(MAX_FAILED_INTERPRETATIONS, Math.max(0, state.failedInterpretations)) : 0,
+    pendingClarification: Boolean(state.pendingClarification),
+    extractedEntities: state.extractedEntities && typeof state.extractedEntities === "object" ? state.extractedEntities : {},
+  };
+}
+
+function normalizeSimulatorHistory(history) {
+  if (!Array.isArray(history)) return [];
+  return history
+    .filter((entry) => entry && typeof entry.text === "string")
+    .slice(-CONTEXT_MESSAGE_LIMIT)
+    .map((entry) => ({
+      direction: entry.direction === "ENVIADA" ? "ENVIADA" : "RECEBIDA",
+      text: entry.text.slice(0, 4000),
+    }));
+}
+
+// Simulador multi-turno: nunca usa o canal real da Meta nem toca em
+// Conversation/ConversationBotState. O "estado" e o "histórico" trafegam
+// inteiramente pelo cliente (tela de Bots), que os devolve a cada chamada.
+async function simulate(botId, message, viewer, { state, history } = {}) {
   assertBotManager(viewer);
   const bot = await ensureBot(botId, prisma, botInclude);
-  return simulateBot(bot, message, options);
+  const simulatorMessage = requiredText(message, "Mensagem da simulação", 4000);
+  const result = await simulateOrchestration({
+    bot,
+    message: simulatorMessage,
+    context: normalizeSimulatorHistory(history),
+    state: normalizeSimulatorState(state),
+  });
+  return { ...result, simulation: true, sent: false, warning: "Simulação - nenhuma mensagem foi enviada" };
+}
+
+async function listObservations(filters, viewer) {
+  assertBotManager(viewer);
+  const where = {};
+  if (filters.botId) where.botId = filters.botId;
+  if (filters.intentId) where.intentId = filters.intentId;
+  if (filters.intentName) where.intentName = { contains: filters.intentName, mode: "insensitive" };
+  if (filters.minConfidence !== undefined && filters.minConfidence !== "") {
+    const minConfidence = Number(filters.minConfidence);
+    if (!Number.isFinite(minConfidence) || minConfidence < 0 || minConfidence > 1) {
+      throw fail("A confiança mínima deve estar entre 0 e 1.");
+    }
+    where.confidence = { gte: minConfidence };
+  }
+  if (filters.from || filters.to) {
+    const from = filters.from ? new Date(filters.from) : null;
+    const to = filters.to ? new Date(filters.to) : null;
+    if (from && Number.isNaN(from.getTime())) throw fail("Data inicial inválida.");
+    if (to && Number.isNaN(to.getTime())) throw fail("Data final inválida.");
+    if (to && /^\d{4}-\d{2}-\d{2}$/.test(filters.to)) to.setUTCHours(23, 59, 59, 999);
+    if (from && to && from > to) throw fail("A data inicial deve ser anterior à data final.");
+    where.createdAt = { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) };
+  }
+  const take = filters.limit === undefined || filters.limit === "" ? 50 : Number(filters.limit);
+  if (!Number.isInteger(take) || take < 1 || take > 200) {
+    throw fail("O limite de observações deve ser um inteiro entre 1 e 200.");
+  }
+  const rows = await prisma.botObservation.findMany({
+    where,
+    include: {
+      conversation: { include: { contact: { select: { name: true, customName: true, phone: true } } } },
+      message: { select: { text: true, occurredAt: true } },
+    },
+    orderBy: { createdAt: "desc" },
+    take,
+  });
+  return rows.map((row) => ({
+    id: row.id,
+    createdAt: row.createdAt,
+    conversationId: row.conversationId,
+    contact: row.conversation?.contact
+      ? (row.conversation.contact.customName || row.conversation.contact.name || row.conversation.contact.phone)
+      : null,
+    message: row.message?.text || null,
+    botId: row.botId,
+    botName: row.botName,
+    intentId: row.intentId,
+    intentName: row.intentName,
+    confidence: row.confidence,
+    action: row.action,
+    categoryId: row.categoryId,
+    categoryName: row.categoryName,
+    provider: row.provider,
+    status: row.status,
+    errorCode: row.errorCode,
+    extractedEntities: row.extractedEntities,
+  }));
 }
 
 module.exports = {
@@ -426,6 +540,7 @@ module.exports = {
   deleteIntent,
   getBot,
   listBots,
+  listObservations,
   replaceSchedules,
   simulate,
   updateBot,

@@ -277,6 +277,7 @@ app.post(
   app.patch("/api/bots/:botId/intents/:intentId", botController.updateIntent);
   app.delete("/api/bots/:botId/intents/:intentId", botController.deleteIntent);
   app.post("/api/bots/:botId/simulate", botController.simulate);
+  app.get("/api/bot-observations", botController.observations);
 
   app.use((error, _req, res, _next) => {
     if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
