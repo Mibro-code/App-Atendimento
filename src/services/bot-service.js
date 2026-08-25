@@ -4,6 +4,8 @@ const audit = require("./audit-service");
 const { normalizeText } = require("./bot-simulator-service");
 const { simulateOrchestration } = require("./bot-orchestrator-service");
 const learning = require("./bot-learning-service");
+const governance = require("./bot-governance-service");
+const { similarity } = require("./ai/local-fallback-provider");
 const {
   CONTEXT_MESSAGE_LIMIT, DEFAULT_HIGH_CONFIDENCE_THRESHOLD, DEFAULT_LOW_CONFIDENCE_THRESHOLD,
   MAX_FAILED_INTERPRETATIONS, validateConfidenceThresholds,
@@ -179,7 +181,49 @@ function botSnapshot(bot) {
     channel: bot.channel,
     timezone: bot.timezone,
     defaultCategoryId: bot.defaultCategoryId,
+    introduceWithName: bot.introduceWithName,
+    autoReplyEnabled: bot.autoReplyEnabled,
+    toolsEnabled: bot.toolsEnabled,
+    ratingEnabled: bot.ratingEnabled,
   };
+}
+
+// Identidade + governança (seções "Identidade"/"Recursos do Bot" da tela).
+// Válido tanto para criação quanto edição parcial. `existing` (quando
+// informado) é usado para MESCLAR featureFlags/toolPermissions em vez de
+// sobrescrever o JSON inteiro com só as chaves enviadas desta vez.
+function identityAndGovernanceInput(data, existing = null) {
+  const update = {};
+  if (data.introduceWithName !== undefined) {
+    if (typeof data.introduceWithName !== "boolean") throw fail("introduceWithName deve ser verdadeiro ou falso.");
+    update.introduceWithName = data.introduceWithName;
+  }
+  if (data.presentationMessage !== undefined) {
+    update.presentationMessage = optionalText(data.presentationMessage, "Mensagem de apresentação", 500);
+  }
+  if (data.reintroduceOnNewSession !== undefined) {
+    if (typeof data.reintroduceOnNewSession !== "boolean") throw fail("reintroduceOnNewSession deve ser verdadeiro ou falso.");
+    update.reintroduceOnNewSession = data.reintroduceOnNewSession;
+  }
+  // Toggles críticos: nunca herdam automaticamente, sempre exigem valor
+  // booleano explícito quando enviados.
+  for (const key of ["autoReplyEnabled", "toolsEnabled", "ratingEnabled"]) {
+    if (data[key] !== undefined) {
+      if (typeof data[key] !== "boolean") throw fail(`${key} deve ser verdadeiro ou falso.`);
+      update[key] = data[key];
+    }
+  }
+  const featureFlags = governance.validateFeatureFlagsInput(data.featureFlags);
+  if (featureFlags !== undefined) {
+    const stored = existing?.featureFlags && typeof existing.featureFlags === "object" ? existing.featureFlags : {};
+    update.featureFlags = { ...stored, ...featureFlags };
+  }
+  const toolPermissions = governance.validateToolPermissionsInput(data.toolPermissions);
+  if (toolPermissions !== undefined) {
+    const stored = existing?.toolPermissions && typeof existing.toolPermissions === "object" ? existing.toolPermissions : {};
+    update.toolPermissions = { ...stored, ...toolPermissions };
+  }
+  return update;
 }
 
 async function listBots(viewer) {
@@ -211,6 +255,7 @@ async function createBot(data, actor) {
     timezone: validateTimezone(data.timezone),
     defaultCategoryId: await validateCategoryId(data.defaultCategoryId),
     ...validateThresholds(data.lowConfidenceThreshold, data.highConfidenceThreshold),
+    ...identityAndGovernanceInput(data),
   };
   return prisma.$transaction(async (transaction) => {
     const bot = await transaction.bot.create({ data: create, include: botInclude });
@@ -244,6 +289,7 @@ async function updateBot(botId, data, actor) {
       data.highConfidenceThreshold !== undefined ? data.highConfidenceThreshold : existing.highConfidenceThreshold,
     ));
   }
+  Object.assign(update, identityAndGovernanceInput(data, existing));
   if (!Object.keys(update).length) throw fail("Informe ao menos um campo para atualizar.");
 
   return prisma.$transaction(async (transaction) => {
@@ -256,6 +302,29 @@ async function updateBot(botId, data, actor) {
       summary: `Alterou o Bot ${bot.name}`,
       details: { before: botSnapshot(existing), after: botSnapshot(bot) },
     }, transaction);
+    // Toggles críticos ganham uma entrada de auditoria própria e explícita,
+    // além do BOT_UPDATED genérico acima — mais fácil de encontrar depois.
+    if (update.autoReplyEnabled !== undefined && update.autoReplyEnabled !== existing.autoReplyEnabled) {
+      await audit.recordAudit({
+        actor, action: update.autoReplyEnabled ? "BOT_AUTO_REPLY_ENABLED" : "BOT_AUTO_REPLY_DISABLED",
+        entityType: "BOT", entityId: bot.id,
+        summary: `${update.autoReplyEnabled ? "Ativou" : "Desativou"} a resposta automática do Bot ${bot.name}`,
+      }, transaction);
+    }
+    if (update.toolsEnabled !== undefined && update.toolsEnabled !== existing.toolsEnabled) {
+      await audit.recordAudit({
+        actor, action: update.toolsEnabled ? "BOT_TOOLS_ENABLED" : "BOT_TOOLS_DISABLED",
+        entityType: "BOT", entityId: bot.id,
+        summary: `${update.toolsEnabled ? "Ativou" : "Desativou"} o uso de Tools do Bot ${bot.name}`,
+      }, transaction);
+    }
+    if (update.ratingEnabled !== undefined && update.ratingEnabled !== existing.ratingEnabled) {
+      await audit.recordAudit({
+        actor, action: update.ratingEnabled ? "BOT_RATING_ENABLED" : "BOT_RATING_DISABLED",
+        entityType: "BOT", entityId: bot.id,
+        summary: `${update.ratingEnabled ? "Ativou" : "Desativou"} a avaliação do atendimento do Bot ${bot.name}`,
+      }, transaction);
+    }
     return bot;
   });
 }
@@ -601,6 +670,60 @@ async function recordObservationFeedback(observationId, data, actor) {
   return updated;
 }
 
+const INTENT_CONFLICT_THRESHOLD = 0.5;
+
+// Análise auxiliar (#10): compara nome+descrição+exemplos de cada par de
+// intenções ativas com o mesmo comparador usado pelo LocalFallbackProvider
+// — sem duplicar lógica de similaridade. Só avisa, nunca bloqueia.
+async function listIntentConflicts(botId, viewer) {
+  assertBotManager(viewer);
+  const bot = await ensureBot(botId, prisma, botInclude);
+  const intents = (bot.intents || []).filter((intent) => intent.active);
+  const conflicts = [];
+  for (let i = 0; i < intents.length; i += 1) {
+    for (let j = i + 1; j < intents.length; j += 1) {
+      const a = intents[i]; const b = intents[j];
+      const textA = normalizeText(`${a.name} ${a.description || ""} ${(a.examples || []).map((example) => example.text).join(" ")}`);
+      const textB = normalizeText(`${b.name} ${b.description || ""} ${(b.examples || []).map((example) => example.text).join(" ")}`);
+      const score = similarity(textA, textB);
+      if (score >= INTENT_CONFLICT_THRESHOLD) {
+        conflicts.push({
+          intentAId: a.id, intentAName: a.name, intentBId: b.id, intentBName: b.name,
+          similarity: Number(score.toFixed(2)),
+          reason: "Nome, descrição e/ou exemplos muito parecidos entre as duas intenções.",
+        });
+      }
+    }
+  }
+  return conflicts.sort((left, right) => right.similarity - left.similarity);
+}
+
+// Métricas por intenção (#41): usa BotObservation (diagnóstico do
+// interpretador) e BotRating (sinal real, quando existir) — nunca mistura
+// os dois como se fossem a mesma coisa.
+async function intentMetrics(botId, viewer) {
+  assertBotManager(viewer);
+  await ensureBot(botId);
+  const [observed, handoffs, ratings, intents] = await Promise.all([
+    prisma.botObservation.groupBy({ by: ["intentId"], where: { botId, intentId: { not: null } }, _count: { _all: true }, _avg: { confidence: true } }),
+    prisma.botObservation.groupBy({ by: ["intentId"], where: { botId, intentId: { not: null }, action: "HANDOFF_HUMAN" }, _count: { _all: true } }),
+    prisma.botRating.groupBy({ by: ["intentId"], where: { botId, intentId: { not: null } }, _count: { _all: true }, _avg: { score: true } }),
+    prisma.botIntent.findMany({ where: { botId }, select: { id: true, name: true } }),
+  ]);
+  const handoffMap = new Map(handoffs.map((row) => [row.intentId, row._count._all]));
+  const ratingMap = new Map(ratings.map((row) => [row.intentId, { count: row._count._all, avg: row._avg.score }]));
+  const nameMap = new Map(intents.map((intent) => [intent.id, intent.name]));
+  return observed.map((row) => ({
+    intentId: row.intentId,
+    intentName: nameMap.get(row.intentId) || "Intenção removida",
+    triggeredCount: row._count._all,
+    averageConfidence: row._avg.confidence != null ? Number(row._avg.confidence.toFixed(2)) : null,
+    handoffCount: handoffMap.get(row.intentId) || 0,
+    ratingsCount: ratingMap.get(row.intentId)?.count || 0,
+    averageRating: ratingMap.get(row.intentId)?.avg != null ? Number(ratingMap.get(row.intentId).avg.toFixed(2)) : null,
+  })).sort((left, right) => right.triggeredCount - left.triggeredCount);
+}
+
 module.exports = {
   archiveBot,
   assertBotManager,
@@ -608,7 +731,9 @@ module.exports = {
   createIntent,
   deleteIntent,
   getBot,
+  intentMetrics,
   listBots,
+  listIntentConflicts,
   listObservations,
   observationMetrics,
   recordObservationFeedback,

@@ -9,7 +9,7 @@ function findIntent(bot, intentId) {
   return (bot.intents || []).find((intent) => intent.id === intentId) || null;
 }
 
-function decide({ bot, interpretation, message, state = null, now = new Date() }) {
+function decide({ bot, interpretation, message, state = null, now = new Date(), flags = {} }) {
   if (bot.status !== "ACTIVE") {
     return {
       action: "NO_ACTION", categoryId: null, needsClarification: false,
@@ -37,8 +37,9 @@ function decide({ bot, interpretation, message, state = null, now = new Date() }
 
   // Mensagem puramente social (ex.: "bom dia", "obrigado"), sem nenhuma
   // intenção de negócio reconhecida junto: responde com o comportamento
-  // social e NÃO conta como falha de interpretação.
-  if (!interpretation.intentId && socialBehavior && socialBehavior !== "NEGATION") {
+  // social e NÃO conta como falha de interpretação. Desligável por Bot
+  // (conversationalBehaviorEnabled) — HUMAN_REQUEST acima nunca é afetado.
+  if (flags.conversationalBehaviorEnabled !== false && !interpretation.intentId && socialBehavior && socialBehavior !== "NEGATION") {
     return {
       action: "RESPOND", categoryId: null, needsClarification: false, shouldHandoff: false,
       withinHours: true, socialBehavior, greetingReply,
@@ -88,7 +89,7 @@ function decide({ bot, interpretation, message, state = null, now = new Date() }
     };
   }
 
-  if (intent?.fallbackAction === "TRANSFER_TO_CATEGORY" && categoryId) {
+  if (flags.autoSwitchEnabled !== false && intent?.fallbackAction === "TRANSFER_TO_CATEGORY" && categoryId) {
     return {
       action: "SWITCH_BOT", categoryId, needsClarification: false, shouldHandoff: false,
       withinHours: true, socialBehavior, greetingReply,

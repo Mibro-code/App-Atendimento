@@ -1,12 +1,16 @@
 // Orquestrador: decide QUAL Bot atende uma conversa e amarra
-// interpret() -> decide() -> respond() num resultado padronizado único.
-// Usado tanto pelo modo observação (mensagens reais) quanto, com estado
-// totalmente separado, pelo simulador multi-turno da tela de Bots.
+// interpret() -> decide() -> respond() num resultado padronizado único,
+// aplicando a camada de governança (feature flags, apresentação, proteção
+// contra loop/ping-pong, kill switch/pausa por humano). Usado tanto pelo
+// modo observação (mensagens reais) quanto, com estado totalmente separado,
+// pelo simulador multi-turno da tela de Bots.
 const prisma = require("../database/prisma");
 const { interpret } = require("./bot-interpreter-service");
 const { decide } = require("./bot-decision-service");
 const { respond } = require("./bot-response-service");
 const { getState, getRecentContext, persistDecision } = require("./bot-conversation-state-service");
+const { getGlobalSettings, renderPresentationMessage, resolveFeatureFlags } = require("./bot-governance-service");
+const { checkResponseLoop, checkSwitchWindow } = require("./bot-loop-guard-service");
 
 const categorySelection = { id: true, code: true, name: true, color: true, active: true };
 const botInclude = {
@@ -54,7 +58,16 @@ function categoryNameFor(bot, categoryId) {
   return intent?.category?.name || null;
 }
 
-function toStandardResult({ bot, targetBot, interpretation, decision, responseText }) {
+// Sessão "expirada": o estado operacional (intenção pendente, falhas,
+// esclarecimento em aberto) não pode ser tratado como verdade para uma nova
+// conversa — não apaga histórico real, só reinicia o estado do Bot.
+function isSessionExpired(state, flags, now) {
+  if (!state?.updatedAt) return false;
+  const elapsedMinutes = (now.getTime() - new Date(state.updatedAt).getTime()) / 60000;
+  return elapsedMinutes > flags.contextExpirationMinutes;
+}
+
+function toStandardResult({ bot, targetBot, interpretation, decision, responseText, extras = {} }) {
   return {
     botId: targetBot.id,
     botName: targetBot.name,
@@ -76,7 +89,76 @@ function toStandardResult({ bot, targetBot, interpretation, decision, responseTe
     extractedEntities: interpretation.entities,
     summary: decision.summary,
     response: responseText,
+    ...extras,
   };
+}
+
+// Núcleo compartilhado por orchestrate() (conversa real) e
+// simulateOrchestration() (simulador): interpreta, decide, aplica proteção
+// de loop/ping-pong e apresentação. Quem chama decide o que persistir.
+// `state` alimenta interpret()/decide() (memória conversacional: intenção
+// pendente, falhas, entidades) — pode ser null se contextEnabled estiver
+// desligado ou a sessão tiver expirado. `guardState` alimenta as proteções
+// de loop/troca de Bot/apresentação — só é null quando a sessão realmente
+// expirou (essas proteções não dependem de contextEnabled).
+async function runDecisionPipeline({
+  bot, message, context, state, guardState, previousIntroducedAt, flags, now, channel, client, sessionExpired = false,
+}) {
+  const interpretation = await interpret({ bot, message, context, state });
+  let decision = decide({ bot, interpretation, message, state, now, flags });
+
+  let targetBot = bot;
+  let switchInfo = {
+    switchCount: guardState?.switchCount ?? 0,
+    switchWindowStartedAt: guardState?.switchWindowStartedAt ?? null,
+  };
+  if (decision.action === "SWITCH_BOT" && decision.categoryId) {
+    if (flags.autoSwitchEnabled === false) {
+      decision = { ...decision, action: "RESPOND" };
+    } else {
+      const switchCheck = checkSwitchWindow(guardState, flags, now);
+      switchInfo = { switchCount: switchCheck.switchCount, switchWindowStartedAt: switchCheck.switchWindowStartedAt };
+      if (!switchCheck.allowed) {
+        decision = {
+          ...decision, action: "HANDOFF_HUMAN", shouldHandoff: true,
+          summary: `${decision.summary} Limite de trocas de Bot na janela recente atingido (proteção contra ping-pong); encaminhando para humano.`,
+        };
+      } else {
+        const candidate = await resolveSwitchTarget(decision.categoryId, channel, bot.id, client);
+        if (candidate) targetBot = candidate;
+      }
+    }
+  }
+
+  let responseText = respond({ bot: targetBot, decision, interpretation });
+
+  const priorIntroducedAt = previousIntroducedAt === undefined
+    ? (guardState?.introducedAt || null) : previousIntroducedAt;
+  const shouldIntroduce = Boolean(targetBot.introduceWithName) && Boolean(responseText)
+    && (!priorIntroducedAt || (sessionExpired && targetBot.reintroduceOnNewSession));
+  if (shouldIntroduce) {
+    const presentation = renderPresentationMessage(targetBot.presentationMessage, { botName: targetBot.name });
+    responseText = `${presentation} ${responseText}`;
+  }
+
+  const loopCheck = checkResponseLoop(guardState, responseText);
+  if (loopCheck.looped && !["HANDOFF_HUMAN", "NO_ACTION"].includes(decision.action)) {
+    decision = {
+      ...decision, action: "HANDOFF_HUMAN", shouldHandoff: true,
+      summary: `${decision.summary} A mesma resposta se repetiu; proteção contra loop encaminhou para humano.`,
+    };
+    responseText = respond({ bot: targetBot, decision, interpretation });
+  }
+  const finalLoop = checkResponseLoop(guardState, responseText);
+
+  const operational = {
+    ...switchInfo,
+    introducedAt: shouldIntroduce ? now : priorIntroducedAt,
+    lastResponseHash: finalLoop.hash,
+    lastResponseRepeatCount: finalLoop.repeatCount,
+  };
+
+  return { interpretation, decision, targetBot, responseText, operational };
 }
 
 // Interpreta e decide para uma conversa REAL, persistindo o estado do Bot
@@ -86,20 +168,41 @@ async function orchestrate({ conversationId, channel = "META", messageId = null,
   const bot = await resolveBot(state?.activeBotId, channel, client);
   if (!bot) return null;
 
-  const context = await getRecentContext(conversationId, { beforeMessageId: messageId }, client);
-  const interpretation = await interpret({ bot, message, context, state });
-  const decision = decide({ bot, interpretation, message, state, now });
+  const globalSettings = await getGlobalSettings(client);
+  const flags = resolveFeatureFlags(bot);
+  const sessionExpired = isSessionExpired(state, flags, now);
+  const conversationalState = flags.contextEnabled && !sessionExpired ? state : null;
+  const operationalState = sessionExpired ? null : state;
 
-  let targetBot = bot;
-  if (decision.action === "SWITCH_BOT" && decision.categoryId) {
-    const candidate = await resolveSwitchTarget(decision.categoryId, channel, bot.id, client);
-    if (candidate) targetBot = candidate;
+  const context = flags.contextEnabled
+    ? await getRecentContext(conversationId, { beforeMessageId: messageId, limit: flags.contextMaxMessages }, client)
+    : [];
+
+  const { interpretation, decision, targetBot, responseText, operational } = await runDecisionPipeline({
+    bot, message, context, state: conversationalState, guardState: operationalState,
+    previousIntroducedAt: state?.introducedAt || null, flags, now, channel, client, sessionExpired,
+  });
+
+  let humanPaused = false;
+  if (flags.handoffAutoPauseEnabled) {
+    const conversation = await client.conversation.findUnique({
+      where: { id: conversationId }, select: { assignedUserId: true, status: true },
+    });
+    humanPaused = Boolean(conversation?.assignedUserId)
+      && ["EM_ATENDIMENTO", "AGUARDANDO_RESPOSTA"].includes(conversation?.status);
   }
+  const automationBlocked = !globalSettings.automationEnabled || !targetBot.autoReplyEnabled;
+  const observationAllowed = globalSettings.observationEnabled && flags.observationEnabled;
 
-  const responseText = respond({ bot: targetBot, decision, interpretation });
-  await persistDecision({ conversationId, bot: targetBot, interpretation, decision }, client);
+  await persistDecision({
+    conversationId, bot: targetBot, interpretation, decision,
+    operational: { ...operational, humanPausedAt: humanPaused ? now : null },
+  }, client);
 
-  return toStandardResult({ bot, targetBot, interpretation, decision, responseText });
+  return toStandardResult({
+    bot, targetBot, interpretation, decision, responseText,
+    extras: { humanPaused, automationBlocked, observationAllowed, learningEnabled: flags.learningEnabled },
+  });
 }
 
 // Mesma interpretação, mas para o simulador: usa um "estado" transitório
@@ -109,16 +212,14 @@ async function simulateOrchestration({ bot, message, context = [], state = null,
   // O simulador deve permitir testar configurações em rascunho sem ativá-las
   // no modo observação. A cópia em memória nunca é persistida.
   const simulationBot = bot.status === "ACTIVE" ? bot : { ...bot, status: "ACTIVE" };
-  const interpretation = await interpret({ bot: simulationBot, message, context, state });
-  const decision = decide({ bot: simulationBot, interpretation, message, state, now });
+  const flags = resolveFeatureFlags(simulationBot);
 
-  let targetBot = bot;
-  if (decision.action === "SWITCH_BOT" && decision.categoryId) {
-    const candidate = await resolveSwitchTarget(decision.categoryId, bot.channel, bot.id, prisma);
-    if (candidate) targetBot = candidate;
-  }
+  const { interpretation, decision, targetBot: simulatedTargetBot, responseText, operational } = await runDecisionPipeline({
+    bot: simulationBot, message, context, state, guardState: state, flags, now, channel: bot.channel, client: prisma,
+    sessionExpired: false,
+  });
+  const targetBot = simulatedTargetBot.id === simulationBot.id ? bot : simulatedTargetBot;
 
-  const responseText = respond({ bot: targetBot, decision, interpretation });
   const nextState = {
     activeBotId: targetBot.id,
     lastIntentId: interpretation.intentId || null,
@@ -127,6 +228,7 @@ async function simulateOrchestration({ bot, message, context = [], state = null,
       ? (decision.failureCount ?? 0) : 0,
     pendingClarification: decision.needsClarification || false,
     extractedEntities: interpretation.entities || {},
+    ...operational,
   };
 
   return { ...toStandardResult({ bot, targetBot, interpretation, decision, responseText }), nextState };

@@ -8,6 +8,7 @@ const internalChat = require("../services/internal-chat-service");
 const { getCustomerServiceWindow, listApprovedTemplates, sendApprovedTemplate, templatesConfigured } = require("../services/meta-template-service");
 const { createOutboundConversation } = require("../services/outbound-conversation-service");
 const { analyzeConversation } = require("../services/bot-learning-service");
+const { submitAgentFeedback } = require("../services/bot-agent-feedback-service");
 
 
 function createInboxController(channel) {
@@ -222,6 +223,12 @@ async signalTransfer(req, res, next) {
         inboxEvents.publish();
         if (!result.alreadyFinalized) analyzeConversation(req.params.id).catch(() => {});
         return res.json(result);
+      } catch (error) { return next(error); }
+    },
+    async botFeedback(req, res, next) {
+      try {
+        await authorization.assertCanViewConversation(req.user, req.params.id);
+        return res.status(201).json(await submitAgentFeedback(req.params.id, req.body, req.user));
       } catch (error) { return next(error); }
     },
     async media(req, res, next) {

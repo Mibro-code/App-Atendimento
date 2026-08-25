@@ -1,5 +1,9 @@
 const bots = require("../services/bot-service");
 const learning = require("../services/bot-learning-service");
+const governance = require("../services/bot-governance-service");
+const versions = require("../services/bot-version-service");
+const ratings = require("../services/bot-rating-service");
+const knowledge = require("../services/bot-knowledge-source-service");
 
 module.exports = {
   async list(req, res, next) {
@@ -115,6 +119,100 @@ module.exports = {
 
   async analyzeConversationForLearning(req, res, next) {
     try { return res.json(await learning.analyzeConversationManually(req.params.conversationId, req.user)); }
+    catch (error) { return next(error); }
+  },
+
+  async intentConflicts(req, res, next) {
+    try { return res.json(await bots.listIntentConflicts(req.params.botId, req.user)); }
+    catch (error) { return next(error); }
+  },
+
+  async intentMetrics(req, res, next) {
+    try { return res.json(await bots.intentMetrics(req.params.botId, req.user)); }
+    catch (error) { return next(error); }
+  },
+
+  // Governança / configuração global.
+  async globalSettings(req, res, next) {
+    try { return res.json(await governance.getGlobalSettingsForManager(req.user)); }
+    catch (error) { return next(error); }
+  },
+  async updateGlobalSettings(req, res, next) {
+    try { return res.json(await governance.updateGlobalSettings(req.body, req.user)); }
+    catch (error) { return next(error); }
+  },
+  async activateKillSwitch(req, res, next) {
+    try { return res.json(await governance.deactivateAutomation(req.user)); }
+    catch (error) { return next(error); }
+  },
+  async deactivateKillSwitch(req, res, next) {
+    try { return res.json(await governance.reactivateAutomation(req.user)); }
+    catch (error) { return next(error); }
+  },
+
+  // Versionamento.
+  async listVersions(req, res, next) {
+    try { return res.json(await versions.listVersions(req.params.botId, req.user)); }
+    catch (error) { return next(error); }
+  },
+  async createVersion(req, res, next) {
+    try { return res.status(201).json(await versions.createVersion(req.params.botId, req.body, req.user)); }
+    catch (error) { return next(error); }
+  },
+  async previewRestoreVersion(req, res, next) {
+    try { return res.json(await versions.previewRestore(req.params.botId, req.params.version, req.user)); }
+    catch (error) { return next(error); }
+  },
+  async restoreVersion(req, res, next) {
+    try { return res.json(await versions.restoreVersion(req.params.botId, req.params.version, req.body, req.user)); }
+    catch (error) { return next(error); }
+  },
+
+  // Avaliação (ratings) e ranking.
+  async submitRating(req, res, next) {
+    try { return res.status(201).json(await ratings.submitRating(req.body, req.user)); }
+    catch (error) { return next(error); }
+  },
+  async listRatings(req, res, next) {
+    try { return res.json(await ratings.listRatings(req.query, req.user)); }
+    catch (error) { return next(error); }
+  },
+  async ratingMetrics(req, res, next) {
+    try { return res.json(await ratings.ratingMetrics(req.params.botId, req.query, req.user)); }
+    catch (error) { return next(error); }
+  },
+  async ratingTimeSeries(req, res, next) {
+    try { return res.json(await ratings.ratingTimeSeries(req.params.botId, req.query, req.user)); }
+    catch (error) { return next(error); }
+  },
+  async observationTimeSeries(req, res, next) {
+    try { return res.json(await ratings.observationTimeSeries(req.params.botId, req.query, req.user)); }
+    catch (error) { return next(error); }
+  },
+  async updateRatingConfig(req, res, next) {
+    try { return res.json(await ratings.updateRatingConfig(req.params.botId, req.body, req.user)); }
+    catch (error) { return next(error); }
+  },
+  async ranking(req, res, next) {
+    try { return res.json(await ratings.getRanking(req.user)); }
+    catch (error) { return next(error); }
+  },
+
+  // Base de conhecimento (arquitetura-base).
+  async listKnowledgeSources(req, res, next) {
+    try { return res.json(await knowledge.listKnowledgeSources(req.query, req.user)); }
+    catch (error) { return next(error); }
+  },
+  async createKnowledgeSource(req, res, next) {
+    try { return res.status(201).json(await knowledge.createKnowledgeSource(req.body, req.user)); }
+    catch (error) { return next(error); }
+  },
+  async updateKnowledgeSource(req, res, next) {
+    try { return res.json(await knowledge.updateKnowledgeSource(req.params.sourceId, req.body, req.user)); }
+    catch (error) { return next(error); }
+  },
+  async deleteKnowledgeSource(req, res, next) {
+    try { return res.json(await knowledge.deleteKnowledgeSource(req.params.sourceId, req.user)); }
     catch (error) { return next(error); }
   },
 };
