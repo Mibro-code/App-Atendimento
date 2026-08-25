@@ -1,7 +1,17 @@
 (() => {
-  const APP_VERSION = "0.14.2";
+  const APP_VERSION = "0.14.3";
 
   const CHANGELOG = [
+    {
+      version: "0.14.3",
+      date: "25/08/2026",
+      title: "Contraste dos botões na área de Bots",
+      changes: [
+        "Corrige os botões Cancelar e Limpar conversa que ficavam sem contraste no tema escuro.",
+        "Restaura o estilo dos botões Executar simulação e Limpar conversa após a evolução do simulador multi-turno.",
+        "Padroniza as ações primárias e secundárias das telas de Configuração, Simulador e Aprendizado nos temas claro e escuro."
+      ]
+    },
     {
       version: "0.14.2",
       date: "25/08/2026",
