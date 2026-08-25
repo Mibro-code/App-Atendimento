@@ -329,6 +329,8 @@ function renderContactFiles(tab = "media") {
 function openContactFiles() {
   if (!state.selectedId) return;
   $("#contact-files-title").textContent = state.selectedContactName || "Arquivos da conversa";
+  $("#contact-files-conversation-id").textContent = state.selectedId;
+  $("#analyze-conversation-learning").hidden = !state.currentUser?.isMaster;
   renderContactFiles("media");
   $("#contact-files-dialog").showModal();
 }
@@ -1030,6 +1032,42 @@ $("#edit-contact-name").addEventListener("click", async () => {
   }
 });
 $("#close-contact-files").addEventListener("click", () => $("#contact-files-dialog").close());
+$("#copy-conversation-id").addEventListener("click", async () => {
+  const conversationId = state.selectedId;
+  if (!conversationId) return;
+  try {
+    await navigator.clipboard.writeText(conversationId);
+    toast("ID copiado.");
+  } catch {
+    toast("Não foi possível copiar o ID.", true);
+  }
+});
+$("#analyze-conversation-learning").addEventListener("click", async (event) => {
+  const conversationId = state.selectedId;
+  if (!conversationId) { toast("Nenhuma conversa selecionada.", true); return; }
+  const button = event.currentTarget;
+  if (button.disabled) return;
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "Analisando...";
+  try {
+    const result = await api(`/api/bot-learning/conversations/${encodeURIComponent(conversationId)}/analyze`, { method: "POST" });
+    if (result.analyzed) {
+      toast(`Análise concluída: ${result.suggestionsGenerated} sugestão(ões) geradas.`);
+    } else if (result.reason === "CONVERSATION_NOT_FINALIZED") {
+      toast("Esta conversa precisa estar finalizada antes de ser analisada para aprendizado.", true);
+    } else if (result.reason === "ALREADY_ANALYZED") {
+      toast("Esta conversa já foi analisada (sem mensagens novas desde então).");
+    } else {
+      toast("Não foi possível analisar esta conversa agora.", true);
+    }
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+});
 $("#contact-files-dialog").addEventListener("click", (event) => { if (event.target === $("#contact-files-dialog")) $("#contact-files-dialog").close(); });
 $(".contact-files-tabs").addEventListener("click", (event) => {
   const tab = event.target.closest("[data-files-tab]")?.dataset.filesTab;

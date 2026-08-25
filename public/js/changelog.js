@@ -1,7 +1,18 @@
 (() => {
-  const APP_VERSION = "0.14.0";
+  const APP_VERSION = "0.14.1";
 
   const CHANGELOG = [
+    {
+      version: "0.14.1",
+      date: "25/08/2026",
+      title: "ID da conversa e atalho para Aprendizado",
+      changes: [
+        "Exibe o ID interno real da conversa no painel de conteúdo compartilhado, sem usar telefone ou ID do contato.",
+        "Permite copiar o ID da conversa com confirmação, sem fazer chamadas de rede ou alterar o atendimento.",
+        "Adiciona, somente para contas Master, um atalho para analisar a conversa finalizada no Aprendizado supervisionado.",
+        "Mantém a análise passiva: não finaliza conversas automaticamente, não envia mensagens e não altera o histórico."
+      ]
+    },
     {
       version: "0.14.0",
       date: "25/08/2026",
