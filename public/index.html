@@ -32,6 +32,7 @@
     <button id="enable-notifications" class="notification-button" type="button" hidden title="Ativar notificações do atendimento">🔔 Ativar alertas</button>
     <button id="bots-button" class="team-button" type="button" hidden>Bots</button>
     <button id="integrations-button" class="team-button" type="button" hidden>Integrações</button>
+    <button id="quick-replies-admin-button" class="team-button" type="button" hidden>Respostas rápidas</button>
     <button id="team-button" class="team-button" type="button" hidden>Equipe</button>
     <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Usar tema escuro" title="Usar tema escuro"><span id="theme-icon" aria-hidden="true">☾</span></button>
     <button id="user-button" class="user-button" type="button"><span id="current-user">Usuário</span> • Sair</button>
@@ -120,12 +121,22 @@
           <label class="attach-image" title="Anexar imagem, vídeo ou documento" aria-label="Anexar imagem, vídeo ou documento"><input id="attachment-input" type="file" accept="image/jpeg,image/png,video/mp4,video/3gpp,video/3gp,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"><span aria-hidden="true">+</span></label>
           <div id="attachment-preview" class="attachment-preview" hidden><img id="attachment-thumb" alt="Prévia da imagem"><span id="attachment-type" class="attachment-type" hidden>DOC</span><span id="attachment-name"></span><button id="remove-attachment" type="button" aria-label="Remover anexo">×</button></div>
           <button id="open-templates" class="template-shortcut" type="button" title="Enviar template aprovado pela Meta" hidden>Templates</button>
-          <textarea id="message-input" rows="1" maxlength="4096" placeholder="Digite uma mensagem..."></textarea>
+          <button id="open-quick-replies" class="quick-reply-shortcut" type="button" title="Respostas rápidas" aria-label="Respostas rápidas">⚡</button>
+          <div class="composer-input-wrap">
+            <textarea id="message-input" rows="1" maxlength="4096" placeholder="Digite uma mensagem... (use / para respostas rápidas)"></textarea>
+            <div id="slash-suggestions" class="slash-suggestions" hidden></div>
+          </div>
           <button id="send-button" type="submit">Enviar</button>
         </form>
       </div>
     </section>
   </main>
+  <dialog id="quick-reply-dialog" class="quick-reply-dialog">
+    <div class="dialog-header"><div><span>RESPOSTAS RÁPIDAS</span><h2>Selecionar resposta</h2><p>O texto é inserido no campo de mensagem — você revisa e envia manualmente.</p></div><button id="close-quick-replies" type="button" aria-label="Fechar">×</button></div>
+    <label class="quick-reply-search"><span>⌕</span><input id="quick-reply-search" type="search" placeholder="Buscar por nome, atalho, texto ou categoria"></label>
+    <div id="quick-reply-categories" class="quick-reply-categories"></div>
+    <div id="quick-reply-list" class="quick-reply-list"></div>
+  </dialog>
   <dialog id="outbound-dialog" class="template-dialog outbound-dialog">
     <div class="dialog-header"><div><span>WHATSAPP • NOVO CONTATO</span><h2>Iniciar conversa</h2><p>Informe o contato e escolha a mensagem aprovada que será enviada pela Meta.</p></div><button id="close-outbound" type="button" aria-label="Fechar">×</button></div>
     <div class="template-billing-warning"><b>Atenção à cobrança</b><span>O envio inicial usa um template aprovado e pode gerar cobrança pela Meta.</span></div>

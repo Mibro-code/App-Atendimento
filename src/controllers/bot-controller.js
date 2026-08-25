@@ -16,6 +16,11 @@ module.exports = {
     catch (error) { return next(error); }
   },
 
+  async allIntents(req, res, next) {
+    try { return res.json(await bots.listAllIntents(req.user)); }
+    catch (error) { return next(error); }
+  },
+
   async create(req, res, next) {
     try { return res.status(201).json(await bots.createBot(req.body, req.user)); }
     catch (error) { return next(error); }
