@@ -46,6 +46,9 @@ services:
       GRAPH_VERSION: ${GRAPH_VERSION}
       META_APP_SECRET: ${META_APP_SECRET}
       INTEGRATION_API_SECRET: ${INTEGRATION_API_SECRET}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-haiku-4-5-20251001}
+      ANTHROPIC_TIMEOUT_MS: ${ANTHROPIC_TIMEOUT_MS:-8000}
       MEDIA_STORAGE_DIR: /app/storage/media
     volumes:
       - atendimento_media_data:/app/storage
