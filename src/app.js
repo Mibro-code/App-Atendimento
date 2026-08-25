@@ -8,6 +8,7 @@ const prisma = require("./database/prisma");
 const MetaCloudChannel = require("./channels/meta-cloud-channel");
 const { saveIncoming, updateStatus, sendTextToPhone } = require("./services/message-service");
 const { handleIncomingTriage } = require("./services/triage-bot-service");
+const { observeIncomingMessage } = require("./services/bot-observation-service");
 const { createInboxController } = require("./controllers/inbox-controller");
 const authController = require("./controllers/auth-controller");
 const { authenticate, requireMasterPage, requirePageAuth } = require("./middleware/auth");
@@ -96,7 +97,10 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
           }
           const result = await saveIncoming(event);
           if (!result.duplicate) {
-            if (event.type !== "reaction") await handleIncomingTriage(event, result.message, channel);
+            if (event.type !== "reaction") {
+              await handleIncomingTriage(event, result.message, channel);
+              observeIncomingMessage(event, result.message).catch(() => {});
+            }
             changed = true;
           }
         }
