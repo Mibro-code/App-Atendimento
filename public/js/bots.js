@@ -1,6 +1,21 @@
 const state = { bots: [], categories: [], selected: null };
 const $ = (selector) => document.querySelector(selector);
 const statusLabels = { DRAFT: "RASCUNHO", ACTIVE: "ATIVO", PAUSED: "PAUSADO" };
+const channelLabels = {
+  META: "WhatsApp (Meta)",
+  INSTAGRAM_DIRECT: "Instagram Direct",
+  INSTAGRAM_COMMENTS: "Instagram Comentários",
+  FACEBOOK_MESSENGER: "Facebook Messenger",
+  FACEBOOK_COMMENTS: "Facebook Comentários",
+  EMAIL: "E-mail",
+  MERCADO_LIVRE: "Mercado Livre",
+  TIKTOK_SHOP: "TikTok Shop",
+  AMAZON_MARKETPLACE: "Amazon Marketplace",
+  SHOPEE: "Shopee",
+  SHEIN_MARKETPLACE: "SHEIN Marketplace",
+  GOOGLE_REVIEWS: "Google Reviews / Perfil da Empresa",
+  RECLAME_AQUI: "Reclame Aqui",
+};
 const dayNames = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
 
 async function api(url, options = {}) {
@@ -38,7 +53,7 @@ function renderBotList() {
     <button class="bot-card ${state.selected?.id === bot.id ? "active" : ""}" type="button" data-bot-id="${escapeHtml(bot.id)}">
       <header><b>${escapeHtml(bot.name)}</b><span class="mini-status ${bot.status}">${statusLabels[bot.status]}</span></header>
       <small>${escapeHtml(bot.description || "Sem descrição")}</small>
-      <div class="bot-meta"><span>${bot.channel === "META" ? "WhatsApp (Meta)" : "Zenvia"}</span><span>\u2022</span><span>${bot._count.intents} intenção(ões)</span></div>
+      <div class="bot-meta"><span>${escapeHtml(channelLabels[bot.channel] || "Canal legado")}</span><span>\u2022</span><span>${bot._count.intents} intenção(ões)</span></div>
     </button>
   `).join("") : '<div class="intent-empty">Nenhum Bot criado.</div>';
   document.querySelectorAll("[data-bot-id]").forEach((button) => button.addEventListener("click", () => selectBot(button.dataset.botId)));

@@ -4,7 +4,21 @@ const audit = require("./audit-service");
 const { normalizeText, simulateBot } = require("./bot-simulator-service");
 
 const botStatuses = new Set(["DRAFT", "ACTIVE", "PAUSED"]);
-const botChannels = new Set(["META", "ZENVIA"]);
+const botChannels = new Set([
+  "META",
+  "INSTAGRAM_DIRECT",
+  "INSTAGRAM_COMMENTS",
+  "FACEBOOK_MESSENGER",
+  "FACEBOOK_COMMENTS",
+  "EMAIL",
+  "MERCADO_LIVRE",
+  "TIKTOK_SHOP",
+  "AMAZON_MARKETPLACE",
+  "SHOPEE",
+  "SHEIN_MARKETPLACE",
+  "GOOGLE_REVIEWS",
+  "RECLAME_AQUI",
+]);
 const fallbackActions = new Set(["USE_BOT_FALLBACK", "TRANSFER_TO_CATEGORY", "TRANSFER_TO_HUMAN"]);
 const timePattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 

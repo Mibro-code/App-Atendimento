@@ -31,7 +31,7 @@ function welcomeText(contact) {
 
 function routingText(contact, category) {
   const greeting = contactFirstName(contact);
-  return `✅ Perfeito${greeting === "Olá" ? "" : `, ${greeting}`}! Encaminhamos seu atendimento para o setor ${category.name}. Em breve, nossa equipe continuará a conversa por aqui.\n\n⏱️ Importante: após uma mensagem da nossa equipe, aguardaremos sua resposta por 15 minutos. Se não houver retorno nesse período, a conversa será finalizada automaticamente. Mas fique tranquilo(a): sempre que precisar, basta enviar uma nova mensagem para iniciar outro atendimento.`;
+  return `✅ Perfeito${greeting === "Olá" ? "" : `, ${greeting}`}! Encaminhamos seu atendimento para o setor ${category.name}. Em breve, nossa equipe continuará a conversa por aqui.\n\n⏱️ Importante: após uma mensagem da nossa equipe, aguardaremos sua resposta por 24 horas. Se não houver retorno nesse período, a conversa será finalizada automaticamente. Mas fique tranquilo(a): sempre que precisar, basta enviar uma nova mensagem para iniciar outro atendimento.`;
 }
 
 function afterHoursText(contact) {

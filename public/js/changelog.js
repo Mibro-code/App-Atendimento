@@ -1,7 +1,20 @@
 (() => {
-  const APP_VERSION = "0.12.0";
+  const APP_VERSION = "0.12.1";
 
   const CHANGELOG = [
+    {
+      version: "0.12.1",
+      date: "25/08/2026",
+      title: "Observação de Bots e novos canais",
+      changes: [
+        "Executa o Bot ativo em modo de observação, em paralelo à triagem atual, sem responder ao cliente nem alterar a conversa.",
+        "Persiste o resultado das observações para permitir comparações futuras com a triagem real.",
+        "Atualiza para 24 horas o prazo informado ao cliente antes da finalização automática da conversa.",
+        "Amplia a configuração de Bots com Instagram, Facebook, e-mail, marketplaces, Google Reviews e Reclame Aqui.",
+        "Remove a opção Zenvia da configuração de novos Bots.",
+        "Mantém os novos canais apenas como opções de configuração; suas integrações externas ainda não são ativadas por esta versão."
+      ]
+    },
     {
       version: "0.12.0",
       date: "21/08/2026",

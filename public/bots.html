@@ -52,7 +52,21 @@
             <div class="card-heading"><div><span>CONFIGURAÇÃO</span><h3>Identidade e mensagens</h3></div><button type="submit">Salvar Bot</button></div>
             <div class="fields two-columns">
               <label><span>Nome *</span><input id="bot-name" maxlength="100" required placeholder="Ex.: Atendimento inicial"></label>
-              <label><span>Canal *</span><select id="bot-channel" required><option value="META">WhatsApp (Meta)</option><option value="ZENVIA">Zenvia (preparação)</option></select></label>
+              <label><span>Canal *</span><select id="bot-channel" required>
+                <option value="META">WhatsApp (Meta)</option>
+                <option value="INSTAGRAM_DIRECT">Instagram Direct</option>
+                <option value="INSTAGRAM_COMMENTS">Instagram Comentários</option>
+                <option value="FACEBOOK_MESSENGER">Facebook Messenger</option>
+                <option value="FACEBOOK_COMMENTS">Facebook Comentários</option>
+                <option value="EMAIL">E-mail</option>
+                <option value="MERCADO_LIVRE">Mercado Livre</option>
+                <option value="TIKTOK_SHOP">TikTok Shop</option>
+                <option value="AMAZON_MARKETPLACE">Amazon Marketplace</option>
+                <option value="SHOPEE">Shopee</option>
+                <option value="SHEIN_MARKETPLACE">SHEIN Marketplace</option>
+                <option value="GOOGLE_REVIEWS">Google Reviews / Perfil da Empresa</option>
+                <option value="RECLAME_AQUI">Reclame Aqui</option>
+              </select></label>
               <label class="full"><span>Descrição</span><input id="bot-description" maxlength="500" placeholder="Objetivo deste Bot"></label>
               <label><span>Timezone *</span><input id="bot-timezone" maxlength="100" value="America/Sao_Paulo" required></label>
               <label><span>Categoria padrão</span><select id="bot-category"></select></label>

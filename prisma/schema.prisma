@@ -9,6 +9,20 @@ datasource db {
 
 enum Channel {
   META
+  INSTAGRAM_DIRECT
+  INSTAGRAM_COMMENTS
+  FACEBOOK_MESSENGER
+  FACEBOOK_COMMENTS
+  EMAIL
+  MERCADO_LIVRE
+  TIKTOK_SHOP
+  AMAZON_MARKETPLACE
+  SHOPEE
+  SHEIN_MARKETPLACE
+  GOOGLE_REVIEWS
+  RECLAME_AQUI
+  // Mantido apenas para compatibilidade com registros históricos.
+  // Não é oferecido na interface de gerenciamento de Bots.
   ZENVIA
 }
 
