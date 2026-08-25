@@ -1,0 +1,84 @@
+// Persiste uma NormalizedInboundMessage em Contact/Conversation/Message para
+// os canais NOVOS (Mercado Livre, TikTok, e-mail, etc.). Deliberadamente
+// separado de conversation-service.js/message-service.js (que continuam
+// exclusivos do WhatsApp/Meta) — mesmo padrão comprovado (upsert por
+// channel+externalId), sem tocar no código do canal já em produção.
+const prisma = require("../../database/prisma");
+
+const kindByChannel = {
+  MERCADO_LIVRE: "PRIVATE_CONVERSATION",
+  TIKTOK_SHOP: "PRIVATE_CONVERSATION",
+  AMAZON_MARKETPLACE: "PRIVATE_CONVERSATION",
+  SHOPEE: "PRIVATE_CONVERSATION",
+  EMAIL: "EMAIL_THREAD",
+  GOOGLE_REVIEWS: "REVIEW",
+  RECLAME_AQUI: "COMPLAINT",
+};
+
+function conversationKindFor(channel, normalized) {
+  if (normalized.type === "review") return "REVIEW";
+  if (normalized.type === "question") return "PUBLIC_QUESTION";
+  return kindByChannel[channel] || "PRIVATE_CONVERSATION";
+}
+
+async function findOrCreateChannelConversation(normalized, client = prisma) {
+  const { channel, channelAccountId, senderExternalId, senderName } = normalized;
+  if (!senderExternalId) throw new Error("senderExternalId é obrigatório para localizar/criar o contato.");
+
+  const contact = await client.contact.upsert({
+    where: { channel_externalId: { channel, externalId: senderExternalId } },
+    update: { ...(senderName ? { name: senderName } : {}) },
+    create: { channel, externalId: senderExternalId, name: senderName || senderExternalId, phone: null },
+  });
+
+  const conversation = await client.conversation.upsert({
+    where: { contactId_channel: { contactId: contact.id, channel } },
+    update: {
+      ...(channelAccountId ? { channelAccountId } : {}),
+      ...(normalized.externalConversationId ? { externalConversationId: normalized.externalConversationId } : {}),
+    },
+    create: {
+      contactId: contact.id, channel, channelAccountId: channelAccountId || null,
+      externalConversationId: normalized.externalConversationId || null,
+      kind: conversationKindFor(channel, normalized), status: "NOVO",
+    },
+  });
+
+  return { contact, conversation };
+}
+
+// Idempotente por Message.externalId (mesma constraint unique já usada pelo
+// WhatsApp) — reenvio do mesmo externalMessageId nunca duplica.
+async function persistInboundMessage(normalized, client = prisma) {
+  if (normalized.externalMessageId) {
+    const existing = await client.message.findUnique({ where: { externalId: normalized.externalMessageId } });
+    if (existing) return { message: existing, duplicate: true, conversation: null };
+  }
+
+  const { contact, conversation } = await findOrCreateChannelConversation(normalized, client);
+
+  const message = await client.message.create({
+    data: {
+      conversationId: conversation.id,
+      externalId: normalized.externalMessageId || null,
+      channel: normalized.channel,
+      channelAccountId: normalized.channelAccountId || null,
+      direction: normalized.direction,
+      status: normalized.direction === "RECEBIDA" ? "RECEBIDA" : "ENVIADA",
+      type: normalized.type,
+      text: normalized.text,
+      occurredAt: normalized.occurredAt,
+      rawPayload: normalized.metadata || undefined,
+    },
+  });
+
+  if (normalized.direction === "RECEBIDA") {
+    await client.conversation.update({
+      where: { id: conversation.id }, data: { unreadCount: { increment: 1 }, lastMessageAt: normalized.occurredAt },
+    });
+  }
+
+  return { message, duplicate: false, conversation, contact };
+}
+
+module.exports = { findOrCreateChannelConversation, persistInboundMessage };

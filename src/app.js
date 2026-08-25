@@ -22,6 +22,18 @@ const auditController = require("./controllers/audit-controller");
 const { documentMimeTypes } = require("./services/media-storage-service");
 const botController = require("./controllers/bot-controller");
 const internalChatController = require("./controllers/internal-chat-controller");
+const integrationsController = require("./controllers/integrations-controller");
+const { NEW_CHANNELS } = require("./services/channels/channel-constants");
+const { createAdapter } = require("./services/channels/channel-adapter-registry");
+const { decryptSecrets } = require("./services/channels/integration-secret-service");
+const externalEventService = require("./services/channels/external-event-service");
+const { normalizeInboundMessage } = require("./services/channels/channel-event-normalizer");
+const omnichannelMessageService = require("./services/channels/omnichannel-message-service");
+
+function decryptAccountSecretsSafe(account) {
+  try { return decryptSecrets(account); }
+  catch (_error) { return {}; }
+}
 const imageUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024, files: 1 },
@@ -117,6 +129,42 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
     }
   });
 
+  // Webhook genérico dos canais novos (item 8/16) — Meta continua com sua
+  // rota própria acima, intocada. Só canais com supportsWebhook real
+  // processam algo; os demais respondem 404 sem vazar detalhe interno.
+  app.post("/webhooks/channels/:channel", async (req, res) => {
+    const channel = req.params.channel;
+    if (!NEW_CHANNELS.includes(channel)) return res.sendStatus(404);
+    try {
+      const account = await prisma.channelAccount.findFirst({ where: { channel, enabled: true }, orderBy: { createdAt: "asc" } });
+      const adapterAccount = account ? { ...account, secrets: decryptAccountSecretsSafe(account) } : null;
+      const adapter = createAdapter(channel, adapterAccount);
+      if (!adapter || !adapter.capabilities().supportsWebhook) return res.sendStatus(404);
+      if (!adapter.validateWebhook(req)) return res.sendStatus(401);
+
+      const rawEvents = adapter.normalizeInboundEvent(req.body) || [];
+      for (const raw of rawEvents) {
+        const normalized = normalizeInboundMessage({ ...raw, channelAccountId: account?.id || null });
+        const externalEventId = normalized.externalMessageId || `${channel}:${Date.now()}:${Math.random()}`;
+        const { event, isDuplicate } = await externalEventService.recordEvent({
+          channel, channelAccountId: account?.id || null, externalEventId, eventType: normalized.type, payload: raw,
+        });
+        if (isDuplicate) continue;
+        try {
+          await omnichannelMessageService.persistInboundMessage(normalized);
+          await externalEventService.markProcessed(event.id);
+          inboxEvents.publish();
+        } catch (error) {
+          await externalEventService.markError(event.id, error.channelErrorCode || "PROVIDER_ERROR");
+        }
+      }
+      return res.status(200).json({ received: true, processed: rawEvents.length });
+    } catch (error) {
+      console.error(`[CHANNEL] provider=${channel} event=webhook status=error`, error.message);
+      return res.sendStatus(200);
+    }
+  });
+
   app.get("/health", async (_req, res) => {
     try {
       await prisma.$queryRaw`SELECT 1`;
@@ -146,6 +194,9 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   app.get(["/", "/index.html"], requirePageAuth, (_req, res) => res.sendFile(path.join(process.cwd(), "public", "index.html")));
   app.get(["/bots", "/bots.html"], requireMasterPage, (_req, res) => (
     res.sendFile(path.join(process.cwd(), "public", "bots.html"))
+  ));
+  app.get(["/integrations", "/integrations.html"], requireMasterPage, (_req, res) => (
+    res.sendFile(path.join(process.cwd(), "public", "integrations.html"))
   ));
   app.get("/service-worker.js", (_req, res) => {
     res.set("Cache-Control", "no-cache, no-store, must-revalidate");
@@ -312,6 +363,19 @@ app.post(
   app.post("/api/knowledge-sources", botController.createKnowledgeSource);
   app.patch("/api/knowledge-sources/:sourceId", botController.updateKnowledgeSource);
   app.delete("/api/knowledge-sources/:sourceId", botController.deleteKnowledgeSource);
+
+  app.get("/api/integrations/overview", integrationsController.overview);
+  app.get("/api/integrations/settings", integrationsController.getGlobalSettings);
+  app.patch("/api/integrations/settings", integrationsController.setGlobalSettings);
+  app.get("/api/integrations/accounts", integrationsController.list);
+  app.post("/api/integrations/accounts", integrationsController.create);
+  app.get("/api/integrations/accounts/:accountId", integrationsController.detail);
+  app.patch("/api/integrations/accounts/:accountId", integrationsController.update);
+  app.patch("/api/integrations/accounts/:accountId/enabled", integrationsController.setEnabled);
+  app.delete("/api/integrations/accounts/:accountId", integrationsController.remove);
+  app.post("/api/integrations/accounts/:accountId/test-connection", integrationsController.testConnection);
+  app.post("/api/integrations/oauth/start", integrationsController.oauthStart);
+  app.post("/api/integrations/oauth/callback", integrationsController.oauthCallback);
 
   app.use((error, _req, res, _next) => {
     if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {

@@ -109,11 +109,21 @@ const defaultBooleanFeatureFlags = {
   handoffAutoPauseEnabled: true,
 };
 
+function renderChannelsChecklist(selectedChannels = []) {
+  const primary = $("#bot-channel").value;
+  $("#bot-channels-checklist").innerHTML = Object.entries(channelLabels)
+    .filter(([value]) => value !== primary)
+    .map(([value, label]) => `
+      <label class="checkbox"><input type="checkbox" value="${value}" ${selectedChannels.includes(value) ? "checked" : ""}><span>${label}</span></label>
+    `).join("");
+}
+
 function fillBotForm(bot = null) {
   $("#bot-name").value = bot?.name || "";
   $("#bot-description").value = bot?.description || "";
   $("#bot-channel").value = bot?.channel || "META";
   $("#bot-timezone").value = bot?.timezone || "America/Sao_Paulo";
+  renderChannelsChecklist(bot?.channels || []);
   $("#bot-category").innerHTML = categoryOptions(bot?.defaultCategoryId || "");
   $("#bot-low-confidence").value = bot?.lowConfidenceThreshold ?? 0.55;
   $("#bot-high-confidence").value = bot?.highConfidenceThreshold ?? 0.8;
@@ -211,6 +221,7 @@ function botPayload() {
     name: $("#bot-name").value,
     description: $("#bot-description").value,
     channel: $("#bot-channel").value,
+    channels: Array.from(document.querySelectorAll("#bot-channels-checklist input:checked")).map((input) => input.value),
     timezone: $("#bot-timezone").value,
     defaultCategoryId: $("#bot-category").value || null,
     lowConfidenceThreshold: Number($("#bot-low-confidence").value),
@@ -260,6 +271,11 @@ async function removeIntent(intentId) {
     await selectBot(state.selected.id);
   } catch (error) { toast(error.message, true); }
 }
+
+$("#bot-channel").addEventListener("change", () => {
+  const checked = Array.from(document.querySelectorAll("#bot-channels-checklist input:checked")).map((input) => input.value);
+  renderChannelsChecklist(checked);
+});
 
 $("#bot-form").addEventListener("submit", async (event) => {
   event.preventDefault();
