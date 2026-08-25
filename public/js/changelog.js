@@ -1,7 +1,17 @@
 (() => {
-  const APP_VERSION = "0.14.1";
+  const APP_VERSION = "0.14.2";
 
   const CHANGELOG = [
+    {
+      version: "0.14.2",
+      date: "25/08/2026",
+      title: "Correção do perfil da conversa",
+      changes: [
+        "Corrige o tamanho e a quebra dos botões Copiar ID e Analisar para aprendizado no painel de conteúdo compartilhado.",
+        "Evita que os controles do ID se sobreponham às abas de imagens, documentos e links.",
+        "Ajusta o cabeçalho para crescer dinamicamente em computadores e celulares."
+      ]
+    },
     {
       version: "0.14.1",
       date: "25/08/2026",
