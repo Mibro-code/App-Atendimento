@@ -12,7 +12,7 @@
 <body>
   <header class="topbar">
     <a class="brand" href="/"><img src="/assets/mibro-logo.png" alt="Mibro"><span></span><small>Gerenciamento de Bots</small></a>
-    <div class="phase-badge">FASE 2 &bull; MODO OBSERVAÇÃO</div>
+    <div class="phase-badge">FASE 3 &bull; OBSERVAÇÃO + APRENDIZADO SUPERVISIONADO</div>
     <a class="back-link" href="/">&larr; Central</a>
     <button id="theme-toggle" class="round-button" type="button" title="Alternar tema">&#9790;</button>
     <button id="logout" class="user-button" type="button"><span id="current-user">Master</span> &bull; Sair</button>
@@ -32,6 +32,7 @@
       <nav class="workspace-tabs">
         <button type="button" class="tab-button active" data-tab="config">Configuração</button>
         <button type="button" class="tab-button" data-tab="observations">Observações</button>
+        <button type="button" class="tab-button" data-tab="learning">Aprendizado</button>
       </nav>
 
       <div id="empty-state" class="empty-state">
@@ -125,6 +126,7 @@
         <div class="card observations-card">
           <div class="card-heading"><div><span>COMPARAÇÃO</span><h3>Observações do motor de interpretação</h3></div></div>
           <p class="card-help">Mensagens reais recebidas pela Meta, interpretadas em paralelo à triagem — nada aqui é enviado ao cliente.</p>
+          <div id="obs-metrics" class="metrics-strip"></div>
           <div class="observations-toolbar">
             <select id="obs-filter-bot"><option value="">Todos os Bots</option></select>
             <input id="obs-filter-intent" type="text" placeholder="Filtrar por intenção">
@@ -148,6 +150,37 @@
             </table>
           </div>
           <div id="obs-empty" class="intent-empty" hidden>Nenhuma observação registrada ainda.</div>
+        </div>
+      </div>
+
+      <div id="learning-panel" class="observations-panel" hidden>
+        <div class="card observations-card">
+          <div class="card-heading"><div><span>APRENDIZADO SUPERVISIONADO</span><h3>Sugestões geradas a partir de conversas reais</h3></div></div>
+          <p class="card-help">Nada aqui altera um Bot sozinho. Toda sugestão exige aprovação humana antes de virar exemplo, intenção ou resposta configurada.</p>
+          <div id="learning-metrics" class="metrics-strip"></div>
+          <div class="observations-toolbar">
+            <input id="analyze-conversation-id" type="text" placeholder="ID da conversa finalizada">
+            <button id="analyze-conversation" type="button">Analisar conversa</button>
+            <select id="learning-filter-status">
+              <option value="PENDING">Pendentes</option>
+              <option value="APPROVED">Aprovadas</option>
+              <option value="REJECTED">Rejeitadas</option>
+              <option value="EDITED">Editadas</option>
+              <option value="">Todas</option>
+            </select>
+            <select id="learning-filter-type">
+              <option value="">Todos os tipos</option>
+              <option value="INTENT_EXAMPLE">Novo exemplo</option>
+              <option value="NEW_INTENT">Nova intenção</option>
+              <option value="RESPONSE">Resposta recomendada</option>
+              <option value="CLARIFICATION">Esclarecimento</option>
+              <option value="KNOWLEDGE">Conhecimento</option>
+              <option value="ENTITY_PATTERN">Padrão de entidade</option>
+            </select>
+            <button id="learning-refresh" type="button">Filtrar</button>
+          </div>
+          <div id="learning-list" class="learning-list"></div>
+          <div id="learning-empty" class="intent-empty" hidden>Nenhuma sugestão nesse filtro.</div>
         </div>
       </div>
     </section>

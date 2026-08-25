@@ -72,6 +72,7 @@ function toStandardResult({ bot, targetBot, interpretation, decision, responseTe
     needsClarification: decision.needsClarification,
     shouldHandoff: decision.shouldHandoff,
     withinHours: decision.withinHours,
+    socialBehavior: interpretation.socialBehavior || null,
     extractedEntities: interpretation.entities,
     summary: decision.summary,
     response: responseText,

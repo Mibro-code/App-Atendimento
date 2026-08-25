@@ -1,4 +1,5 @@
 const prisma = require("../database/prisma");
+const { analyzeConversation } = require("./bot-learning-service");
 
 const defaultInactivityMinutes = 1440;
 
@@ -21,6 +22,7 @@ async function finalizeInactiveConversations({
     const lastMessage = conversation.messages[0];
     if (lastMessage?.direction !== "ENVIADA") continue;
     if (lastMessage.rawPayload?.system === "triage_confirmation") continue;
+    let didFinalize = false;
     await client.$transaction(async (transaction) => {
       const updated = await transaction.conversation.updateMany({
         where: { id: conversation.id, status: { not: "FINALIZADO" }, lastMessageAt: { lte: cutoff } },
@@ -35,7 +37,11 @@ async function finalizeInactiveConversations({
         details: { inactivityMinutes },
       } });
       finalized += 1;
+      didFinalize = true;
     });
+    // Fora da transação: só dispara a análise depois que o FINALIZADO está
+    // de fato confirmado no banco, para nunca competir com o próprio commit.
+    if (didFinalize) analyzeConversation(conversation.id).catch(() => {});
   }
   return finalized;
 }

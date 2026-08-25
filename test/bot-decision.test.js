@@ -88,6 +88,51 @@ test("fora do horário configurado, a ação usa a mensagem de fora do horário"
   assert.equal(decision.outsideHours, true);
 });
 
+test("mensagem puramente social (saudação) responde sem contar como falha de interpretação", () => {
+  const decision = decide({
+    bot: botFixture(), interpretation: { intentId: null, confidence: 0 }, message: "bom dia",
+  });
+  assert.equal(decision.action, "RESPOND");
+  assert.equal(decision.socialBehavior, "GREETING");
+  assert.equal(decision.greetingReply, "Bom dia!");
+});
+
+test("agradecimento puro responde sem alterar categoria", () => {
+  const decision = decide({
+    bot: botFixture(), interpretation: { intentId: null, confidence: 0 }, message: "muito obrigado",
+  });
+  assert.equal(decision.action, "RESPOND");
+  assert.equal(decision.categoryId, null);
+  assert.equal(decision.socialBehavior, "THANKS");
+});
+
+test("despedida não finaliza a conversa (decisão não sinaliza handoff nem categoria)", () => {
+  const decision = decide({
+    bot: botFixture(), interpretation: { intentId: null, confidence: 0 }, message: "tchau, até mais",
+  });
+  assert.equal(decision.action, "RESPOND");
+  assert.equal(decision.shouldHandoff, false);
+  assert.equal(decision.categoryId, null);
+  assert.equal(decision.socialBehavior, "GOODBYE");
+});
+
+test("saudação combinada com intenção de negócio segue o fluxo normal de confiança", () => {
+  const decision = decide({
+    bot: botFixture(), interpretation: interpretationFixture({ confidence: 0.9 }), message: "boa tarde, onde esta meu pedido",
+  });
+  assert.equal(decision.action, "RESPOND");
+  assert.equal(decision.greetingReply, "Boa tarde!");
+});
+
+test("negação em contexto de esclarecimento pede para o cliente descrever de novo", () => {
+  const state = { failedInterpretations: 0 };
+  const decision = decide({
+    bot: botFixture(), interpretation: { intentId: null, confidence: 0 }, message: "não é isso", state,
+  });
+  assert.equal(decision.action, "ASK_CLARIFICATION");
+  assert.equal(decision.socialBehavior, "NEGATION");
+});
+
 test("fora do horário, pedido de humano não promete transferência imediata", () => {
   const bot = botFixture({
     schedules: [{ dayOfWeek: 0, enabled: true, startTime: "08:00", endTime: "09:00" }],
