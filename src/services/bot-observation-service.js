@@ -37,6 +37,24 @@ async function observeIncomingMessage(event, message, { now = new Date() } = {})
       category: result.category?.name || null,
       fallbackAction: result.fallbackAction,
     }));
+
+    await prisma.botObservation.create({
+      data: {
+        conversationId: message.conversationId,
+        messageId: message.id,
+        botId: bot.id,
+        botName: bot.name,
+        channel: bot.channel,
+        withinHours: result.withinHours,
+        intentId: result.intent?.id || null,
+        intentName: result.intent?.name || null,
+        matchedExample: result.matchedExample || null,
+        categoryId: result.category?.id || null,
+        categoryName: result.category?.name || null,
+        fallbackAction: result.fallbackAction || null,
+      },
+    });
+
     return result;
   } catch (error) {
     console.error("[BOT_OBSERVATION] falha ao simular (ignorada)", error.message);
