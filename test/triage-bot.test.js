@@ -98,7 +98,7 @@ test("faz a triagem somente pelos quatro setores e registra o encaminhamento", a
   assert.equal(completed.status, "NOVO");
   assert.equal(completed.assignedUserId, null);
   assert.match(sentTexts[0].text, /Encaminhamos seu atendimento para o setor Suporte/);
-  assert.match(sentTexts[0].text, /15 minutos/);
+  assert.match(sentTexts[0].text, /24 horas/);
   assert.match(sentTexts[0].text, /finalizada automaticamente/);
   assert.equal(await prisma.message.count({
     where: { conversationId: conversation.id, direction: "ENVIADA", type: "interactive" },
