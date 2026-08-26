@@ -172,6 +172,47 @@
               </div>
               <div class="form-actions"><button id="cancel-intent" type="button">Cancelar</button><button type="submit">Salvar intenção</button></div>
             </form>
+
+            <div id="intent-flow-section" hidden>
+              <div class="card-heading"><div><span>ATENDIMENTO</span><h3>Fluxo de atendimento</h3></div><button id="new-flow-step" type="button">+ Etapa</button></div>
+              <p class="card-help">Opcional: configure etapas para esta intenção conduzir o atendimento em várias mensagens (perguntar, consultar conhecimento/ferramenta, resolver ou encaminhar) em vez de responder uma única vez. Sem etapas, a intenção continua respondendo como hoje.</p>
+              <div id="flow-step-list" class="intent-list"></div>
+
+              <form id="flow-step-form" class="intent-form" hidden>
+                <input id="flow-step-id" type="hidden">
+                <div class="fields two-columns">
+                  <label><span>Nome da etapa *</span><input id="flow-step-name" maxlength="120" required></label>
+                  <label><span>Ação *</span><select id="flow-step-action" required>
+                    <option value="ASK_QUESTION">Perguntar (ASK_QUESTION)</option>
+                    <option value="USE_KNOWLEDGE">Usar Base de Conhecimento (USE_KNOWLEDGE)</option>
+                    <option value="QUERY_TOOL">Consultar Tool (QUERY_TOOL)</option>
+                    <option value="RESPOND">Responder (RESPOND)</option>
+                    <option value="RESOLVED">Marcar como resolvido (RESOLVED)</option>
+                    <option value="HANDOFF_HUMAN">Encaminhar para humano (HANDOFF_HUMAN)</option>
+                    <option value="GOTO_STEP">Ir para outra etapa (GOTO_STEP)</option>
+                  </select></label>
+
+                  <label class="full flow-field-question"><span>Pergunta</span><input id="flow-step-question" maxlength="1000" placeholder="Ex.: Qual é o modelo do seu produto?"></label>
+                  <label class="flow-field-question"><span>Entidade/campo esperado</span><input id="flow-step-entity-key" maxlength="60" placeholder="Ex.: modelo"></label>
+                  <label class="checkbox flow-field-question"><input id="flow-step-required" type="checkbox" checked><span>Resposta obrigatória</span></label>
+
+                  <label class="full flow-field-knowledge"><span>Conhecimento associado</span><select id="flow-step-knowledge"><option value="">Buscar automaticamente pela intenção</option></select></label>
+
+                  <label class="full flow-field-tool"><span>Tool associada (futura)</span><select id="flow-step-tool"><option value="">Nenhuma</option></select></label>
+
+                  <label class="full flow-field-response"><span>Mensagem</span><textarea id="flow-step-response" maxlength="4000" placeholder="Texto enviado nesta etapa"></textarea></label>
+
+                  <label class="full flow-field-goto"><span>Ir para a etapa</span><select id="flow-step-goto"><option value="">Selecione</option></select></label>
+
+                  <label><span>Próxima etapa</span><select id="flow-step-next"><option value="">Encerra o fluxo</option></select></label>
+                  <label><span>Ação em sucesso</span><select id="flow-step-on-success"><option value="">Usar "Próxima etapa"</option></select></label>
+                  <label><span>Ação em falha</span><select id="flow-step-on-failure"><option value="">Usar "Próxima etapa"</option></select></label>
+                  <label><span>Máximo de tentativas</span><input id="flow-step-max-attempts" type="number" min="1" max="10" value="3"></label>
+                  <label class="checkbox"><input id="flow-step-active" type="checkbox" checked><span>Etapa ativa</span></label>
+                </div>
+                <div class="form-actions"><button id="cancel-flow-step" type="button">Cancelar</button><button type="submit">Salvar etapa</button></div>
+              </form>
+            </div>
           </section>
 
           <form id="simulator-form" class="card requires-bot simulator-card">
@@ -183,6 +224,7 @@
               <button id="simulator-clear" type="button">Limpar conversa</button>
             </div>
             <div id="simulator-result" class="simulator-result"><p>O resultado da simulação aparecerá aqui.</p></div>
+            <div id="simulator-flow-info" class="simulator-result" hidden></div>
           </form>
         </div>
       </div>

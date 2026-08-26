@@ -1,6 +1,12 @@
 const state = {
   bots: [], categories: [], selected: null,
   simulatorHistory: [], simulatorState: null,
+  // Fluxo de atendimento (Flow Engine).
+  flowSteps: [], flowStepsCache: new Map(), tools: [], knowledgeSources: [],
+};
+const flowActionLabels = {
+  ASK_QUESTION: "Perguntar", USE_KNOWLEDGE: "Usar conhecimento", QUERY_TOOL: "Consultar Tool",
+  RESPOND: "Responder", RESOLVED: "Resolvido", HANDOFF_HUMAN: "Encaminhar humano", GOTO_STEP: "Ir para etapa",
 };
 const actionLabels = {
   RESPOND: "Responder",
@@ -190,6 +196,8 @@ function resetSimulator() {
   state.simulatorState = null;
   $("#simulator-transcript").innerHTML = "";
   $("#simulator-result").innerHTML = "<p>O resultado da simulação aparecerá aqui.</p>";
+  const flowInfo = document.getElementById("simulator-flow-info");
+  if (flowInfo) { flowInfo.hidden = true; flowInfo.innerHTML = ""; }
 }
 
 async function selectBot(botId) {
@@ -245,9 +253,12 @@ function closeIntentForm() {
   $("#intent-id").value = "";
   $("#intent-priority").value = "0";
   $("#intent-active").checked = true;
+  $("#intent-flow-section").hidden = true;
+  closeFlowStepForm();
+  state.flowSteps = [];
 }
 
-function editIntent(intentId) {
+async function editIntent(intentId) {
   const intent = state.selected.intents.find((item) => item.id === intentId);
   if (!intent) return;
   $("#intent-id").value = intent.id;
@@ -261,6 +272,15 @@ function editIntent(intentId) {
   $("#intent-active").checked = intent.active;
   $("#intent-form").hidden = false;
   $("#intent-name").focus();
+
+  // Item 7 (UI): "Fluxo de atendimento" só existe para intenções já salvas
+  // (as etapas pertencem a um intentId real).
+  $("#intent-flow-section").hidden = false;
+  closeFlowStepForm();
+  try {
+    await Promise.all([loadFlowSteps(intentId), ensureToolsLoaded(), ensureKnowledgeSourcesLoaded()]);
+    populateFlowStepSelects();
+  } catch (error) { toast(error.message, true); }
 }
 
 async function removeIntent(intentId) {
@@ -271,6 +291,143 @@ async function removeIntent(intentId) {
     await selectBot(state.selected.id);
   } catch (error) { toast(error.message, true); }
 }
+
+// ===== Fluxo de atendimento (Flow Engine) =====
+
+async function ensureToolsLoaded() {
+  if (state.tools.length) return state.tools;
+  try { state.tools = await api("/api/bot-tools"); } catch { state.tools = []; }
+  return state.tools;
+}
+
+async function ensureKnowledgeSourcesLoaded() {
+  try {
+    state.knowledgeSources = await api(`/api/knowledge-sources?botId=${encodeURIComponent(state.selected.id)}&active=true`);
+  } catch { state.knowledgeSources = []; }
+  return state.knowledgeSources;
+}
+
+function renderFlowSteps() {
+  const intentId = $("#intent-id").value;
+  const steps = state.flowSteps;
+  $("#flow-step-list").innerHTML = steps.length ? steps.map((step) => `
+    <article class="intent-card ${step.active ? "" : "inactive"}">
+      <div><b>${step.order}. ${escapeHtml(step.name)}</b><small>${escapeHtml(flowActionLabels[step.action] || step.action)}${step.entityKey ? ` • entidade: ${escapeHtml(step.entityKey)}` : ""}</small></div>
+      <div><button type="button" data-edit-flow-step="${escapeHtml(step.id)}">Editar</button><button type="button" data-delete-flow-step="${escapeHtml(step.id)}">Excluir</button></div>
+    </article>
+  `).join("") : '<div class="intent-empty">Nenhuma etapa configurada — a intenção responde uma única vez, como hoje.</div>';
+  document.querySelectorAll("[data-edit-flow-step]").forEach((button) => button.addEventListener("click", () => openFlowStepForm(button.dataset.editFlowStep)));
+  document.querySelectorAll("[data-delete-flow-step]").forEach((button) => button.addEventListener("click", () => removeFlowStep(button.dataset.deleteFlowStep)));
+  populateFlowStepSelects(intentId);
+}
+
+async function loadFlowSteps(intentId) {
+  state.flowSteps = await api(`/api/bots/${state.selected.id}/intents/${intentId}/flow-steps`);
+  state.flowStepsCache.set(intentId, state.flowSteps);
+  renderFlowSteps();
+}
+
+function populateFlowStepSelects(currentStepId) {
+  const stepOptions = (placeholder) => `<option value="">${placeholder}</option>` + state.flowSteps
+    .filter((step) => step.id !== $("#flow-step-id").value)
+    .map((step) => `<option value="${escapeHtml(step.id)}" ${step.id === currentStepId ? "" : ""}>${step.order}. ${escapeHtml(step.name)}</option>`).join("");
+  $("#flow-step-next").innerHTML = stepOptions("Encerra o fluxo");
+  $("#flow-step-on-success").innerHTML = stepOptions('Usar "Próxima etapa"');
+  $("#flow-step-on-failure").innerHTML = stepOptions('Usar "Próxima etapa"');
+  $("#flow-step-goto").innerHTML = `<option value="">Selecione</option>` + state.flowSteps
+    .filter((step) => step.id !== $("#flow-step-id").value)
+    .map((step) => `<option value="${escapeHtml(step.id)}">${step.order}. ${escapeHtml(step.name)}</option>`).join("");
+  $("#flow-step-knowledge").innerHTML = `<option value="">Buscar automaticamente pela intenção</option>` + state.knowledgeSources
+    .map((source) => `<option value="${escapeHtml(source.id)}">${escapeHtml(source.title)}</option>`).join("");
+  $("#flow-step-tool").innerHTML = `<option value="">Nenhuma</option>` + state.tools
+    .map((tool) => `<option value="${escapeHtml(tool.name)}">${escapeHtml(tool.name)}${tool.enabled ? "" : " (desativada)"}</option>`).join("");
+}
+
+function flowStepFieldVisibility() {
+  const action = $("#flow-step-action").value;
+  document.querySelectorAll(".flow-field-question").forEach((el) => { el.hidden = action !== "ASK_QUESTION"; });
+  document.querySelectorAll(".flow-field-knowledge").forEach((el) => { el.hidden = action !== "USE_KNOWLEDGE"; });
+  document.querySelectorAll(".flow-field-tool").forEach((el) => { el.hidden = action !== "QUERY_TOOL"; });
+  document.querySelectorAll(".flow-field-response").forEach((el) => { el.hidden = !["RESPOND", "RESOLVED", "HANDOFF_HUMAN"].includes(action); });
+  document.querySelectorAll(".flow-field-goto").forEach((el) => { el.hidden = action !== "GOTO_STEP"; });
+}
+
+function closeFlowStepForm() {
+  $("#flow-step-form").hidden = true;
+  $("#flow-step-form").reset();
+  $("#flow-step-id").value = "";
+}
+
+function openFlowStepForm(stepId = "") {
+  const step = stepId ? state.flowSteps.find((item) => item.id === stepId) : null;
+  $("#flow-step-id").value = step?.id || "";
+  $("#flow-step-name").value = step?.name || "";
+  $("#flow-step-action").value = step?.action || "ASK_QUESTION";
+  $("#flow-step-question").value = step?.question || "";
+  $("#flow-step-entity-key").value = step?.entityKey || "";
+  $("#flow-step-required").checked = step ? step.required : true;
+  $("#flow-step-response").value = step?.responseMessage || "";
+  $("#flow-step-max-attempts").value = step?.maxAttempts ?? 3;
+  $("#flow-step-active").checked = step ? step.active : true;
+  populateFlowStepSelects();
+  $("#flow-step-knowledge").value = step?.knowledgeSourceId || "";
+  $("#flow-step-tool").value = step?.toolName || "";
+  $("#flow-step-next").value = step?.nextStepId || "";
+  $("#flow-step-on-success").value = step?.onSuccessStepId || "";
+  $("#flow-step-on-failure").value = step?.onFailureStepId || "";
+  $("#flow-step-goto").value = step?.gotoStepId || "";
+  flowStepFieldVisibility();
+  $("#flow-step-form").hidden = false;
+  $("#flow-step-name").focus();
+}
+
+async function removeFlowStep(stepId) {
+  if (!confirm("Remover esta etapa do fluxo?")) return;
+  const intentId = $("#intent-id").value;
+  try {
+    await api(`/api/bots/${state.selected.id}/intents/${intentId}/flow-steps/${stepId}`, { method: "DELETE" });
+    toast("Etapa removida.");
+    await loadFlowSteps(intentId);
+  } catch (error) { toast(error.message, true); }
+}
+
+$("#flow-step-action").addEventListener("change", flowStepFieldVisibility);
+$("#new-flow-step").addEventListener("click", async () => {
+  await Promise.all([ensureToolsLoaded(), ensureKnowledgeSourcesLoaded()]);
+  openFlowStepForm();
+});
+$("#cancel-flow-step").addEventListener("click", closeFlowStepForm);
+
+$("#flow-step-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const intentId = $("#intent-id").value;
+  const stepId = $("#flow-step-id").value;
+  const payload = {
+    name: $("#flow-step-name").value,
+    action: $("#flow-step-action").value,
+    question: $("#flow-step-question").value || null,
+    entityKey: $("#flow-step-entity-key").value || null,
+    required: $("#flow-step-required").checked,
+    knowledgeSourceId: $("#flow-step-knowledge").value || null,
+    toolName: $("#flow-step-tool").value || null,
+    responseMessage: $("#flow-step-response").value || null,
+    nextStepId: $("#flow-step-next").value || null,
+    onSuccessStepId: $("#flow-step-on-success").value || null,
+    onFailureStepId: $("#flow-step-on-failure").value || null,
+    gotoStepId: $("#flow-step-goto").value || null,
+    maxAttempts: Number($("#flow-step-max-attempts").value) || 3,
+    active: $("#flow-step-active").checked,
+  };
+  try {
+    const url = stepId
+      ? `/api/bots/${state.selected.id}/intents/${intentId}/flow-steps/${stepId}`
+      : `/api/bots/${state.selected.id}/intents/${intentId}/flow-steps`;
+    await api(url, { method: stepId ? "PATCH" : "POST", body: JSON.stringify(payload) });
+    toast(stepId ? "Etapa atualizada." : "Etapa criada.");
+    closeFlowStepForm();
+    await loadFlowSteps(intentId);
+  } catch (error) { toast(error.message, true); }
+});
 
 $("#bot-channel").addEventListener("change", () => {
   const checked = Array.from(document.querySelectorAll("#bot-channels-checklist input:checked")).map((input) => input.value);
@@ -380,8 +537,40 @@ $("#simulator-form").addEventListener("submit", async (event) => {
       <span>Categoria<strong>${escapeHtml(result.categoryName || "Nenhuma")}</strong></span>
       <span>Entidades<strong>${escapeHtml(entitiesSummary(result.extractedEntities))}</strong></span>
     </div><p>${escapeHtml(result.warning)}</p>`;
+    await renderSimulatorFlowInfo(result.nextState);
   } catch (error) { toast(error.message, true); }
 });
+
+// Item 8 (Simulador): mostra intenção/etapa atual/entidades coletadas/
+// conhecimento usado/próxima ação do Flow Engine, quando houver um fluxo
+// em andamento ou recém-concluído para a última mensagem simulada.
+async function renderSimulatorFlowInfo(nextState) {
+  const box = document.getElementById("simulator-flow-info");
+  if (!box) return;
+  if (!nextState?.activeFlowIntentId) { box.hidden = true; box.innerHTML = ""; return; }
+
+  let steps = state.flowStepsCache.get(nextState.activeFlowIntentId);
+  if (!steps) {
+    try {
+      steps = await api(`/api/bots/${state.selected.id}/intents/${nextState.activeFlowIntentId}/flow-steps`);
+      state.flowStepsCache.set(nextState.activeFlowIntentId, steps);
+    } catch { steps = []; }
+  }
+  const currentStep = steps.find((step) => step.id === nextState.currentFlowStepId);
+  const lastKnowledge = [...(nextState.flowAttemptedSolutions || [])].reverse()
+    .find((entry) => entry.action === "USE_KNOWLEDGE" && entry.outcome === "SUCCESS");
+  const status = !nextState.currentFlowStepId
+    ? (nextState.flowResolutionStatus === "RESOLVED" ? "Resolvido" : nextState.flowResolutionStatus === "HANDED_OFF" ? "Encaminhado para humano" : "Em andamento")
+    : "Aguardando resposta do cliente";
+
+  box.hidden = false;
+  box.innerHTML = `<b>Fluxo de atendimento</b><div class="result-grid">
+    <span>Etapa atual<strong>${escapeHtml(currentStep ? `${currentStep.order}. ${currentStep.name}` : "—")}</strong></span>
+    <span>Status<strong>${escapeHtml(status)}</strong></span>
+    <span>Entidades coletadas<strong>${escapeHtml(entitiesSummary(nextState.flowCollectedEntities))}</strong></span>
+    <span>Conhecimento usado<strong>${escapeHtml(lastKnowledge ? lastKnowledge.name : "Nenhum")}</strong></span>
+  </div>`;
+}
 
 $("#simulator-clear").addEventListener("click", resetSimulator);
 
