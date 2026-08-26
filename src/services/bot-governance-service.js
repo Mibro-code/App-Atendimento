@@ -105,7 +105,7 @@ async function getGlobalSettingsForManager(viewer) {
 async function updateGlobalSettings(data, actor) {
   assertBotManager(actor);
   const update = {};
-  for (const key of ["observationEnabled", "learningEnabled", "ratingsEnabled", "rankingEnabled"]) {
+  for (const key of ["observationEnabled", "learningEnabled", "ratingsEnabled", "rankingEnabled", "intentLibraryEnabled"]) {
     if (data[key] !== undefined) {
       if (typeof data[key] !== "boolean") throw fail(`"${key}" deve ser verdadeiro ou falso.`);
       update[key] = data[key];

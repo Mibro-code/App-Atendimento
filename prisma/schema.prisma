@@ -178,7 +178,18 @@ enum KnowledgeSourceType {
   POLICY
   WARRANTY
   PROCEDURE
+  GENERAL
   OTHER
+}
+
+// READ_ONLY = pode ser implementada e executada nesta fase (consulta).
+// SAFE_ACTION = reservado para fase futura (ação reversível/de baixo risco).
+// SENSITIVE_ACTION = nunca executável nesta fase (cancelamento, reembolso,
+// troca de endereço/cobrança, alteração de pedido) — ver bot-tools/bot-tool.js.
+enum ToolRiskLevel {
+  READ_ONLY
+  SAFE_ACTION
+  SENSITIVE_ACTION
 }
 
 model Contact {
@@ -248,6 +259,7 @@ model Conversation {
   learningState          ConversationLearningState?
   rating                 BotRating?
   agentFeedback          BotAgentFeedback[]
+  handoffContexts        BotHandoffContext[]
   quickReplyUsages       QuickReplyUsage[]
   channelAccount         ChannelAccount?            @relation(fields: [channelAccountId], references: [id], onDelete: SetNull)
 
@@ -318,9 +330,27 @@ model User {
   reviewedLearningSuggestions BotLearningSuggestion[]  @relation("LearningSuggestionReviewer")
   botVersions                 BotVersion[]             @relation("BotVersionAuthor")
   agentFeedback               BotAgentFeedback[]
+  handoffContextsResumed      BotHandoffContext[]      @relation("HandoffResumedByUser")
   quickRepliesCreated         QuickReply[]             @relation("QuickReplyCreatedBy")
   quickReplyFavorites         QuickReplyFavorite[]     @relation("QuickReplyFavoriteUser")
   quickReplyUsages            QuickReplyUsage[]        @relation("QuickReplyUsageUser")
+  pushSubscriptions           PushSubscription[]       @relation("UserPushSubscriptions")
+}
+
+model PushSubscription {
+  id          String   @id @default(cuid())
+  userId      String
+  endpoint    String   @unique
+  p256dh      String
+  auth        String
+  deviceLabel String?
+  userAgent   String?
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+  user        User     @relation("UserPushSubscriptions", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model AuditLog {
@@ -454,6 +484,7 @@ model Bot {
   ratings             BotRating[]
   agentFeedback       BotAgentFeedback[]
   knowledgeSources    KnowledgeSource[]
+  handoffContexts     BotHandoffContext[]
 
   @@index([status, channel])
   @@index([defaultCategoryId])
@@ -474,9 +505,18 @@ model BotSchedule {
   @@index([botId])
 }
 
+// BotIntent é, ao mesmo tempo, a "intenção" que o motor de interpretação já
+// usa (interpreter/decision/response) E a associação Bot<->GlobalIntent
+// (item 1 do plano de conhecimento/tools): quando globalIntentId está
+// preenchido, name/description/examples desta linha são a config
+// bot-específica (prioridade, resposta, categoria, ação) em cima do
+// significado/exemplos compartilhados em GlobalIntent. Bots antigos (sem
+// globalIntentId) continuam funcionando exatamente como antes — nada no
+// pipeline de interpretação foi alterado por este campo.
 model BotIntent {
   id                   String                  @id @default(cuid())
   botId                String
+  globalIntentId       String?
   name                 String
   description          String?
   responseMessage      String?                 @db.Text
@@ -484,9 +524,15 @@ model BotIntent {
   active               Boolean                 @default(true)
   fallbackAction       BotFallbackAction       @default(USE_BOT_FALLBACK)
   categoryId           String?
+  // Nome de uma Tool (bot-tools/tool-registry.js) associada a esta intenção
+  // (item 8: "onde está meu pedido?" -> ACOMPANHAR_PEDIDO -> OrderTool). Só é
+  // efetivamente chamada se a Tool existir, estiver habilitada no registry E
+  // permitida em Bot.toolPermissions — ver bot-tool-orchestrator-service.js.
+  toolName             String?
   createdAt            DateTime                @default(now())
   updatedAt            DateTime                @updatedAt
   bot                  Bot                     @relation(fields: [botId], references: [id], onDelete: Cascade)
+  globalIntent         GlobalIntent?           @relation(fields: [globalIntentId], references: [id], onDelete: SetNull)
   category             Category?               @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   examples             BotIntentExample[]
   conversationStates   ConversationBotState[]
@@ -494,9 +540,46 @@ model BotIntent {
   learningSuggestions  BotLearningSuggestion[]
   ratings              BotRating[]
   quickReplyLinks      QuickReplyIntent[]
+  knowledgeSources     KnowledgeSource[]
+  botHandoffContexts   BotHandoffContext[]
 
   @@index([botId, active, priority])
   @@index([categoryId])
+  @@index([globalIntentId])
+}
+
+// Biblioteca Global de Intenções (item 1): significado + exemplos
+// compartilhados entre Bots. Cada BotIntent associada (via globalIntentId)
+// guarda a config bot-específica (prioridade/resposta/categoria/ação).
+// Remover a associação de um Bot (deletar a BotIntent) nunca apaga a
+// GlobalIntent nem os exemplos globais.
+model GlobalIntent {
+  id          String   @id @default(cuid())
+  name        String
+  description String?  @db.Text
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  examples         GlobalIntentExample[]
+  botIntents       BotIntent[]
+  knowledgeSources KnowledgeSource[]
+
+  @@index([active])
+}
+
+// Exemplos de treinamento compartilhados por todos os Bots associados à
+// GlobalIntent. Aprovação de sugestão de aprendizado (bot-learning-service.js)
+// adiciona exemplos aqui (deduplicado por texto normalizado) e propaga para
+// as BotIntentExample de cada Bot associado — ver global-intent-service.js.
+model GlobalIntentExample {
+  id             String       @id @default(cuid())
+  globalIntentId String
+  text           String       @db.Text
+  createdAt      DateTime     @default(now())
+  globalIntent   GlobalIntent @relation(fields: [globalIntentId], references: [id], onDelete: Cascade)
+
+  @@index([globalIntentId])
 }
 
 model BotIntentExample {
@@ -510,40 +593,45 @@ model BotIntentExample {
 }
 
 model BotObservation {
-  id                String                 @id @default(cuid())
-  conversationId    String
-  messageId         String                 @unique
-  botId             String?
-  botName           String
-  channel           Channel                @default(META)
-  withinHours       Boolean
-  intentId          String?
-  intentName        String?
-  matchedExample    String?
-  categoryId        String?
-  categoryName      String?
-  fallbackAction    BotFallbackAction?
-  confidence        Float?
-  action            BotAction?
-  socialBehavior    BotSocialBehavior?
-  extractedEntities Json?
-  provider          String?
-  mode              String                 @default("OBSERVATION")
-  status            String                 @default("OK")
-  errorCode         String?
-  feedback          BotObservationFeedback @default(UNREVIEWED)
-  feedbackIntentId  String?
-  feedbackByUserId  String?
+  id                      String                 @id @default(cuid())
+  conversationId          String
+  messageId               String                 @unique
+  botId                   String?
+  botName                 String
+  channel                 Channel                @default(META)
+  withinHours             Boolean
+  intentId                String?
+  intentName              String?
+  matchedExample          String?
+  categoryId              String?
+  categoryName            String?
+  fallbackAction          BotFallbackAction?
+  confidence              Float?
+  action                  BotAction?
+  socialBehavior          BotSocialBehavior?
+  extractedEntities       Json?
+  // Rastreabilidade de Tools (item 11 - Observação): qual Tool teria sido
+  // chamada e o resultado, sem nunca executar a Tool de verdade quando
+  // mode === "OBSERVATION" — ver bot-tool-orchestrator-service.js.
+  toolName                String?
+  toolResult              Json?
+  provider                String?
+  mode                    String                 @default("OBSERVATION")
+  status                  String                 @default("OK")
+  errorCode               String?
+  feedback                BotObservationFeedback @default(UNREVIEWED)
+  feedbackIntentId        String?
+  feedbackByUserId        String?
   feedbackAt              DateTime?
   suggestedQuickReplyId   String?
   suggestedQuickReplyName String?
-  createdAt         DateTime               @default(now())
+  createdAt               DateTime               @default(now())
 
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  message        Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  bot            Bot?         @relation(fields: [botId], references: [id], onDelete: SetNull)
-  category       Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  feedbackIntent BotIntent?   @relation("ObservationFeedbackIntent", fields: [feedbackIntentId], references: [id], onDelete: SetNull)
+  conversation        Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message             Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  bot                 Bot?         @relation(fields: [botId], references: [id], onDelete: SetNull)
+  category            Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  feedbackIntent      BotIntent?   @relation("ObservationFeedbackIntent", fields: [feedbackIntentId], references: [id], onDelete: SetNull)
   feedbackByUser      User?        @relation("ObservationFeedbackUser", fields: [feedbackByUserId], references: [id], onDelete: SetNull)
   suggestedQuickReply QuickReply?  @relation("ObservationSuggestedQuickReply", fields: [suggestedQuickReplyId], references: [id], onDelete: SetNull)
 
@@ -701,26 +789,43 @@ model BotAgentFeedback {
   @@index([botId])
 }
 
-// Arquitetura-base para futura base de conhecimento (sem RAG nesta fase).
-// Rastreabilidade: tipo, origem, versão e janela de validade.
+// Base de Conhecimento (item 3): separa "entender a intenção" (BotIntent/
+// GlobalIntent) de "saber a resposta" (KnowledgeSource). Sem RAG/semântica
+// nesta fase — busca por texto/tags/tipo/categoria/produto/intenção via
+// bot-knowledge/knowledge-provider.js, estruturado para permitir semântica
+// futura sem quebrar a API. Regras: sempre precisa de `source`; conteúdo
+// desativado ou expirado nunca é retornado/usado; nunca guardar segredos.
 model KnowledgeSource {
-  id         String              @id @default(cuid())
-  botId      String?
-  title      String
-  type       KnowledgeSourceType
-  source     String?
-  content    String?             @db.Text
-  version    Int                 @default(1)
-  active     Boolean             @default(true)
-  validFrom  DateTime?
-  validUntil DateTime?
-  createdAt  DateTime            @default(now())
-  updatedAt  DateTime            @updatedAt
+  id             String              @id @default(cuid())
+  botId          String?
+  title          String
+  type           KnowledgeSourceType
+  source         String?
+  content        String?             @db.Text
+  // Item 3/4: dimensões de busca estruturada (texto/tags/intenção/produto/
+  // categoria), sem semântica ainda.
+  category       String?
+  product        String?
+  tags           String[]            @default([])
+  globalIntentId String?
+  intentId       String?
+  version        Int                 @default(1)
+  active         Boolean             @default(true)
+  validFrom      DateTime?
+  validUntil     DateTime?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
 
-  bot Bot? @relation(fields: [botId], references: [id], onDelete: SetNull)
+  bot          Bot?          @relation(fields: [botId], references: [id], onDelete: SetNull)
+  globalIntent GlobalIntent? @relation(fields: [globalIntentId], references: [id], onDelete: SetNull)
+  intent       BotIntent?    @relation(fields: [intentId], references: [id], onDelete: SetNull)
 
   @@index([botId, active])
   @@index([type])
+  @@index([globalIntentId])
+  @@index([intentId])
+  @@index([category])
+  @@index([product])
 }
 
 // Configuração global de automação de Bots — inclui o kill switch
@@ -733,10 +838,47 @@ model BotGlobalSettings {
   ratingsEnabled              Boolean   @default(false)
   rankingEnabled              Boolean   @default(false)
   minimumRatingsForRanking    Int       @default(20)
+  // Item 9: liga/desliga a Biblioteca Global de Intenções como um todo
+  // (associar/reaproveitar GlobalIntent entre Bots). Desligar não apaga
+  // GlobalIntent/associações — só bloqueia novas operações de biblioteca.
+  intentLibraryEnabled        Boolean   @default(true)
   killSwitchActivatedAt       DateTime?
   killSwitchActivatedByUserId String?
   updatedAt                   DateTime  @updatedAt
   createdAt                   DateTime  @default(now())
+}
+
+// Contexto estruturado capturado no momento do HANDOFF_HUMAN (item 2).
+// Nunca guarda "chain-of-thought" do modelo — só fatos: intenção, confiança,
+// categoria, entidades extraídas, últimas informações relevantes, perguntas
+// já feitas e soluções já tentadas, mais um resumo curto (2-4 frases) gerado
+// de forma determinística a partir desses fatos (sem chamar IA).
+model BotHandoffContext {
+  id                String    @id @default(cuid())
+  conversationId    String
+  botId             String?
+  botName           String?
+  intentId          String?
+  intentName        String?
+  confidence        Float?
+  category          String?
+  extractedEntities Json?
+  lastRelevantInfo  String?   @db.Text
+  questionsAsked    Json?
+  solutionsTried    Json?
+  summary           String?   @db.Text
+  createdAt         DateTime  @default(now())
+  // Retomada explícita do Bot ("[Retomar Bot]") — nunca automática.
+  resumedAt         DateTime?
+  resumedByUserId   String?
+
+  conversation  Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  bot           Bot?         @relation(fields: [botId], references: [id], onDelete: SetNull)
+  intent        BotIntent?   @relation(fields: [intentId], references: [id], onDelete: SetNull)
+  resumedByUser User?        @relation("HandoffResumedByUser", fields: [resumedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, createdAt])
+  @@index([botId, createdAt])
 }
 
 // Conta de um canal externo (item 5) — permite múltiplas contas por

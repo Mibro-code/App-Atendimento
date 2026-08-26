@@ -1,67 +1,50 @@
-// Arquitetura-base para ferramentas que o motor de Bots poderá executar no
-// futuro. Regra obrigatória: a IA interpreta, o BACKEND executa — nenhuma
-// tool aqui é chamada pelo interpretador/orquestrador nesta fase, e nenhuma
-// delas integra com sistemas externos ainda (Shopify, Olist, etc.).
+// Registro central de Tools (itens 5-7). Regra obrigatória: a IA interpreta,
+// o BACKEND decide e executa — nenhuma Tool aqui é chamada diretamente pelo
+// interpretador/decisor/modelo de IA. Quem valida permissão e chama
+// tool.execute() é sempre bot-tool-orchestrator-service.js.
 //
-// Cada entrada descreve o contrato esperado (nome, propósito e o formato de
-// entrada/saída), mas `run` sempre falha explicitamente até que a
-// integração real seja implementada em uma fase futura.
+// Fase atual: só Tools READ_ONLY têm implementação real (mesmo que
+// NOT_CONFIGURED por falta de integração externa disponível nesta
+// instalação — não há serviço Shopify/Olist/Frenet em src/services). Nenhuma
+// Tool SENSITIVE_ACTION (cancelamento, reembolso, troca de endereço/
+// cobrança, alteração de pedido) existe nesta fase — ver BotTool.canExecute.
+const { OrderTool } = require("./tools/order-tool");
+const { TrackingTool } = require("./tools/tracking-tool");
+const { ProductTool } = require("./tools/product-tool");
+const { SerialNumberTool } = require("./tools/serial-number-tool");
+const { WarrantyTool } = require("./tools/warranty-tool");
+const { InvoiceTool } = require("./tools/invoice-tool");
+const { PaymentTool } = require("./tools/payment-tool");
 
-function notImplemented(toolName) {
-  return async function run() {
-    throw new Error(`${toolName} ainda não está implementada nesta fase.`);
-  };
-}
+const instances = [
+  new OrderTool(),
+  new TrackingTool(),
+  new ProductTool(),
+  new SerialNumberTool(),
+  new WarrantyTool(),
+  new InvoiceTool(),
+  new PaymentTool(),
+];
 
-const tools = {
-  OrderTool: {
-    description: "Consultar dados de um pedido pelo número, CPF/CNPJ ou e-mail do cliente.",
-    input: { orderNumber: "string?", cpf: "string?", cnpj: "string?", email: "string?" },
-    run: notImplemented("OrderTool"),
-  },
-  TrackingTool: {
-    description: "Consultar status de rastreio de uma entrega pelo código de rastreio ou pedido.",
-    input: { trackingCode: "string?", orderNumber: "string?" },
-    run: notImplemented("TrackingTool"),
-  },
-  PaymentTool: {
-    description: "Consultar status de pagamento de um pedido.",
-    input: { orderNumber: "string" },
-    run: notImplemented("PaymentTool"),
-  },
-  ProductTool: {
-    description: "Consultar informações de um produto pelo nome ou SKU.",
-    input: { productName: "string?", sku: "string?" },
-    run: notImplemented("ProductTool"),
-  },
-  SerialNumberTool: {
-    description: "Validar um número de série e retornar dados de garantia associados.",
-    input: { serialNumber: "string" },
-    run: notImplemented("SerialNumberTool"),
-  },
-  WarrantyTool: {
-    description: "Consultar a situação de garantia de um produto.",
-    input: { serialNumber: "string?", orderNumber: "string?" },
-    run: notImplemented("WarrantyTool"),
-  },
-  ShopifyTool: {
-    description: "Consultar/atualizar dados de pedidos e produtos na Shopify.",
-    input: { orderNumber: "string?", productId: "string?" },
-    run: notImplemented("ShopifyTool"),
-  },
-  OlistTool: {
-    description: "Consultar/atualizar dados de pedidos e estoque no Olist.",
-    input: { orderNumber: "string?", sku: "string?" },
-    run: notImplemented("OlistTool"),
-  },
-};
+const tools = {};
+for (const tool of instances) tools[tool.name] = tool;
 
 function getTool(name) {
   return tools[name] || null;
 }
 
+// Compatível com o formato anterior (name/description) consumido por
+// bot-governance-service.js (resolveToolPermissions), com os campos novos do
+// contrato (riskLevel/enabled/requiredEntities/supportedChannels) somados.
 function listTools() {
-  return Object.entries(tools).map(([name, tool]) => ({ name, description: tool.description, input: tool.input }));
+  return instances.map((tool) => ({
+    name: tool.name,
+    description: tool.description,
+    riskLevel: tool.riskLevel,
+    enabled: tool.enabled,
+    requiredEntities: tool.requiredEntities,
+    supportedChannels: tool.supportedChannels,
+  }));
 }
 
 module.exports = { getTool, listTools, tools };

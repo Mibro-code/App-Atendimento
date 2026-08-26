@@ -10,17 +10,18 @@
   <link rel="apple-touch-icon" href="/assets/app-icon-192.png">
   <title>Central de Atendimento</title>
   <script>try{const saved=localStorage.getItem("mibro-theme");document.documentElement.dataset.theme=saved||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch{}</script>
+  <link rel="stylesheet" href="/css/skeleton.css">
   <link rel="stylesheet" href="/css/app.css">
 </head>
 <body>
   <header class="topbar">
     <div class="brand"><img class="brand-logo" src="/assets/mibro-logo.png" alt="Mibro"><span class="brand-divider"></span><small>Central de Atendimento</small></div>
-    <div class="connection"><span></span> WhatsApp conectado</div>
+    <div id="connection-indicator" class="connection" data-state="online" role="status" aria-live="polite"><span class="connection-dot"></span><span id="connection-label">WhatsApp conectado</span></div>
     <button id="install-app" class="install-app" type="button" hidden>Instalar aplicativo</button>
     <div class="app-version-actions">
   <button id="changelog-button" class="changelog-button" type="button" title="Ver novidades e histórico de versões">
     <span class="changelog-icon" aria-hidden="true">▤</span>
-    <span id="app-version-label">v0.17.0</span>
+    <span id="app-version-label">v0.18.0</span>
     <span id="changelog-unread-dot" class="changelog-unread-dot" hidden></span>
   </button>
 
@@ -30,6 +31,7 @@
   </button>
 </div>
     <button id="enable-notifications" class="notification-button" type="button" hidden title="Ativar notificações do atendimento">🔔 Ativar alertas</button>
+    <button id="manage-devices" class="notification-button devices-button" type="button" hidden title="Dispositivos com notificações" aria-label="Dispositivos com notificações">📱 Dispositivos</button>
     <button id="bots-button" class="team-button" type="button" hidden>Bots</button>
     <button id="integrations-button" class="team-button" type="button" hidden>Integrações</button>
     <button id="quick-replies-admin-button" class="team-button" type="button" hidden>Respostas rápidas</button>
@@ -64,7 +66,7 @@
 
     <section class="conversation-list-panel">
       <div class="list-heading"><div><h1>Conversas</h1><p id="list-summary">Carregando...</p></div><div class="list-heading-actions"><button id="new-conversation" class="new-conversation" type="button" title="Iniciar nova conversa">+ Nova</button><button id="clear-team-filter" title="Remover filtro de atendente" hidden>×</button><button id="refresh" title="Atualizar">↻</button></div></div>
-      <div id="conversation-list" class="conversation-list"></div>
+      <div id="conversation-list" class="conversation-list"><div class="skeleton-list"><div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div></div></div>
     </section>
 
     <section id="chat-panel" class="chat-panel empty">
@@ -249,6 +251,13 @@
     <div class="audit-summary"><strong id="audit-count">0 registros</strong><small>São exibidos os 200 registros mais recentes do filtro.</small></div>
     <div id="audit-list" class="audit-list"></div>
   </dialog>
+  <dialog id="devices-dialog" class="devices-dialog">
+    <div class="dialog-header"><div><span>NOTIFICAÇÕES</span><h2>Dispositivos autorizados</h2><p>Navegadores e aparelhos que recebem notificações push desta conta, mesmo com o app fechado.</p></div><button id="close-devices" type="button" aria-label="Fechar">×</button></div>
+    <div class="devices-body">
+      <button id="add-this-device" class="team-button" type="button">Ativar notificações neste dispositivo</button>
+      <div id="devices-list" class="devices-list"></div>
+    </div>
+  </dialog>
 <dialog id="changelog-dialog" class="changelog-dialog">
   <div class="changelog-header">
     <div>
@@ -263,7 +272,7 @@
   <div class="changelog-current">
     <div>
       <small>VERSÃO ATUAL</small>
-      <strong id="changelog-current-version">v0.17.0</strong>
+      <strong id="changelog-current-version">v0.18.0</strong>
     </div>
     <span id="changelog-current-date"></span>
   </div>

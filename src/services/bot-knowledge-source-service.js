@@ -5,7 +5,7 @@ const prisma = require("../database/prisma");
 const authorization = require("./authorization-service");
 const audit = require("./audit-service");
 
-const KNOWLEDGE_SOURCE_TYPES = new Set(["FAQ", "MANUAL", "PRODUCT", "POLICY", "WARRANTY", "PROCEDURE", "OTHER"]);
+const KNOWLEDGE_SOURCE_TYPES = new Set(["FAQ", "MANUAL", "PRODUCT", "POLICY", "WARRANTY", "PROCEDURE", "GENERAL", "OTHER"]);
 
 function fail(message, statusCode = 400) {
   return Object.assign(new Error(message), { statusCode });
@@ -33,6 +33,21 @@ async function listKnowledgeSources(filters, viewer) {
   const where = {};
   if (filters.botId) where.botId = filters.botId;
   if (filters.type) where.type = filters.type;
+  if (filters.category) where.category = filters.category;
+  if (filters.product) where.product = filters.product;
+  if (filters.intentId) where.intentId = filters.intentId;
+  if (filters.globalIntentId) where.globalIntentId = filters.globalIntentId;
+  if (filters.active !== undefined) where.active = filters.active === "true" || filters.active === true;
+  if (filters.q) {
+    const term = String(filters.q).trim();
+    if (term) {
+      where.OR = [
+        { title: { contains: term, mode: "insensitive" } },
+        { content: { contains: term, mode: "insensitive" } },
+        { tags: { has: term } },
+      ];
+    }
+  }
   const rows = await prisma.knowledgeSource.findMany({ where, orderBy: [{ active: "desc" }, { updatedAt: "desc" }] });
   return rows.map(withActiveNow);
 }
@@ -48,8 +63,26 @@ function validateInput(data, { partial = false } = {}) {
     if (!KNOWLEDGE_SOURCE_TYPES.has(data.type)) throw fail("Tipo de fonte de conhecimento inválido.");
     input.type = data.type;
   }
+  // Item 3: todo conhecimento precisa de uma origem (rastreabilidade) —
+  // obrigatório na criação; em edição parcial só valida se veio no payload.
+  if (!partial) {
+    const source = String(data.source || "").trim();
+    if (!source) throw fail("Informe a origem (source) desta fonte de conhecimento.");
+    input.source = source.slice(0, 500);
+  } else if (data.source !== undefined) {
+    const source = String(data.source || "").trim();
+    if (!source) throw fail("Informe a origem (source) desta fonte de conhecimento.");
+    input.source = source.slice(0, 500);
+  }
   if (data.botId !== undefined) input.botId = data.botId || null;
-  if (data.source !== undefined) input.source = data.source ? String(data.source).trim().slice(0, 500) : null;
+  if (data.globalIntentId !== undefined) input.globalIntentId = data.globalIntentId || null;
+  if (data.intentId !== undefined) input.intentId = data.intentId || null;
+  if (data.category !== undefined) input.category = data.category ? String(data.category).trim().slice(0, 200) : null;
+  if (data.product !== undefined) input.product = data.product ? String(data.product).trim().slice(0, 200) : null;
+  if (data.tags !== undefined) {
+    if (!Array.isArray(data.tags)) throw fail("Tags devem ser uma lista.");
+    input.tags = data.tags.map((tag) => String(tag).trim().toLowerCase()).filter(Boolean).slice(0, 30);
+  }
   if (data.content !== undefined) input.content = data.content ? String(data.content).trim().slice(0, 8000) : null;
   if (data.active !== undefined) {
     if (typeof data.active !== "boolean") throw fail("Informe se a fonte está ativa.");

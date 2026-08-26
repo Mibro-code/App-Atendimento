@@ -97,6 +97,16 @@ const FEATURE_FLAG_DEFAULTS = Object.freeze({
   knowledgeSuggestionsEnabled: true,
   knowledgeBaseEnabled: false,
   handoffAutoPauseEnabled: true,
+  // Item 9: liga/desliga o HANDOFF_HUMAN automático (decidido pelo motor).
+  // Desligar não impede um atendente de assumir manualmente — só impede o
+  // Bot de escalar sozinho (ex.: para operações que preferem manter o Bot
+  // tentando até o limite de falhas). Default true = comportamento atual.
+  handoffEnabled: true,
+  // Item 9: liga/desliga a chamada de Tools por este Bot especificamente,
+  // além do toggle crítico dedicado Bot.toolsEnabled — ambos precisam estar
+  // ligados para uma Tool ser executada de verdade (ver
+  // bot-tool-orchestrator-service.js).
+  toolsFeatureEnabled: true,
   contextMaxMessages: CONTEXT_MESSAGE_LIMIT,
   contextExpirationMinutes: 120,
   maxSwitchesPerWindow: 3,
@@ -105,7 +115,7 @@ const FEATURE_FLAG_DEFAULTS = Object.freeze({
 const BOOLEAN_FEATURE_FLAG_KEYS = Object.freeze([
   "interpretationEnabled", "conversationalBehaviorEnabled", "contextEnabled", "autoSwitchEnabled",
   "observationEnabled", "learningEnabled", "knowledgeSuggestionsEnabled", "knowledgeBaseEnabled",
-  "handoffAutoPauseEnabled",
+  "handoffAutoPauseEnabled", "handoffEnabled", "toolsFeatureEnabled",
 ]);
 const NUMERIC_FEATURE_FLAG_RANGES = Object.freeze({
   contextMaxMessages: { min: 1, max: 30 },

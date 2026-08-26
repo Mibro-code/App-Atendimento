@@ -7,6 +7,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="/assets/app-icon-192.png">
   <title>Respostas rápidas &bull; Central de Atendimento</title>
   <script>try{const saved=localStorage.getItem("mibro-theme");document.documentElement.dataset.theme=saved||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch{}</script>
+  <link rel="stylesheet" href="/css/skeleton.css">
   <link rel="stylesheet" href="/css/bots.css">
   <link rel="stylesheet" href="/css/quick-replies.css">
 </head>
@@ -31,7 +32,7 @@
         <select id="qr-filter-channel"><option value="">Todos os canais</option></select>
         <select id="qr-filter-active"><option value="">Ativas e inativas</option><option value="true">Somente ativas</option><option value="false">Somente inativas</option></select>
       </div>
-      <div id="qr-list" class="bot-list"></div>
+      <div id="qr-list" class="bot-list"><div class="skeleton-list"><div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div></div></div>
       <div class="safety-note"><b>Nunca envia sozinho</b><p>Selecionar uma resposta só preenche o composer do atendente. Sugestão de IA/Bot nunca dispara envio automático.</p></div>
     </aside>
 
