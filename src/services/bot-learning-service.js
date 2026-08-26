@@ -12,6 +12,7 @@ const { normalizeText } = require("./bot-simulator-service");
 const { similarity } = require("./ai/local-fallback-provider");
 const { sanitizeForLearning } = require("./bot-learning-sanitizer");
 const { getGlobalSettings, resolveFeatureFlags } = require("./bot-governance-service");
+const { addExampleToGlobalIntent } = require("./global-intent-service");
 const {
   DEFAULT_HIGH_CONFIDENCE_THRESHOLD, LEARNING_MESSAGE_LIMIT, LEARNING_SIMILARITY_CONTENT_THRESHOLD,
   LEARNING_SIMILARITY_TOPIC_THRESHOLD, RESOLUTION_NEGATIVE_PATTERNS, RESOLUTION_POSITIVE_PATTERNS,
@@ -281,12 +282,20 @@ async function approveSuggestion(suggestionId, data, actor) {
       where: { id: intentId, ...(suggestion.botId ? { botId: suggestion.botId } : {}) },
     });
     if (!intent) throw fail("Intenção não encontrada para este Bot.", 404);
-    const existingExamples = await prisma.botIntentExample.findMany({ where: { intentId }, select: { text: true } });
-    const normalizedCandidate = normalizeText(suggestedContent);
-    const isDuplicate = existingExamples.some((example) => normalizeText(example.text) === normalizedCandidate);
     return prisma.$transaction(async (transaction) => {
-      if (!isDuplicate) {
-        await transaction.botIntentExample.create({ data: { intentId, text: suggestedContent } });
+      // Item 1 (aprendizado supervisionado): se esta BotIntent é uma
+      // associação da Biblioteca Global, o exemplo aprovado melhora a
+      // GlobalIntent e se propaga (deduplicado) para TODOS os Bots
+      // associados a ela — não só para este Bot.
+      if (intent.globalIntentId) {
+        await addExampleToGlobalIntent(intent.globalIntentId, suggestedContent, transaction);
+      } else {
+        const existingExamples = await transaction.botIntentExample.findMany({ where: { intentId }, select: { text: true } });
+        const normalizedCandidate = normalizeText(suggestedContent);
+        const isDuplicate = existingExamples.some((example) => normalizeText(example.text) === normalizedCandidate);
+        if (!isDuplicate) {
+          await transaction.botIntentExample.create({ data: { intentId, text: suggestedContent } });
+        }
       }
       return transaction.botLearningSuggestion.update({
         where: { id: suggestionId },

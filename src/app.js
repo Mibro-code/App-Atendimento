@@ -373,6 +373,20 @@ app.post(
   app.patch("/api/knowledge-sources/:sourceId", botController.updateKnowledgeSource);
   app.delete("/api/knowledge-sources/:sourceId", botController.deleteKnowledgeSource);
 
+  // Biblioteca Global de Intenções (item 1).
+  app.get("/api/global-intents", botController.listGlobalIntents);
+  app.post("/api/global-intents", botController.createGlobalIntent);
+  app.patch("/api/global-intents/:globalIntentId", botController.updateGlobalIntent);
+  app.post("/api/bots/:botId/global-intents/:globalIntentId", botController.associateGlobalIntent);
+  app.delete("/api/bots/:botId/intent-associations/:botIntentId", botController.disassociateGlobalIntent);
+
+  // Handoff humano (item 2).
+  app.get("/api/conversations/:conversationId/bot-handoff", botController.listHandoffContexts);
+  app.post("/api/conversations/:conversationId/bot-handoff/resume", botController.resumeBot);
+
+  // Tools (itens 5-7): listagem só de leitura.
+  app.get("/api/bot-tools", botController.listTools);
+
   app.get("/api/integrations/overview", integrationsController.overview);
   app.get("/api/integrations/settings", integrationsController.getGlobalSettings);
   app.patch("/api/integrations/settings", integrationsController.setGlobalSettings);

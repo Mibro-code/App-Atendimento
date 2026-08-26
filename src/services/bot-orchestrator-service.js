@@ -11,6 +11,9 @@ const { respond } = require("./bot-response-service");
 const { getState, getRecentContext, persistDecision } = require("./bot-conversation-state-service");
 const { getGlobalSettings, renderPresentationMessage, resolveFeatureFlags } = require("./bot-governance-service");
 const { checkResponseLoop, checkSwitchWindow } = require("./bot-loop-guard-service");
+const { resolveToolDecision } = require("./bot-tool-orchestrator-service");
+const { resolveKnowledgeResponse } = require("./bot-knowledge-response-service");
+const { captureHandoffContext } = require("./bot-handoff-service");
 
 const categorySelection = { id: true, code: true, name: true, color: true, active: true };
 const botInclude = {
@@ -112,9 +115,21 @@ function toStandardResult({ bot, targetBot, interpretation, decision, responseTe
 // expirou (essas proteções não dependem de contextEnabled).
 async function runDecisionPipeline({
   bot, message, context, state, guardState, previousIntroducedAt, flags, now, channel, client, sessionExpired = false,
+  toolMode = "OBSERVATION",
 }) {
   const interpretation = await interpret({ bot, message, context, state });
   let decision = decide({ bot, interpretation, message, state, now, flags });
+
+  // Itens 5-8/10/11: se a decisão sugeriu QUERY_TOOL, o backend valida e
+  // (só em modo LIVE) executa a Tool aqui — nunca antes de decide(), nunca
+  // pela IA diretamente. Vira ASK_CLARIFICATION, RESPOND (com dado real ou
+  // fallback seguro) conforme o resultado da validação.
+  decision = await resolveToolDecision({ bot, decision, channel, mode: toolMode });
+
+  // Item 4: Message -> Intent Interpreter -> Intenção -> KnowledgeProvider ->
+  // conhecimento relevante -> Resposta. Só entra em jogo se a decisão ainda
+  // for RESPOND (não interfere com QUERY_TOOL/ASK_CLARIFICATION/HANDOFF).
+  decision = await resolveKnowledgeResponse({ bot, decision, interpretation, message, flags });
 
   let targetBot = bot;
   let switchInfo = {
@@ -187,10 +202,28 @@ async function orchestrate({ conversationId, channel = "META", messageId = null,
     ? await getRecentContext(conversationId, { beforeMessageId: messageId, limit: flags.contextMaxMessages }, client)
     : [];
 
+  // Itens 7/11: uma Tool só é executada de VERDADE quando este Bot está
+  // realmente apto a responder automaticamente ao cliente (automação global
+  // ligada + autoReplyEnabled do Bot). Fora isso, mesmo dentro de uma
+  // conversa real, o modo é "observação" — nunca chama a Tool de verdade,
+  // só registra o que teria sido consultado.
+  const toolMode = (globalSettings.automationEnabled && bot.autoReplyEnabled) ? "LIVE" : "OBSERVATION";
+
   const { interpretation, decision, targetBot, responseText, operational } = await runDecisionPipeline({
     bot, message, context, state: conversationalState, guardState: operationalState,
-    previousIntroducedAt: state?.introducedAt || null, flags, now, channel, client, sessionExpired,
+    previousIntroducedAt: state?.introducedAt || null, flags, now, channel, client, sessionExpired, toolMode,
   });
+
+  if (decision.action === "HANDOFF_HUMAN") {
+    try {
+      const decisionWithCategoryName = { ...decision, categoryName: categoryNameFor(targetBot, decision.categoryId) };
+      await captureHandoffContext({ conversationId, bot: targetBot, interpretation, decision: decisionWithCategoryName, message, context }, client);
+    } catch (error) {
+      // Nunca pode derrubar a interpretação/observação por falha ao gravar o
+      // contexto de handoff — só loga.
+      console.error("[BOT_HANDOFF] falha ao capturar contexto (ignorada)", error.message);
+    }
+  }
 
   let humanPaused = false;
   if (flags.handoffAutoPauseEnabled) {
@@ -226,6 +259,11 @@ async function simulateOrchestration({ bot, message, context = [], state = null,
   const { interpretation, decision, targetBot: simulatedTargetBot, responseText, operational } = await runDecisionPipeline({
     bot: simulationBot, message, context, state, guardState: state, flags, now, channel: bot.channel, client: prisma,
     sessionExpired: false,
+    // O simulador é uma caixa de areia do painel administrativo (nunca fala
+    // com um cliente real) — pode mostrar o comportamento real de uma Tool
+    // (LIVE) sem violar a regra de "Observação nunca chama Tool de verdade"
+    // (item 11), que é sobre conversas reais de clientes.
+    toolMode: "LIVE",
   });
   const targetBot = simulatedTargetBot.id === simulationBot.id ? bot : simulatedTargetBot;
 
@@ -243,4 +281,12 @@ async function simulateOrchestration({ bot, message, context = [], state = null,
   return { ...toStandardResult({ bot, targetBot, interpretation, decision, responseText }), nextState };
 }
 
-module.exports = { botInclude, orchestrate, resolveBot, simulateOrchestration };
+// Item 2: gate único para "o Bot pode mesmo enviar esta resposta ao
+// cliente?" — falso se a automação estiver bloqueada (kill switch/Bot
+// desligado) OU se um humano já assumiu a conversa (humanPaused). Nunca
+// envia resposta concorrente/duplicada por cima de um atendimento humano.
+function shouldAutoRespond(result) {
+  return Boolean(result) && !result.automationBlocked && !result.humanPaused;
+}
+
+module.exports = { botInclude, orchestrate, resolveBot, shouldAutoRespond, simulateOrchestration };

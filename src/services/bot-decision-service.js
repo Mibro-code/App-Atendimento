@@ -52,7 +52,11 @@ function decide({ bot, interpretation, message, state = null, now = new Date(), 
 
   if (!interpretation.intentId || band === "LOW") {
     const failureCount = priorFailures + 1;
-    if (failureCount >= MAX_FAILED_INTERPRETATIONS) {
+    // Item 9 (Handoff automático on/off): quando desligado, o Bot continua
+    // pedindo esclarecimento em vez de escalar sozinho após falhas repetidas
+    // — HUMAN_REQUEST explícito do cliente (acima) nunca é afetado por este
+    // flag, é sempre respeitado.
+    if (failureCount >= MAX_FAILED_INTERPRETATIONS && flags.handoffEnabled !== false) {
       return {
         action: "HANDOFF_HUMAN", categoryId: bot.defaultCategoryId || null, needsClarification: false,
         shouldHandoff: true, withinHours: true, failureCount, socialBehavior,
@@ -81,7 +85,7 @@ function decide({ bot, interpretation, message, state = null, now = new Date(), 
     };
   }
 
-  if (intent?.fallbackAction === "TRANSFER_TO_HUMAN") {
+  if (intent?.fallbackAction === "TRANSFER_TO_HUMAN" && flags.handoffEnabled !== false) {
     return {
       action: "HANDOFF_HUMAN", categoryId, needsClarification: false, shouldHandoff: true,
       withinHours: true, socialBehavior, greetingReply,
@@ -94,6 +98,21 @@ function decide({ bot, interpretation, message, state = null, now = new Date(), 
       action: "SWITCH_BOT", categoryId, needsClarification: false, shouldHandoff: false,
       withinHours: true, socialBehavior, greetingReply,
       summary: `Cliente deseja tratar de "${intent.name}"; avaliar troca de Bot responsável pela categoria.`,
+    };
+  }
+
+  // Itens 5-8: intenção associada a uma Tool (bot-tools/tool-registry.js).
+  // A decisão aqui só SUGERE a consulta — quem valida permissão/riskLevel/
+  // entidades obrigatórias e efetivamente chama a Tool é o backend
+  // (bot-tool-orchestrator-service.js), nunca a IA. Se faltar alguma
+  // entidade obrigatória, o orquestrador troca a ação para
+  // ASK_CLARIFICATION antes mesmo de tentar a Tool.
+  if (flags.toolsFeatureEnabled !== false && intent?.toolName) {
+    return {
+      action: "QUERY_TOOL", categoryId, needsClarification: false, shouldHandoff: false,
+      withinHours: true, socialBehavior, greetingReply, toolName: intent.toolName,
+      entities: interpretation.entities || {},
+      summary: `Cliente demonstrou a intenção "${intent?.name}"; consultar a Tool "${intent.toolName}".`,
     };
   }
 
