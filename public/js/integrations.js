@@ -257,5 +257,8 @@ $("#logout").addEventListener("click", async () => {
     if (!status.authenticated || !status.user.isMaster) return location.replace("/");
     $("#current-user").textContent = status.user.name;
     await Promise.all([loadOverview(), loadSettings()]);
-  } catch (error) { toast(error.message, true); }
+  } catch (error) {
+    if ($("#channel-cards").querySelector(".skeleton-list")) $("#channel-cards").innerHTML = `<div class="empty-list">Não foi possível carregar as integrações.</div>`;
+    toast(error.message, true);
+  }
 })();

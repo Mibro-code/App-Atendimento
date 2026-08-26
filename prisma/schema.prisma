@@ -334,6 +334,23 @@ model User {
   quickRepliesCreated         QuickReply[]             @relation("QuickReplyCreatedBy")
   quickReplyFavorites         QuickReplyFavorite[]     @relation("QuickReplyFavoriteUser")
   quickReplyUsages            QuickReplyUsage[]        @relation("QuickReplyUsageUser")
+  pushSubscriptions           PushSubscription[]       @relation("UserPushSubscriptions")
+}
+
+model PushSubscription {
+  id          String   @id @default(cuid())
+  userId      String
+  endpoint    String   @unique
+  p256dh      String
+  auth        String
+  deviceLabel String?
+  userAgent   String?
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+  user        User     @relation("UserPushSubscriptions", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model AuditLog {

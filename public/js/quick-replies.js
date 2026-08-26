@@ -222,5 +222,8 @@ $("#logout").addEventListener("click", async () => {
     renderFilterOptions();
     $("#qr-category").innerHTML = categoryOptions();
     await loadList();
-  } catch (error) { toast(error.message, true); }
+  } catch (error) {
+    if ($("#qr-list").querySelector(".skeleton-list")) $("#qr-list").innerHTML = `<div class="empty-list">Não foi possível carregar as respostas rápidas.</div>`;
+    toast(error.message, true);
+  }
 })();
