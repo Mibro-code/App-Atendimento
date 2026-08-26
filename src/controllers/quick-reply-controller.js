@@ -27,7 +27,7 @@ module.exports = {
   },
 
   async preview(req, res, next) {
-    try { return res.json(quickReplies.previewQuickReplyText(req.body.text || "")); }
+    try { return res.json(quickReplies.previewQuickReplyText(req.body.text || "", req.user)); }
     catch (error) { return next(error); }
   },
 
@@ -43,15 +43,18 @@ module.exports = {
   },
 
   async setFavorite(req, res, next) {
-    try { return res.json(await quickReplies.setFavorite(req.params.id, req.user.id, Boolean(req.body.favorite))); }
-    catch (error) { return next(error); }
+    try {
+      return res.json(await quickReplies.setFavorite(req.params.id, {
+        conversationId: req.body.conversationId, favorite: req.body.favorite,
+      }, req.user));
+    } catch (error) { return next(error); }
   },
 
   // Nunca envia mensagem — só resolve variáveis e registra o uso (item 8/12/28).
   async use(req, res, next) {
     try {
       return res.json(await quickReplies.useQuickReply(
-        req.params.id, { conversationId: req.body.conversationId }, req.user, { source: req.body.source },
+        req.params.id, { conversationId: req.body.conversationId }, req.user, { source: "AGENT" },
       ));
     } catch (error) { return next(error); }
   },

@@ -1422,14 +1422,14 @@ function filteredQuickReplies() {
 }
 
 function quickReplyCard(item) {
-  return `<button type="button" class="quick-reply-card" data-quick-reply-id="${item.id}">
+  return `<article class="quick-reply-card" data-quick-reply-id="${escapeHtml(item.id)}" role="button" tabindex="0">
     <div class="quick-reply-card-head">
       <b>${escapeHtml(item.name)}</b>
       <span class="quick-reply-card-shortcut">${escapeHtml(item.shortcut)}</span>
-      <button type="button" class="quick-reply-favorite ${item.isFavorite ? "active" : ""}" data-favorite-id="${item.id}" title="Favoritar" aria-label="Favoritar">${item.isFavorite ? "★" : "☆"}</button>
+      <button type="button" class="quick-reply-favorite ${item.isFavorite ? "active" : ""}" data-favorite-id="${escapeHtml(item.id)}" title="Favoritar" aria-label="Favoritar">${item.isFavorite ? "★" : "☆"}</button>
     </div>
     <p>${escapeHtml(item.text)}</p>
-  </button>`;
+  </article>`;
 }
 
 function renderQuickReplyList() {
@@ -1444,12 +1444,18 @@ function renderQuickReplyList() {
       <div class="quick-reply-list-heading">${favorites.length ? "TODAS" : "RESPOSTAS"}</div>${rest.map(quickReplyCard).join("")}
     `;
   }
-  document.querySelectorAll("[data-quick-reply-id]").forEach((card) => (
+  document.querySelectorAll("[data-quick-reply-id]").forEach((card) => {
     card.addEventListener("click", (event) => {
       if (event.target.closest("[data-favorite-id]")) return;
       selectQuickReply(card.dataset.quickReplyId);
-    })
-  ));
+    });
+    card.addEventListener("keydown", (event) => {
+      if ((event.key === "Enter" || event.key === " ") && !event.target.closest("[data-favorite-id]")) {
+        event.preventDefault();
+        selectQuickReply(card.dataset.quickReplyId);
+      }
+    });
+  });
   document.querySelectorAll("[data-favorite-id]").forEach((button) => (
     button.addEventListener("click", (event) => { event.stopPropagation(); toggleQuickReplyFavorite(button.dataset.favoriteId); })
   ));
@@ -1459,7 +1465,7 @@ async function toggleQuickReplyFavorite(id) {
   const item = state.quickReplies.find((row) => row.id === id);
   if (!item) return;
   try {
-    const result = await api(`/api/quick-replies/${id}/favorite`, { method:"POST", body: JSON.stringify({ favorite: !item.isFavorite }) });
+    const result = await api(`/api/quick-replies/${id}/favorite`, { method:"POST", body: JSON.stringify({ conversationId: state.selectedId, favorite: !item.isFavorite }) });
     item.isFavorite = result.favorite;
     renderQuickReplyList();
   } catch (e) { toast(e.message, true); }

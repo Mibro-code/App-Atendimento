@@ -69,6 +69,36 @@ function validateType(value) {
   return value;
 }
 
+function validateBoolean(value, label) {
+  if (typeof value !== "boolean") throw fail(`${label} deve ser verdadeiro ou falso.`);
+  return value;
+}
+
+function requireConversationId(value) {
+  const conversationId = typeof value === "string" ? value.trim() : "";
+  if (!conversationId) throw fail("conversationId é obrigatório.");
+  return conversationId;
+}
+
+async function accessibleConversation(viewer, value) {
+  const conversationId = requireConversationId(value);
+  await authorization.assertCanViewConversation(viewer, conversationId);
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: conversationId }, include: { contact: true },
+  });
+  if (!conversation) throw fail("Conversa não encontrada.", 404);
+  return conversation;
+}
+
+function assertApplicableToConversation(quickReply, conversation) {
+  if (quickReply.channels.length && !quickReply.channels.includes(conversation.channel)) {
+    throw fail("Esta resposta rápida não está disponível para o canal desta conversa.");
+  }
+  if (quickReply.categoryId && quickReply.categoryId !== conversation.categoryId) {
+    throw fail("Esta resposta rápida não está disponível para o setor desta conversa.");
+  }
+}
+
 async function validateCategoryId(categoryId) {
   if (!categoryId) return null;
   const category = await prisma.category.findUnique({ where: { id: categoryId }, select: { id: true } });
@@ -181,10 +211,10 @@ async function createQuickReply(data, actor) {
     text: requiredBody(data.text, "Texto", 4000),
     categoryId: await validateCategoryId(data.categoryId),
     channels: validateChannels(data.channels),
-    availableToAgents: data.availableToAgents !== false,
-    availableToBots: data.availableToBots === true,
+    availableToAgents: data.availableToAgents === undefined ? true : validateBoolean(data.availableToAgents, "availableToAgents"),
+    availableToBots: data.availableToBots === undefined ? false : validateBoolean(data.availableToBots, "availableToBots"),
     type: validateType(data.type),
-    active: data.active !== false,
+    active: data.active === undefined ? true : validateBoolean(data.active, "active"),
     createdByUserId: actor?.id || null,
   };
   await assertShortcutAvailable(create.shortcut);
@@ -219,10 +249,10 @@ async function updateQuickReply(id, data, actor) {
   if (data.text !== undefined) update.text = requiredBody(data.text, "Texto", 4000);
   if (data.categoryId !== undefined) update.categoryId = await validateCategoryId(data.categoryId);
   if (data.channels !== undefined) update.channels = validateChannels(data.channels);
-  if (data.availableToAgents !== undefined) update.availableToAgents = Boolean(data.availableToAgents);
-  if (data.availableToBots !== undefined) update.availableToBots = Boolean(data.availableToBots);
+  if (data.availableToAgents !== undefined) update.availableToAgents = validateBoolean(data.availableToAgents, "availableToAgents");
+  if (data.availableToBots !== undefined) update.availableToBots = validateBoolean(data.availableToBots, "availableToBots");
   if (data.type !== undefined) update.type = validateType(data.type);
-  if (data.active !== undefined) update.active = Boolean(data.active);
+  if (data.active !== undefined) update.active = validateBoolean(data.active, "active");
   if (!Object.keys(update).length && data.intentIds === undefined) {
     throw fail("Informe ao menos um campo para atualizar.");
   }
@@ -270,18 +300,13 @@ async function archiveQuickReply(id, actor) {
 // pode realmente usar (ativo, disponível a atendentes, canal/setor
 // compatíveis com a conversa informada).
 async function listForComposer({ conversationId, search, categoryId }, viewer) {
-  let conversation = null;
-  if (conversationId) {
-    await authorization.assertCanViewConversation(viewer, conversationId);
-    conversation = await prisma.conversation.findUnique({
-      where: { id: conversationId }, select: { channel: true, categoryId: true },
-    });
+  const conversation = await accessibleConversation(viewer, conversationId);
+  if (categoryId && categoryId !== conversation.categoryId) {
+    throw authorization.forbidden("O filtro informado não pertence à conversa selecionada.");
   }
 
   const where = { active: true, archivedAt: null, availableToAgents: true };
-  if (conversation) {
-    where.OR = [{ channels: { isEmpty: true } }, { channels: { has: conversation.channel } }];
-  }
+  where.OR = [{ channels: { isEmpty: true } }, { channels: { has: conversation.channel } }];
   if (categoryId) where.categoryId = categoryId;
   else if (conversation?.categoryId) {
     where.AND = [{ OR: [{ categoryId: null }, { categoryId: conversation.categoryId }] }];
@@ -315,17 +340,23 @@ async function listForComposer({ conversationId, search, categoryId }, viewer) {
     });
 }
 
-async function setFavorite(quickReplyId, userId, favorite) {
-  await ensureQuickReply(quickReplyId);
-  if (favorite) {
+async function setFavorite(quickReplyId, { conversationId, favorite }, actor) {
+  const quickReply = await ensureQuickReply(quickReplyId);
+  const conversation = await accessibleConversation(actor, conversationId);
+  if (!quickReply.active || quickReply.archivedAt || !quickReply.availableToAgents) {
+    throw fail("Esta resposta rápida não está disponível para atendentes.");
+  }
+  assertApplicableToConversation(quickReply, conversation);
+  const normalizedFavorite = validateBoolean(favorite, "favorite");
+  if (normalizedFavorite) {
     await prisma.quickReplyFavorite.upsert({
-      where: { quickReplyId_userId: { quickReplyId, userId } },
-      update: {}, create: { quickReplyId, userId },
+      where: { quickReplyId_userId: { quickReplyId, userId: actor.id } },
+      update: {}, create: { quickReplyId, userId: actor.id },
     });
   } else {
-    await prisma.quickReplyFavorite.deleteMany({ where: { quickReplyId, userId } });
+    await prisma.quickReplyFavorite.deleteMany({ where: { quickReplyId, userId: actor.id } });
   }
-  return { favorite: Boolean(favorite) };
+  return { favorite: normalizedFavorite };
 }
 
 // Item 8/13/28: usar uma resposta NUNCA envia mensagem — só resolve
@@ -339,18 +370,8 @@ async function useQuickReply(quickReplyId, { conversationId }, actor, { source =
     if (!quickReply.availableToAgents) throw fail("Esta resposta rápida não está disponível para atendentes.");
   }
 
-  let conversation = null;
-  if (conversationId) {
-    await authorization.assertCanViewConversation(actor, conversationId);
-    conversation = await prisma.conversation.findUnique({ where: { id: conversationId }, include: { contact: true } });
-    if (!conversation) throw fail("Conversa não encontrada.", 404);
-    if (quickReply.channels.length && !quickReply.channels.includes(conversation.channel)) {
-      throw fail("Esta resposta rápida não está disponível para o canal desta conversa.");
-    }
-    if (quickReply.categoryId && quickReply.categoryId !== conversation.categoryId) {
-      throw fail("Esta resposta rápida não está disponível para o setor desta conversa.");
-    }
-  }
+  const conversation = preview && !conversationId ? null : await accessibleConversation(actor, conversationId);
+  if (conversation) assertApplicableToConversation(quickReply, conversation);
 
   const context = conversation
     ? contextFromConversation({ conversation, agent: actor })
@@ -367,8 +388,9 @@ async function useQuickReply(quickReplyId, { conversationId }, actor, { source =
 }
 
 // Item 14: preview administrativo com dado fictício, nunca grava uso.
-function previewQuickReplyText(text) {
-  return renderTemplate(text, previewContext());
+function previewQuickReplyText(text, viewer) {
+  assertQuickReplyManager(viewer);
+  return renderTemplate(requiredBody(text, "Texto", 4000), previewContext());
 }
 
 // Item 15/33: candidatos a sugestão para uma intenção específica —
@@ -387,9 +409,13 @@ async function suggestQuickReplyForIntent(intentId) {
 }
 
 async function listSuggestions({ intentId, conversationId }, viewer) {
-  if (conversationId) await authorization.assertCanViewConversation(viewer, conversationId);
+  const conversation = await accessibleConversation(viewer, conversationId);
   const suggestion = await suggestQuickReplyForIntent(intentId);
-  return suggestion ? [suggestion] : [];
+  if (!suggestion) return [];
+  const quickReply = await ensureQuickReply(suggestion.id);
+  try { assertApplicableToConversation(quickReply, conversation); }
+  catch { return []; }
+  return [suggestion];
 }
 
 module.exports = {

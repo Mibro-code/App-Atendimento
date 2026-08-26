@@ -66,6 +66,10 @@ CREATE INDEX "QuickReply_active_categoryId_idx" ON "QuickReply"("active", "categ
 -- CreateIndex
 CREATE INDEX "QuickReply_shortcut_idx" ON "QuickReply"("shortcut");
 
+-- Atalhos ativos são únicos também sob concorrência. Respostas arquivadas
+-- podem liberar o mesmo atalho para reutilização.
+CREATE UNIQUE INDEX "QuickReply_active_shortcut_key" ON "QuickReply"("shortcut") WHERE "archivedAt" IS NULL;
+
 -- CreateIndex
 CREATE INDEX "QuickReply_createdAt_idx" ON "QuickReply"("createdAt");
 

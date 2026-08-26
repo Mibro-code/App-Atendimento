@@ -8,6 +8,8 @@ test.before(async () => {
   await prisma.quickReplyUsage.deleteMany({});
   await prisma.quickReplyFavorite.deleteMany({});
   await prisma.quickReply.deleteMany({ where: { name: { startsWith: "QR HTTP" } } });
+  await prisma.conversation.deleteMany({ where: { contact: { is: { externalId: { startsWith: "qr-http-" } } } } });
+  await prisma.contact.deleteMany({ where: { externalId: { startsWith: "qr-http-" } } });
   await prisma.user.deleteMany({ where: { email: { in: ["qr-http-master@teste.local", "qr-http-agent@teste.local"] } } });
 });
 
@@ -15,6 +17,8 @@ test.after(async () => {
   await prisma.quickReplyUsage.deleteMany({});
   await prisma.quickReplyFavorite.deleteMany({});
   await prisma.quickReply.deleteMany({ where: { name: { startsWith: "QR HTTP" } } });
+  await prisma.conversation.deleteMany({ where: { contact: { is: { externalId: { startsWith: "qr-http-" } } } } });
+  await prisma.contact.deleteMany({ where: { externalId: { startsWith: "qr-http-" } } });
   await prisma.user.deleteMany({ where: { email: { in: ["qr-http-master@teste.local", "qr-http-agent@teste.local"] } } });
   await prisma.$disconnect();
 });
@@ -65,20 +69,29 @@ test("rotas de Respostas Rápidas: Master gerencia, atendente só usa/busca/favo
     assert.equal(created.status, 201);
     const quickReply = await created.json();
 
-    const composerAsAgent = await fetch(`${base}/api/quick-replies/composer`, { headers: { Cookie: agentCookie } });
+    const withoutConversation = await fetch(`${base}/api/quick-replies/composer`, { headers: { Cookie: agentCookie } });
+    assert.equal(withoutConversation.status, 400);
+    const agent = await prisma.user.findUniqueOrThrow({ where: { email: "qr-http-agent@teste.local" } });
+    const contact = await prisma.contact.create({ data: { externalId: "qr-http-contact", phone: "5511900000099", channel: "META" } });
+    const conversation = await prisma.conversation.create({ data: { contactId: contact.id, channel: "META", assignedUserId: agent.id } });
+    const composerAsAgent = await fetch(`${base}/api/quick-replies/composer?conversationId=${conversation.id}`, { headers: { Cookie: agentCookie } });
     assert.equal(composerAsAgent.status, 200);
     const composerList = await composerAsAgent.json();
     assert.ok(composerList.some((item) => item.id === quickReply.id));
 
     const favorite = await fetch(`${base}/api/quick-replies/${quickReply.id}/favorite`, {
-      method: "POST", headers: { "Content-Type": "application/json", Cookie: agentCookie }, body: JSON.stringify({ favorite: true }),
+      method: "POST", headers: { "Content-Type": "application/json", Cookie: agentCookie }, body: JSON.stringify({ conversationId: conversation.id, favorite: true }),
     });
     assert.equal(favorite.status, 200);
     assert.equal((await favorite.json()).favorite, true);
 
     // Selecionar/usar NUNCA envia mensagem real — só resolve texto e grava uso.
-    const used = await fetch(`${base}/api/quick-replies/${quickReply.id}/use`, {
+    const useWithoutConversation = await fetch(`${base}/api/quick-replies/${quickReply.id}/use`, {
       method: "POST", headers: { "Content-Type": "application/json", Cookie: agentCookie }, body: JSON.stringify({}),
+    });
+    assert.equal(useWithoutConversation.status, 400);
+    const used = await fetch(`${base}/api/quick-replies/${quickReply.id}/use`, {
+      method: "POST", headers: { "Content-Type": "application/json", Cookie: agentCookie }, body: JSON.stringify({ conversationId: conversation.id }),
     });
     assert.equal(used.status, 200);
     const usedBody = await used.json();

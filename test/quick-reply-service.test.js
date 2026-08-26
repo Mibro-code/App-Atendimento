@@ -7,6 +7,7 @@ const quickReplies = require("../src/services/quick-reply-service");
 const namePrefix = "QR Teste";
 let master;
 let agent;
+let agentConversation;
 
 async function cleanup() {
   await prisma.quickReplyUsage.deleteMany({});
@@ -27,6 +28,8 @@ test.before(async () => {
     create: { email: "qr-agent@teste.local", name: "Atendente QR", role: "ATENDENTE", passwordHash: "x" },
   });
   await cleanup();
+  const contact = await prisma.contact.create({ data: { externalId: "qr-agent-context", phone: "5511900000098", channel: "META" } });
+  agentConversation = await prisma.conversation.create({ data: { contactId: contact.id, channel: "META", assignedUserId: agent.id } });
 });
 
 test.after(async () => {
@@ -130,10 +133,10 @@ test("filtro por canal: resposta restrita a um canal não aparece em conversa de
 
 test("favorito é por usuário, não global", async () => {
   const created = await quickReplies.createQuickReply({ name: `${namePrefix} Favorita`, shortcut: "/qrfav", text: "x" }, master);
-  await quickReplies.setFavorite(created.id, agent.id, true);
+  await quickReplies.setFavorite(created.id, { conversationId: agentConversation.id, favorite: true }, agent);
 
-  const listedForAgent = await quickReplies.listForComposer({}, agent);
-  const listedForMaster = await quickReplies.listForComposer({}, master);
+  const listedForAgent = await quickReplies.listForComposer({ conversationId: agentConversation.id }, agent);
+  const listedForMaster = await quickReplies.listForComposer({ conversationId: agentConversation.id }, master);
   assert.equal(listedForAgent.find((item) => item.id === created.id)?.isFavorite, true);
   assert.equal(listedForMaster.find((item) => item.id === created.id)?.isFavorite, false);
 });
@@ -141,8 +144,8 @@ test("favorito é por usuário, não global", async () => {
 test("favoritas aparecem primeiro na listagem do composer", async () => {
   const a = await quickReplies.createQuickReply({ name: `${namePrefix} Ordem A`, shortcut: "/qrordema", text: "x" }, master);
   const b = await quickReplies.createQuickReply({ name: `${namePrefix} Ordem B`, shortcut: "/qrordemb", text: "x" }, master);
-  await quickReplies.setFavorite(b.id, agent.id, true);
-  const listed = await quickReplies.listForComposer({ search: "Ordem" }, agent);
+  await quickReplies.setFavorite(b.id, { conversationId: agentConversation.id, favorite: true }, agent);
+  const listed = await quickReplies.listForComposer({ conversationId: agentConversation.id, search: "Ordem" }, agent);
   const indexA = listed.findIndex((item) => item.id === a.id);
   const indexB = listed.findIndex((item) => item.id === b.id);
   assert.ok(indexB < indexA);
@@ -164,14 +167,14 @@ test("variável ausente mantém o placeholder e é reportada, nunca inventa valo
   const created = await quickReplies.createQuickReply({
     name: `${namePrefix} VarAusente`, shortcut: "/qrvarausente", text: "Pedido {{orderNumber}} confirmado.",
   }, master);
-  const { text, unresolved } = await quickReplies.useQuickReply(created.id, {}, agent);
+  const { text, unresolved } = await quickReplies.useQuickReply(created.id, { conversationId: agentConversation.id }, agent);
   assert.equal(text, "Pedido {{orderNumber}} confirmado.");
   assert.deepEqual(unresolved, ["orderNumber"]);
 });
 
 test("usar uma resposta grava métrica de uso (quickReplyId, userId, source)", async () => {
   const created = await quickReplies.createQuickReply({ name: `${namePrefix} Métrica`, shortcut: "/qrmetrica", text: "x" }, master);
-  await quickReplies.useQuickReply(created.id, {}, agent);
+  await quickReplies.useQuickReply(created.id, { conversationId: agentConversation.id }, agent);
   const usage = await prisma.quickReplyUsage.findFirst({ where: { quickReplyId: created.id } });
   assert.equal(usage.userId, agent.id);
   assert.equal(usage.source, "AGENT");
@@ -180,14 +183,14 @@ test("usar uma resposta grava métrica de uso (quickReplyId, userId, source)", a
 test("resposta inativa não é retornada pelo seletor do composer nem pode ser usada", async () => {
   const created = await quickReplies.createQuickReply({ name: `${namePrefix} Inativa`, shortcut: "/qrinativa", text: "x" }, master);
   await quickReplies.updateQuickReply(created.id, { active: false }, master);
-  const listed = await quickReplies.listForComposer({}, agent);
+  const listed = await quickReplies.listForComposer({ conversationId: agentConversation.id }, agent);
   assert.ok(!listed.some((item) => item.id === created.id));
-  await assert.rejects(() => quickReplies.useQuickReply(created.id, {}, agent), /não está mais ativa/);
+  await assert.rejects(() => quickReplies.useQuickReply(created.id, { conversationId: agentConversation.id }, agent), /não está mais ativa/);
 });
 
 test("arquivar preserva o registro e o histórico de uso (nunca apaga de verdade)", async () => {
   const created = await quickReplies.createQuickReply({ name: `${namePrefix} Arquivo`, shortcut: "/qrarquivo", text: "x" }, master);
-  await quickReplies.useQuickReply(created.id, {}, agent);
+  await quickReplies.useQuickReply(created.id, { conversationId: agentConversation.id }, agent);
   await quickReplies.archiveQuickReply(created.id, master);
   const stillThere = await quickReplies.getQuickReply(created.id, master);
   assert.equal(stillThere.active, false);
