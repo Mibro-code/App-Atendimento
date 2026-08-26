@@ -101,6 +101,19 @@ function validateChannel(value) {
   return value;
 }
 
+// `channels` é aditivo ao `channel` legado (item 21) — nunca obrigatório,
+// nunca substitui o campo original. Um Bot single-channel continua
+// funcionando sem nunca precisar preencher isto.
+function validateChannels(value) {
+  if (value === undefined || value === null) return undefined;
+  if (!Array.isArray(value)) throw fail("channels deve ser uma lista de canais.");
+  const unique = [...new Set(value)];
+  for (const channel of unique) {
+    if (!botChannels.has(channel)) throw fail(`Canal inválido em channels: ${channel}`);
+  }
+  return unique;
+}
+
 function validatePriority(value) {
   const priority = value === undefined ? 0 : value;
   if (!Number.isInteger(priority) || priority < -1000 || priority > 1000) {
@@ -179,6 +192,7 @@ function botSnapshot(bot) {
     description: bot.description,
     status: bot.status,
     channel: bot.channel,
+    channels: bot.channels,
     timezone: bot.timezone,
     defaultCategoryId: bot.defaultCategoryId,
     introduceWithName: bot.introduceWithName,
@@ -249,6 +263,7 @@ async function createBot(data, actor) {
     name: requiredText(data.name, "Nome", 100),
     description: optionalText(data.description, "Descrição", 500),
     channel: validateChannel(data.channel),
+    channels: validateChannels(data.channels) || [],
     initialMessage: requiredText(data.initialMessage, "Mensagem inicial"),
     outsideHoursMessage: requiredText(data.outsideHoursMessage, "Mensagem fora do horário"),
     fallbackMessage: requiredText(data.fallbackMessage, "Mensagem de fallback"),
@@ -278,6 +293,7 @@ async function updateBot(botId, data, actor) {
   if (data.name !== undefined) update.name = requiredText(data.name, "Nome", 100);
   if (data.description !== undefined) update.description = optionalText(data.description, "Descrição", 500);
   if (data.channel !== undefined) update.channel = validateChannel(data.channel);
+  if (data.channels !== undefined) update.channels = validateChannels(data.channels) || [];
   if (data.initialMessage !== undefined) update.initialMessage = requiredText(data.initialMessage, "Mensagem inicial");
   if (data.outsideHoursMessage !== undefined) update.outsideHoursMessage = requiredText(data.outsideHoursMessage, "Mensagem fora do horário");
   if (data.fallbackMessage !== undefined) update.fallbackMessage = requiredText(data.fallbackMessage, "Mensagem de fallback");

@@ -1,7 +1,20 @@
 (() => {
-  const APP_VERSION = "0.15.0";
+  const APP_VERSION = "0.16.0";
 
   const CHANGELOG = [
+    {
+      version: "0.16.0",
+      date: "26/08/2026",
+      title: "Base segura de integrações omnichannel",
+      changes: [
+        "Adiciona o painel de Integrações, exclusivo para contas Master, com cadastro multi-conta, status e teste de conexão por canal.",
+        "Prepara a arquitetura para e-mail, Mercado Livre, TikTok Shop, Amazon Marketplace, Shopee, Google Reviews e Reclame Aqui, sem anunciar como ativas operações ainda não verificadas.",
+        "Protege credenciais com armazenamento cifrado e reforça o OAuth contra replay, troca de conta, canal ou provider.",
+        "Mantém novos canais desligados por padrão e bloqueia ingresso, envio e leitura enquanto a ativação global ou a conta estiverem desabilitadas.",
+        "Isola contatos, conversas, mensagens e eventos por conta do canal, evitando mistura de histórico entre lojas.",
+        "Mantém webhooks sem autenticação verificável fechados e preserva integralmente o WhatsApp/Meta e o bot de triagem existentes."
+      ]
+    },
     {
       version: "0.15.0",
       date: "25/08/2026",

@@ -1,0 +1,53 @@
+.integrations-shell{max-width:1180px;margin:0 auto;padding:24px}
+.integrations-toolbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px}
+.integrations-toolbar h1{margin:0 0 4px;font-size:22px}
+.integrations-toolbar p{margin:0;color:var(--muted);font-size:11px}
+.global-switch{display:flex;align-items:center;gap:8px;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--ink);font-size:10px;font-weight:800}
+.global-switch input{width:16px;height:16px;accent-color:var(--orange)}
+
+.channel-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px}
+.channel-card{padding:16px;border:1px solid var(--line);border-radius:14px;background:var(--surface);box-shadow:0 5px 18px #17202a08}
+.channel-card-meta{border-color:#f1d0c5;background:var(--orange-soft)}
+.channel-card header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.channel-card h2{margin:0;font-size:14px}
+.meta-note{margin:0;color:#9e472b;font-size:9px;line-height:1.5}
+
+.cap-badges{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px}
+.cap-badge{padding:4px 7px;border-radius:8px;color:#5e6872;background:var(--panel);font-size:7px;font-weight:800;letter-spacing:.03em;text-transform:capitalize}
+.cap-badge-empty{color:var(--muted)}
+
+.account-list{display:grid;gap:8px;margin-bottom:10px}
+.no-accounts{margin:0 0 10px;padding:12px;border-radius:9px;color:var(--muted);background:var(--panel);text-align:center;font-size:9px}
+.account-row{padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+.account-row-main{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-bottom:5px}
+.account-row-main strong{font-size:11px}
+.account-row-meta{display:grid;gap:2px;margin-bottom:7px;color:var(--muted);font-size:8px}
+.account-row-meta .error-text{color:var(--danger)}
+.account-row-actions{display:flex;flex-wrap:wrap;gap:6px}
+.account-row-actions button{padding:6px 9px;border:1px solid var(--line);border-radius:11px;color:var(--ink);background:var(--surface);font-size:8px;font-weight:800}
+.account-row-actions button.danger{color:var(--danger);border-color:#f3b5ac}
+
+.status-pill{padding:4px 8px;border-radius:9px;font-size:7px;font-weight:900;letter-spacing:.03em}
+.status-ok{color:#067647;background:#dcfae6}
+.status-error{color:var(--danger);background:#fdecea}
+.status-pending{color:#b54708;background:#fef0c7}
+.status-idle{color:#5e6872;background:#e9ecef}
+.enabled-pill{padding:4px 8px;border-radius:9px;font-size:7px;font-weight:900}
+.enabled-pill.on{color:#067647;background:#dcfae6}
+.enabled-pill.off{color:#5e6872;background:#e9ecef}
+
+.add-account{width:100%;padding:9px;border:1px dashed #ccd1d6;border-radius:11px;color:var(--muted);background:transparent;font-size:9px;font-weight:800}
+.add-account:hover{border-color:var(--orange);color:var(--orange)}
+
+.account-dialog{width:min(420px,92vw);padding:0;border:0;border-radius:16px;box-shadow:0 20px 60px #0004}
+.account-dialog::backdrop{background:#0006}
+.account-dialog form{padding:20px;display:grid;gap:11px}
+.account-dialog h2{margin:0;font-size:16px}
+.account-dialog-channel{margin:-6px 0 0;color:var(--orange);font-size:9px;font-weight:900;letter-spacing:.04em}
+.account-dialog label{display:grid;gap:5px;color:#626c76;font-size:9px;font-weight:800}
+.account-dialog input{height:36px;padding:0 10px;border:1px solid #dfe2e5;border-radius:8px;color:var(--ink);background:var(--surface);font-size:10px}
+.account-hint{margin:0;color:var(--muted);font-size:8px;line-height:1.5}
+.account-dialog-actions{margin:6px 0 0;padding:0;display:flex;justify-content:flex-end;gap:8px}
+.account-dialog-actions button{padding:9px 14px;border:0;border-radius:16px;font-size:9px;font-weight:900}
+.account-dialog-actions button[value=cancel]{color:var(--button-secondary-ink);background:var(--button-secondary)}
+.account-dialog-actions button[value=save]{color:var(--button-primary-ink);background:var(--button-primary)}

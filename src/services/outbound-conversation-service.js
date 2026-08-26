@@ -78,12 +78,12 @@ async function createOutboundConversation({ phone, customName, template, user, c
         },
       });
       const current = await transaction.conversation.findUnique({
-        where: { contactId_channel: { contactId: contact.id, channel: "META" } },
+        where: { contactId_channel_channelScope: { contactId: contact.id, channel: "META", channelScope: "LEGACY" } },
         select: { id: true, contactId: true },
       });
       if (current) return { conversation: current, created: false };
       const inserted = await transaction.conversation.create({ data: {
-        contactId: contact.id, channel: "META", status: "EM_ATENDIMENTO", assignedUserId: user.id,
+        contactId: contact.id, channel: "META", channelScope: "LEGACY", status: "EM_ATENDIMENTO", assignedUserId: user.id,
       }, select: { id: true, contactId: true } });
       await transaction.conversationActivity.create({ data: {
         conversationId: inserted.id, actorUserId: user.id, action: "CONVERSATION_CREATED",

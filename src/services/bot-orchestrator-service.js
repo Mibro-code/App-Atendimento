@@ -25,16 +25,24 @@ const botInclude = {
   },
 };
 
+// Um Bot atende um canal pelo campo legado `channel` (single-channel,
+// comportamento original intocado) OU pelo array aditivo `channels`
+// (multi-canal — item 21). Nunca duplicar intents por canal: o mesmo Bot
+// só passa a ser encontrado em mais buscas, sua lógica de decisão não muda.
+function channelMatch(channel) {
+  return { OR: [{ channel }, { channels: { has: channel } }] };
+}
+
 async function resolveBot(activeBotId, channel, client) {
   if (activeBotId) {
     const active = await client.bot.findFirst({
-      where: { id: activeBotId, channel, status: "ACTIVE", archivedAt: null },
+      where: { id: activeBotId, status: "ACTIVE", archivedAt: null, ...channelMatch(channel) },
       include: botInclude,
     });
     if (active) return active;
   }
   return client.bot.findFirst({
-    where: { channel, status: "ACTIVE", archivedAt: null },
+    where: { status: "ACTIVE", archivedAt: null, ...channelMatch(channel) },
     include: botInclude,
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
   });
@@ -43,8 +51,9 @@ async function resolveBot(activeBotId, channel, client) {
 async function resolveSwitchTarget(categoryId, channel, currentBotId, client) {
   return client.bot.findFirst({
     where: {
-      channel, status: "ACTIVE", archivedAt: null,
+      status: "ACTIVE", archivedAt: null,
       defaultCategoryId: categoryId, id: { not: currentBotId },
+      ...channelMatch(channel),
     },
     include: botInclude,
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],

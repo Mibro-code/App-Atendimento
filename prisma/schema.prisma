@@ -7,6 +7,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// META = WhatsApp via Meta Cloud API (nome histórico preservado de propósito
+// — é o canal produtivo real; ver docs/integrations/architecture.md). Os
+// demais valores já cobrem a lista de canais da fase omnichannel (item 4 do
+// pedido): Amazon = AMAZON_MARKETPLACE, Instagram/Facebook comentários já no
+// plural. SHEIN mantido só para não quebrar o enum — sem integração nesta fase.
 enum Channel {
   META
   INSTAGRAM_DIRECT
@@ -24,6 +29,35 @@ enum Channel {
   // Mantido apenas para compatibilidade com registros históricos.
   // Não é oferecido na interface de gerenciamento de Bots.
   ZENVIA
+}
+
+// Tipo de conversa (item 24) — distingue conversa privada de pergunta
+// pública/avaliação/reclamação sem precisar de modelos separados.
+enum ConversationKind {
+  PRIVATE_CONVERSATION
+  PUBLIC_QUESTION
+  REVIEW
+  COMPLAINT
+  EMAIL_THREAD
+}
+
+// Estados claros de integração (item 11) — nunca um boolean genérico.
+enum ChannelAccountStatus {
+  DISABLED
+  NOT_CONFIGURED
+  CONFIGURED
+  AUTH_PENDING
+  CONNECTED
+  DEGRADED
+  ERROR
+  NOT_SUPPORTED
+}
+
+enum ExternalEventStatus {
+  RECEIVED
+  PROCESSED
+  DUPLICATE
+  ERROR
 }
 
 enum ConversationStatus {
@@ -135,7 +169,9 @@ model Contact {
   id            String         @id @default(cuid())
   channel       Channel        @default(META)
   externalId    String
-  phone         String
+  // Opcional: nem todo canal tem telefone (Mercado Livre = buyerId, e-mail =
+  // endereço, Google Review = reviewer). WhatsApp continua sempre populando.
+  phone         String?
   name          String?
   customName    String?
   createdAt     DateTime       @default(now())
@@ -163,59 +199,71 @@ model ContactNote {
 }
 
 model Conversation {
-  id                  String                     @id @default(cuid())
-  contactId           String
-  channel             Channel                    @default(META)
-  categoryId          String?
-  assignedUserId      String?
-  status              ConversationStatus         @default(NOVO)
-  unreadCount         Int                        @default(0)
-  lastMessageAt       DateTime?
-  finalizedAt         DateTime?
-  createdAt           DateTime                   @default(now())
-  updatedAt           DateTime                   @updatedAt
-  contact             Contact                    @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  category            Category?                  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  assignedUser        User?                      @relation("AssignedConversations", fields: [assignedUserId], references: [id], onDelete: SetNull)
-  messages            Message[]
-  activities          ConversationActivity[]
-  pins                ConversationPin[]
-  masterReads         ConversationMasterRead[]
-  internalMessages    InternalMessage[]
-  botObservations     BotObservation[]
-  botState            ConversationBotState?
-  learningSuggestions BotLearningSuggestion[]
-  learningState       ConversationLearningState?
-  rating              BotRating?
-  agentFeedback       BotAgentFeedback[]
+  id                     String                     @id @default(cuid())
+  contactId              String
+  channel                Channel                    @default(META)
+  channelScope           String                     @default("LEGACY")
+  // Conta específica do canal que originou esta conversa (multi-conta por
+  // plataforma — item 5). Null para conversas do canal Meta já existentes.
+  channelAccountId       String?
+  // ID da conversa/thread na plataforma externa — nunca é usado como chave
+  // primária interna (item 19). Null para WhatsApp (Contact+channel já basta).
+  externalConversationId String?
+  kind                   ConversationKind           @default(PRIVATE_CONVERSATION)
+  categoryId             String?
+  assignedUserId         String?
+  status                 ConversationStatus         @default(NOVO)
+  unreadCount            Int                        @default(0)
+  lastMessageAt          DateTime?
+  finalizedAt            DateTime?
+  createdAt              DateTime                   @default(now())
+  updatedAt              DateTime                   @updatedAt
+  contact                Contact                    @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  category               Category?                  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  assignedUser           User?                      @relation("AssignedConversations", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  messages               Message[]
+  activities             ConversationActivity[]
+  pins                   ConversationPin[]
+  masterReads            ConversationMasterRead[]
+  internalMessages       InternalMessage[]
+  botObservations        BotObservation[]
+  botState               ConversationBotState?
+  learningSuggestions    BotLearningSuggestion[]
+  learningState          ConversationLearningState?
+  rating                 BotRating?
+  agentFeedback          BotAgentFeedback[]
+  channelAccount         ChannelAccount?            @relation(fields: [channelAccountId], references: [id], onDelete: SetNull)
 
-  @@unique([contactId, channel])
+  @@unique([contactId, channel, channelScope])
   @@index([status, lastMessageAt])
   @@index([categoryId, lastMessageAt])
   @@index([assignedUserId])
+  @@index([channelAccountId])
+  @@index([channel, externalConversationId])
 }
 
 model Message {
-  id              String           @id @default(cuid())
-  conversationId  String
-  externalId      String?          @unique
-  channel         Channel          @default(META)
-  direction       MessageDirection
-  status          MessageStatus
-  type            String
-  text            String?
-  mediaStorageKey String?
-  mediaMimeType   String?
-  mediaFileName   String?
-  mediaSize       Int?
-  occurredAt      DateTime
-  sentByUserId    String?
-  rawPayload      Json?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  conversation    Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sentByUser      User?            @relation("SentMessages", fields: [sentByUserId], references: [id], onDelete: SetNull)
-  botObservation  BotObservation?
+  id               String           @id @default(cuid())
+  conversationId   String
+  externalId       String?          @unique
+  channel          Channel          @default(META)
+  channelAccountId String?
+  direction        MessageDirection
+  status           MessageStatus
+  type             String
+  text             String?
+  mediaStorageKey  String?
+  mediaMimeType    String?
+  mediaFileName    String?
+  mediaSize        Int?
+  occurredAt       DateTime
+  sentByUserId     String?
+  rawPayload       Json?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  conversation     Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sentByUser       User?            @relation("SentMessages", fields: [sentByUserId], references: [id], onDelete: SetNull)
+  botObservation   BotObservation?
 
   @@index([conversationId, occurredAt])
   @@index([sentByUserId])
@@ -339,6 +387,10 @@ model Bot {
   description             String?
   status                  BotStatus @default(DRAFT)
   channel                 Channel
+  // Multi-canal (item 22): lista adicional de canais compatíveis, aditiva ao
+  // `channel` legado (nunca removido, para não quebrar Bots existentes nem o
+  // código que ainda lê `bot.channel`). Vazio = Bot segue single-channel.
+  channels                Channel[] @default([])
   initialMessage          String    @db.Text
   outsideHoursMessage     String    @db.Text
   fallbackMessage         String    @db.Text
@@ -660,6 +712,86 @@ model BotGlobalSettings {
   killSwitchActivatedByUserId String?
   updatedAt                   DateTime  @updatedAt
   createdAt                   DateTime  @default(now())
+}
+
+// Conta de um canal externo (item 5) — permite múltiplas contas por
+// plataforma (ex.: duas lojas de Mercado Livre). Segredos NUNCA ficam aqui em
+// texto puro: `encryptedSecrets` guarda um blob cifrado (AES-256-GCM, ver
+// integration-secret-service.js); `secretKeys` só lista QUAIS chaves estão
+// configuradas, para a UI mostrar "Configurado: sim/não" sem decifrar nada.
+model ChannelAccount {
+  id                String               @id @default(cuid())
+  channel           Channel
+  name              String
+  status            ChannelAccountStatus @default(NOT_CONFIGURED)
+  enabled           Boolean              @default(false)
+  externalAccountId String?
+  config            Json                 @default("{}")
+  secretKeys        String[]             @default([])
+  encryptedSecrets  Bytes?
+  encryptionIv      Bytes?
+  encryptionAuthTag Bytes?
+  lastSyncAt        DateTime?
+  lastErrorAt       DateTime?
+  lastErrorCode     String?
+  lastErrorMessage  String?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  conversations Conversation[]
+  oauthStates   ChannelOAuthState[]
+  events        ExternalChannelEvent[]
+
+  @@unique([channel, name])
+  @@index([channel, enabled])
+  @@index([status])
+}
+
+// Estado de fluxo OAuth (item 13) — protege contra CSRF/state replay: cada
+// state é de uso único (`consumedAt`) e expira.
+model ChannelOAuthState {
+  id               String    @id @default(cuid())
+  channel          Channel
+  channelAccountId String?
+  state            String    @unique
+  redirectUri      String?
+  metadata         Json?
+  createdAt        DateTime  @default(now())
+  expiresAt        DateTime
+  consumedAt       DateTime?
+
+  channelAccount ChannelAccount? @relation(fields: [channelAccountId], references: [id], onDelete: SetNull)
+
+  @@index([channel, createdAt])
+}
+
+// Ledger de idempotência (item 16) — uma notificação repetida da plataforma
+// externa nunca deve gerar conversa/mensagem/resposta duplicada.
+model ExternalChannelEvent {
+  id               String              @id @default(cuid())
+  channel          Channel
+  channelAccountId String?
+  externalEventId  String
+  eventType        String
+  receivedAt       DateTime            @default(now())
+  processedAt      DateTime?
+  status           ExternalEventStatus @default(RECEIVED)
+  errorCode        String?
+  payload          Json?
+
+  channelAccount ChannelAccount? @relation(fields: [channelAccountId], references: [id], onDelete: SetNull)
+
+  @@unique([channel, externalEventId])
+  @@index([channel, status, receivedAt])
+}
+
+// Master switch das integrações NOVAS (item 33) — nunca desliga Meta/WhatsApp,
+// que já é canal produtivo e continua controlado só pelos próprios Bots.
+model IntegrationGlobalSettings {
+  id                 String   @id @default("singleton")
+  newChannelsEnabled Boolean  @default(false)
+  updatedAt          DateTime @updatedAt
+  createdAt          DateTime @default(now())
 }
 
 model UserCategoryAccess {
