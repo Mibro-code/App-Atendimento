@@ -24,6 +24,8 @@ const botController = require("./controllers/bot-controller");
 const internalChatController = require("./controllers/internal-chat-controller");
 const integrationsController = require("./controllers/integrations-controller");
 const quickReplyController = require("./controllers/quick-reply-controller");
+const pushController = require("./controllers/push-controller");
+const pushService = require("./services/push-service");
 const { NEW_CHANNELS } = require("./services/channels/channel-constants");
 const { createAdapter } = require("./services/channels/channel-adapter-registry");
 const { decryptSecrets } = require("./services/channels/integration-secret-service");
@@ -114,6 +116,7 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
             if (event.type !== "reaction") {
               await handleIncomingTriage(event, result.message, channel);
               observeIncomingMessage(event, result.message).catch(() => {});
+              pushService.notifyIncomingMessage(result.message).catch(() => {});
             }
             changed = true;
           }
@@ -213,7 +216,11 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   app.use(express.static("public", { index: false }));
   app.use("/api", authenticate);
   app.get("/api/events", inboxEvents.handle);
- app.get("/api/internal-chats", internalChatController.list);
+  app.get("/api/push/public-key", pushController.publicKey);
+  app.post("/api/push/subscriptions", pushController.subscribe);
+  app.get("/api/push/devices", pushController.listDevices);
+  app.delete("/api/push/devices/:id", pushController.removeDevice);
+  app.get("/api/internal-chats", internalChatController.list);
   app.get("/api/internal-chat-users", internalChatController.users);
 
 app.get(

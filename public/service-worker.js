@@ -1,6 +1,6 @@
 // Versão do cache da aplicação.
 // Altere somente APP_VERSION a cada nova publicação.
-const APP_VERSION = "0.16.0";
+const APP_VERSION = "0.17.0";
 const CACHE_NAME = `mibro-shell-v${APP_VERSION}`;
 
 const STATIC_ASSETS = [
@@ -9,6 +9,7 @@ const STATIC_ASSETS = [
   "/css/app.css",
   "/css/bots.css",
   "/css/login.css",
+  "/css/skeleton.css",
 
   "/js/app.js",
   "/js/bots.js",
@@ -100,6 +101,40 @@ self.addEventListener("notificationclick", (event) => {
 
         return clients.openWindow(targetUrl);
       })
+  );
+});
+
+/*
+ * PUSH
+ *
+ * Recebe eventos Web Push mesmo com o app fechado (item 4/9 do PWA).
+ * Se já existe uma janela em foco, não mostra notificação do sistema:
+ * o app aberto já sinaliza a mensagem nova pelo alerta em primeiro plano
+ * (evita duplicidade — item 9 dos testes).
+ */
+self.addEventListener("push", (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch (_error) {
+    payload = { title: "Nova mensagem", body: event.data ? event.data.text() : "" };
+  }
+
+  event.waitUntil(
+    (async () => {
+      const windows = await clients.matchAll({ type: "window", includeUncontrolled: true });
+      const hasFocusedWindow = windows.some((client) => client.focused);
+      if (hasFocusedWindow) return;
+
+      await self.registration.showNotification(payload.title || "Central de Atendimento", {
+        body: payload.body || "",
+        icon: "/assets/app-icon-192.png",
+        badge: "/assets/app-icon-192.png",
+        tag: payload.tag || "mibro-message",
+        renotify: false,
+        data: { url: payload.url || "/" },
+      });
+    })()
   );
 });
 

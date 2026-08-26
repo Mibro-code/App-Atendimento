@@ -869,5 +869,8 @@ $("#obs-refresh").addEventListener("click", loadObservations);
     renderSchedules();
     await loadBots();
     await loadGlobalSettings();
-  } catch (error) { toast(error.message, true); }
+  } catch (error) {
+    if ($("#bot-list").querySelector(".skeleton-list")) $("#bot-list").innerHTML = `<div class="empty-list">Não foi possível carregar os bots.</div>`;
+    toast(error.message, true);
+  }
 })();

@@ -179,6 +179,42 @@
     location.reload();
   });
 
+  const urlBase64ToUint8Array = (base64) => {
+    const padding = "=".repeat((4 - (base64.length % 4)) % 4);
+    const base64Safe = (base64 + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const raw = atob(base64Safe);
+    return Uint8Array.from([...raw].map((char) => char.charCodeAt(0)));
+  };
+
+  // Cria (ou reaproveita) a subscription Web Push e registra no backend (item 4/5 do PWA).
+  // Silencioso: chamado tanto após o clique em "Ativar alertas" quanto automaticamente
+  // quando a permissão já foi concedida antes.
+  window.mibroSubscribePush = async () => {
+    if (!("PushManager" in window) || typeof Notification === "undefined" || Notification.permission !== "granted") return false;
+    try {
+      const activeRegistration = registration || await navigator.serviceWorker.ready;
+      let subscription = await activeRegistration.pushManager.getSubscription();
+      if (!subscription) {
+        const keyResponse = await fetch("/api/push/public-key");
+        const { publicKey, enabled } = await keyResponse.json();
+        if (!enabled || !publicKey) return false;
+        subscription = await activeRegistration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicKey),
+        });
+      }
+      await fetch("/api/push/subscriptions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subscription: subscription.toJSON() }),
+      });
+      return true;
+    } catch (error) {
+      console.warn("Não foi possível registrar este dispositivo para notificações.", error);
+      return false;
+    }
+  };
+
   window.addEventListener("load", async () => {
     try {
       registration = await navigator.serviceWorker.register("/service-worker.js", { scope: "/" });
@@ -190,6 +226,7 @@
         });
         return true;
       };
+      if (typeof Notification !== "undefined" && Notification.permission === "granted") window.mibroSubscribePush();
       if (checkUpdateButton) checkUpdateButton.hidden = false;
       if (registration.waiting && navigator.serviceWorker.controller) showUpdate();
       registration.addEventListener("updatefound", () => {

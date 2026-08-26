@@ -155,6 +155,7 @@ function conversationCardMarkup(c) {
 
 function renderConversationCards(conversations) {
   const list = $("#conversation-list");
+  list.querySelector(".skeleton-list")?.remove();
   if (!conversations.length) {
     if (!list.querySelector(".empty-list")) list.innerHTML = `<div class="empty-list">Nenhuma conversa encontrada.</div>`;
     return;
@@ -520,6 +521,28 @@ function configureNotificationButton() {
   const granted = Notification.permission === "granted";
   button.textContent = granted ? "🔔 Alertas ativos" : "🔔 Ativar alertas";
   button.dataset.enabled = String(granted);
+  $("#manage-devices").hidden = !("PushManager" in window);
+}
+
+function deviceListMarkup(devices) {
+  if (!devices.length) return `<div class="devices-empty">Nenhum dispositivo autorizado ainda. Use o botão acima para ativar neste navegador.</div>`;
+  const relativeUse = (value) => {
+    const days = Math.floor((Date.now() - new Date(value).getTime()) / 86400000);
+    if (days <= 0) return "Último uso: hoje";
+    if (days === 1) return "Último uso: ontem";
+    return `Último uso: há ${days} dias`;
+  };
+  return devices.map((device) => `<article class="device-card"><span class="device-info"><b>${escapeHtml(device.deviceLabel || "Dispositivo")}</b><small>${escapeHtml(relativeUse(device.lastSeenAt))}</small></span><span class="device-status ${device.enabled ? "active" : ""}">${device.enabled ? "Ativo" : "Inativo"}</span><button type="button" class="danger-action" data-remove-device="${escapeHtml(device.id)}">Remover</button></article>`).join("");
+}
+
+async function loadDevices() {
+  $("#devices-list").innerHTML = `<div class="devices-empty">Carregando dispositivos...</div>`;
+  try {
+    const devices = await api("/api/push/devices");
+    $("#devices-list").innerHTML = deviceListMarkup(devices);
+  } catch (error) {
+    $("#devices-list").innerHTML = `<div class="devices-empty">${escapeHtml(error.message)}</div>`;
+  }
 }
 
 async function checkAlerts() {
@@ -661,6 +684,8 @@ async function loadConversations() {
   renderConversationCards(state.conversations);
 }
 
+const chatSkeletonMarkup = () => `<div class="skeleton-list">${[1, 2, 3].map((index) => `<div class="skeleton-row"><div class="skeleton skeleton-avatar"></div><div class="skeleton-lines"><div class="skeleton skeleton-line ${index % 2 ? "long" : "medium"}"></div><div class="skeleton skeleton-line short"></div></div></div>`).join("")}</div>`;
+
 async function openConversation(id, { refreshList = true, markRead = true } = {}) {
   const loadSequence = ++conversationLoadSequence;
   const changedConversation = state.selectedId !== id;
@@ -673,6 +698,10 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
     state.selectedMessageItems = [];
     state.selectedMessages = [];
     loadQuickRepliesCache(id).catch(() => {});
+    $("#empty-state").hidden = true;
+    $("#chat-content").hidden = false;
+    $("#chat-panel").classList.add("open");
+    $("#messages").innerHTML = chatSkeletonMarkup();
   }
   if (markRead) await api(`/api/conversations/${id}/read`, { method:"POST" });
   const c = await api(`/api/conversations/${id}`);
@@ -774,11 +803,41 @@ async function refreshInbox() {
   }
 }
 
+// Estado visual de conexão perdida (item 1/9): EventSource já reconecta sozinho,
+// aqui só refletimos isso na UI sem travar o atendimento já carregado nem
+// disparar toasts repetidos a cada tentativa.
+let connectionLossTimer = null;
+let connectionState = "online";
+function setConnectionState(next) {
+  if (connectionState === next) return;
+  connectionState = next;
+  const indicator = $("#connection-indicator");
+  if (!indicator) return;
+  indicator.dataset.state = next;
+  $("#connection-label").textContent = next === "offline" ? "Conexão perdida"
+    : next === "reconnecting" ? "Reconectando..."
+    : "WhatsApp conectado";
+}
+
 function connectRealtime() {
   const events = new EventSource("/api/events");
   events.addEventListener("inbox.updated", () => {
     clearTimeout(realtimeRefreshTimer);
     realtimeRefreshTimer = setTimeout(() => refreshInbox().catch(() => {}), 120);
+  });
+  events.addEventListener("open", () => {
+    clearTimeout(connectionLossTimer);
+    connectionLossTimer = null;
+    const wasDown = connectionState !== "online";
+    setConnectionState("online");
+    if (wasDown) refreshInbox().catch(() => {});
+  });
+  events.addEventListener("error", () => {
+    if (connectionLossTimer || connectionState !== "online") return;
+    connectionLossTimer = setTimeout(() => {
+      connectionLossTimer = null;
+      setConnectionState(events.readyState === EventSource.CLOSED ? "offline" : "reconnecting");
+    }, 1500);
   });
   window.addEventListener("beforeunload", () => events.close(), { once:true });
 }
@@ -919,7 +978,10 @@ async function loadAdminUsers() {
 
 $("#conversation-list").addEventListener("click", (event) => {
   const card = event.target.closest(".conversation-card");
-  if (card) openConversation(card.dataset.id);
+  if (card) openConversation(card.dataset.id).catch((error) => {
+    if ($("#messages").querySelector(".skeleton-list")) $("#messages").innerHTML = `<div class="shared-empty">Não foi possível abrir esta conversa.</div>`;
+    toast(error.message, true);
+  });
 });
 document.querySelectorAll("[data-status]").forEach((button) => button.addEventListener("click", () => {
   document.querySelectorAll(".filter").forEach((item) => item.classList.remove("active")); button.classList.add("active"); state.status = button.dataset.status; state.category = ""; loadConversations();
@@ -954,7 +1016,35 @@ $("#enable-notifications").addEventListener("click", async () => {
   if (Notification.permission === "granted") return toast("Os alertas do sistema já estão ativos.");
   const permission = await Notification.requestPermission();
   configureNotificationButton();
+  if (permission === "granted" && typeof window.mibroSubscribePush === "function") await window.mibroSubscribePush();
   toast(permission === "granted" ? "Notificações ativadas." : "As notificações não foram autorizadas.", permission !== "granted");
+});
+$("#manage-devices").addEventListener("click", async () => { await loadDevices(); $("#devices-dialog").showModal(); });
+$("#close-devices").addEventListener("click", () => $("#devices-dialog").close());
+$("#devices-dialog").addEventListener("click", (event) => { if (event.target === $("#devices-dialog")) $("#devices-dialog").close(); });
+$("#add-this-device").addEventListener("click", async () => {
+  if (!("Notification" in window)) return toast("Este dispositivo não oferece notificações do navegador.", true);
+  const button = $("#add-this-device");
+  button.disabled = true;
+  try {
+    const permission = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
+    configureNotificationButton();
+    if (permission !== "granted") { toast("As notificações não foram autorizadas.", true); return; }
+    const subscribed = typeof window.mibroSubscribePush === "function" && await window.mibroSubscribePush();
+    toast(subscribed ? "Este dispositivo agora recebe notificações." : "Não foi possível ativar notificações neste dispositivo.", !subscribed);
+    await loadDevices();
+  } finally { button.disabled = false; }
+});
+$("#devices-list").addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-remove-device]");
+  if (!button) return;
+  if (!confirm("Remover este dispositivo? Ele deixará de receber notificações.")) return;
+  button.disabled = true;
+  try {
+    await api(`/api/push/devices/${encodeURIComponent(button.dataset.removeDevice)}`, { method:"DELETE" });
+    toast("Dispositivo removido.");
+    await loadDevices();
+  } catch (error) { button.disabled = false; toast(error.message, true); }
 });
 $("#theme-toggle").addEventListener("click", () => {
   const theme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
@@ -1602,5 +1692,10 @@ loadCurrentUser()
     await checkAlerts();
   })
   .then(connectRealtime)
-  .catch((error) => toast(error.message, true));
+  .catch((error) => {
+    toast(error.message, true);
+    if ($("#conversation-list").querySelector(".skeleton-list")) {
+      $("#conversation-list").innerHTML = `<div class="empty-list">Não foi possível carregar as conversas. Recarregue a página.</div>`;
+    }
+  });
 setInterval(() => { (document.hidden ? checkAlerts() : refreshInbox()).catch(() => {}); }, 30000);

@@ -1,0 +1,22 @@
+/* Skeleton/loading padronizado — reaproveitado em Conversas, Chat, Bots,
+   Integrações e Respostas rápidas. Mesmo visual em todas as telas, sem
+   pular layout (mesmo tamanho aproximado do conteúdo real). */
+@keyframes skeleton-shimmer { 0% { background-position:-200% 0; } 100% { background-position:200% 0; } }
+
+.skeleton { position:relative; overflow:hidden; border-radius:8px; background-color:#eceff1; background-image:linear-gradient(90deg,#eceff1 0%,#f5f6f7 40%,#eceff1 80%); background-size:200% 100%; animation:skeleton-shimmer 1.4s ease-in-out infinite; color:transparent !important; pointer-events:none; }
+html[data-theme="dark"] .skeleton { background-color:#22262c; background-image:linear-gradient(90deg,#22262c 0%,#2a2f36 40%,#22262c 80%); }
+@media (prefers-reduced-motion:reduce) { .skeleton { animation:none; } }
+
+.skeleton-list { display:flex; flex-direction:column; gap:8px; padding:10px; }
+.skeleton-card { height:96px; border-radius:11px; }
+.skeleton-row { display:flex; align-items:center; gap:12px; padding:14px 16px; }
+.skeleton-avatar { width:40px; height:40px; border-radius:50%; flex:none; }
+.skeleton-lines { flex:1; display:flex; flex-direction:column; gap:8px; }
+.skeleton-line { height:11px; border-radius:5px; }
+.skeleton-line.short { width:40%; }
+.skeleton-line.medium { width:65%; }
+.skeleton-line.long { width:88%; }
+
+/* Estado vazio/erro genérico (reaproveitado onde a tela ainda não tinha um). */
+.empty-list { padding:45px 24px; color:#8a929b; text-align:center; font-size:13px; }
+html[data-theme="dark"] .empty-list { color:#9199a3; }
