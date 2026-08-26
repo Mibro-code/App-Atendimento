@@ -29,37 +29,29 @@ test("webhook de canal desconhecido/ainda não gerenciado responde 404 sem vazar
   } finally { server.close(); }
 });
 
-test("webhook do Mercado Livre com payload inválido (sem resource/topic) é rejeitado com 401, sem derrubar o app", async () => {
-  const { server, base } = await startServer();
-  try {
-    const response = await fetch(`${base}/webhooks/channels/MERCADO_LIVRE`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ foo: "bar" }),
-    });
-    assert.equal(response.status, 401);
-  } finally { server.close(); }
-});
-
-test("webhook do Mercado Livre processa notificação válida e ignora reenvio duplicado (idempotência)", async () => {
+test("webhook do Mercado Livre fica fechado enquanto a autenticação do provider não estiver implementada", async () => {
+  await prisma.integrationGlobalSettings.upsert({
+    where: { id: "singleton" }, update: { newChannelsEnabled: true },
+    create: { id: "singleton", newChannelsEnabled: true },
+  });
+  const account = await prisma.channelAccount.create({
+    data: { channel: "MERCADO_LIVRE", name: "Teste Webhook ML", enabled: true },
+  });
   const { server, base } = await startServer();
   try {
     const payload = { resource: "/questions/555444", user_id: 555, topic: "questions", sent: new Date().toISOString() };
-    const first = await fetch(`${base}/webhooks/channels/MERCADO_LIVRE`, {
+    const response = await fetch(`${base}/webhooks/channels/MERCADO_LIVRE`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
     });
-    assert.equal(first.status, 200);
-    const firstBody = await first.json();
-    assert.equal(firstBody.processed, 1);
-
-    const second = await fetch(`${base}/webhooks/channels/MERCADO_LIVRE`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
-    });
-    assert.equal(second.status, 200);
-
-    const count = await prisma.message.count({ where: { channel: "MERCADO_LIVRE", externalId: { startsWith: "questions:/questions/555444" } } });
-    assert.equal(count, 1);
-  } finally { server.close(); }
+    assert.equal(response.status, 404);
+    assert.equal(await prisma.externalChannelEvent.count({ where: { channelAccountId: account.id } }), 0);
+    assert.equal(await prisma.message.count({ where: { channelAccountId: account.id } }), 0);
+  } finally {
+    server.close();
+    await prisma.channelAccount.delete({ where: { id: account.id } });
+    await prisma.integrationGlobalSettings.update({ where: { id: "singleton" }, data: { newChannelsEnabled: false } });
+  }
 });
-
 test("WhatsApp/Meta continua com sua rota própria intocada (verify token) mesmo com o webhook genérico registrado", async () => {
   const { server, base } = await startServer();
   try {

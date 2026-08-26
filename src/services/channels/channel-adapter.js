@@ -44,7 +44,7 @@ class ChannelAdapter {
   // Valida assinatura/origem do webhook quando o provider oferecer. Deve
   // retornar boolean — nunca lançar para não derrubar o endpoint.
   validateWebhook(_req) {
-    return true;
+    return false;
   }
 
   // Só verifica credenciais/escopo — nunca envia nada real (item 12).

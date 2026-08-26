@@ -202,6 +202,7 @@ model Conversation {
   id                     String                     @id @default(cuid())
   contactId              String
   channel                Channel                    @default(META)
+  channelScope           String                     @default("LEGACY")
   // Conta específica do canal que originou esta conversa (multi-conta por
   // plataforma — item 5). Null para conversas do canal Meta já existentes.
   channelAccountId       String?
@@ -233,7 +234,7 @@ model Conversation {
   agentFeedback          BotAgentFeedback[]
   channelAccount         ChannelAccount?            @relation(fields: [channelAccountId], references: [id], onDelete: SetNull)
 
-  @@unique([contactId, channel])
+  @@unique([contactId, channel, channelScope])
   @@index([status, lastMessageAt])
   @@index([categoryId, lastMessageAt])
   @@index([assignedUserId])
@@ -788,7 +789,7 @@ model ExternalChannelEvent {
 // que já é canal produtivo e continua controlado só pelos próprios Bots.
 model IntegrationGlobalSettings {
   id                 String   @id @default("singleton")
-  newChannelsEnabled Boolean  @default(true)
+  newChannelsEnabled Boolean  @default(false)
   updatedAt          DateTime @updatedAt
   createdAt          DateTime @default(now())
 }

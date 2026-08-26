@@ -52,9 +52,10 @@ async function findOrCreateMetaConversation(event, db = prisma) {
 
   const conversation = await db.conversation.upsert({
     where: {
-      contactId_channel: {
+      contactId_channel_channelScope: {
         contactId: contact.id,
-        channel: "META"
+        channel: "META",
+        channelScope: "LEGACY"
       }
     },
 
@@ -63,6 +64,7 @@ async function findOrCreateMetaConversation(event, db = prisma) {
     create: {
       contactId: contact.id,
       channel: "META",
+      channelScope: "LEGACY",
       status: "NOVO"
     }
   });

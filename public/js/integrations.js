@@ -39,19 +39,19 @@ const CHANNEL_FIELDS = {
   ],
   TIKTOK_SHOP: [
     { key: "config.appKey", label: "App Key" },
-    { key: "config.appSecret", label: "App Secret", secret: true },
+    { key: "secrets.appSecret", label: "App Secret", secret: true },
     { key: "config.shopId", label: "Shop ID" },
     { key: "secrets.accessToken", label: "Access token (OAuth)", secret: true, optional: true },
   ],
   AMAZON_MARKETPLACE: [
     { key: "config.lwaClientId", label: "LWA Client ID" },
-    { key: "config.lwaClientSecret", label: "LWA Client Secret", secret: true },
+    { key: "secrets.lwaClientSecret", label: "LWA Client Secret", secret: true },
     { key: "secrets.refreshToken", label: "Refresh token (gerado no Seller Central)", secret: true },
   ],
   SHOPEE: [
     { key: "config.partnerId", label: "Partner ID", optional: true },
     { key: "config.shopId", label: "Shop ID", optional: true },
-    { key: "config.partnerKey", label: "Partner Key", secret: true, optional: true },
+    { key: "secrets.partnerKey", label: "Partner Key", secret: true, optional: true },
   ],
   GOOGLE_REVIEWS: [
     { key: "secrets.accessToken", label: "Access token (OAuth)", secret: true },
@@ -86,6 +86,15 @@ function statusBadgeClass(status) {
   return "status-idle";
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 function renderCards() {
   const container = $("#channel-cards");
   container.innerHTML = state.overview.map((entry) => {
@@ -94,24 +103,24 @@ function renderCards() {
     const capabilities = entry.capabilities || {};
     const capBadges = Object.entries(capabilities)
       .filter(([, value]) => value)
-      .map(([key]) => `<span class="cap-badge">${key.replace(/^can|^supports/, "").replace(/([A-Z])/g, " $1").trim()}</span>`)
+      .map(([key]) => `<span class="cap-badge">${escapeHtml(key.replace(/^can|^supports/, "").replace(/([A-Z])/g, " $1").trim())}</span>`)
       .join("");
 
     const accountsHtml = accounts.length ? accounts.map((account) => `
-      <div class="account-row" data-account-id="${account.id}">
+      <div class="account-row" data-account-id="${escapeHtml(account.id)}">
         <div class="account-row-main">
-          <strong>${account.name}</strong>
-          <span class="status-pill ${statusBadgeClass(account.status)}">${STATUS_LABELS[account.status] || account.status}</span>
+          <strong>${escapeHtml(account.name)}</strong>
+          <span class="status-pill ${statusBadgeClass(account.status)}">${escapeHtml(STATUS_LABELS[account.status] || account.status)}</span>
           <span class="enabled-pill ${account.enabled ? "on" : "off"}">${account.enabled ? "Ativado" : "Desativado"}</span>
         </div>
         <div class="account-row-meta">
-          ${account.lastSyncAt ? `<span>Última sincronização: ${new Date(account.lastSyncAt).toLocaleString("pt-BR")}</span>` : ""}
-          ${account.lastErrorMessage ? `<span class="error-text">Erro: ${account.lastErrorMessage}</span>` : ""}
+          ${account.lastSyncAt ? `<span>Última sincronização: ${escapeHtml(new Date(account.lastSyncAt).toLocaleString("pt-BR"))}</span>` : ""}
+          ${account.lastErrorMessage ? `<span class="error-text">Erro: ${escapeHtml(account.lastErrorMessage)}</span>` : ""}
         </div>
         <div class="account-row-actions">
-          <button type="button" data-action="test" data-id="${account.id}">Testar conexão</button>
-          <button type="button" data-action="toggle" data-id="${account.id}" data-enabled="${account.enabled}">${account.enabled ? "Desativar" : "Ativar"}</button>
-          <button type="button" data-action="delete" data-id="${account.id}" class="danger">Remover</button>
+          <button type="button" data-action="test" data-id="${escapeHtml(account.id)}">Testar conexão</button>
+          <button type="button" data-action="toggle" data-id="${escapeHtml(account.id)}" data-enabled="${account.enabled}">${account.enabled ? "Desativar" : "Ativar"}</button>
+          <button type="button" data-action="delete" data-id="${escapeHtml(account.id)}" class="danger">Remover</button>
         </div>
       </div>
     `).join("") : `<p class="no-accounts">Nenhuma conta configurada.</p>`;
@@ -119,14 +128,14 @@ function renderCards() {
     return `
       <section class="channel-card ${isMeta ? "channel-card-meta" : ""}">
         <header>
-          <h2>${CHANNEL_LABELS[entry.channel] || entry.channel}</h2>
+          <h2>${escapeHtml(CHANNEL_LABELS[entry.channel] || entry.channel)}</h2>
           ${entry.adapterAvailable ? "" : '<span class="status-pill status-idle">Sem adapter</span>'}
         </header>
         <div class="cap-badges">${capBadges || '<span class="cap-badge cap-badge-empty">Sem capacidades ativas nesta fase</span>'}</div>
         ${isMeta
           ? '<p class="meta-note">Gerenciado pelas variáveis de ambiente originais do WhatsApp — este painel não altera essa integração.</p>'
           : `<div class="account-list">${accountsHtml}</div>
-             <button type="button" class="add-account" data-channel="${entry.channel}">+ Adicionar conta</button>`
+             <button type="button" class="add-account" data-channel="${escapeHtml(entry.channel)}">+ Adicionar conta</button>`
         }
       </section>
     `;

@@ -29,6 +29,7 @@ const { decryptSecrets } = require("./services/channels/integration-secret-servi
 const externalEventService = require("./services/channels/external-event-service");
 const { normalizeInboundMessage } = require("./services/channels/channel-event-normalizer");
 const omnichannelMessageService = require("./services/channels/omnichannel-message-service");
+const { getGlobalSettings } = require("./services/channels/integration-global-settings-service");
 
 function decryptAccountSecretsSafe(account) {
   try { return decryptSecrets(account); }
@@ -136,8 +137,11 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
     const channel = req.params.channel;
     if (!NEW_CHANNELS.includes(channel)) return res.sendStatus(404);
     try {
+      const settings = await getGlobalSettings();
+      if (!settings.newChannelsEnabled) return res.sendStatus(404);
       const account = await prisma.channelAccount.findFirst({ where: { channel, enabled: true }, orderBy: { createdAt: "asc" } });
-      const adapterAccount = account ? { ...account, secrets: decryptAccountSecretsSafe(account) } : null;
+      if (!account) return res.sendStatus(404);
+      const adapterAccount = { ...account, secrets: decryptAccountSecretsSafe(account) };
       const adapter = createAdapter(channel, adapterAccount);
       if (!adapter || !adapter.capabilities().supportsWebhook) return res.sendStatus(404);
       if (!adapter.validateWebhook(req)) return res.sendStatus(401);
@@ -145,7 +149,7 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
       const rawEvents = adapter.normalizeInboundEvent(req.body) || [];
       for (const raw of rawEvents) {
         const normalized = normalizeInboundMessage({ ...raw, channelAccountId: account?.id || null });
-        const externalEventId = normalized.externalMessageId || `${channel}:${Date.now()}:${Math.random()}`;
+        const externalEventId = account.id + ":" + (normalized.externalMessageId || `${channel}:${Date.now()}:${Math.random()}`);
         const { event, isDuplicate } = await externalEventService.recordEvent({
           channel, channelAccountId: account?.id || null, externalEventId, eventType: normalized.type, payload: raw,
         });

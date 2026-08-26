@@ -52,13 +52,13 @@ test("Amazon testConnection exige lwaClientId/lwaClientSecret/refreshToken antes
 });
 
 test("TikTok Shop sem accessToken retorna status amigável AUTH_PENDING, nunca erro de código", async () => {
-  const adapter = createAdapter("TIKTOK_SHOP", { config: { appKey: "a", appSecret: "b", shopId: "c" }, secrets: {} });
+  const adapter = createAdapter("TIKTOK_SHOP", { config: { appKey: "a", shopId: "c" }, secrets: { appSecret: "b" } });
   const result = await adapter.testConnection();
   assert.equal(result.status, "AUTH_PENDING");
 });
 
 test("TikTok Shop com token mas sem escopo de customer service confirmado nunca finge estar conectado", async () => {
-  const adapter = createAdapter("TIKTOK_SHOP", { config: { appKey: "a", appSecret: "b", shopId: "c" }, secrets: { accessToken: "tok" } });
+  const adapter = createAdapter("TIKTOK_SHOP", { config: { appKey: "a", shopId: "c" }, secrets: { appSecret: "b", accessToken: "tok" } });
   const result = await adapter.testConnection();
   assert.equal(result.status, "NOT_SUPPORTED");
 });
@@ -74,10 +74,11 @@ test("Mercado Livre normaliza notificação de pergunta para o formato interno c
   assert.equal(normalized.externalConversationId, "/questions/123456");
 });
 
-test("Mercado Livre validateWebhook rejeita payload sem resource/topic (nunca aceita corpo qualquer)", () => {
+test("Mercado Livre mantém webhook desativado até existir autenticação verificável", () => {
   const adapter = createAdapter("MERCADO_LIVRE");
   assert.equal(adapter.validateWebhook({ body: {} }), false);
-  assert.equal(adapter.validateWebhook({ body: { resource: "/x", topic: "questions" } }), true);
+  assert.equal(adapter.validateWebhook({ body: { resource: "/x", topic: "questions" } }), false);
+  assert.equal(adapter.capabilities().supportsWebhook, false);
 });
 
 test("Google Reviews entra como REVIEW e nunca envia resposta automática (sempre manual)", async () => {

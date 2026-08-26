@@ -10,11 +10,11 @@ class EmailAdapter extends ChannelAdapter {
   // account.config.provider: "GMAIL" | "MICROSOFT_365"
   capabilities() {
     return {
-      canReceiveMessages: true,
-      canSendMessages: true,
-      canReceiveMedia: true,
-      canSendMedia: true,
-      canMarkRead: true,
+      canReceiveMessages: false,
+      canSendMessages: false,
+      canReceiveMedia: false,
+      canSendMedia: false,
+      canMarkRead: false,
       supportsPublicQuestions: false,
       supportsReviews: false,
       supportsOAuth: true,

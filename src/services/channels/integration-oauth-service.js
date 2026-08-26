@@ -9,14 +9,14 @@ const { getOAuthProvider } = require("./oauth-providers");
 
 const STATE_TTL_MINUTES = 15;
 
-async function createAuthorizationRequest({ channel, channelAccountId = null, provider, clientId, redirectUri, scopes = [], extraParams = {} }) {
+async function createAuthorizationRequest({ channel, channelAccountId = null, provider, clientId, redirectUri, scopes = [], extraParams = {}, actorUserId = null }) {
   const config = getOAuthProvider(provider);
   const state = crypto.randomBytes(24).toString("hex");
   await prisma.channelOAuthState.create({
     data: {
       channel, channelAccountId, state, redirectUri,
       expiresAt: new Date(Date.now() + STATE_TTL_MINUTES * 60 * 1000),
-      metadata: { provider },
+      metadata: { provider, actorUserId },
     },
   });
   const url = new URL(config.authorizationUrl);
@@ -30,12 +30,20 @@ async function createAuthorizationRequest({ channel, channelAccountId = null, pr
 }
 
 // Uso único: consome o state na primeira validação (protege contra replay).
-async function consumeState(state) {
+async function consumeState(state, actorUserId) {
   const record = await prisma.channelOAuthState.findUnique({ where: { state } });
   if (!record) throw Object.assign(new Error("State OAuth inválido ou desconhecido."), { statusCode: 400 });
+  if (!actorUserId || record.metadata?.actorUserId !== actorUserId) {
+    throw Object.assign(new Error("State OAuth pertence a outra sessão administrativa."), { statusCode: 403 });
+  }
   if (record.consumedAt) throw Object.assign(new Error("State OAuth já utilizado."), { statusCode: 400 });
   if (record.expiresAt < new Date()) throw Object.assign(new Error("State OAuth expirado."), { statusCode: 400 });
-  await prisma.channelOAuthState.update({ where: { state }, data: { consumedAt: new Date() } });
+  const consumedAt = new Date();
+  const claimed = await prisma.channelOAuthState.updateMany({
+    where: { state, consumedAt: null, expiresAt: { gt: consumedAt } },
+    data: { consumedAt },
+  });
+  if (claimed.count !== 1) throw Object.assign(new Error("State OAuth já utilizado ou expirado."), { statusCode: 400 });
   return record;
 }
 

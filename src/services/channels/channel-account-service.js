@@ -51,6 +51,40 @@ async function getAccount(id, viewer) {
   return publicAccount(await ensureAccount(id));
 }
 
+const FORBIDDEN_CONFIG_SECRET_KEYS = new Set([
+  "accesstoken", "apikey", "appsecret", "clientsecret", "lwaclientsecret",
+  "partnerkey", "password", "privatekey", "refreshtoken",
+]);
+
+function plainObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function assertObjectInput(value, field) {
+  if (value !== undefined && (!value || typeof value !== "object" || Array.isArray(value))) {
+    throw fail(field + " deve ser um objeto.");
+  }
+}
+
+function assertNoPlaintextSecrets(config) {
+  const exposed = [];
+  const visit = (value, path = "config") => {
+    if (!value || typeof value !== "object") return;
+    for (const [key, nested] of Object.entries(value)) {
+      const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (FORBIDDEN_CONFIG_SECRET_KEYS.has(normalizedKey)) exposed.push(path + "." + key);
+      visit(nested, path + "." + key);
+    }
+  };
+  visit(config);
+  if (exposed.length) throw fail("Segredos devem ser enviados no campo secrets: " + exposed.join(", ") + ".");
+}
+
+function assertSecretValues(secrets) {
+  const invalid = Object.entries(secrets).find(([, value]) => typeof value !== "string" || !value.trim());
+  if (invalid) throw fail("Todo segredo deve ser uma string não vazia: " + invalid[0] + ".");
+}
+
 function validateChannel(channel) {
   if (!ALL_MANAGED_CHANNELS.includes(channel)) throw fail("Canal inválido para integração.");
   return channel;
@@ -61,8 +95,12 @@ async function createAccount(data, actor) {
   const channel = validateChannel(data.channel);
   const name = String(data.name || "").trim();
   if (!name) throw fail("Nome da conta é obrigatório.");
-  const config = data.config && typeof data.config === "object" ? data.config : {};
-  const secrets = data.secrets && typeof data.secrets === "object" ? data.secrets : {};
+  assertObjectInput(data.config, "config");
+  assertObjectInput(data.secrets, "secrets");
+  const config = plainObject(data.config);
+  const secrets = plainObject(data.secrets);
+  assertNoPlaintextSecrets(config);
+  assertSecretValues(secrets);
 
   const secretData = Object.keys(secrets).length ? encryptSecrets(secrets) : { secretKeys: [] };
   const hints = Object.fromEntries(Object.entries(secrets).map(([key, value]) => [key, maskSecret(String(value))]));
@@ -95,7 +133,12 @@ async function updateAccount(id, data, actor) {
 
   const existingConfig = existing.config && typeof existing.config === "object" ? existing.config : {};
   const existingHints = existingConfig._secretHints || {};
-  let config = data.config && typeof data.config === "object" ? { ...existingConfig, ...data.config } : existingConfig;
+  assertObjectInput(data.config, "config");
+  assertObjectInput(data.secrets, "secrets");
+  const incomingConfig = plainObject(data.config);
+  assertNoPlaintextSecrets(incomingConfig);
+  assertSecretValues(plainObject(data.secrets));
+  let config = data.config !== undefined ? { ...existingConfig, ...incomingConfig } : existingConfig;
 
   if (data.secrets && typeof data.secrets === "object" && Object.keys(data.secrets).length) {
     const mergedSecrets = { ...decryptSecretsSafe(existing), ...data.secrets };

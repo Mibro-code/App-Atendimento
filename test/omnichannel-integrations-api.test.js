@@ -43,6 +43,16 @@ test("painel de Integrações: CRUD nunca devolve segredo em texto puro e respei
     assert.ok(overviewBody.some((item) => item.channel === "META"));
     assert.ok(overviewBody.some((item) => item.channel === "SHOPEE"));
 
+    const plaintextSecret = await fetch(`${base}/api/integrations/accounts`, {
+      method: "POST", headers: { "Content-Type": "application/json", Cookie: cookie },
+      body: JSON.stringify({
+        channel: "TIKTOK_SHOP", name: "Teste Integração segredo público",
+        config: { appKey: "public", appSecret: "nao-pode-ficar-no-json" },
+      }),
+    });
+    assert.equal(plaintextSecret.status, 400);
+    assert.equal(await prisma.channelAccount.count({ where: { name: "Teste Integração segredo público" } }), 0);
+
     const created = await fetch(`${base}/api/integrations/accounts`, {
       method: "POST", headers: { "Content-Type": "application/json", Cookie: cookie },
       body: JSON.stringify({
@@ -61,6 +71,14 @@ test("painel de Integrações: CRUD nunca devolve segredo em texto puro e respei
     const list = await fetch(`${base}/api/integrations/accounts`, { headers: { Cookie: cookie } });
     const listBody = await list.json();
     assert.equal(JSON.stringify(listBody).includes("super-secreto"), false);
+
+    const stored = await prisma.channelAccount.findUnique({ where: { id: account.id } });
+    assert.equal(JSON.stringify(stored.config).includes("super-secreto"), false);
+
+    const invalidBoolean = await fetch(`${base}/api/integrations/accounts/${account.id}/enabled`, {
+      method: "PATCH", headers: { "Content-Type": "application/json", Cookie: cookie }, body: JSON.stringify({ enabled: "false" }),
+    });
+    assert.equal(invalidBoolean.status, 400);
 
     const disable = await fetch(`${base}/api/integrations/accounts/${account.id}/enabled`, {
       method: "PATCH", headers: { "Content-Type": "application/json", Cookie: cookie }, body: JSON.stringify({ enabled: false }),
@@ -84,6 +102,11 @@ test("configuração global de novos canais nunca desativa Meta/WhatsApp", async
     });
     assert.equal(login.status, 200);
     const cookie = login.headers.get("set-cookie").split(";")[0];
+
+    const invalidBoolean = await fetch(`${base}/api/integrations/settings`, {
+      method: "PATCH", headers: { "Content-Type": "application/json", Cookie: cookie }, body: JSON.stringify({ newChannelsEnabled: "false" }),
+    });
+    assert.equal(invalidBoolean.status, 400);
 
     const disable = await fetch(`${base}/api/integrations/settings`, {
       method: "PATCH", headers: { "Content-Type": "application/json", Cookie: cookie }, body: JSON.stringify({ newChannelsEnabled: false }),

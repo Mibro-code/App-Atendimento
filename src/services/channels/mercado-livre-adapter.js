@@ -10,7 +10,7 @@ const { channelError } = require("./channel-constants");
 class MercadoLivreAdapter extends ChannelAdapter {
   capabilities() {
     return {
-      canReceiveMessages: true,
+      canReceiveMessages: false,
       canSendMessages: false,
       canReceiveMedia: false,
       canSendMedia: false,
@@ -18,7 +18,7 @@ class MercadoLivreAdapter extends ChannelAdapter {
       supportsPublicQuestions: true,
       supportsReviews: false,
       supportsOAuth: true,
-      supportsWebhook: true,
+      supportsWebhook: false,
     };
   }
 
@@ -40,8 +40,8 @@ class MercadoLivreAdapter extends ChannelAdapter {
   // Notificações do ML chegam como { resource, user_id, topic, application_id,
   // sent, received }; o corpo real (pergunta/mensagem) é buscado depois via
   // GET no `resource`. Aqui só validamos o formato mínimo.
-  validateWebhook(req) {
-    return Boolean(req.body?.resource && req.body?.topic);
+  validateWebhook(_req) {
+    return false;
   }
 
   normalizeInboundEvent(rawPayload) {

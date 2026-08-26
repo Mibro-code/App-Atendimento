@@ -3,6 +3,7 @@
 const prisma = require("../../database/prisma");
 const authorization = require("../authorization-service");
 const audit = require("../audit-service");
+const { NEW_CHANNELS, channelError } = require("./channel-constants");
 
 const SINGLETON_ID = "singleton";
 
@@ -12,6 +13,21 @@ async function getGlobalSettings() {
     update: {},
     create: { id: SINGLETON_ID },
   });
+}
+
+async function getGlobalSettingsForManager(viewer) {
+  if (!authorization.isMaster(viewer)) {
+    throw authorization.forbidden("Somente uma conta Master pode consultar essa configuração.");
+  }
+  return getGlobalSettings();
+}
+
+async function assertNewChannelEnabled(channel) {
+  if (!NEW_CHANNELS.includes(channel)) return;
+  const settings = await getGlobalSettings();
+  if (!settings.newChannelsEnabled) {
+    throw channelError("NOT_SUPPORTED", "Integrações de novos canais estão desativadas globalmente.", { statusCode: 503 });
+  }
 }
 
 async function setNewChannelsEnabled(enabled, actor) {
@@ -33,4 +49,4 @@ async function setNewChannelsEnabled(enabled, actor) {
   return settings;
 }
 
-module.exports = { getGlobalSettings, setNewChannelsEnabled };
+module.exports = { assertNewChannelEnabled, getGlobalSettings, getGlobalSettingsForManager, setNewChannelsEnabled };

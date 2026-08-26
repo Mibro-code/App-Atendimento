@@ -16,6 +16,7 @@ ALTER TABLE "Contact" ALTER COLUMN "phone" DROP NOT NULL;
 -- AlterTable
 ALTER TABLE "Conversation" ADD COLUMN     "channelAccountId" TEXT,
 ADD COLUMN     "externalConversationId" TEXT,
+ADD COLUMN     "channelScope" TEXT NOT NULL DEFAULT 'LEGACY',
 ADD COLUMN     "kind" "ConversationKind" NOT NULL DEFAULT 'PRIVATE_CONVERSATION';
 
 -- AlterTable
@@ -78,7 +79,7 @@ CREATE TABLE "ExternalChannelEvent" (
 -- CreateTable
 CREATE TABLE "IntegrationGlobalSettings" (
     "id" TEXT NOT NULL DEFAULT 'singleton',
-    "newChannelsEnabled" BOOLEAN NOT NULL DEFAULT true,
+    "newChannelsEnabled" BOOLEAN NOT NULL DEFAULT false,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -111,6 +112,10 @@ CREATE INDEX "Conversation_channelAccountId_idx" ON "Conversation"("channelAccou
 
 -- CreateIndex
 CREATE INDEX "Conversation_channel_externalConversationId_idx" ON "Conversation"("channel", "externalConversationId");
+
+-- Isola conversas de contas diferentes sem alterar o escopo histórico do Meta.
+DROP INDEX "Conversation_contactId_channel_key";
+CREATE UNIQUE INDEX "Conversation_contactId_channel_channelScope_key" ON "Conversation"("contactId", "channel", "channelScope");
 
 -- AddForeignKey
 ALTER TABLE "Conversation" ADD CONSTRAINT "Conversation_channelAccountId_fkey" FOREIGN KEY ("channelAccountId") REFERENCES "ChannelAccount"("id") ON DELETE SET NULL ON UPDATE CASCADE;

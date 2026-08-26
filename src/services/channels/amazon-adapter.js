@@ -28,8 +28,8 @@ class AmazonAdapter extends ChannelAdapter {
   // Só valida o refreshToken junto à LWA — nunca chama a SP-API de negócio
   // (pedidos/mensagens) nesta fase.
   async testConnection() {
-    const { lwaClientId, lwaClientSecret } = this.account?.config || {};
-    const refreshToken = this.account?.secrets?.refreshToken;
+    const { lwaClientId } = this.account?.config || {};
+    const { lwaClientSecret, refreshToken } = this.account?.secrets || {};
     if (!lwaClientId || !lwaClientSecret || !refreshToken) {
       throw channelError("INVALID_PAYLOAD", "Configure lwaClientId, lwaClientSecret e refreshToken (gerado no Seller Central).");
     }

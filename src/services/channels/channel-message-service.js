@@ -3,7 +3,8 @@
 const prisma = require("../../database/prisma");
 const { createAdapter } = require("./channel-adapter-registry");
 const { decryptSecrets } = require("./integration-secret-service");
-const { channelError } = require("./channel-constants");
+const { NEW_CHANNELS, channelError } = require("./channel-constants");
+const { assertNewChannelEnabled } = require("./integration-global-settings-service");
 
 function decryptSecretsSafe(account) {
   try {
@@ -13,10 +14,11 @@ function decryptSecretsSafe(account) {
   }
 }
 
-async function loadAccount(channelAccountId) {
+async function loadAccount(channelAccountId, channel) {
   if (!channelAccountId) return null;
   const account = await prisma.channelAccount.findUnique({ where: { id: channelAccountId } });
   if (!account) throw channelError("PROVIDER_ERROR", "Conta de canal não encontrada.");
+  if (channel && account.channel !== channel) throw channelError("INVALID_PAYLOAD", "Conta de canal não corresponde ao canal informado.");
   return account;
 }
 
@@ -36,7 +38,11 @@ function buildAdapter(channel, account) {
 // capability: sempre confere capabilities() primeiro (item 3/12).
 async function send({ channel, channelAccountId, kind = "text", ...params }) {
   if (!channel) throw channelError("INVALID_PAYLOAD", "Canal é obrigatório para envio.");
-  const account = await loadAccount(channelAccountId);
+  await assertNewChannelEnabled(channel);
+  if (NEW_CHANNELS.includes(channel) && !channelAccountId) {
+    throw channelError("INVALID_PAYLOAD", "Conta de canal é obrigatória para novos canais.");
+  }
+  const account = await loadAccount(channelAccountId, channel);
   if (channelAccountId && account && !account.enabled) {
     throw channelError("NOT_SUPPORTED", "Conta de canal está desativada.");
   }
@@ -52,7 +58,12 @@ async function send({ channel, channelAccountId, kind = "text", ...params }) {
 }
 
 async function markAsRead({ channel, channelAccountId, ...params }) {
-  const account = await loadAccount(channelAccountId);
+  await assertNewChannelEnabled(channel);
+  if (NEW_CHANNELS.includes(channel) && !channelAccountId) {
+    throw channelError("INVALID_PAYLOAD", "Conta de canal é obrigatória para novos canais.");
+  }
+  const account = await loadAccount(channelAccountId, channel);
+  if (account && !account.enabled) throw channelError("NOT_SUPPORTED", "Conta de canal está desativada.");
   const adapter = buildAdapter(channel, account);
   if (!adapter.capabilities().canMarkRead) throw channelError("NOT_SUPPORTED", `Canal ${channel} não suporta marcar como lido.`);
   return adapter.markAsRead(params);
