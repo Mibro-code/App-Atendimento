@@ -42,12 +42,26 @@ function respond({ bot, decision, interpretation }) {
   if (decision.action === "HANDOFF_HUMAN") return withGreetingPrefix(decision, handoffMessage);
 
   if (decision.action === "ASK_CLARIFICATION") {
+    // Itens 5-8: pergunta específica montada pelo orquestrador de Tools
+    // quando falta uma entidade obrigatória (ex.: "Pode me informar o
+    // número do pedido?") tem prioridade sobre as genéricas.
+    if (decision.clarificationQuestion) return withGreetingPrefix(decision, decision.clarificationQuestion);
     if (decision.socialBehavior === "NEGATION") return negationClarificationQuestion;
     const intent = findIntent(bot, interpretation.intentId);
     if (intent) return withGreetingPrefix(decision, `Você quis dizer "${intent.name}"? Pode confirmar ou me dar mais detalhes?`);
     const index = Math.min((decision.failureCount || 1) - 1, genericClarificationQuestions.length - 1);
     return withGreetingPrefix(decision, genericClarificationQuestions[index]);
   }
+
+  // Itens 7/8/10: quando a decisão foi resolvida a partir de uma Tool
+  // (bot-tool-orchestrator-service.js), o texto já foi montado só com dados
+  // reais devolvidos pela Tool (nunca inventado aqui). Tem prioridade sobre
+  // a resposta configurada da intenção.
+  if (decision.toolResponseText) return withGreetingPrefix(decision, decision.toolResponseText);
+
+  // Item 4: resposta vinda da Base de Conhecimento (bot-knowledge-response-
+  // service.js), só quando a intenção não tinha resposta fixa configurada.
+  if (decision.knowledgeResponseText) return withGreetingPrefix(decision, decision.knowledgeResponseText);
 
   // RESPOND e SWITCH_BOT usam a mesma resposta configurada: a troca de Bot é
   // interna, o cliente não deve perceber que "outro robô" assumiu.

@@ -4,6 +4,9 @@ const governance = require("../services/bot-governance-service");
 const versions = require("../services/bot-version-service");
 const ratings = require("../services/bot-rating-service");
 const knowledge = require("../services/bot-knowledge-source-service");
+const globalIntents = require("../services/global-intent-service");
+const handoff = require("../services/bot-handoff-service");
+const toolRegistry = require("../services/bot-tools/tool-registry");
 
 module.exports = {
   async list(req, res, next) {
@@ -218,6 +221,49 @@ module.exports = {
   },
   async deleteKnowledgeSource(req, res, next) {
     try { return res.json(await knowledge.deleteKnowledgeSource(req.params.sourceId, req.user)); }
+    catch (error) { return next(error); }
+  },
+
+  // Biblioteca Global de Intenções (item 1).
+  async listGlobalIntents(req, res, next) {
+    try { return res.json(await globalIntents.listGlobalIntents(req.user)); }
+    catch (error) { return next(error); }
+  },
+  async createGlobalIntent(req, res, next) {
+    try { return res.status(201).json(await globalIntents.createGlobalIntent(req.body, req.user)); }
+    catch (error) { return next(error); }
+  },
+  async updateGlobalIntent(req, res, next) {
+    try { return res.json(await globalIntents.updateGlobalIntent(req.params.globalIntentId, req.body, req.user)); }
+    catch (error) { return next(error); }
+  },
+  async associateGlobalIntent(req, res, next) {
+    try {
+      return res.status(201).json(await globalIntents.associateGlobalIntentToBot(
+        req.params.botId, req.params.globalIntentId, req.body, req.user,
+      ));
+    } catch (error) { return next(error); }
+  },
+  async disassociateGlobalIntent(req, res, next) {
+    try {
+      return res.json(await globalIntents.disassociateBotIntent(req.params.botId, req.params.botIntentId, req.user));
+    } catch (error) { return next(error); }
+  },
+
+  // Handoff humano (item 2).
+  async listHandoffContexts(req, res, next) {
+    try { return res.json(await handoff.listHandoffContexts(req.params.conversationId, req.user)); }
+    catch (error) { return next(error); }
+  },
+  async resumeBot(req, res, next) {
+    try { return res.json(await handoff.resumeBot(req.params.conversationId, req.user)); }
+    catch (error) { return next(error); }
+  },
+
+  // Tools (itens 5-7) — listagem só de leitura, para a UI mostrar
+  // riskLevel/enabled/entidades obrigatórias ao configurar permissões.
+  async listTools(req, res, next) {
+    try { return res.json(toolRegistry.listTools()); }
     catch (error) { return next(error); }
   },
 };
