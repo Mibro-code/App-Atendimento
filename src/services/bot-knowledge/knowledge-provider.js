@@ -49,7 +49,15 @@ class KnowledgeSourceProvider extends KnowledgeProvider {
     // continua aparecendo mesmo filtrando por Bot/intenção/categoria/produto.
     const andClauses = [{ active: true }];
     if (domains && domains.length && domains.length < knowledgeDomains.length) andClauses.push({ type: { in: domains } });
-    if (botId) andClauses.push({ OR: [{ botId }, { botId: null }] });
+    if (botId) {
+      andClauses.push({
+        OR: [
+          { botAccesses: { some: { botId } } },
+          { botId },
+          { AND: [{ botId: null }, { botAccesses: { none: {} } }] },
+        ],
+      });
+    }
     if (intentId) andClauses.push({ OR: [{ intentId }, { intentId: null }] });
     if (globalIntentId) andClauses.push({ OR: [{ globalIntentId }, { globalIntentId: null }] });
     if (category) andClauses.push({ OR: [{ category }, { category: null }] });

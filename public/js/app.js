@@ -356,6 +356,7 @@ async function loadCurrentUser() {
   $("#current-user").textContent = status.user.name;
   $("#bots-button").hidden = !status.user.isMaster;
   $("#quick-replies-admin-button").hidden = !status.user.isMaster;
+  $("#knowledge-base-button").hidden = !status.user.isMaster;
   $("#integrations-button").hidden = !status.user.isMaster;
   $("#team-button").hidden = !status.user.isMaster && !status.user.canViewTeamActivity;
   $("#open-audit").hidden = !status.user.isMaster;
@@ -1054,6 +1055,7 @@ $("#theme-toggle").addEventListener("click", () => {
 });
 $("#bots-button").addEventListener("click", () => { location.href = "/bots"; });
 $("#quick-replies-admin-button").addEventListener("click", () => { location.href = "/quick-replies"; });
+$("#knowledge-base-button").addEventListener("click", () => { location.href = "/knowledge-base"; });
 $("#integrations-button").addEventListener("click", () => { location.href = "/integrations"; });
 $("#user-button").addEventListener("click", async () => { await api("/api/auth/logout", { method:"POST" }); location.replace("/login.html"); });
 $("#team-button").addEventListener("click", async () => { try { await loadAdminUsers(); resetTeamForm(); $("#new-team-user").hidden = !state.currentUser.isMaster; $("#team-form").hidden = !state.currentUser.isMaster; $("#team-dialog").classList.toggle("activity-only", !state.currentUser.isMaster); $("#team-dialog").showModal(); } catch (e) { toast(e.message, true); } });

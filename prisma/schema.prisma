@@ -471,20 +471,21 @@ model Bot {
   requestRatingOn       String  @default("BOT_COMPLETED")
   requestRatingComment  Boolean @default(false)
 
-  archivedAt          DateTime?
-  createdAt           DateTime                @default(now())
-  updatedAt           DateTime                @updatedAt
-  defaultCategory     Category?               @relation(fields: [defaultCategoryId], references: [id], onDelete: SetNull)
-  schedules           BotSchedule[]
-  intents             BotIntent[]
-  observations        BotObservation[]
-  conversationStates  ConversationBotState[]
-  learningSuggestions BotLearningSuggestion[]
-  versions            BotVersion[]
-  ratings             BotRating[]
-  agentFeedback       BotAgentFeedback[]
-  knowledgeSources    KnowledgeSource[]
-  handoffContexts     BotHandoffContext[]
+  archivedAt              DateTime?
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+  defaultCategory         Category?               @relation(fields: [defaultCategoryId], references: [id], onDelete: SetNull)
+  schedules               BotSchedule[]
+  intents                 BotIntent[]
+  observations            BotObservation[]
+  conversationStates      ConversationBotState[]
+  learningSuggestions     BotLearningSuggestion[]
+  versions                BotVersion[]
+  ratings                 BotRating[]
+  agentFeedback           BotAgentFeedback[]
+  knowledgeSources        KnowledgeSource[]
+  knowledgeSourceAccesses KnowledgeSourceBot[]
+  handoffContexts         BotHandoffContext[]
 
   @@index([status, channel])
   @@index([defaultCategoryId])
@@ -816,9 +817,10 @@ model KnowledgeSource {
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
 
-  bot          Bot?          @relation(fields: [botId], references: [id], onDelete: SetNull)
-  globalIntent GlobalIntent? @relation(fields: [globalIntentId], references: [id], onDelete: SetNull)
-  intent       BotIntent?    @relation(fields: [intentId], references: [id], onDelete: SetNull)
+  bot          Bot?                 @relation(fields: [botId], references: [id], onDelete: SetNull)
+  globalIntent GlobalIntent?        @relation(fields: [globalIntentId], references: [id], onDelete: SetNull)
+  intent       BotIntent?           @relation(fields: [intentId], references: [id], onDelete: SetNull)
+  botAccesses  KnowledgeSourceBot[]
 
   @@index([botId, active])
   @@index([type])
@@ -826,6 +828,17 @@ model KnowledgeSource {
   @@index([intentId])
   @@index([category])
   @@index([product])
+}
+
+model KnowledgeSourceBot {
+  knowledgeSourceId String
+  botId             String
+  createdAt         DateTime        @default(now())
+  knowledgeSource   KnowledgeSource @relation(fields: [knowledgeSourceId], references: [id], onDelete: Cascade)
+  bot               Bot             @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@id([knowledgeSourceId, botId])
+  @@index([botId])
 }
 
 // Configuração global de automação de Bots — inclui o kill switch

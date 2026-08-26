@@ -209,6 +209,9 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   app.get(["/quick-replies", "/quick-replies.html"], requireMasterPage, (_req, res) => (
     res.sendFile(path.join(process.cwd(), "public", "quick-replies.html"))
   ));
+  app.get(["/knowledge-base", "/knowledge-base.html"], requireMasterPage, (_req, res) => (
+    res.sendFile(path.join(process.cwd(), "public", "knowledge-base.html"))
+  ));
   app.get("/service-worker.js", (_req, res) => {
     res.set("Cache-Control", "no-cache, no-store, must-revalidate");
     return res.sendFile(path.join(process.cwd(), "public", "service-worker.js"));
