@@ -1,7 +1,19 @@
 (() => {
-  const APP_VERSION = "0.18.1";
+  const APP_VERSION = "0.19.0";
 
   const CHANGELOG = [
+    {
+      version: "0.19.0",
+      date: "26/08/2026",
+      title: "Tela geral da Base de conhecimento",
+      changes: [
+        "Adiciona uma tela exclusiva para contas Master cadastrarem informações de produtos, relógios, manuais, garantias, políticas e procedimentos.",
+        "Permite organizar cada informação por tipo, produto, categoria, tags, origem, validade e status.",
+        "Cada conteúdo pode ficar disponível para todos os Bots ou somente para um ou vários Bots selecionados.",
+        "A consulta do Bot respeita os acessos configurados; fontes inativas, vencidas ou destinadas a outros Bots nunca são utilizadas.",
+        "Conceder acesso não ativa respostas automáticas nem a Base de conhecimento do Bot, preservando a ativação controlada, o WhatsApp/Meta e a triagem existentes."
+      ]
+    },
     {
       version: "0.18.1",
       date: "26/08/2026",
