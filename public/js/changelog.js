@@ -1,7 +1,17 @@
 (() => {
-  const APP_VERSION = "0.18.0";
+  const APP_VERSION = "0.18.1";
 
   const CHANGELOG = [
+    {
+      version: "0.18.1",
+      date: "26/08/2026",
+      title: "Campo de mensagem expansível",
+      changes: [
+        "O campo de mensagem agora cresce automaticamente conforme o texto, até três vezes a altura inicial.",
+        "Textos maiores passam a usar rolagem interna, sem alterar a largura do composer ou encobrir os botões.",
+        "Após o envio, o campo retorna à altura inicial; Enter, Shift+Enter, anexos e Respostas Rápidas continuam funcionando normalmente."
+      ]
+    },
     {
       version: "0.18.0",
       date: "26/08/2026",
