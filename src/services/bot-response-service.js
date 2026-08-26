@@ -34,6 +34,13 @@ function respond({ bot, decision, interpretation }) {
   if (decision.action === "NO_ACTION") return null;
   if (decision.outsideHours) return bot.outsideHoursMessage;
 
+  // Flow Engine (múltiplas etapas): quando presente, o texto já foi montado
+  // pelo motor de fluxo (bot-flow-service.js) a partir só das etapas
+  // configuradas (pergunta, conhecimento real, resultado real de Tool ou
+  // mensagem de encerramento) — tem prioridade sobre tudo abaixo, igual a
+  // toolResponseText/knowledgeResponseText nunca inventam nada por cima.
+  if (decision.flowResponseText) return withGreetingPrefix(decision, decision.flowResponseText);
+
   if (!interpretation.intentId && decision.socialBehavior && decision.socialBehavior !== "NEGATION") {
     if (decision.socialBehavior === "GREETING") return `${decision.greetingReply} Como posso te ajudar?`;
     return socialReplies[decision.socialBehavior] || bot.fallbackMessage;

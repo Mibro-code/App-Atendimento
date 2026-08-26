@@ -12,7 +12,11 @@ async function getState(conversationId, client = prisma) {
 // (apresentação, loop guard, janela de troca de Bot) — mantidos aqui como um
 // objeto à parte para não inflar a assinatura desta função a cada novo
 // controle adicionado.
-async function persistDecision({ conversationId, bot, interpretation, decision, operational = {} }, client = prisma) {
+// `flow` (bot-flow-service.js) só vem preenchido em turnos conduzidos pelo
+// Flow Engine — quando ausente, os campos flow* de ConversationBotState
+// simplesmente não são tocados neste upsert (nem apagados, nem herdados
+// incorretamente: um fluxo só é iniciado/continuado explicitamente).
+async function persistDecision({ conversationId, bot, interpretation, decision, operational = {}, flow = null }, client = prisma) {
   const failedInterpretations = decision.action === "ASK_CLARIFICATION" || decision.action === "HANDOFF_HUMAN"
     ? (decision.failureCount ?? 0)
     : 0;
@@ -24,6 +28,16 @@ async function persistDecision({ conversationId, bot, interpretation, decision, 
     pendingClarification: decision.needsClarification || false,
     extractedEntities: interpretation.entities || {},
     ...operational,
+    ...(flow ? {
+      activeFlowIntentId: flow.intentId,
+      currentFlowStepId: flow.currentStepId,
+      flowCollectedEntities: flow.collectedEntities,
+      flowAskedQuestions: flow.askedQuestions,
+      flowAttemptedSolutions: flow.attemptedSolutions,
+      flowFailedSteps: flow.failedSteps,
+      flowStepAttempts: flow.stepAttempts,
+      flowResolutionStatus: flow.resolutionStatus,
+    } : {}),
   };
   return client.conversationBotState.upsert({
     where: { conversationId },

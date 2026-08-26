@@ -14,6 +14,7 @@ const { checkResponseLoop, checkSwitchWindow } = require("./bot-loop-guard-servi
 const { resolveToolDecision } = require("./bot-tool-orchestrator-service");
 const { resolveKnowledgeResponse } = require("./bot-knowledge-response-service");
 const { captureHandoffContext } = require("./bot-handoff-service");
+const flowEngine = require("./bot-flow-service");
 
 const categorySelection = { id: true, code: true, name: true, color: true, active: true };
 const botInclude = {
@@ -105,6 +106,31 @@ function toStandardResult({ bot, targetBot, interpretation, decision, responseTe
   };
 }
 
+function findIntentInBot(bot, intentId) {
+  return (bot.intents || []).find((intent) => intent.id === intentId) || null;
+}
+
+// Stubs de interpretation/decision para quando quem decidiu a resposta foi o
+// Flow Engine (etapa em andamento ou recém-iniciada), não interpret()/decide().
+// Mantêm o mesmo formato usado pelo resto do pipeline (toStandardResult,
+// persistDecision) para não duplicar essa lógica.
+function flowInterpretationStub(intent, outcome) {
+  return {
+    intentId: intent.id, intentName: intent.name, confidence: 1, matchedExample: null,
+    entities: outcome.flow.collectedEntities || {}, provider: "FLOW_ENGINE", status: "OK",
+    errorCode: null, socialBehavior: null,
+  };
+}
+
+function flowDecisionStub(intent, outcome) {
+  return {
+    action: outcome.terminal === "HANDOFF" ? "HANDOFF_HUMAN" : "RESPOND",
+    categoryId: intent.categoryId || null, needsClarification: false,
+    shouldHandoff: outcome.terminal === "HANDOFF", withinHours: true,
+    summary: outcome.summary, flowResponseText: outcome.responseText,
+  };
+}
+
 // Núcleo compartilhado por orchestrate() (conversa real) e
 // simulateOrchestration() (simulador): interpreta, decide, aplica proteção
 // de loop/ping-pong e apresentação. Quem chama decide o que persistir.
@@ -117,19 +143,57 @@ async function runDecisionPipeline({
   bot, message, context, state, guardState, previousIntroducedAt, flags, now, channel, client, sessionExpired = false,
   toolMode = "OBSERVATION",
 }) {
-  const interpretation = await interpret({ bot, message, context, state });
-  let decision = decide({ bot, interpretation, message, state, now, flags });
+  let interpretation;
+  let decision;
+  let flowUpdate = null;
 
-  // Itens 5-8/10/11: se a decisão sugeriu QUERY_TOOL, o backend valida e
-  // (só em modo LIVE) executa a Tool aqui — nunca antes de decide(), nunca
-  // pela IA diretamente. Vira ASK_CLARIFICATION, RESPOND (com dado real ou
-  // fallback seguro) conforme o resultado da validação.
-  decision = await resolveToolDecision({ bot, decision, channel, mode: toolMode });
+  // Flow Engine (múltiplas etapas): se já existe uma etapa aguardando
+  // resposta nesta conversa, a mensagem é interpretada como resposta a ELA,
+  // não reclassificada do zero — mesmo espírito do carryOverFromContext já
+  // existente para "sim"/"não" após esclarecimento (item 5).
+  if (flags.flowEngineEnabled !== false && state?.currentFlowStepId && state?.activeFlowIntentId) {
+    const flowIntent = findIntentInBot(bot, state.activeFlowIntentId);
+    if (flowIntent) {
+      const outcome = await flowEngine.continueFlow({ bot, intent: flowIntent, message, state, channel, mode: toolMode, client });
+      interpretation = flowInterpretationStub(flowIntent, outcome);
+      decision = flowDecisionStub(flowIntent, outcome);
+      flowUpdate = outcome.flow;
+    }
+  }
 
-  // Item 4: Message -> Intent Interpreter -> Intenção -> KnowledgeProvider ->
-  // conhecimento relevante -> Resposta. Só entra em jogo se a decisão ainda
-  // for RESPOND (não interfere com QUERY_TOOL/ASK_CLARIFICATION/HANDOFF).
-  decision = await resolveKnowledgeResponse({ bot, decision, interpretation, message, flags });
+  if (!decision) {
+    interpretation = await interpret({ bot, message, context, state });
+    decision = decide({ bot, interpretation, message, state, now, flags });
+
+    // Uma intenção com etapas configuradas (Fluxo de atendimento) é
+    // conduzida pelo Flow Engine em vez da resposta/Tool/conhecimento de
+    // etapa única — reaproveitando resolveToolDecision/KnowledgeProvider por
+    // dentro de cada etapa, nunca reimplementando as checagens de segurança.
+    if (flags.flowEngineEnabled !== false && interpretation.intentId && ["RESPOND", "QUERY_TOOL"].includes(decision.action)) {
+      const hasFlow = await flowEngine.hasActiveFlow(interpretation.intentId, client);
+      if (hasFlow) {
+        const flowIntent = findIntentInBot(bot, interpretation.intentId);
+        const outcome = await flowEngine.startFlow({ bot, intent: flowIntent, channel, mode: toolMode, client });
+        if (outcome) {
+          decision = { ...decision, ...flowDecisionStub(flowIntent, outcome) };
+          flowUpdate = outcome.flow;
+        }
+      }
+    }
+
+    if (!flowUpdate) {
+      // Itens 5-8/10/11: se a decisão sugeriu QUERY_TOOL, o backend valida e
+      // (só em modo LIVE) executa a Tool aqui — nunca antes de decide(), nunca
+      // pela IA diretamente. Vira ASK_CLARIFICATION, RESPOND (com dado real ou
+      // fallback seguro) conforme o resultado da validação.
+      decision = await resolveToolDecision({ bot, decision, channel, mode: toolMode });
+
+      // Item 4: Message -> Intent Interpreter -> Intenção -> KnowledgeProvider ->
+      // conhecimento relevante -> Resposta. Só entra em jogo se a decisão ainda
+      // for RESPOND (não interfere com QUERY_TOOL/ASK_CLARIFICATION/HANDOFF).
+      decision = await resolveKnowledgeResponse({ bot, decision, interpretation, message, flags });
+    }
+  }
 
   let targetBot = bot;
   let switchInfo = {
@@ -182,7 +246,7 @@ async function runDecisionPipeline({
     lastResponseRepeatCount: finalLoop.repeatCount,
   };
 
-  return { interpretation, decision, targetBot, responseText, operational };
+  return { interpretation, decision, targetBot, responseText, operational, flow: flowUpdate };
 }
 
 // Interpreta e decide para uma conversa REAL, persistindo o estado do Bot
@@ -209,7 +273,7 @@ async function orchestrate({ conversationId, channel = "META", messageId = null,
   // só registra o que teria sido consultado.
   const toolMode = (globalSettings.automationEnabled && bot.autoReplyEnabled) ? "LIVE" : "OBSERVATION";
 
-  const { interpretation, decision, targetBot, responseText, operational } = await runDecisionPipeline({
+  const { interpretation, decision, targetBot, responseText, operational, flow } = await runDecisionPipeline({
     bot, message, context, state: conversationalState, guardState: operationalState,
     previousIntroducedAt: state?.introducedAt || null, flags, now, channel, client, sessionExpired, toolMode,
   });
@@ -238,12 +302,15 @@ async function orchestrate({ conversationId, channel = "META", messageId = null,
 
   await persistDecision({
     conversationId, bot: targetBot, interpretation, decision,
-    operational: { ...operational, humanPausedAt: humanPaused ? now : null },
+    operational: { ...operational, humanPausedAt: humanPaused ? now : null }, flow,
   }, client);
 
   return toStandardResult({
     bot, targetBot, interpretation, decision, responseText,
-    extras: { humanPaused, automationBlocked, observationAllowed, learningEnabled: flags.learningEnabled },
+    extras: {
+      humanPaused, automationBlocked, observationAllowed, learningEnabled: flags.learningEnabled,
+      flowStepId: flow?.currentStepId ?? null, flowResolutionStatus: flow?.resolutionStatus ?? null,
+    },
   });
 }
 
@@ -256,7 +323,7 @@ async function simulateOrchestration({ bot, message, context = [], state = null,
   const simulationBot = bot.status === "ACTIVE" ? bot : { ...bot, status: "ACTIVE" };
   const flags = resolveFeatureFlags(simulationBot);
 
-  const { interpretation, decision, targetBot: simulatedTargetBot, responseText, operational } = await runDecisionPipeline({
+  const { interpretation, decision, targetBot: simulatedTargetBot, responseText, operational, flow } = await runDecisionPipeline({
     bot: simulationBot, message, context, state, guardState: state, flags, now, channel: bot.channel, client: prisma,
     sessionExpired: false,
     // O simulador é uma caixa de areia do painel administrativo (nunca fala
@@ -276,6 +343,15 @@ async function simulateOrchestration({ bot, message, context = [], state = null,
     pendingClarification: decision.needsClarification || false,
     extractedEntities: interpretation.entities || {},
     ...operational,
+    // Item 8 (Simulador): expõe intenção/etapa atual/entidades coletadas do
+    // Flow Engine para a UI mostrar o progresso do atendimento em etapas.
+    activeFlowIntentId: flow ? flow.intentId : (state?.activeFlowIntentId ?? null),
+    currentFlowStepId: flow ? flow.currentStepId : null,
+    flowCollectedEntities: flow ? flow.collectedEntities : (state?.flowCollectedEntities ?? null),
+    flowAskedQuestions: flow ? flow.askedQuestions : (state?.flowAskedQuestions ?? null),
+    flowAttemptedSolutions: flow ? flow.attemptedSolutions : (state?.flowAttemptedSolutions ?? null),
+    flowFailedSteps: flow ? flow.failedSteps : (state?.flowFailedSteps ?? null),
+    flowResolutionStatus: flow ? flow.resolutionStatus : (state?.flowResolutionStatus ?? null),
   };
 
   return { ...toStandardResult({ bot, targetBot, interpretation, decision, responseText }), nextState };
