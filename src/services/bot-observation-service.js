@@ -1,5 +1,14 @@
 const prisma = require("../database/prisma");
 const { orchestrate } = require("./bot-orchestrator-service");
+const { suggestQuickReplyForIntent } = require("./quick-reply-service");
+
+// Nunca pode derrubar a observação: se a Resposta Rápida sugerida falhar ao
+// ser resolvida, a observação continua normalmente sem a sugestão (item 33).
+async function suggestQuickReplySafely(intentId) {
+  if (!intentId) return null;
+  try { return await suggestQuickReplyForIntent(intentId); }
+  catch (_error) { return null; }
+}
 
 // Roda o motor de interpretação (orquestrador -> interpretador -> decisão)
 // do Bot ativo do canal em paralelo à triagem real, apenas para
@@ -39,6 +48,8 @@ async function observeIncomingMessage(event, message, { now = new Date() } = {})
       status: result.status,
     }));
 
+    const suggestedQuickReply = await suggestQuickReplySafely(result.intentId);
+
     await prisma.botObservation.create({
       data: {
         conversationId: message.conversationId,
@@ -61,6 +72,8 @@ async function observeIncomingMessage(event, message, { now = new Date() } = {})
         mode: "OBSERVATION",
         status: result.status,
         errorCode: result.errorCode,
+        suggestedQuickReplyId: suggestedQuickReply?.id || null,
+        suggestedQuickReplyName: suggestedQuickReply?.name || null,
       },
     });
 

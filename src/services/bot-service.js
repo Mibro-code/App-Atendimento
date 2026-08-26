@@ -252,6 +252,19 @@ async function listBots(viewer) {
   });
 }
 
+// Lista achatada de todas as intenções de todos os Bots — usada pela tela
+// de Respostas Rápidas para associar uma resposta a uma ou mais intenções
+// (item 16), sem duplicar a listagem completa de Bots.
+async function listAllIntents(viewer) {
+  assertBotManager(viewer);
+  const intents = await prisma.botIntent.findMany({
+    where: { active: true },
+    select: { id: true, name: true, botId: true, bot: { select: { name: true } } },
+    orderBy: [{ bot: { name: "asc" } }, { name: "asc" }],
+  });
+  return intents.map((intent) => ({ id: intent.id, name: intent.name, botId: intent.botId, botName: intent.bot.name }));
+}
+
 async function getBot(botId, viewer) {
   assertBotManager(viewer);
   return ensureBot(botId, prisma, botInclude);
@@ -748,6 +761,7 @@ module.exports = {
   deleteIntent,
   getBot,
   intentMetrics,
+  listAllIntents,
   listBots,
   listIntentConflicts,
   listObservations,

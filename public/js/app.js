@@ -8,6 +8,7 @@ const state = {
   assignedUserActiveOnly: false, alertCursor: null, checkingAlerts: false,
   customerServiceWindow: null, templates: [], selectedTemplate: null,
   metaStatus: { templatesConfigured:false }, outboundTemplate: null, categoryVisibility: { hideUncategorized:false, hiddenCategoryIds:[] }, visibilityMode:false,
+  quickReplies: [], quickReplyCategoryFilter: "", quickReplySearch: "",
 };
 const $ = (selector) => document.querySelector(selector);
 const defaultDocumentTitle = document.title;
@@ -353,6 +354,7 @@ async function loadCurrentUser() {
   state.currentUser = status.user;
   $("#current-user").textContent = status.user.name;
   $("#bots-button").hidden = !status.user.isMaster;
+  $("#quick-replies-admin-button").hidden = !status.user.isMaster;
   $("#integrations-button").hidden = !status.user.isMaster;
   $("#team-button").hidden = !status.user.isMaster && !status.user.canViewTeamActivity;
   $("#open-audit").hidden = !status.user.isMaster;
@@ -670,6 +672,7 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
     state.selectedActivitiesSignature = "";
     state.selectedMessageItems = [];
     state.selectedMessages = [];
+    loadQuickRepliesCache(id).catch(() => {});
   }
   if (markRead) await api(`/api/conversations/${id}/read`, { method:"POST" });
   const c = await api(`/api/conversations/${id}`);
@@ -960,6 +963,7 @@ $("#theme-toggle").addEventListener("click", () => {
   syncThemeToggle();
 });
 $("#bots-button").addEventListener("click", () => { location.href = "/bots"; });
+$("#quick-replies-admin-button").addEventListener("click", () => { location.href = "/quick-replies"; });
 $("#integrations-button").addEventListener("click", () => { location.href = "/integrations"; });
 $("#user-button").addEventListener("click", async () => { await api("/api/auth/logout", { method:"POST" }); location.replace("/login.html"); });
 $("#team-button").addEventListener("click", async () => { try { await loadAdminUsers(); resetTeamForm(); $("#new-team-user").hidden = !state.currentUser.isMaster; $("#team-form").hidden = !state.currentUser.isMaster; $("#team-dialog").classList.toggle("activity-only", !state.currentUser.isMaster); $("#team-dialog").showModal(); } catch (e) { toast(e.message, true); } });
@@ -1381,7 +1385,186 @@ $("#message-input").addEventListener("paste", (event) => {
 });
 
 $("#remove-attachment").addEventListener("click", clearSelectedAttachment);
-$("#composer").addEventListener("submit", async (event) => { event.preventDefault(); const input = $("#message-input"); const text = input.value.trim(); if (!text && !selectedAttachment) return; $("#send-button").disabled = true; try { if (selectedAttachment) { const isDocument = isDocumentMime(selectedAttachment.type); const isVideo = selectedAttachment.type.startsWith("video/"); const field = isDocument ? "document" : (isVideo ? "video" : "image"); const endpoint = isDocument ? "documents" : (isVideo ? "videos" : "images"); const form = new FormData(); form.append(field, selectedAttachment); if (text) form.append("caption", text); await api(`/api/conversations/${state.selectedId}/${endpoint}`, { method:"POST", body:form }); clearSelectedAttachment(); } else { await api(`/api/conversations/${state.selectedId}/messages`, { method:"POST", body:JSON.stringify({ text }) }); } input.value = ""; await openConversation(state.selectedId); } catch (e) { if (e.customerServiceWindow) state.customerServiceWindow = e.customerServiceWindow; toast(e.message, true); } finally { syncCustomerServiceWindow(); input.focus(); } });
+// ===== Respostas rápidas (quick replies) =====
+// Seleção NUNCA envia mensagem — só preenche o composer (item 8). Toda
+// validação de acesso (ativa, canal, setor) é feita pelo backend em /use.
+let quickReplySlashActive = null;
+
+async function loadQuickRepliesCache(conversationId) {
+  if (!conversationId) return;
+  try { state.quickReplies = await api(`/api/quick-replies/composer?conversationId=${encodeURIComponent(conversationId)}`); }
+  catch { state.quickReplies = []; }
+}
+
+function quickReplyCategories() {
+  const map = new Map();
+  state.quickReplies.forEach((item) => { if (item.category) map.set(item.category.id, item.category.name); });
+  return [...map.entries()];
+}
+
+function renderQuickReplyCategories() {
+  const chips = [{ id: "", name: "Todas" }, ...quickReplyCategories().map(([id, name]) => ({ id, name }))];
+  $("#quick-reply-categories").innerHTML = chips.map((chip) => (
+    `<button type="button" data-category="${chip.id}" class="${state.quickReplyCategoryFilter === chip.id ? "active" : ""}">${escapeHtml(chip.name)}</button>`
+  )).join("");
+  document.querySelectorAll("#quick-reply-categories button").forEach((button) => (
+    button.addEventListener("click", () => { state.quickReplyCategoryFilter = button.dataset.category; renderQuickReplyCategories(); renderQuickReplyList(); })
+  ));
+}
+
+function filteredQuickReplies() {
+  const term = state.quickReplySearch.trim().toLowerCase();
+  return state.quickReplies.filter((item) => {
+    if (state.quickReplyCategoryFilter && item.categoryId !== state.quickReplyCategoryFilter) return false;
+    if (!term) return true;
+    return [item.name, item.shortcut, item.text, item.category?.name].filter(Boolean).some((field) => field.toLowerCase().includes(term));
+  });
+}
+
+function quickReplyCard(item) {
+  return `<article class="quick-reply-card" data-quick-reply-id="${escapeHtml(item.id)}" role="button" tabindex="0">
+    <div class="quick-reply-card-head">
+      <b>${escapeHtml(item.name)}</b>
+      <span class="quick-reply-card-shortcut">${escapeHtml(item.shortcut)}</span>
+      <button type="button" class="quick-reply-favorite ${item.isFavorite ? "active" : ""}" data-favorite-id="${escapeHtml(item.id)}" title="Favoritar" aria-label="Favoritar">${item.isFavorite ? "★" : "☆"}</button>
+    </div>
+    <p>${escapeHtml(item.text)}</p>
+  </article>`;
+}
+
+function renderQuickReplyList() {
+  const items = filteredQuickReplies();
+  if (!items.length) {
+    $("#quick-reply-list").innerHTML = '<div class="quick-reply-empty">Nenhuma resposta rápida encontrada.</div>';
+  } else {
+    const favorites = items.filter((item) => item.isFavorite);
+    const rest = items.filter((item) => !item.isFavorite);
+    $("#quick-reply-list").innerHTML = `
+      ${favorites.length ? `<div class="quick-reply-list-heading">FAVORITAS</div>${favorites.map(quickReplyCard).join("")}` : ""}
+      <div class="quick-reply-list-heading">${favorites.length ? "TODAS" : "RESPOSTAS"}</div>${rest.map(quickReplyCard).join("")}
+    `;
+  }
+  document.querySelectorAll("[data-quick-reply-id]").forEach((card) => {
+    card.addEventListener("click", (event) => {
+      if (event.target.closest("[data-favorite-id]")) return;
+      selectQuickReply(card.dataset.quickReplyId);
+    });
+    card.addEventListener("keydown", (event) => {
+      if ((event.key === "Enter" || event.key === " ") && !event.target.closest("[data-favorite-id]")) {
+        event.preventDefault();
+        selectQuickReply(card.dataset.quickReplyId);
+      }
+    });
+  });
+  document.querySelectorAll("[data-favorite-id]").forEach((button) => (
+    button.addEventListener("click", (event) => { event.stopPropagation(); toggleQuickReplyFavorite(button.dataset.favoriteId); })
+  ));
+}
+
+async function toggleQuickReplyFavorite(id) {
+  const item = state.quickReplies.find((row) => row.id === id);
+  if (!item) return;
+  try {
+    const result = await api(`/api/quick-replies/${id}/favorite`, { method:"POST", body: JSON.stringify({ conversationId: state.selectedId, favorite: !item.isFavorite }) });
+    item.isFavorite = result.favorite;
+    renderQuickReplyList();
+  } catch (e) { toast(e.message, true); }
+}
+
+async function selectQuickReply(id) {
+  try {
+    const result = await api(`/api/quick-replies/${id}/use`, { method:"POST", body: JSON.stringify({ conversationId: state.selectedId, source: "AGENT" }) });
+    $("#quick-reply-dialog").close();
+    const input = $("#message-input");
+    const start = input.selectionStart ?? input.value.length;
+    const end = input.selectionEnd ?? input.value.length;
+    input.value = input.value.slice(0, start) + result.text + input.value.slice(end);
+    const cursor = start + result.text.length;
+    input.focus();
+    input.setSelectionRange(cursor, cursor);
+    if (result.unresolved?.length) toast(`Variável não encontrada: ${result.unresolved.join(", ")}`, true);
+  } catch (e) { toast(e.message, true); }
+}
+
+async function openQuickReplyDialog() {
+  if (!state.selectedId) return;
+  state.quickReplyCategoryFilter = "";
+  state.quickReplySearch = "";
+  $("#quick-reply-search").value = "";
+  try {
+    await loadQuickRepliesCache(state.selectedId);
+    renderQuickReplyCategories();
+    renderQuickReplyList();
+    $("#quick-reply-dialog").showModal();
+  } catch (e) { toast(e.message, true); }
+}
+
+$("#open-quick-replies").addEventListener("click", openQuickReplyDialog);
+$("#close-quick-replies").addEventListener("click", () => $("#quick-reply-dialog").close());
+$("#quick-reply-dialog").addEventListener("click", (event) => { if (event.target === $("#quick-reply-dialog")) $("#quick-reply-dialog").close(); });
+$("#quick-reply-search").addEventListener("input", (event) => { state.quickReplySearch = event.target.value; renderQuickReplyList(); });
+
+// Atalhos com "/" (item 9) — nunca faz uma chamada de rede por tecla:
+// filtra a lista já carregada da conversa aberta (loadQuickRepliesCache).
+function hideSlashSuggestions() {
+  quickReplySlashActive = null;
+  $("#slash-suggestions").hidden = true;
+  $("#slash-suggestions").innerHTML = "";
+}
+
+function currentSlashToken(input) {
+  const cursor = input.selectionStart ?? input.value.length;
+  const before = input.value.slice(0, cursor);
+  const match = before.match(/(?:^|\s)(\/[a-z0-9_]*)$/i);
+  if (!match) return null;
+  const token = match[1];
+  return { token, start: cursor - token.length, end: cursor };
+}
+
+function renderSlashSuggestions() {
+  const box = $("#slash-suggestions");
+  if (!quickReplySlashActive || !quickReplySlashActive.matches.length) return hideSlashSuggestions();
+  box.innerHTML = quickReplySlashActive.matches.map((item, index) => (
+    `<div class="slash-suggestion-item ${index === quickReplySlashActive.activeIndex ? "active" : ""}" data-slash-index="${index}">
+      <b>${escapeHtml(item.shortcut)}</b><small>${escapeHtml(item.name)} — ${escapeHtml(item.text.slice(0, 60))}</small>
+    </div>`
+  )).join("");
+  box.hidden = false;
+  document.querySelectorAll("[data-slash-index]").forEach((row) => (
+    row.addEventListener("click", () => applySlashSuggestion(Number(row.dataset.slashIndex)))
+  ));
+}
+
+async function applySlashSuggestion(index) {
+  const active = quickReplySlashActive;
+  if (!active) return;
+  const item = active.matches[index];
+  if (!item) return;
+  hideSlashSuggestions();
+  try {
+    const result = await api(`/api/quick-replies/${item.id}/use`, { method:"POST", body: JSON.stringify({ conversationId: state.selectedId, source: "AGENT" }) });
+    const input = $("#message-input");
+    input.value = input.value.slice(0, active.start) + result.text + input.value.slice(active.end);
+    const cursor = active.start + result.text.length;
+    input.focus();
+    input.setSelectionRange(cursor, cursor);
+    if (result.unresolved?.length) toast(`Variável não encontrada: ${result.unresolved.join(", ")}`, true);
+  } catch (e) { toast(e.message, true); }
+}
+
+$("#message-input").addEventListener("input", () => {
+  const slash = currentSlashToken($("#message-input"));
+  if (!slash) return hideSlashSuggestions();
+  const term = slash.token.slice(1).toLowerCase();
+  const matches = state.quickReplies
+    .filter((item) => item.shortcut.slice(1).toLowerCase().startsWith(term))
+    .slice(0, 8);
+  if (!matches.length) return hideSlashSuggestions();
+  quickReplySlashActive = { ...slash, matches, activeIndex: 0 };
+  renderSlashSuggestions();
+});
+
+$("#composer").addEventListener("submit", async (event) => { event.preventDefault(); const input = $("#message-input"); const text = input.value.trim(); if (!text && !selectedAttachment) return; $("#send-button").disabled = true; try { if (selectedAttachment) { const isDocument = isDocumentMime(selectedAttachment.type); const isVideo = selectedAttachment.type.startsWith("video/"); const field = isDocument ? "document" : (isVideo ? "video" : "image"); const endpoint = isDocument ? "documents" : (isVideo ? "videos" : "images"); const form = new FormData(); form.append(field, selectedAttachment); if (text) form.append("caption", text); await api(`/api/conversations/${state.selectedId}/${endpoint}`, { method:"POST", body:form }); clearSelectedAttachment(); } else { await api(`/api/conversations/${state.selectedId}/messages`, { method:"POST", body:JSON.stringify({ text }) }); } input.value = ""; hideSlashSuggestions(); await openConversation(state.selectedId); } catch (e) { if (e.customerServiceWindow) state.customerServiceWindow = e.customerServiceWindow; toast(e.message, true); } finally { syncCustomerServiceWindow(); input.focus(); } });
 $("#open-templates").addEventListener("click", openTemplates);
 $("#open-required-template").addEventListener("click", openTemplates);
 $("#close-templates").addEventListener("click", () => $("#template-dialog").close());
@@ -1400,7 +1583,15 @@ $("#template-form").addEventListener("submit", async (event) => {
   } catch (error) { toast(error.message, true); }
   finally { $("#send-template").disabled = false; }
 });
-$("#message-input").addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); $("#composer").requestSubmit(); } });
+$("#message-input").addEventListener("keydown", (event) => {
+  if (quickReplySlashActive && quickReplySlashActive.matches.length) {
+    if (event.key === "ArrowDown") { event.preventDefault(); quickReplySlashActive.activeIndex = (quickReplySlashActive.activeIndex + 1) % quickReplySlashActive.matches.length; return renderSlashSuggestions(); }
+    if (event.key === "ArrowUp") { event.preventDefault(); quickReplySlashActive.activeIndex = (quickReplySlashActive.activeIndex - 1 + quickReplySlashActive.matches.length) % quickReplySlashActive.matches.length; return renderSlashSuggestions(); }
+    if (event.key === "Escape") { event.preventDefault(); return hideSlashSuggestions(); }
+    if (event.key === "Enter" || event.key === "Tab") { event.preventDefault(); return applySlashSuggestion(quickReplySlashActive.activeIndex); }
+  }
+  if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); $("#composer").requestSubmit(); }
+});
 $(".chat-header").addEventListener("click", (event) => { if (innerWidth <= 700 && event.offsetX < 45) $("#chat-panel").classList.remove("open"); });
 
 syncThemeToggle();

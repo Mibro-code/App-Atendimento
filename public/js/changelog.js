@@ -1,8 +1,19 @@
 (() => {
-  const APP_VERSION = "0.16.0";
+  const APP_VERSION = "0.17.0";
 
   const CHANGELOG = [
     {
+      version: "0.17.0",
+      date: "26/08/2026",
+      title: "Respostas Rápidas no atendimento",
+      changes: [
+        "Adiciona uma biblioteca de Respostas Rápidas gerenciada exclusivamente por contas Master.",
+        "Permite ao atendente localizar respostas pelo seletor ou por atalhos com / e inserir o texto no campo de mensagem para revisão antes do envio.",
+        "Inclui filtros por setor e canal, favoritos individuais, variáveis seguras e métricas de uso.",
+        "Restringe cada resposta à conversa autorizada e impede acesso cruzado entre setores ou canais.",
+        "Prepara sugestões passivas para Bots e Observações, sem envio automático e sem alterar o WhatsApp/Meta ou o bot de triagem."
+      ]
+    },    {
       version: "0.16.0",
       date: "26/08/2026",
       title: "Base segura de integrações omnichannel",

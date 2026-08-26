@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#ef5b2a">
+  <link rel="icon" type="image/png" sizes="192x192" href="/assets/app-icon-192.png">
+  <title>Respostas rápidas &bull; Central de Atendimento</title>
+  <script>try{const saved=localStorage.getItem("mibro-theme");document.documentElement.dataset.theme=saved||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch{}</script>
+  <link rel="stylesheet" href="/css/bots.css">
+  <link rel="stylesheet" href="/css/quick-replies.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/"><img src="/assets/mibro-logo.png" alt="Mibro"><span></span><small>Respostas Rápidas</small></a>
+    <div class="phase-badge">BIBLIOTECA ÚNICA &bull; ATENDENTE, BOT E IA</div>
+    <a class="back-link" href="/">&larr; Central</a>
+    <button id="theme-toggle" class="round-button" type="button" title="Alternar tema">&#9790;</button>
+    <button id="logout" class="user-button" type="button"><span id="current-user">Master</span> &bull; Sair</button>
+  </header>
+
+  <main class="bots-shell qr-shell">
+    <aside class="bots-sidebar">
+      <div class="sidebar-heading">
+        <div><span>MENSAGENS PRÉ-DEFINIDAS</span><h1>Respostas</h1><p id="qr-count">Carregando...</p></div>
+        <button id="new-qr" type="button">+ Nova</button>
+      </div>
+      <label class="qr-search-field"><input id="qr-search" type="search" placeholder="Buscar por nome, atalho, texto ou categoria"></label>
+      <div class="qr-filters">
+        <select id="qr-filter-category"><option value="">Todas as categorias</option></select>
+        <select id="qr-filter-channel"><option value="">Todos os canais</option></select>
+        <select id="qr-filter-active"><option value="">Ativas e inativas</option><option value="true">Somente ativas</option><option value="false">Somente inativas</option></select>
+      </div>
+      <div id="qr-list" class="bot-list"></div>
+      <div class="safety-note"><b>Nunca envia sozinho</b><p>Selecionar uma resposta só preenche o composer do atendente. Sugestão de IA/Bot nunca dispara envio automático.</p></div>
+    </aside>
+
+    <section class="bots-workspace">
+      <div id="empty-state" class="empty-state">
+        <div>⚡</div><h2>Configure suas Respostas Rápidas</h2>
+        <p>Crie mensagens reutilizáveis por atendentes, com preparo para sugestão futura de Bots e IA.</p>
+        <button id="empty-new-qr" type="button">Criar primeira resposta</button>
+      </div>
+
+      <div id="editor" hidden>
+        <header class="editor-heading">
+          <div><span id="editor-eyebrow">RESPOSTA SELECIONADA</span><h2 id="editor-title">Nova resposta</h2><p id="editor-description">Preencha nome, atalho e texto.</p></div>
+          <div id="status-actions" class="status-actions" hidden>
+            <span id="status-badge" class="status-badge"></span>
+            <button id="toggle-active" type="button">Ativar/Desativar</button>
+            <button id="archive-qr" type="button" class="danger">Arquivar</button>
+          </div>
+        </header>
+
+        <div class="editor-grid">
+          <form id="qr-form" class="card basic-card">
+            <div class="card-heading"><div><span>CONFIGURAÇÃO</span><h3>Identidade e conteúdo</h3></div><button type="submit">Salvar</button></div>
+            <div class="fields two-columns">
+              <label><span>Nome *</span><input id="qr-name" maxlength="100" required placeholder="Ex.: Solicitar número do pedido"></label>
+              <label><span>Atalho * (com /)</span><input id="qr-shortcut" maxlength="31" required placeholder="/pedido"></label>
+              <label><span>Categoria / setor</span><select id="qr-category"></select></label>
+              <label><span>Tipo</span><select id="qr-type">
+                <option value="QUICK_REPLY">Resposta rápida (ativo)</option>
+                <option value="SUGGESTED_REPLY">Sugestão (experimental)</option>
+                <option value="AUTOMATED_REPLY">Automação (desativado nesta fase)</option>
+              </select></label>
+              <label class="full"><span>Texto * (suporta múltiplas linhas e variáveis {{firstName}})</span><textarea id="qr-text" maxlength="4000" required placeholder="Pode me informar o número do pedido para que eu possa verificar?"></textarea></label>
+              <div class="full">
+                <span>Canais (vazio = todos)</span>
+                <div id="qr-channels-checklist" class="bot-channels-checklist"></div>
+              </div>
+              <label class="checkbox full"><input id="qr-available-agents" type="checkbox" checked><span>Disponível para atendentes</span></label>
+              <label class="checkbox full"><input id="qr-available-bots" type="checkbox"><span>Disponível para Bots/IA sugerirem (nunca envia sozinho)</span></label>
+              <div class="full">
+                <span>Intenções associadas (opcional)</span>
+                <div id="qr-intents-checklist" class="bot-channels-checklist qr-intents-checklist"></div>
+              </div>
+            </div>
+          </form>
+
+          <div class="card">
+            <div class="card-heading"><div><span>PRÉ-VISUALIZAÇÃO</span><h3>Preview com dado fictício</h3></div></div>
+            <p class="card-help">Usa "Fabio", "Fabio Almeida" e "Atendente Exemplo" como exemplo — nunca dados reais.</p>
+            <div id="qr-preview" class="simulator-result"><p>Digite o texto para ver o preview.</p></div>
+
+            <div class="card-heading" style="margin-top:18px"><div><span>MÉTRICAS</span><h3>Uso desta resposta</h3></div></div>
+            <div class="result-grid">
+              <span>Usos totais<strong id="qr-usage-count">0</strong></span>
+              <span>Favoritada por<strong id="qr-favorite-count">0</strong></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+  <script src="/js/quick-replies.js"></script>
+</body>
+</html>

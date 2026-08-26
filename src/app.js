@@ -23,6 +23,7 @@ const { documentMimeTypes } = require("./services/media-storage-service");
 const botController = require("./controllers/bot-controller");
 const internalChatController = require("./controllers/internal-chat-controller");
 const integrationsController = require("./controllers/integrations-controller");
+const quickReplyController = require("./controllers/quick-reply-controller");
 const { NEW_CHANNELS } = require("./services/channels/channel-constants");
 const { createAdapter } = require("./services/channels/channel-adapter-registry");
 const { decryptSecrets } = require("./services/channels/integration-secret-service");
@@ -202,6 +203,9 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   app.get(["/integrations", "/integrations.html"], requireMasterPage, (_req, res) => (
     res.sendFile(path.join(process.cwd(), "public", "integrations.html"))
   ));
+  app.get(["/quick-replies", "/quick-replies.html"], requireMasterPage, (_req, res) => (
+    res.sendFile(path.join(process.cwd(), "public", "quick-replies.html"))
+  ));
   app.get("/service-worker.js", (_req, res) => {
     res.set("Cache-Control", "no-cache, no-store, must-revalidate");
     return res.sendFile(path.join(process.cwd(), "public", "service-worker.js"));
@@ -323,6 +327,7 @@ app.post(
   app.patch("/api/admin/users/:id", userManagementController.update);
   app.get("/api/team/users", userManagementController.activity);
   app.get("/api/bots", botController.list);
+  app.get("/api/bots/intents", botController.allIntents);
   app.post("/api/bots", botController.create);
   app.get("/api/bots/:botId", botController.detail);
   app.patch("/api/bots/:botId", botController.update);
@@ -381,6 +386,16 @@ app.post(
   app.post("/api/integrations/oauth/start", integrationsController.oauthStart);
   app.post("/api/integrations/oauth/callback", integrationsController.oauthCallback);
 
+  app.get("/api/quick-replies/composer", quickReplyController.listForComposer);
+  app.get("/api/quick-replies/suggestions", quickReplyController.suggestions);
+  app.post("/api/quick-replies/preview", quickReplyController.preview);
+  app.get("/api/quick-replies", quickReplyController.list);
+  app.post("/api/quick-replies", quickReplyController.create);
+  app.get("/api/quick-replies/:id", quickReplyController.detail);
+  app.patch("/api/quick-replies/:id", quickReplyController.update);
+  app.delete("/api/quick-replies/:id", quickReplyController.archive);
+  app.post("/api/quick-replies/:id/favorite", quickReplyController.setFavorite);
+  app.post("/api/quick-replies/:id/use", quickReplyController.use);
   app.use((error, _req, res, _next) => {
     if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
       return res.status(413).json({

@@ -155,6 +155,22 @@ enum BotLearningSuggestionStatus {
   EDITED
 }
 
+// QUICK_REPLY é a única modalidade ativa nesta fase. SUGGESTED_REPLY fica
+// preparada/experimental (Observação/IA podem sugerir, nunca enviar).
+// AUTOMATED_REPLY existe só como vocabulário controlado para o futuro — sem
+// nenhum caminho de código que envie automaticamente nesta fase.
+enum QuickReplyType {
+  QUICK_REPLY
+  SUGGESTED_REPLY
+  AUTOMATED_REPLY
+}
+
+enum QuickReplyUsageSource {
+  AGENT
+  BOT_SUGGESTION
+  OBSERVATION
+}
+
 enum KnowledgeSourceType {
   FAQ
   MANUAL
@@ -232,6 +248,7 @@ model Conversation {
   learningState          ConversationLearningState?
   rating                 BotRating?
   agentFeedback          BotAgentFeedback[]
+  quickReplyUsages       QuickReplyUsage[]
   channelAccount         ChannelAccount?            @relation(fields: [channelAccountId], references: [id], onDelete: SetNull)
 
   @@unique([contactId, channel, channelScope])
@@ -301,6 +318,9 @@ model User {
   reviewedLearningSuggestions BotLearningSuggestion[]  @relation("LearningSuggestionReviewer")
   botVersions                 BotVersion[]             @relation("BotVersionAuthor")
   agentFeedback               BotAgentFeedback[]
+  quickRepliesCreated         QuickReply[]             @relation("QuickReplyCreatedBy")
+  quickReplyFavorites         QuickReplyFavorite[]     @relation("QuickReplyFavoriteUser")
+  quickReplyUsages            QuickReplyUsage[]        @relation("QuickReplyUsageUser")
 }
 
 model AuditLog {
@@ -377,6 +397,7 @@ model Category {
   defaultForBots  Bot[]
   botIntents      BotIntent[]
   botObservations BotObservation[]
+  quickReplies    QuickReply[]
 
   @@index([parentId, displayOrder])
 }
@@ -472,6 +493,7 @@ model BotIntent {
   feedbackObservations BotObservation[]        @relation("ObservationFeedbackIntent")
   learningSuggestions  BotLearningSuggestion[]
   ratings              BotRating[]
+  quickReplyLinks      QuickReplyIntent[]
 
   @@index([botId, active, priority])
   @@index([categoryId])
@@ -512,7 +534,9 @@ model BotObservation {
   feedback          BotObservationFeedback @default(UNREVIEWED)
   feedbackIntentId  String?
   feedbackByUserId  String?
-  feedbackAt        DateTime?
+  feedbackAt              DateTime?
+  suggestedQuickReplyId   String?
+  suggestedQuickReplyName String?
   createdAt         DateTime               @default(now())
 
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
@@ -520,7 +544,8 @@ model BotObservation {
   bot            Bot?         @relation(fields: [botId], references: [id], onDelete: SetNull)
   category       Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   feedbackIntent BotIntent?   @relation("ObservationFeedbackIntent", fields: [feedbackIntentId], references: [id], onDelete: SetNull)
-  feedbackByUser User?        @relation("ObservationFeedbackUser", fields: [feedbackByUserId], references: [id], onDelete: SetNull)
+  feedbackByUser      User?        @relation("ObservationFeedbackUser", fields: [feedbackByUserId], references: [id], onDelete: SetNull)
+  suggestedQuickReply QuickReply?  @relation("ObservationSuggestedQuickReply", fields: [suggestedQuickReplyId], references: [id], onDelete: SetNull)
 
   @@index([conversationId, createdAt])
   @@index([botId, createdAt])
@@ -792,6 +817,86 @@ model IntegrationGlobalSettings {
   newChannelsEnabled Boolean  @default(false)
   updatedAt          DateTime @updatedAt
   createdAt          DateTime @default(now())
+}
+
+// Biblioteca única de mensagens reutilizáveis (item "PRINCÍPIO PRINCIPAL"):
+// atendente usa, Bot/IA podem sugerir, automação real só no futuro e com
+// controle explícito (nunca aqui). channels vazio = todos os canais.
+model QuickReply {
+  id                String         @id @default(cuid())
+  name              String
+  shortcut          String
+  text              String         @db.Text
+  categoryId        String?
+  channels          Channel[]      @default([])
+  availableToAgents Boolean        @default(true)
+  availableToBots   Boolean        @default(false)
+  type              QuickReplyType @default(QUICK_REPLY)
+  active            Boolean        @default(true)
+  archivedAt        DateTime?
+  createdByUserId   String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  category                Category?            @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  createdBy               User?                @relation("QuickReplyCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  intents                 QuickReplyIntent[]
+  favorites               QuickReplyFavorite[]
+  usages                  QuickReplyUsage[]
+  suggestedInObservations BotObservation[]     @relation("ObservationSuggestedQuickReply")
+
+  @@index([active, categoryId])
+  @@index([shortcut])
+  @@index([createdAt])
+}
+
+// Liga uma resposta rápida a uma ou mais BotIntent existentes (nunca
+// duplica o texto dentro de cada intenção) — usado futuramente para
+// sugestão automática (Observação/IA).
+model QuickReplyIntent {
+  id           String   @id @default(cuid())
+  quickReplyId String
+  botIntentId  String
+  createdAt    DateTime @default(now())
+
+  quickReply QuickReply @relation(fields: [quickReplyId], references: [id], onDelete: Cascade)
+  botIntent  BotIntent  @relation(fields: [botIntentId], references: [id], onDelete: Cascade)
+
+  @@unique([quickReplyId, botIntentId])
+  @@index([botIntentId])
+}
+
+// Favorito é por usuário, nunca global (item 11).
+model QuickReplyFavorite {
+  id           String   @id @default(cuid())
+  quickReplyId String
+  userId       String
+  createdAt    DateTime @default(now())
+
+  quickReply QuickReply @relation(fields: [quickReplyId], references: [id], onDelete: Cascade)
+  user       User       @relation("QuickReplyFavoriteUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([quickReplyId, userId])
+  @@index([userId])
+}
+
+// Registro de uso (item 12) — base para "mais usadas" e métricas futuras,
+// sem dashboard pesado nesta fase.
+model QuickReplyUsage {
+  id             String                @id @default(cuid())
+  quickReplyId   String
+  userId         String?
+  conversationId String?
+  source         QuickReplyUsageSource @default(AGENT)
+  usedAt         DateTime              @default(now())
+
+  quickReply   QuickReply    @relation(fields: [quickReplyId], references: [id], onDelete: Cascade)
+  user         User?         @relation("QuickReplyUsageUser", fields: [userId], references: [id], onDelete: SetNull)
+  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  @@index([quickReplyId, usedAt])
+  @@index([userId])
+  @@index([conversationId])
 }
 
 model UserCategoryAccess {
