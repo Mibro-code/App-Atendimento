@@ -1563,6 +1563,7 @@ async function selectQuickReply(id) {
     const start = input.selectionStart ?? input.value.length;
     const end = input.selectionEnd ?? input.value.length;
     input.value = input.value.slice(0, start) + result.text + input.value.slice(end);
+    autoResizeComposer();
     const cursor = start + result.text.length;
     input.focus();
     input.setSelectionRange(cursor, cursor);
@@ -1629,12 +1630,30 @@ async function applySlashSuggestion(index) {
     const result = await api(`/api/quick-replies/${item.id}/use`, { method:"POST", body: JSON.stringify({ conversationId: state.selectedId, source: "AGENT" }) });
     const input = $("#message-input");
     input.value = input.value.slice(0, active.start) + result.text + input.value.slice(active.end);
+    autoResizeComposer();
     const cursor = active.start + result.text.length;
     input.focus();
     input.setSelectionRange(cursor, cursor);
     if (result.unresolved?.length) toast(`Variável não encontrada: ${result.unresolved.join(", ")}`, true);
   } catch (e) { toast(e.message, true); }
 }
+
+// Auto-resize do composer: cresce até ~3x a altura inicial (44px -> 132px),
+// depois disso rola internamente. Ao enviar/limpar, volta ao tamanho padrão.
+const COMPOSER_MIN_HEIGHT = 44;
+const COMPOSER_MAX_HEIGHT = COMPOSER_MIN_HEIGHT * 3;
+function autoResizeComposer() {
+  const input = $("#message-input");
+  input.style.height = "auto";
+  input.style.height = `${Math.min(Math.max(input.scrollHeight, COMPOSER_MIN_HEIGHT), COMPOSER_MAX_HEIGHT)}px`;
+  input.style.overflowY = input.scrollHeight > COMPOSER_MAX_HEIGHT ? "auto" : "hidden";
+}
+function resetComposerHeight() {
+  const input = $("#message-input");
+  input.style.height = `${COMPOSER_MIN_HEIGHT}px`;
+  input.style.overflowY = "hidden";
+}
+$("#message-input").addEventListener("input", autoResizeComposer);
 
 $("#message-input").addEventListener("input", () => {
   const slash = currentSlashToken($("#message-input"));
@@ -1648,7 +1667,7 @@ $("#message-input").addEventListener("input", () => {
   renderSlashSuggestions();
 });
 
-$("#composer").addEventListener("submit", async (event) => { event.preventDefault(); const input = $("#message-input"); const text = input.value.trim(); if (!text && !selectedAttachment) return; $("#send-button").disabled = true; try { if (selectedAttachment) { const isDocument = isDocumentMime(selectedAttachment.type); const isVideo = selectedAttachment.type.startsWith("video/"); const field = isDocument ? "document" : (isVideo ? "video" : "image"); const endpoint = isDocument ? "documents" : (isVideo ? "videos" : "images"); const form = new FormData(); form.append(field, selectedAttachment); if (text) form.append("caption", text); await api(`/api/conversations/${state.selectedId}/${endpoint}`, { method:"POST", body:form }); clearSelectedAttachment(); } else { await api(`/api/conversations/${state.selectedId}/messages`, { method:"POST", body:JSON.stringify({ text }) }); } input.value = ""; hideSlashSuggestions(); await openConversation(state.selectedId); } catch (e) { if (e.customerServiceWindow) state.customerServiceWindow = e.customerServiceWindow; toast(e.message, true); } finally { syncCustomerServiceWindow(); input.focus(); } });
+$("#composer").addEventListener("submit", async (event) => { event.preventDefault(); const input = $("#message-input"); const text = input.value.trim(); if (!text && !selectedAttachment) return; $("#send-button").disabled = true; try { if (selectedAttachment) { const isDocument = isDocumentMime(selectedAttachment.type); const isVideo = selectedAttachment.type.startsWith("video/"); const field = isDocument ? "document" : (isVideo ? "video" : "image"); const endpoint = isDocument ? "documents" : (isVideo ? "videos" : "images"); const form = new FormData(); form.append(field, selectedAttachment); if (text) form.append("caption", text); await api(`/api/conversations/${state.selectedId}/${endpoint}`, { method:"POST", body:form }); clearSelectedAttachment(); } else { await api(`/api/conversations/${state.selectedId}/messages`, { method:"POST", body:JSON.stringify({ text }) }); } input.value = ""; resetComposerHeight(); hideSlashSuggestions(); await openConversation(state.selectedId); } catch (e) { if (e.customerServiceWindow) state.customerServiceWindow = e.customerServiceWindow; toast(e.message, true); } finally { syncCustomerServiceWindow(); input.focus(); } });
 $("#open-templates").addEventListener("click", openTemplates);
 $("#open-required-template").addEventListener("click", openTemplates);
 $("#close-templates").addEventListener("click", () => $("#template-dialog").close());
