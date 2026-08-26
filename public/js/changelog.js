@@ -1,7 +1,19 @@
 (() => {
-  const APP_VERSION = "0.17.0";
+  const APP_VERSION = "0.18.0";
 
   const CHANGELOG = [
+    {
+      version: "0.18.0",
+      date: "26/08/2026",
+      title: "Conhecimento dos Bots e notificações no dispositivo",
+      changes: [
+        "Adiciona biblioteca global de intenções e fontes de conhecimento reutilizáveis entre Bots, com gerenciamento exclusivo por contas Master.",
+        "Prepara ferramentas seguras e contexto estruturado para transferência humana, mantendo respostas automáticas, ferramentas e conhecimento desligados por padrão.",
+        "Adiciona notificações Web Push opcionais por dispositivo para o atendente responsável, com listagem e remoção dos dispositivos autorizados.",
+        "Melhora o indicador de conexão, a recuperação após reconexão, os estados de carregamento e o uso do painel em tablets.",
+        "Mantém o app funcional quando as chaves VAPID não estão configuradas e preserva o WhatsApp/Meta e o bot de triagem existentes."
+      ]
+    },
     {
       version: "0.17.0",
       date: "26/08/2026",
