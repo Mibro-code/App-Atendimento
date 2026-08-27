@@ -7,13 +7,17 @@
 const prisma = require("../database/prisma");
 const authorization = require("./authorization-service");
 
-function buildSummary({ botName, intentName, confidence, category, lastRelevantInfo, questionsAsked, solutionsTried }) {
+function buildSummary({
+  botName, intentName, confidence, category, lastRelevantInfo, questionsAsked, solutionsTried,
+  product, flowResolutionStatus, currentStepName, handoffReason,
+}) {
   const parts = [];
   if (botName) {
     parts.push(intentName
       ? `O Bot ${botName} identificou a intenção "${intentName}"${typeof confidence === "number" ? ` com ${Math.round(confidence * 100)}% de confiança` : ""}${category ? `, na categoria "${category}"` : ""}.`
       : `O Bot ${botName} não conseguiu identificar a intenção do cliente com confiança suficiente.`);
   }
+  if (product) parts.push(`Produto/modelo informado: "${product}".`);
   if (lastRelevantInfo) parts.push(`Última mensagem relevante do cliente: "${lastRelevantInfo}".`);
   if (questionsAsked && questionsAsked.length) {
     parts.push(`${questionsAsked.length} pergunta(s) de esclarecimento foram feitas pelo Bot antes do encaminhamento.`);
@@ -21,8 +25,25 @@ function buildSummary({ botName, intentName, confidence, category, lastRelevantI
   if (solutionsTried && solutionsTried.length) {
     parts.push(`${solutionsTried.length} resposta(s)/tentativa(s) já foram oferecidas pelo Bot.`);
   }
+  if (currentStepName) parts.push(`Parou na etapa "${currentStepName}" do fluxo de atendimento.`);
+  if (flowResolutionStatus === "HANDED_OFF") parts.push("O fluxo de atendimento não conseguiu resolver sozinho.");
+  if (handoffReason) parts.push(`Motivo do encaminhamento: ${handoffReason}`);
   if (!parts.length) parts.push("Conversa encaminhada para atendimento humano sem informações adicionais disponíveis.");
-  return parts.slice(0, 4).join(" ");
+  return parts.slice(0, 6).join(" ");
+}
+
+// Item 2 (handoff inteligente): quando o handoff acontece DENTRO de um Flow
+// Engine, os dados estruturados do fluxo (produto coletado, soluções
+// tentadas com nome/ação/resultado, etapa em que parou) são muito mais
+// precisos que o heurístico de mensagens abaixo — sempre preferidos quando
+// disponíveis.
+function deriveFlowSignals(flow) {
+  if (!flow) return null;
+  const questionsAsked = (flow.askedQuestions || []).length;
+  const solutionsTried = (flow.attemptedSolutions || []).map((item) => (
+    `${item.name} (${item.action}): ${item.outcome === "SUCCESS" ? "ajudou" : "não ajudou"}`
+  ));
+  return { questionsAskedCount: questionsAsked, solutionsTried };
 }
 
 // `context` são as últimas mensagens já carregadas pelo orquestrador
@@ -34,9 +55,17 @@ function deriveConversationSignals(context = []) {
   return { questionsAsked, solutionsTried };
 }
 
-async function captureHandoffContext({ conversationId, bot, interpretation, decision, message, context = [] }, client = prisma) {
-  const { questionsAsked, solutionsTried } = deriveConversationSignals(context);
+async function captureHandoffContext({
+  conversationId, bot, interpretation, decision, message, context = [], flow = null, product = null,
+}, client = prisma) {
+  const flowSignals = deriveFlowSignals(flow);
+  const { questionsAsked, solutionsTried } = flowSignals
+    ? { questionsAsked: flow.askedQuestions || [], solutionsTried: flowSignals.solutionsTried }
+    : deriveConversationSignals(context);
   const confidence = typeof interpretation?.confidence === "number" ? interpretation.confidence : null;
+  const currentStepName = flow?.attemptedSolutions?.length
+    ? flow.attemptedSolutions[flow.attemptedSolutions.length - 1].name
+    : null;
   const summary = buildSummary({
     botName: bot?.name || null,
     intentName: interpretation?.intentName || null,
@@ -45,6 +74,10 @@ async function captureHandoffContext({ conversationId, bot, interpretation, deci
     lastRelevantInfo: message || null,
     questionsAsked,
     solutionsTried,
+    product,
+    flowResolutionStatus: flow?.resolutionStatus || null,
+    currentStepName,
+    handoffReason: decision?.summary || null,
   });
 
   return client.botHandoffContext.create({
@@ -60,6 +93,10 @@ async function captureHandoffContext({ conversationId, bot, interpretation, deci
       lastRelevantInfo: message || null,
       questionsAsked,
       solutionsTried,
+      product,
+      flowResolutionStatus: flow?.resolutionStatus || null,
+      currentStepName,
+      handoffReason: decision?.summary || null,
       summary,
     },
   });

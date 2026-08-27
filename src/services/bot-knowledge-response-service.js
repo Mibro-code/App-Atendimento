@@ -15,7 +15,9 @@ function findIntent(bot, intentId) {
   return (bot.intents || []).find((intent) => intent.id === intentId) || null;
 }
 
-async function resolveKnowledgeResponse({ bot, decision, interpretation, message, flags = {}, provider = defaultProvider }) {
+async function resolveKnowledgeResponse({
+  bot, decision, interpretation, message, flags = {}, provider = defaultProvider, contextProduct = null,
+}) {
   if (decision.action !== "RESPOND") return decision;
   if (flags.knowledgeBaseEnabled !== true) return decision;
   if (!interpretation.intentId) return decision;
@@ -30,11 +32,13 @@ async function resolveKnowledgeResponse({ bot, decision, interpretation, message
   try {
     results = await provider.search(message, {
       botId: bot.id, intentId: interpretation.intentId, globalIntentId: intent?.globalIntentId || null,
-      // Item 5: prioriza o produto/modelo já coletado na conversa (entidade
-      // "productName", a mesma extraída/coletada em qualquer etapa do Flow
-      // Engine) — "GS Pro 2 não conecta" deve priorizar "Pareamento GS Pro 2"
-      // sobre um artigo genérico de conexão.
-      product: interpretation.entities?.productName || null,
+      // Item 5/6: prioriza o produto/modelo já coletado na conversa —
+      // primeiro o que a própria mensagem trouxe agora (entidade
+      // "productName"), depois o que já estava guardado no contexto da
+      // conversa inteira (ConversationBotState.contextEntities, item 6) —
+      // "tenho um GS Pro 2" numa mensagem anterior e "ele tem NFC?" agora
+      // ainda deve priorizar conteúdo do GS Pro 2, sem perguntar de novo.
+      product: interpretation.entities?.productName || contextProduct || null,
     });
   } catch (error) {
     // Busca de conhecimento nunca pode derrubar a resposta — degrada para

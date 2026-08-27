@@ -17,10 +17,13 @@ const prisma = require("../database/prisma");
 const { normalizeText } = require("./bot-simulator-service");
 const {
   CONFIRMATION_PATTERN, NEGATION_PATTERN, RESOLUTION_NEGATIVE_PATTERNS, RESOLUTION_POSITIVE_PATTERNS,
+  DEFAULT_HIGH_CONFIDENCE_THRESHOLD,
 } = require("./bot-constants");
 const { resolveToolDecision } = require("./bot-tool-orchestrator-service");
 const { isActiveNow } = require("./bot-knowledge-source-service");
 const { KnowledgeSourceProvider } = require("./bot-knowledge/knowledge-provider");
+const { interpretWithProviders } = require("./bot-interpreter-service");
+const { getFallbackProvider } = require("./ai/get-ai-provider");
 
 const defaultKnowledgeProvider = new KnowledgeSourceProvider();
 
@@ -234,10 +237,16 @@ function detectYesNo(message) {
 // Motor de execução
 // ---------------------------------------------------------------------------
 
-function emptyFlowState(intentId) {
+// `seedEntities` (item 6 — contexto de produto): entidades já conhecidas da
+// CONVERSA inteira (ConversationBotState.contextEntities), não desta etapa —
+// pré-preenche collectedEntities para que um ASK_QUESTION cujo entityKey já
+// está presente seja pulado automaticamente pelo `if
+// (step.entityKey && flowState.collectedEntities[step.entityKey])` já
+// existente em runChain, sem precisar duplicar essa checagem aqui.
+function emptyFlowState(intentId, seedEntities = null) {
   return {
     intentId,
-    collectedEntities: {},
+    collectedEntities: { ...(seedEntities || {}) },
     askedQuestions: [],
     attemptedSolutions: [],
     failedSteps: [],
@@ -473,17 +482,93 @@ async function runChain({ bot, intent, stepMap, startStepId, flowState, channel,
 // Inicia o fluxo de uma intenção pela primeira vez nesta conversa (chamado
 // quando decide() resolveu RESPOND/QUERY_TOOL para uma intenção que tem
 // etapas ativas configuradas).
-async function startFlow({ bot, intent, channel, mode, client = prisma }) {
+async function startFlow({ bot, intent, channel, mode, client = prisma, seedEntities = null }) {
   const steps = await getActiveOrderedSteps(intent.id, client);
   if (!steps.length) return null;
   const stepMap = new Map(steps.map((step) => [step.id, step]));
-  const flowState = emptyFlowState(intent.id);
+  const flowState = emptyFlowState(intent.id, seedEntities);
   return runChain({ bot, intent, stepMap, startStepId: steps[0].id, flowState, channel, mode, client, message: null });
+}
+
+// ---------------------------------------------------------------------------
+// Pilha de fluxos pausados por troca de assunto (itens 4/5)
+// ---------------------------------------------------------------------------
+const MAX_FLOW_STACK_DEPTH = 3;
+
+// Congela o fluxo ATUAL (o que está em `state`) como um item de pilha, para
+// retomar depois que a nova intenção (a que causou a troca de assunto) for
+// concluída. Só faz sentido chamar quando `state` já tem um fluxo em
+// andamento (currentFlowStepId preenchido) — o chamador garante isso.
+function snapshotFlowFromState(state) {
+  return {
+    intentId: state.activeFlowIntentId,
+    currentStepId: state.currentFlowStepId,
+    collectedEntities: state.flowCollectedEntities || {},
+    askedQuestions: state.flowAskedQuestions || [],
+    attemptedSolutions: state.flowAttemptedSolutions || [],
+    failedSteps: state.flowFailedSteps || [],
+    stepAttempts: state.flowStepAttempts || {},
+    resolutionStatus: state.flowResolutionStatus || "IN_PROGRESS",
+    pendingQuestion: state.pendingQuestion || null,
+  };
+}
+
+// Empilha o snapshot atual (se houver um fluxo em andamento) — nunca cresce
+// sem limite: o item mais antigo é descartado ao ultrapassar
+// MAX_FLOW_STACK_DEPTH (proteção contra encadear trocas de assunto para sempre).
+function pushFlowStack(existingStack, state) {
+  if (!state?.currentFlowStepId || !state?.activeFlowIntentId) return existingStack || [];
+  const stack = [...(existingStack || []), snapshotFlowFromState(state)];
+  return stack.slice(-MAX_FLOW_STACK_DEPTH);
+}
+
+// Retorna { snapshot, remainingStack } com o topo da pilha removido, ou
+// { snapshot: null, remainingStack: existingStack } se vazia.
+function popFlowStack(existingStack) {
+  const stack = existingStack || [];
+  if (!stack.length) return { snapshot: null, remainingStack: [] };
+  const snapshot = stack[stack.length - 1];
+  return { snapshot, remainingStack: stack.slice(0, -1) };
+}
+
+// Converte um snapshot de volta no formato persistido em ConversationBotState
+// (mesmo formato de toFlowPersist) — usado para RETOMAR o fluxo anterior
+// depois que a intenção que causou a troca de assunto termina.
+function flowPersistFromSnapshot(snapshot) {
+  return {
+    intentId: snapshot.intentId,
+    currentStepId: snapshot.currentStepId,
+    collectedEntities: snapshot.collectedEntities,
+    askedQuestions: snapshot.askedQuestions,
+    attemptedSolutions: snapshot.attemptedSolutions,
+    failedSteps: snapshot.failedSteps,
+    stepAttempts: snapshot.stepAttempts,
+    resolutionStatus: snapshot.resolutionStatus,
+    pendingQuestion: snapshot.pendingQuestion,
+  };
+}
+
+// Item 4 (troca de assunto): antes de tratar `message` como resposta à etapa
+// atual, verifica se ela na verdade corresponde a uma intenção DIFERENTE com
+// confiança alta — reaproveita o mesmo classificador local usado em todo o
+// resto do motor (nunca chama IA externa aqui: é só uma checagem rápida,
+// pré-etapa, sem custo de rede). Confiança abaixo do limiar do Bot nunca
+// dispara a troca (evita interpretar uma resposta livre ambígua como se
+// fosse outra intenção).
+async function detectTopicSwitch({ bot, message, currentIntentId, context = [] }) {
+  const local = getFallbackProvider();
+  const result = await interpretWithProviders({ bot, message, context, primary: local, fallback: local });
+  if (!result.intentId || result.intentId === currentIntentId) return { switched: false };
+  const intent = (bot.intents || []).find((item) => item.id === result.intentId);
+  if (!intent) return { switched: false };
+  const threshold = typeof bot.highConfidenceThreshold === "number" ? bot.highConfidenceThreshold : DEFAULT_HIGH_CONFIDENCE_THRESHOLD;
+  if (result.confidence < threshold) return { switched: false };
+  return { switched: true, intent, interpretation: result };
 }
 
 // Continua um fluxo já em andamento: interpreta `message` como resposta à
 // etapa atual (`state.currentFlowStepId`) e avança.
-async function continueFlow({ bot, intent, message, state, channel, mode, client = prisma }) {
+async function continueFlow({ bot, intent, message, state, channel, mode, client = prisma, context = [] }) {
   const steps = await getActiveOrderedSteps(intent.id, client);
   const stepMap = new Map(steps.map((step) => [step.id, step]));
   const currentStep = stepMap.get(state.currentFlowStepId);
@@ -504,6 +589,18 @@ async function continueFlow({ bot, intent, message, state, channel, mode, client
     return runChain({
       bot, intent, stepMap, startStepId: currentStep.id, flowState, channel, mode, client, message,
     });
+  }
+
+  // "sim"/"não"/frases de resolução nunca disparam troca de assunto — são o
+  // caminho normal e mais comum de resposta a uma etapa de confirmação.
+  if (!detectYesNo(message) && !detectFlowOutcome(message)) {
+    const switchResult = await detectTopicSwitch({ bot, message, currentIntentId: intent.id, context });
+    if (switchResult.switched) {
+      return {
+        topicSwitch: switchResult, terminal: null, flow: null, responseText: null,
+        summary: `Troca de assunto detectada: nova intenção "${switchResult.intent.name}" durante o fluxo "${intent.name}".`,
+      };
+    }
   }
 
   const outcome = evaluateAskQuestionAnswer(currentStep, message, flowState);
@@ -552,6 +649,11 @@ module.exports = {
   reorderFlowSteps,
   detectFlowOutcome,
   detectYesNo,
+  detectTopicSwitch,
   startFlow,
   continueFlow,
+  MAX_FLOW_STACK_DEPTH,
+  pushFlowStack,
+  popFlowStack,
+  flowPersistFromSnapshot,
 };

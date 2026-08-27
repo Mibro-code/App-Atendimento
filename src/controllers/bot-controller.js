@@ -10,6 +10,8 @@ const toolRegistry = require("../services/bot-tools/tool-registry");
 const aiProvider = require("../services/ai/get-ai-provider");
 const aiUsage = require("../services/bot-ai-usage-service");
 const authorization = require("../services/authorization-service");
+const suggestions = require("../services/bot-suggestion-service");
+const quality = require("../services/bot-quality-service");
 
 module.exports = {
   async list(req, res, next) {
@@ -317,5 +319,25 @@ module.exports = {
       if (!authorization.isMaster(req.user)) throw authorization.forbidden("Somente uma conta Master pode ver o uso de IA.");
       return res.json(await aiUsage.usageSummary(req.query));
     } catch (error) { return next(error); }
+  },
+
+  // Item 7/8 (sugestão de resposta para o atendente + feedback).
+  async latestSuggestion(req, res, next) {
+    try { return res.json(await suggestions.getLatestSuggestion(req.params.conversationId, req.user)); }
+    catch (error) { return next(error); }
+  },
+  async suggestionFeedback(req, res, next) {
+    try { return res.status(201).json(await suggestions.recordSuggestionFeedback(req.body, req.user)); }
+    catch (error) { return next(error); }
+  },
+
+  // Item 11/12 (métricas/alertas de qualidade).
+  async qualityMetrics(req, res, next) {
+    try { return res.json(await quality.qualityMetrics(req.params.botId, req.user)); }
+    catch (error) { return next(error); }
+  },
+  async qualityAlerts(req, res, next) {
+    try { return res.json(await quality.qualityAlerts(req.params.botId, req.user)); }
+    catch (error) { return next(error); }
   },
 };
