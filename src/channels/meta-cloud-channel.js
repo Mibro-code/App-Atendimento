@@ -3,7 +3,11 @@ const axios = require("axios");
 class MetaCloudChannel {
   assertConfigured() {
     const required = ["GRAPH_VERSION", "PHONE_NUMBER_ID", "WHATSAPP_TOKEN"];
-    for (const key of required) if (!process.env[key]) throw new Error(`Variável ausente: ${key}`);
+    for (const key of required) {
+      if (!process.env[key]) {
+        throw Object.assign(new Error(`Integração com a Meta não está configurada (variável ausente: ${key}).`), { statusCode: 503 });
+      }
+    }
   }
 
   assertTemplatesConfigured() {
@@ -21,18 +25,35 @@ class MetaCloudChannel {
     return { Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}` };
   }
 
+  // Mapeia falhas da Graph API para uma mensagem clara e um status HTTP
+  // previsível, sem nunca vazar o token/credencial — o log (sanitizado,
+  // sem o corpo bruto da resposta nem headers de auth) fica só no servidor;
+  // o cliente recebe apenas mensagem + status.
   providerFailure(error, fallback) {
+    const status = error.response?.status;
     const providerError = error.response?.data?.error;
     console.error("Falha segura na Meta Cloud API:", {
-      status: error.response?.status,
-      code: providerError?.code,
-      type: providerError?.type,
-      traceId: providerError?.fbtrace_id,
+      status, code: providerError?.code, type: providerError?.type, traceId: providerError?.fbtrace_id,
     });
-    const message = error.response?.status === 401
-      ? "A Meta recusou a credencial do WhatsApp. Atualize o token de acesso."
-      : fallback;
-    return Object.assign(new Error(message), { statusCode: 502 });
+    let message = fallback;
+    let statusCode = 502;
+    if (status === 401) {
+      message = "A Meta recusou a credencial do WhatsApp. Atualize o token de acesso.";
+    } else if (status === 403) {
+      message = "A conta não tem permissão para esta operação na Meta — verifique os escopos do token e o acesso ao WABA.";
+    } else if (status === 404) {
+      message = "Recurso não encontrado na Meta — verifique o WABA ID / Phone Number ID configurados.";
+    } else if (status === 429) {
+      message = "A Meta limitou as requisições no momento (rate limit). Tente novamente em instantes.";
+      statusCode = 429;
+    } else if (status >= 500) {
+      message = "A Meta está indisponível no momento. Tente novamente em instantes.";
+    } else if (status === 400) {
+      // error_user_msg é o único campo do erro da Meta pensado para ser
+      // mostrado ao usuário final — nunca repassamos o corpo bruto do erro.
+      message = providerError?.error_user_msg || fallback;
+    }
+    return Object.assign(new Error(message), { statusCode, metaStatus: status || null, metaErrorCode: providerError?.code || null });
   }
 
   parseWebhook(body) {
@@ -112,12 +133,16 @@ class MetaCloudChannel {
             ...(after ? { after } : {}),
           },
         });
-        templates.push(...(response.data?.data || []));
+        const page_data = Array.isArray(response.data?.data) ? response.data.data : [];
+        templates.push(...page_data);
         const nextAfter = response.data?.paging?.cursors?.after;
         if (!response.data?.paging?.next || !nextAfter || nextAfter === after) break;
         after = nextAfter;
       }
-      return templates.filter((template) => template.status === "APPROVED");
+      // Item 3 (só templates utilizáveis por padrão): filtra por status e
+      // descarta qualquer item malformado (sem id/name) antes de devolver —
+      // nunca deixa um item quebrado derrubar o normalizador no service.
+      return templates.filter((template) => template && typeof template === "object" && template.status === "APPROVED" && template.id && template.name);
     } catch (error) {
       if (error.statusCode) throw error;
       throw this.providerFailure(error, "Não foi possível consultar os templates aprovados na Meta.");
