@@ -5,6 +5,8 @@
 const prisma = require("../database/prisma");
 const { detectOptOutKeyword, registerOptOut } = require("./campaign-optout-service");
 
+const STATUS_RANK = { SENT: 1, DELIVERED: 2, READ: 3, REPLIED: 4 };
+
 const STATUS_FIELD = {
   delivered: { status: "DELIVERED", field: "deliveredAt" },
   read: { status: "READ", field: "readAt" },
@@ -23,12 +25,13 @@ async function handleCampaignStatusEvent(event) {
     // atrasado chegando depois de já termos REPLIED) — a fila é sempre
     // SENT -> DELIVERED -> READ -> (REPLIED em paralelo).
     if (mapping.status === "FAILED") {
+      if (["DELIVERED", "READ", "REPLIED", "OPTED_OUT"].includes(contact.status)) return;
       await prisma.campaignContact.update({
         where: { id: contact.id }, data: { status: "FAILED", failedAt: new Date(), failureReason: "Falha reportada pela Meta." },
       });
       return;
     }
-    if (["REPLIED"].includes(contact.status)) return;
+    if ((STATUS_RANK[contact.status] || 0) >= STATUS_RANK[mapping.status]) return;
     await prisma.campaignContact.update({
       where: { id: contact.id }, data: { status: mapping.status, [mapping.field]: new Date() },
     });
@@ -60,8 +63,8 @@ async function handleInboundMessage({ phone, text, conversationId, contactId }) 
     });
 
     if (!conversationId) return;
-    const campaign = await prisma.campaign.findUnique({ where: { id: lastContact.campaignId }, select: { id: true, replyCategoryId: true, replyBotId: true } });
-    const conversation = await prisma.conversation.findUnique({ where: { id: conversationId }, select: { categoryId: true, originCampaignId: true } });
+    const campaign = await prisma.campaign.findUnique({ where: { id: lastContact.campaignId }, select: { id: true, replyCategoryId: true, replyBotId: true, responsibleUserId: true } });
+    const conversation = await prisma.conversation.findUnique({ where: { id: conversationId }, select: { categoryId: true, assignedUserId: true, originCampaignId: true } });
     if (!conversation || conversation.originCampaignId) return; // item 15: nunca sobrescreve um vínculo já existente
 
     await prisma.conversation.update({
@@ -71,8 +74,17 @@ async function handleInboundMessage({ phone, text, conversationId, contactId }) 
         // Item 15/16: só aplica a categoria de destino se a conversa ainda
         // não tiver uma (nunca reatribui uma conversa já triada/atendida).
         ...(conversation.categoryId ? {} : { categoryId: campaign?.replyCategoryId || undefined }),
+        ...(conversation.assignedUserId ? {} : { assignedUserId: campaign?.responsibleUserId || undefined }),
       },
     });
+    if (campaign?.replyBotId) {
+      await prisma.conversationBotState.upsert({
+        where: { conversationId }, create: { conversationId, activeBotId: campaign.replyBotId }, update: {},
+      });
+      await prisma.conversationBotState.updateMany({
+        where: { conversationId, activeBotId: null }, data: { activeBotId: campaign.replyBotId },
+      });
+    }
   } catch (error) {
     console.error("[CAMPAIGN_REPLY] falha ao processar resposta de campanha (ignorada)", error.message);
   }

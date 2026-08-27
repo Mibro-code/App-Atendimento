@@ -1464,6 +1464,7 @@ model Campaign {
   completedAt DateTime?
   cancelledAt DateTime?
   failedAt    DateTime?
+  lastBatchAt DateTime?
 
   // Item 17/18: limites desta campanha — se ausentes, o worker usa os
   // defaults de CampaignGlobalSettings (nunca hardcoded).
