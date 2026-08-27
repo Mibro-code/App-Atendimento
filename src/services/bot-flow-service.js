@@ -28,6 +28,15 @@ const defaultKnowledgeProvider = new KnowledgeSourceProvider();
 // GOTO_STEP mal configurado (ciclo) sempre acaba em handoff, nunca trava.
 const MAX_CHAIN_STEPS = 12;
 const DEFAULT_MAX_ATTEMPTS = 3;
+function knowledgeAccessWhere(botId) {
+  return {
+    OR: [
+      { botAccesses: { some: { botId } } },
+      { botId },
+      { AND: [{ botId: null }, { botAccesses: { none: {} } }] },
+    ],
+  };
+}
 
 const flowStepSelect = {
   id: true, intentId: true, name: true, order: true, action: true, question: true, entityKey: true,
@@ -79,17 +88,47 @@ function flowStepInput(body = {}) {
     onSuccessStepId: body.onSuccessStepId || null,
     onFailureStepId: body.onFailureStepId || null,
     gotoStepId: body.gotoStepId || null,
-    maxAttempts: Number.isFinite(Number(body.maxAttempts)) ? Math.min(10, Math.max(1, Number(body.maxAttempts))) : DEFAULT_MAX_ATTEMPTS,
+    maxAttempts: Number.isFinite(Number(body.maxAttempts)) ? Math.min(10, Math.max(1, Math.trunc(Number(body.maxAttempts)))) : DEFAULT_MAX_ATTEMPTS,
     active: body.active !== false,
   };
 }
 
 const FLOW_STEP_ACTIONS = ["ASK_QUESTION", "USE_KNOWLEDGE", "QUERY_TOOL", "RESPOND", "RESOLVED", "HANDOFF_HUMAN", "GOTO_STEP"];
+function validateStepActionFields(data) {
+  if (data.action === "ASK_QUESTION" && !data.question) {
+    throw Object.assign(new Error("Informe a pergunta da etapa."), { statusCode: 400 });
+  }
+  if (data.action === "QUERY_TOOL" && !data.toolName) {
+    throw Object.assign(new Error("Selecione a Tool da etapa."), { statusCode: 400 });
+  }
+  if (data.action === "RESPOND" && !data.responseMessage) {
+    throw Object.assign(new Error("Informe a mensagem da etapa."), { statusCode: 400 });
+  }
+  if (data.action === "GOTO_STEP" && !data.gotoStepId) {
+    throw Object.assign(new Error("Selecione a etapa de destino."), { statusCode: 400 });
+  }
+}
+
+async function assertKnowledgeSourceAccessible(intentId, knowledgeSourceId, client) {
+  if (!knowledgeSourceId) return;
+  const intent = await client.botIntent.findUnique({ where: { id: intentId }, select: { botId: true } });
+  if (!intent) throw Object.assign(new Error("Intenção não encontrada."), { statusCode: 404 });
+  const source = await client.knowledgeSource.findFirst({
+    where: { id: knowledgeSourceId, ...knowledgeAccessWhere(intent.botId) },
+    select: { id: true },
+  });
+  if (!source) {
+    throw Object.assign(new Error("O conhecimento selecionado não está disponível para este Bot."), { statusCode: 400 });
+  }
+}
 
 async function createFlowStep(intentId, body, client = prisma) {
   const data = flowStepInput(body);
   if (!data.name) throw Object.assign(new Error("Informe um nome para a etapa."), { statusCode: 400 });
   if (!FLOW_STEP_ACTIONS.includes(data.action)) throw Object.assign(new Error("Ação inválida."), { statusCode: 400 });
+  validateStepActionFields(data);
+
+  await assertKnowledgeSourceAccessible(intentId, data.knowledgeSourceId, client);
 
   for (const field of ["nextStepId", "onSuccessStepId", "onFailureStepId", "gotoStepId"]) {
     if (data[field] && !(await assertStepBelongsToIntent(intentId, data[field], client))) {
@@ -111,6 +150,9 @@ async function updateFlowStep(stepId, body, client = prisma) {
   const data = flowStepInput({ ...current, ...body });
   if (!data.name) throw Object.assign(new Error("Informe um nome para a etapa."), { statusCode: 400 });
   if (!FLOW_STEP_ACTIONS.includes(data.action)) throw Object.assign(new Error("Ação inválida."), { statusCode: 400 });
+  validateStepActionFields(data);
+
+  await assertKnowledgeSourceAccessible(current.intentId, data.knowledgeSourceId, client);
 
   for (const field of ["nextStepId", "onSuccessStepId", "onFailureStepId", "gotoStepId"]) {
     if (data[field] === stepId) throw Object.assign(new Error("Uma etapa não pode apontar para ela mesma."), { statusCode: 400 });
@@ -133,8 +175,14 @@ async function deleteFlowStep(stepId, client = prisma) {
 // ids recebida (drag-and-drop na UI) — ids fora da lista mantêm a ordem
 // relativa ao final.
 async function reorderFlowSteps(intentId, orderedStepIds, client = prisma) {
+  if (!Array.isArray(orderedStepIds) || !orderedStepIds.length) {
+    throw Object.assign(new Error("Informe a ordem das etapas."), { statusCode: 400 });
+  }
   const steps = await listFlowSteps(intentId, client);
   const known = new Set(steps.map((step) => step.id));
+  if (new Set(orderedStepIds).size !== orderedStepIds.length || orderedStepIds.some((id) => !known.has(id))) {
+    throw Object.assign(new Error("A ordem contém etapas duplicadas ou que não pertencem à intenção."), { statusCode: 400 });
+  }
   const finalOrder = [
     ...orderedStepIds.filter((id) => known.has(id)),
     ...steps.map((step) => step.id).filter((id) => !orderedStepIds.includes(id)),
@@ -255,8 +303,10 @@ function evaluateAskQuestionAnswer(step, message, flowState) {
 
 async function resolveStepKnowledgeText({ step, bot, intent, client }) {
   if (step.knowledgeSourceId) {
-    const row = await client.knowledgeSource.findUnique({ where: { id: step.knowledgeSourceId } });
-    if (row && row.active && isActiveNow(row)) return row.content || null;
+    const row = await client.knowledgeSource.findFirst({
+      where: { id: step.knowledgeSourceId, active: true, ...knowledgeAccessWhere(bot.id) },
+    });
+    if (row && isActiveNow(row)) return row.content || null;
     return null;
   }
   try {

@@ -350,6 +350,10 @@ function flowStepFieldVisibility() {
   document.querySelectorAll(".flow-field-tool").forEach((el) => { el.hidden = action !== "QUERY_TOOL"; });
   document.querySelectorAll(".flow-field-response").forEach((el) => { el.hidden = !["RESPOND", "RESOLVED", "HANDOFF_HUMAN"].includes(action); });
   document.querySelectorAll(".flow-field-goto").forEach((el) => { el.hidden = action !== "GOTO_STEP"; });
+  $("#flow-step-question").required = action === "ASK_QUESTION";
+  $("#flow-step-tool").required = action === "QUERY_TOOL";
+  $("#flow-step-response").required = action === "RESPOND";
+  $("#flow-step-goto").required = action === "GOTO_STEP";
 }
 
 function closeFlowStepForm() {
