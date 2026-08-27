@@ -50,6 +50,7 @@
         <button type="button" class="tab-button" data-tab="performance">Desempenho</button>
         <button type="button" class="tab-button" data-tab="versions">Versões</button>
         <button type="button" class="tab-button" data-tab="ranking">Ranking</button>
+        <button type="button" class="tab-button" data-tab="ai-keys">Chaves de IA</button>
       </nav>
 
       <div id="empty-state" class="empty-state">
@@ -133,12 +134,14 @@
               <label><span>Máx. trocas de Bot / janela</span><input id="flag-maxSwitchesPerWindow" type="number" min="1" max="20" value="3"></label>
               <label><span>Janela de troca de Bot (min)</span><input id="flag-switchWindowMinutes" type="number" min="1" max="180" value="10"></label>
               <label><span>Limiar de confiança para IA externa</span><input id="flag-externalAiThreshold" type="number" min="0" max="1" step="0.05" value="0.7"></label>
+              <label><span>Provider de IA externa</span><select id="flag-externalAiProvider"></select></label>
+              <label><span>Modelo (opcional)</span><input id="flag-externalAiModel" maxlength="120" placeholder="Vazio = modelo padrão do provider"></label>
             </div>
           </form>
 
           <section class="card requires-bot">
             <div class="card-heading"><div><span>MOTOR DE IA</span><h3>Fallback externo</h3></div><button id="test-ai-provider" type="button">Testar conexão</button></div>
-            <p class="card-help">A IA externa só é chamada quando "IA externa como fallback" está ligada acima e a confiança local fica abaixo do limiar — nunca em toda mensagem. Sem credencial configurada, o Bot continua funcionando normalmente só com o motor local.</p>
+            <p class="card-help">A IA externa só é chamada quando "IA externa como fallback" está ligada acima e a confiança local fica abaixo do limiar — nunca em toda mensagem. Sem credencial configurada, o Bot continua funcionando normalmente só com o motor local. O status abaixo é sempre do provider selecionado à esquerda. Para cadastrar/trocar a chave de API, use a aba "Chaves de IA" (configuração global, só Master).</p>
             <div id="ai-provider-status" class="metrics-strip"></div>
           </section>
 
@@ -356,6 +359,14 @@
           <div id="ranking-list" class="learning-list"></div>
           <div id="ranking-excluded-heading" class="card-heading" hidden><div><span>DADOS INSUFICIENTES</span><h3>Abaixo da amostra mínima</h3></div></div>
           <div id="ranking-excluded-list" class="learning-list"></div>
+        </div>
+      </div>
+
+      <div id="ai-keys-panel" class="observations-panel" hidden>
+        <div class="card observations-card">
+          <div class="card-heading"><div><span>MOTOR DE IA</span><h3>Chaves de API dos providers</h3></div></div>
+          <p class="card-help">Configuração GLOBAL (vale para todos os Bots) — só uma conta Master pode ver/alterar. A chave nunca é salva em texto puro nem devolvida inteira: só os últimos 4 caracteres aparecem aqui. Cada Bot escolhe qual provider/modelo usar na aba "Configuração"; a credencial em si é única por provider.</p>
+          <div id="ai-keys-list" class="learning-list"></div>
         </div>
       </div>
     </section>

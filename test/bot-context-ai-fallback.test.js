@@ -210,7 +210,7 @@ test("externalAiFallbackEnabled=ON: só tenta a IA externa quando a confiança l
 // Item 14: sem credencial configurada, a aplicação nunca quebra — o motor
 // segue funcionando só com o provider local.
 test("provider externo sem credencial configurada: getPrimaryProvider nunca lança e cai para o local", async () => {
-  const { provider, name } = getPrimaryProvider();
+  const { provider, name } = await getPrimaryProvider();
   assert.ok(provider);
   assert.ok(["LOCAL_FALLBACK", "ANTHROPIC"].includes(name));
   const result = await interpret({

@@ -12,6 +12,7 @@ const aiUsage = require("../services/bot-ai-usage-service");
 const authorization = require("../services/authorization-service");
 const suggestions = require("../services/bot-suggestion-service");
 const quality = require("../services/bot-quality-service");
+const aiCredentials = require("../services/ai/ai-credential-service");
 
 module.exports = {
   async list(req, res, next) {
@@ -297,10 +298,21 @@ module.exports = {
     catch (error) { return next(error); }
   },
 
-  // Item 14 (Motor de IA / Fallback externo): status nunca expõe a
+  // Item 3: providers implementados (mostrados no select de configuração do
+  // Bot) — LOCAL sempre disponível, os demais vêm de EXTERNAL_AI_PROVIDERS
+  // (bot-constants.js), nunca uma lista solta duplicada na UI.
+  async listAiProviders(req, res, next) {
+    try {
+      const { AI_PROVIDER_OPTIONS } = require("../services/bot-constants");
+      return res.json(AI_PROVIDER_OPTIONS);
+    } catch (error) { return next(error); }
+  },
+
+  // Item 5 (Motor de IA / Fallback externo): status nunca expõe a
   // credencial. "Testar conexão" é restrito a Master (chamada real à API).
+  // `provider` vem do select da configuração do Bot (?provider=GEMINI).
   async aiProviderStatus(req, res, next) {
-    try { return res.json(aiProvider.getProviderStatus()); }
+    try { return res.json(await aiProvider.getProviderStatus(req.query.provider)); }
     catch (error) { return next(error); }
   },
   async testAiProvider(req, res, next) {
@@ -309,8 +321,24 @@ module.exports = {
       if (req.body?.confirmRealCall !== true) {
         throw Object.assign(new Error("Confirme a chamada real ao provider de IA."), { statusCode: 400 });
       }
-      return res.json(await aiProvider.testConnection());
+      return res.json(await aiProvider.testConnection(req.body?.provider));
     } catch (error) { return next(error); }
+  },
+
+  // Cofre de credenciais de IA (GEMINI/ANTHROPIC/OPENAI) — RBAC: somente
+  // Admin (nunca Supervisor/Atendente). Nunca devolve a chave inteira, só
+  // os últimos 4 caracteres.
+  async listAiCredentials(req, res, next) {
+    try { return res.json(await aiCredentials.listCredentialStatus(req.user)); }
+    catch (error) { return next(error); }
+  },
+  async saveAiCredential(req, res, next) {
+    try { return res.status(201).json(await aiCredentials.saveCredential(req.params.provider, req.body, req.user)); }
+    catch (error) { return next(error); }
+  },
+  async removeAiCredential(req, res, next) {
+    try { return res.json(await aiCredentials.removeCredential(req.params.provider, req.user)); }
+    catch (error) { return next(error); }
   },
 
   // Item 15 (custo/uso de IA externa) — só leitura, sem dashboard complexo.
