@@ -60,6 +60,7 @@ CREATE TABLE "Campaign" (
     "completedAt" TIMESTAMP(3),
     "cancelledAt" TIMESTAMP(3),
     "failedAt" TIMESTAMP(3),
+    "lastBatchAt" TIMESTAMP(3),
     "batchSize" INTEGER,
     "delayBetweenBatchesSeconds" INTEGER,
     "maxRetries" INTEGER,

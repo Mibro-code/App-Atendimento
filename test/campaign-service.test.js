@@ -8,6 +8,7 @@ const exportService = require("../src/services/campaign-export-service");
 const settingsService = require("../src/services/campaign-settings-service");
 const optOutService = require("../src/services/campaign-optout-service");
 const worker = require("../src/services/campaign-worker-service");
+const campaignReplyService = require("../src/services/campaign-reply-service");
 const { normalizeCampaignPhone } = require("../src/services/campaign-phone-service");
 const { parseCsv, sanitizeCsvCell } = require("../src/services/campaign-csv-service");
 
@@ -167,6 +168,7 @@ test("agendamento exige contatos elegíveis e respeita allowScheduling", async (
   await assert.rejects(() => campaigns.scheduleCampaign(campaign.id, {}, admin), /destinatários elegíveis/);
 
   await prisma.campaignContact.create({ data: { campaignId: campaign.id, phone: "5511977000031", status: "PENDING" } });
+  await assert.rejects(() => campaigns.scheduleCampaign(campaign.id, {}, admin), /data futura/);
   const scheduled = await campaigns.scheduleCampaign(campaign.id, { scheduledAt: new Date(Date.now() + 60000) }, admin);
   assert.equal(scheduled.status, "SCHEDULED");
 
@@ -217,6 +219,58 @@ test("master switch ON: worker envia, atualiza status, e rodar duas vezes não d
   }
 });
 
+test("dois workers concorrentes reivindicam cada contato uma única vez", async () => {
+  await cleanup();
+  const campaign = await createDraftCampaign({ batchSize: 1 });
+  await prisma.campaignContact.create({ data: { campaignId: campaign.id, phone: "5511977000052", status: "PENDING" } });
+  await campaigns.queueCampaignNow(campaign.id, admin);
+  await prisma.campaignGlobalSettings.update({ where: { id: "singleton" }, data: { massMessagingEnabled: true } });
+  const channel = fakeChannel({
+    sendTemplate: async (phone, payload) => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      channel.sent.push({ phone, payload });
+      return { externalId: `wamid.concurrent.${Math.random()}`, data: {} };
+    },
+  });
+  try {
+    await Promise.all([worker.runCampaignSendTick(channel), worker.runCampaignSendTick(channel)]);
+    assert.equal(channel.sent.length, 1, "a reivindicação atômica deve impedir envio duplicado entre processos");
+  } finally {
+    await prisma.campaignGlobalSettings.update({ where: { id: "singleton" }, data: { massMessagingEnabled: false } });
+  }
+});
+
+test("intervalo próprio da campanha impede o próximo lote antes da hora", async () => {
+  await cleanup();
+  const campaign = await createDraftCampaign({ batchSize: 1, delayBetweenBatchesSeconds: 60 });
+  await prisma.campaignContact.createMany({ data: [
+    { campaignId: campaign.id, phone: "5511977000053", status: "PENDING" },
+    { campaignId: campaign.id, phone: "5511977000054", status: "PENDING" },
+  ] });
+  await campaigns.queueCampaignNow(campaign.id, admin);
+  await prisma.campaignGlobalSettings.update({ where: { id: "singleton" }, data: { massMessagingEnabled: true } });
+  const channel = fakeChannel();
+  const firstTick = new Date();
+  try {
+    await worker.runCampaignSendTick(channel, firstTick);
+    assert.equal(channel.sent.length, 1);
+    const afterFirstBatch = await prisma.campaign.findUnique({ where: { id: campaign.id } });
+    assert.equal(afterFirstBatch.lastBatchAt?.getTime(), firstTick.getTime(), "o worker deve persistir o horário do lote");
+    await worker.runCampaignSendTick(channel, new Date(firstTick.getTime() + 5000));
+    assert.equal(channel.sent.length, 1, "não deve antecipar o segundo lote");
+    await worker.runCampaignSendTick(channel, new Date(firstTick.getTime() + 61000));
+    assert.equal(channel.sent.length, 2);
+  } finally {
+    await prisma.campaignGlobalSettings.update({ where: { id: "singleton" }, data: { massMessagingEnabled: false } });
+  }
+});
+
+test("limites inválidos são rejeitados no backend", async () => {
+  await assert.rejects(() => createDraftCampaign({ batchSize: 0 }), /Tamanho do lote/);
+  await assert.rejects(() => createDraftCampaign({ delayBetweenBatchesSeconds: 99999 }), /Intervalo entre lotes/);
+  await assert.rejects(() => createDraftCampaign({ maxRetries: -1 }), /Máximo de tentativas/);
+  await assert.rejects(() => createDraftCampaign({ testPhone: "123" }), /número de teste válido/);
+});
 test("pausar/retomar/cancelar: cancelar nunca envia o restante nem apaga o que já foi enviado", async () => {
   await cleanup();
   const campaign = await createDraftCampaign();
@@ -273,6 +327,42 @@ test("resposta do cliente vincula o CampaignContact como REPLIED e nunca reatrib
   assert.equal(updatedConversation.originCampaignId, campaign.id);
 });
 
+test("resposta aplica responsável e Bot configurados sem sobrescrever estado existente", async () => {
+  await cleanup();
+  const bot = await prisma.bot.create({ data: {
+    name: `Bot Campanha ${Date.now()}`, status: "ACTIVE", channel: "META",
+    initialMessage: "Olá!", outsideHoursMessage: "Fora.", fallbackMessage: "Não entendi.",
+  } });
+  const campaign = await createDraftCampaign({ replyBotId: bot.id, responsibleUserId: admin.id });
+  await prisma.campaignContact.create({
+    data: { campaignId: campaign.id, phone: "5511977000083", status: "SENT", sentAt: new Date() },
+  });
+  const contact = await prisma.contact.create({
+    data: { channel: "META", externalId: "5511977000083", phone: "5511977000083", name: "Cliente Campanha" },
+  });
+  const conversation = await prisma.conversation.create({ data: { contactId: contact.id, status: "NOVO" } });
+
+  await campaignReplyService.handleInboundMessage({
+    phone: "5511977000083", text: "Tenho interesse", conversationId: conversation.id, contactId: contact.id,
+  });
+
+  const routed = await prisma.conversation.findUnique({ where: { id: conversation.id } });
+  const botState = await prisma.conversationBotState.findUnique({ where: { conversationId: conversation.id } });
+  assert.equal(routed.assignedUserId, admin.id);
+  assert.equal(botState.activeBotId, bot.id);
+  await prisma.bot.delete({ where: { id: bot.id } });
+});
+test("status atrasado da Meta nunca regride READ para DELIVERED", async () => {
+  await cleanup();
+  const campaign = await createDraftCampaign();
+  const externalMessageId = `wamid.status.${Math.random()}`;
+  const contact = await prisma.campaignContact.create({
+    data: { campaignId: campaign.id, phone: "5511977000082", status: "READ", externalMessageId, readAt: new Date() },
+  });
+  await campaignReplyService.handleCampaignStatusEvent({ status: "delivered", externalId: externalMessageId });
+  const updated = await prisma.campaignContact.findUnique({ where: { id: contact.id } });
+  assert.equal(updated.status, "READ");
+});
 test("envio de teste nunca entra nas métricas reais da campanha", async () => {
   await cleanup();
   const campaign = await campaigns.createCampaign({

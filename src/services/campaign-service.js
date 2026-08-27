@@ -15,6 +15,22 @@ function fail(message, statusCode = 400) {
   return Object.assign(new Error(message), { statusCode });
 }
 
+function optionalInteger(value, label, { min, max }) {
+  if (value === undefined || value === null || value === "") return null;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+    throw fail(`${label} deve ser um inteiro entre ${min} e ${max}.`);
+  }
+  return parsed;
+}
+
+function optionalPhone(value) {
+  if (value === undefined || value === null || value === "") return null;
+  const phone = normalizeCampaignPhone(value);
+  if (!phone) throw fail("Informe um número de teste válido com DDD.");
+  return phone;
+}
+
 async function findCampaignOr404(id, client = prisma) {
   const campaign = await client.campaign.findUnique({ where: { id } });
   if (!campaign) throw fail("Campanha não encontrada.", 404);
@@ -52,7 +68,10 @@ async function createCampaign(data, actor, channel) {
       replyCategoryId: data.replyCategoryId || null, replyBotId: data.replyBotId || null,
       responsibleUserId: data.responsibleUserId || null,
       segmentFilters: data.segmentFilters || undefined,
-      testPhone: data.testPhone ? normalizeCampaignPhone(data.testPhone) : null,
+      batchSize: optionalInteger(data.batchSize, "Tamanho do lote", { min: 1, max: 500 }),
+      delayBetweenBatchesSeconds: optionalInteger(data.delayBetweenBatchesSeconds, "Intervalo entre lotes", { min: 1, max: 3600 }),
+      maxRetries: optionalInteger(data.maxRetries, "Máximo de tentativas", { min: 0, max: 10 }),
+      testPhone: optionalPhone(data.testPhone),
       createdByUserId: actor.id, updatedByUserId: actor.id,
     },
   });
@@ -88,10 +107,10 @@ async function updateCampaign(id, data, actor, channel) {
   if (data.replyBotId !== undefined) update.replyBotId = data.replyBotId || null;
   if (data.responsibleUserId !== undefined) update.responsibleUserId = data.responsibleUserId || null;
   if (data.segmentFilters !== undefined) update.segmentFilters = data.segmentFilters || undefined;
-  if (data.batchSize !== undefined) update.batchSize = data.batchSize ? Number(data.batchSize) : null;
-  if (data.delayBetweenBatchesSeconds !== undefined) update.delayBetweenBatchesSeconds = data.delayBetweenBatchesSeconds ? Number(data.delayBetweenBatchesSeconds) : null;
-  if (data.maxRetries !== undefined) update.maxRetries = data.maxRetries !== null ? Number(data.maxRetries) : null;
-  if (data.testPhone !== undefined) update.testPhone = data.testPhone ? normalizeCampaignPhone(data.testPhone) : null;
+  if (data.batchSize !== undefined) update.batchSize = optionalInteger(data.batchSize, "Tamanho do lote", { min: 1, max: 500 });
+  if (data.delayBetweenBatchesSeconds !== undefined) update.delayBetweenBatchesSeconds = optionalInteger(data.delayBetweenBatchesSeconds, "Intervalo entre lotes", { min: 1, max: 3600 });
+  if (data.maxRetries !== undefined) update.maxRetries = optionalInteger(data.maxRetries, "Máximo de tentativas", { min: 0, max: 10 });
+  if (data.testPhone !== undefined) update.testPhone = optionalPhone(data.testPhone);
 
   const updated = await prisma.campaign.update({ where: { id }, data: update });
   await audit.recordAudit({
@@ -184,8 +203,9 @@ async function scheduleCampaign(campaignId, { scheduledAt, timezone }, actor) {
   const campaign = await findCampaignOr404(campaignId);
   if (campaign.status !== "DRAFT") throw fail("Só é possível agendar uma campanha em rascunho.");
   await assertHasEligibleContacts(campaignId);
-  const date = scheduledAt ? new Date(scheduledAt) : null;
-  if (scheduledAt && Number.isNaN(date?.getTime())) throw fail("Data de agendamento inválida.");
+  if (!scheduledAt) throw fail("Informe uma data futura para o agendamento.");
+  const date = new Date(scheduledAt);
+  if (Number.isNaN(date.getTime()) || date.getTime() <= Date.now()) throw fail("Informe uma data futura válida para o agendamento.");
   const updated = await prisma.campaign.update({
     where: { id: campaignId },
     data: { status: "SCHEDULED", scheduledAt: date, timezone: timezone || campaign.timezone, updatedByUserId: actor.id },

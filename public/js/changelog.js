@@ -1,7 +1,21 @@
 (() => {
-  const APP_VERSION = "0.22.0";
+  const APP_VERSION = "0.23.0";
 
   const CHANGELOG = [
+    {
+      version: "0.23.0",
+      date: "27/08/2026",
+      title: "Campanhas e prospecção pelo WhatsApp",
+      changes: [
+        "Adiciona uma área de Campanhas para criar rascunhos, selecionar templates aprovados da Meta, mapear variáveis, importar contatos por CSV e acompanhar o envio.",
+        "Inclui segmentação, estimativa de público, preview, agendamento, pausa, retomada, cancelamento, envio de teste e exportação de resultados.",
+        "Processa os destinatários em lotes com reivindicação atômica, intervalo configurável, retentativa gradual e proteção contra duplicidade entre workers.",
+        "Registra enviados, entregues, lidos, respostas, falhas e opt-outs sem regredir status quando eventos atrasados chegam da Meta.",
+        "Respostas podem vincular a conversa à campanha, categoria, responsável e Bot configurados sem sobrescrever atendimento já atribuído.",
+        "O envio em massa permanece desligado por padrão e só uma conta Master pode ativar o master switch; criar ou agendar uma campanha não dispara mensagens enquanto ele estiver desligado.",
+        "Reaproveita a integração Meta e os templates já existentes, preservando a Central, o atendimento humano e o bot de triagem."
+      ]
+    },
     {
       version: "0.22.0",
       date: "27/08/2026",

@@ -71,7 +71,10 @@ async function recoverStuckContacts(now) {
   const cutoff = new Date(now.getTime() - STUCK_SENDING_MINUTES * 60 * 1000);
   await prisma.campaignContact.updateMany({
     where: { status: "SENDING", updatedAt: { lte: cutoff } },
-    data: { status: "QUEUED" },
+    data: {
+      status: "FAILED", failedAt: now,
+      failureReason: "Envio interrompido com resultado externo incerto; revise antes de tentar novamente.",
+    },
   });
 }
 
@@ -98,23 +101,31 @@ async function maybeCompleteCampaign(campaignId, now) {
 
 // Item 17: um "tick" processa até `batchSize` destinatários POR CAMPANHA em
 // RUNNING — nunca todos de uma vez, nunca fora deste worker.
+function retryIsReady(contact, now, baseDelaySeconds) {
+  if (!contact.retryCount) return true;
+  const backoffSeconds = baseDelaySeconds * (2 ** Math.min(contact.retryCount - 1, 8));
+  return contact.updatedAt.getTime() <= now.getTime() - backoffSeconds * 1000;
+}
+
+// Item 17: um "tick" processa até `batchSize` destinatários POR CAMPANHA.
+// Cada linha é reivindicada individualmente logo antes do envio: dois
+// processos podem enxergar o mesmo candidato, mas só um consegue mudar seu
+// status para SENDING. O master switch e o status da campanha são revistos
+// antes de cada destinatário, permitindo pausar/cancelar sem continuar o lote.
 async function processCampaign(campaign, channel, now) {
   const settings = await getCampaignSettings();
   const batchSize = campaign.batchSize || settings.defaultBatchSize || DEFAULT_BATCH_SIZE;
+  const delaySeconds = campaign.delayBetweenBatchesSeconds || settings.defaultDelayBetweenBatchesSeconds || DEFAULT_DELAY_BETWEEN_BATCHES_SECONDS;
   const maxRetries = campaign.maxRetries ?? settings.defaultMaxRetries ?? DEFAULT_MAX_RETRIES;
 
-  const candidates = await prisma.campaignContact.findMany({
-    where: { campaignId: campaign.id, status: { in: ["PENDING", "QUEUED"] }, isTest: false },
-    orderBy: { createdAt: "asc" }, take: batchSize,
-  });
-  if (!candidates.length) { await maybeCompleteCampaign(campaign.id, now); return; }
+  if (campaign.lastBatchAt && now.getTime() - campaign.lastBatchAt.getTime() < delaySeconds * 1000) return;
 
-  // Item 21: reivindicação atômica — só quem consegue mover PENDING/QUEUED
-  // -> SENDING é quem realmente processa aquela linha.
-  const claimedIds = candidates.map((row) => row.id);
-  await prisma.campaignContact.updateMany({
-    where: { id: { in: claimedIds }, status: { in: ["PENDING", "QUEUED"] } }, data: { status: "SENDING" },
+  const available = await prisma.campaignContact.findMany({
+    where: { campaignId: campaign.id, status: { in: ["PENDING", "QUEUED"] }, isTest: false },
+    orderBy: { createdAt: "asc" }, take: Math.min(batchSize * 4, 2000),
   });
+  const candidates = available.filter((contact) => retryIsReady(contact, now, delaySeconds)).slice(0, batchSize);
+  if (!candidates.length) { await maybeCompleteCampaign(campaign.id, now); return; }
 
   let template = null;
   try {
@@ -122,44 +133,57 @@ async function processCampaign(campaign, channel, now) {
     const templates = await listApprovedTemplates(channel);
     template = templates.find((item) => item.name === campaign.templateName && item.language === campaign.templateLanguage);
   } catch (error) {
-    // Item 3: integração Meta indisponível — nunca inventa envio; toda a
-    // leva volta a QUEUED para tentar no próximo tick.
-    await prisma.campaignContact.updateMany({ where: { id: { in: claimedIds } }, data: { status: "QUEUED" } });
-    console.error("[CAMPAIGN_WORKER] falha ao consultar templates da Meta (leva devolvida à fila)", error.message);
+    console.error("[CAMPAIGN_WORKER] falha ao consultar templates da Meta (nenhum contato reivindicado)", error.message);
     return;
   }
   if (!template || template.status !== "APPROVED") {
     await prisma.campaignContact.updateMany({
-      where: { id: { in: claimedIds } },
+      where: { campaignId: campaign.id, status: { in: ["PENDING", "QUEUED"] } },
       data: { status: "FAILED", failedAt: now, failureReason: "Template não está mais aprovado na Meta." },
     });
-    await prisma.campaign.update({ where: { id: campaign.id }, data: { status: "FAILED", failedAt: now } });
+    await prisma.campaign.updateMany({ where: { id: campaign.id, status: "RUNNING" }, data: { status: "FAILED", failedAt: now } });
     return;
   }
 
+  let claimedAny = false;
   for (const contact of candidates) {
+    const [currentSettings, currentCampaign] = await Promise.all([
+      getCampaignSettings(),
+      prisma.campaign.findUnique({ where: { id: campaign.id }, select: { status: true } }),
+    ]);
+    if (!currentSettings.massMessagingEnabled || currentCampaign?.status !== "RUNNING") break;
+
+    const claim = await prisma.campaignContact.updateMany({
+      where: { id: contact.id, status: { in: ["PENDING", "QUEUED"] } }, data: { status: "SENDING" },
+    });
+    if (claim.count !== 1) continue;
+    claimedAny = true;
+
     try {
-      // Item 13: reconfere opt-out no momento do envio — nunca confia só no
-      // cache local (`optOut`), que pode estar desatualizado.
       if (contact.optOut || await isOptedOut(contact.phone)) {
-        await prisma.campaignContact.update({ where: { id: contact.id }, data: { status: "OPTED_OUT" } });
+        await prisma.campaignContact.updateMany({ where: { id: contact.id, status: "SENDING" }, data: { status: "OPTED_OUT" } });
         continue;
       }
+      const stillRunning = await prisma.campaign.findFirst({ where: { id: campaign.id, status: "RUNNING" }, select: { id: true } });
+      const switchStillOn = (await getCampaignSettings()).massMessagingEnabled;
+      if (!stillRunning || !switchStillOn) {
+        await prisma.campaignContact.updateMany({ where: { id: contact.id, status: "SENDING" }, data: { status: "PENDING" } });
+        break;
+      }
+
       const conversation = await findOrCreateCampaignConversation({ phone: contact.phone, name: contact.fullName || contact.firstName });
       const values = resolveTemplateValues(campaign, contact, template);
       const result = await sendApprovedTemplate({
         conversationId: conversation.id, name: campaign.templateName, language: campaign.templateLanguage,
         values, sentByUserId: null, channel,
       });
-      await prisma.campaignContact.update({
-        where: { id: contact.id },
+      await prisma.campaignContact.updateMany({
+        where: { id: contact.id, status: "SENDING" },
         data: {
           status: "SENT", sentAt: now, externalMessageId: result.message.externalId,
           contactId: conversation.contactId, prospectStatus: contact.prospectStatus === "NEW" ? "CONTACTED" : contact.prospectStatus,
         },
       });
-      // Vincula a conversa a esta campanha (item 15) só se ainda não tiver
-      // origem — nunca sobrescreve um vínculo/roteamento já existente.
       await prisma.conversation.updateMany({
         where: { id: conversation.id, originCampaignId: null },
         data: { originSource: "OUTBOUND_CAMPAIGN", originCampaignId: campaign.id, originCampaignContactId: contact.id },
@@ -167,8 +191,8 @@ async function processCampaign(campaign, channel, now) {
     } catch (error) {
       const retryCount = contact.retryCount + 1;
       const willRetry = retryCount <= maxRetries;
-      await prisma.campaignContact.update({
-        where: { id: contact.id },
+      await prisma.campaignContact.updateMany({
+        where: { id: contact.id, status: "SENDING" },
         data: willRetry
           ? { status: "QUEUED", retryCount, failureReason: error.message }
           : { status: "FAILED", failedAt: now, failureReason: error.message, retryCount },
@@ -176,9 +200,11 @@ async function processCampaign(campaign, channel, now) {
     }
   }
 
+  if (claimedAny) {
+    await prisma.campaign.updateMany({ where: { id: campaign.id, status: "RUNNING" }, data: { lastBatchAt: now } });
+  }
   await maybeCompleteCampaign(campaign.id, now);
 }
-
 async function runCampaignSendTick(channel, now = new Date()) {
   const settings = await getCampaignSettings();
   // Item 31/32: master switch OFF -> nenhum envio real acontece, mesmo com
@@ -188,7 +214,7 @@ async function runCampaignSendTick(channel, now = new Date()) {
   await recoverStuckContacts(now);
   await promoteQueuedCampaigns(now);
 
-  const running = await prisma.campaign.findMany({ where: { status: "RUNNING" }, take: 10 });
+  const running = await prisma.campaign.findMany({ where: { status: "RUNNING" }, orderBy: { startedAt: "asc" } });
   for (const campaign of running) {
     try {
       await processCampaign(campaign, channel, now);
@@ -206,9 +232,7 @@ function startCampaignWorker({ channel, intervalMs, onChange }) {
     if (running) return;
     running = true;
     try {
-      const settings = await settingsPromise;
-      const delayMs = (settings.defaultDelayBetweenBatchesSeconds || DEFAULT_DELAY_BETWEEN_BATCHES_SECONDS) * 1000;
-      void delayMs; // o intervalo do tick já respeita o delay default; campanhas com delay próprio são respeitadas por processCampaign via batchSize.
+      await settingsPromise;
       const result = await runCampaignSendTick(channel);
       if (result.processed) onChange?.(result.processed);
     } catch (error) {
