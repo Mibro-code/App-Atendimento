@@ -118,6 +118,23 @@ async function upsertResponseSuggestion(client, { botId, topic, content, convers
   });
 }
 
+// Item 1 desta fase (aprendizado real): a resposta de um atendente que
+// resolveu bem o caso e não corresponde a NENHUMA Resposta Rápida ativa —
+// sugere cadastrar uma nova (tipo QUICK_REPLY), sempre PENDING/revisão
+// humana. Nunca cria a Resposta Rápida sozinho.
+async function suggestQuickReplyIfNew(client, { botId, content, conversationId }) {
+  const existing = await client.quickReply.findMany({ where: { active: true }, select: { text: true }, take: 500 });
+  const normalizedContent = normalizeText(content);
+  const alreadyCovered = existing.some((quickReply) => (
+    similarity(normalizedContent, normalizeText(quickReply.text)) >= LEARNING_SIMILARITY_CONTENT_THRESHOLD
+  ));
+  if (alreadyCovered) return null;
+  return upsertSuggestion(client, {
+    botId, intentId: null, type: "QUICK_REPLY", title: titleFromText(content),
+    suggestedContent: content, conversationId, confidence: null,
+  });
+}
+
 // Item 16 (Aprendizado x Flow Engine): resultado ESTRUTURAL do fluxo
 // (ConversationBotState.flowResolutionStatus), mais preciso que o sinal de
 // texto (detectResolutionSignal) para conversas conduzidas por etapas.
@@ -241,6 +258,10 @@ async function analyzeConversation(conversationId, { force = false, client = pri
         suggestions.push(await upsertResponseSuggestion(client, {
           botId: observation?.botId || null, topic: sanitizedExample, content: sanitizedSolution, conversationId,
         }));
+        const quickReplySuggestion = await suggestQuickReplyIfNew(client, {
+          botId: observation?.botId || null, content: sanitizedSolution, conversationId,
+        });
+        if (quickReplySuggestion) suggestions.push(quickReplySuggestion);
       }
     }
 

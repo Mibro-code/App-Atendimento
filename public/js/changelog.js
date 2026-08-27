@@ -1,7 +1,21 @@
 (() => {
-  const APP_VERSION = "0.21.0";
+  const APP_VERSION = "0.22.0";
 
   const CHANGELOG = [
+    {
+      version: "0.22.0",
+      date: "27/08/2026",
+      title: "Supervisão, handoff e qualidade dos Bots",
+      changes: [
+        "Mantém o contexto de produto entre intenções e permite retomar automaticamente um fluxo pausado após uma troca de assunto.",
+        "Estrutura o encaminhamento humano com produto, etapa terminal, motivo, tentativas e resumo correto para apoiar o atendente.",
+        "Adiciona na Central uma sugestão supervisionada com Usar, Editar, Ignorar e feedback; o texto sempre passa pelo atendente e nunca é enviado sozinho.",
+        "Remove sugestões antigas depois de uma resposta ou nova mensagem e preserva o texto final ao atualizar o feedback.",
+        "Amplia o aprendizado supervisionado com sugestões pendentes de Resposta Rápida e revisão de fluxo, sempre sujeitas à aprovação humana.",
+        "Prepara avaliação, ranking, métricas e alertas de qualidade; no webhook passivo, nenhuma avaliação é solicitada nem registrada como se o Bot tivesse respondido.",
+        "Mantém Tools em modo de observação no webhook atual e preserva o WhatsApp/Meta, o atendimento humano e o bot de triagem existentes."
+      ]
+    },
     {
       version: "0.21.0",
       date: "27/08/2026",

@@ -399,6 +399,14 @@ app.post(
   app.get("/api/conversations/:conversationId/bot-handoff", botController.listHandoffContexts);
   app.post("/api/conversations/:conversationId/bot-handoff/resume", botController.resumeBot);
 
+  // Sugestão de resposta para o atendente + feedback (itens 7/8).
+  app.get("/api/conversations/:conversationId/bot-suggestion", botController.latestSuggestion);
+  app.post("/api/bot-suggestion-feedback", botController.suggestionFeedback);
+
+  // Métricas/alertas de qualidade (itens 11/12).
+  app.get("/api/bots/:botId/quality-metrics", botController.qualityMetrics);
+  app.get("/api/bots/:botId/quality-alerts", botController.qualityAlerts);
+
   // Tools (itens 5-7): listagem só de leitura.
   app.get("/api/bot-tools", botController.listTools);
 

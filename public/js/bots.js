@@ -929,10 +929,12 @@ async function loadPerformance() {
   if (!botId) return;
   const period = $("#perf-period").value;
   try {
-    const [metrics, intentRows, conflicts] = await Promise.all([
+    const [metrics, intentRows, conflicts, quality, qualityAlerts] = await Promise.all([
       api(`/api/bots/${botId}/rating-metrics?${period ? `preset=${period}` : ""}`),
       api(`/api/bots/${botId}/intent-metrics`),
       api(`/api/bots/${botId}/intent-conflicts`),
+      api(`/api/bots/${botId}/quality-metrics`),
+      api(`/api/bots/${botId}/quality-alerts`),
     ]);
     $("#perf-interpretation-metrics").innerHTML = [
       metricTile(metrics.interpretation.totalObserved, "Mensagens interpretadas (diagnóstico)"),
@@ -968,6 +970,22 @@ async function loadPerformance() {
       <span class="learning-conflict">${Math.round(conflict.similarity * 100)}% parecidas</span></p>
       <p class="learning-meta">${escapeHtml(conflict.reason)}</p></article>
     `).join("") : `<div class="intent-empty">Nenhum conflito identificado entre as intenções ativas.</div>`;
+
+    $("#quality-metrics").innerHTML = [
+      metricTile(quality.started, "Mensagens observadas"),
+      metricTile(quality.resolvedByFlow, "Resolvidos pelo fluxo"),
+      metricTile(quality.handoffs, "Handoffs"),
+      metricTile(quality.topicSwitches, "Trocas de assunto"),
+      metricTile(quality.suggestions.used, "Sugestões usadas"),
+      metricTile(quality.suggestions.edited, "Sugestões editadas"),
+      metricTile(quality.suggestions.ignored, "Sugestões ignoradas"),
+      metricTile(quality.suggestions.positive, "Feedback 👍"),
+      metricTile(quality.suggestions.negative, "Feedback 👎"),
+    ].join("");
+    $("#quality-alerts").innerHTML = qualityAlerts.alerts.length ? qualityAlerts.alerts.map((alert) => `
+      <article class="learning-card"><p><b>${escapeHtml(alert.type)}</b> <span class="learning-conflict">${escapeHtml(alert.severity)}</span></p>
+      <p class="learning-meta">${escapeHtml(alert.message)}</p></article>
+    `).join("") : `<div class="intent-empty">Nenhum alerta no momento.</div>`;
   } catch (error) { toast(error.message, true); }
 }
 $("#perf-refresh").addEventListener("click", loadPerformance);

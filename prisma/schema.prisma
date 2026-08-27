@@ -150,6 +150,10 @@ enum BotLearningSuggestionType {
   // fluxo terminou em HANDOFF_HUMAN (não resolvido) — sugere revisão manual
   // da etapa/conhecimento, nunca altera o fluxo sozinho.
   FLOW_REVIEW
+  // Item 1 desta fase: resposta de um atendente humano que resolveu bem o
+  // caso e não corresponde a nenhuma Resposta Rápida existente — sugere
+  // cadastrar uma nova (revisão humana continua obrigatória).
+  QUICK_REPLY
 }
 
 enum BotLearningSuggestionStatus {
@@ -265,6 +269,7 @@ model Conversation {
   agentFeedback          BotAgentFeedback[]
   handoffContexts        BotHandoffContext[]
   quickReplyUsages       QuickReplyUsage[]
+  suggestionFeedback     BotSuggestionFeedback[]
   channelAccount         ChannelAccount?            @relation(fields: [channelAccountId], references: [id], onDelete: SetNull)
 
   @@unique([contactId, channel, channelScope])
@@ -338,6 +343,7 @@ model User {
   quickRepliesCreated         QuickReply[]             @relation("QuickReplyCreatedBy")
   quickReplyFavorites         QuickReplyFavorite[]     @relation("QuickReplyFavoriteUser")
   quickReplyUsages            QuickReplyUsage[]        @relation("QuickReplyUsageUser")
+  suggestionFeedbackGiven     BotSuggestionFeedback[]  @relation("SuggestionFeedbackUser")
   pushSubscriptions           PushSubscription[]       @relation("UserPushSubscriptions")
 }
 
@@ -490,6 +496,7 @@ model Bot {
   knowledgeSources        KnowledgeSource[]
   knowledgeSourceAccesses KnowledgeSourceBot[]
   handoffContexts         BotHandoffContext[]
+  suggestionFeedback      BotSuggestionFeedback[]
 
   @@index([status, channel])
   @@index([defaultCategoryId])
@@ -701,6 +708,14 @@ model BotObservation {
   calledExternalAi        Boolean                @default(false)
   flowStepId              String?
   flowResolutionStatus    String?
+  // Item 4/7 (troca de assunto / sugestão para o atendente): a resposta que
+  // o motor calcularia para esta mensagem (texto final, já resolvido por
+  // Flow Engine/Knowledge/Tool/fallback) — nunca enviada automaticamente;
+  // só fica disponível para o atendente usar via "Sugestão de resposta"
+  // quando um humano já assumiu a conversa. `topicSwitchDetected` registra
+  // quando a mensagem trocou de intenção no meio de um fluxo em andamento.
+  suggestedResponseText   String?                @db.Text
+  topicSwitchDetected     Boolean                @default(false)
   provider                String?
   mode                    String                 @default("OBSERVATION")
   status                  String                 @default("OK")
@@ -713,19 +728,50 @@ model BotObservation {
   suggestedQuickReplyName String?
   createdAt               DateTime               @default(now())
 
-  conversation        Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  message             Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  bot                 Bot?         @relation(fields: [botId], references: [id], onDelete: SetNull)
-  category            Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  feedbackIntent      BotIntent?   @relation("ObservationFeedbackIntent", fields: [feedbackIntentId], references: [id], onDelete: SetNull)
-  feedbackByUser      User?        @relation("ObservationFeedbackUser", fields: [feedbackByUserId], references: [id], onDelete: SetNull)
-  suggestedQuickReply QuickReply?  @relation("ObservationSuggestedQuickReply", fields: [suggestedQuickReplyId], references: [id], onDelete: SetNull)
+  conversation        Conversation            @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message             Message                 @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  bot                 Bot?                    @relation(fields: [botId], references: [id], onDelete: SetNull)
+  category            Category?               @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  feedbackIntent      BotIntent?              @relation("ObservationFeedbackIntent", fields: [feedbackIntentId], references: [id], onDelete: SetNull)
+  feedbackByUser      User?                   @relation("ObservationFeedbackUser", fields: [feedbackByUserId], references: [id], onDelete: SetNull)
+  suggestedQuickReply QuickReply?             @relation("ObservationSuggestedQuickReply", fields: [suggestedQuickReplyId], references: [id], onDelete: SetNull)
+  suggestionFeedback  BotSuggestionFeedback[]
 
   @@index([conversationId, createdAt])
   @@index([botId, createdAt])
   @@index([categoryId])
   @@index([createdAt])
   @@index([feedback])
+}
+
+// Item 8 (feedback do atendente sobre uma sugestão específica — distinto de
+// BotAgentFeedback, que é "o Bot ajudou nesta conversa?" de forma geral).
+// Uma linha por atendente+sugestão (observação); `finalResponseText` é
+// opcional (o que o atendente realmente enviou, quando informado pelo
+// cliente da UI ao dar o feedback) — nunca inferido automaticamente aqui.
+model BotSuggestionFeedback {
+  id                String   @id @default(cuid())
+  observationId     String
+  botId             String?
+  conversationId    String
+  userId            String
+  // `helpful` (👍/👎) e `action` (o que o atendente fez com a sugestão na UI:
+  // USED/EDITED/IGNORED) são sinais independentes — nem sempre os dois
+  // chegam juntos. Pelo menos um dos dois é sempre informado (validado no
+  // service, não aqui).
+  helpful           Boolean?
+  action            String?
+  finalResponseText String?  @db.Text
+  createdAt         DateTime @default(now())
+
+  observation  BotObservation @relation(fields: [observationId], references: [id], onDelete: Cascade)
+  bot          Bot?           @relation(fields: [botId], references: [id], onDelete: SetNull)
+  conversation Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User           @relation("SuggestionFeedbackUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([observationId, userId])
+  @@index([botId, createdAt])
+  @@index([conversationId])
 }
 
 model ConversationBotState {
@@ -775,6 +821,26 @@ model ConversationBotState {
   // fluxo — nunca usado para decidir nada sozinho, só auditoria/depuração.
   pendingQuestion        String?               @db.Text
   lastBotAction          String?
+
+  // Item 6 (contexto de produto): memória de entidades em nível de
+  // CONVERSA, nunca de uma etapa específica — mescla (nunca sobrescreve) a
+  // cada turno, sobrevive à troca de intenção/fluxo e respeita o mesmo TTL
+  // de contextExpirationMinutes (resetada junto com os campos flow* quando a
+  // sessão expira). "tenho um GS Pro 2" -> "ele tem NFC?" não repergunta o
+  // modelo mesmo em uma intenção nova sem fluxo nenhum.
+  contextEntities Json?
+
+  // Item 5 (múltiplas intenções): pilha de fluxos PAUSADOS por troca de
+  // assunto (item 4) — cada item é um snapshot igual ao persistido em
+  // flow*/pendingQuestion. Vazio/nulo = nenhum fluxo em espera. Nunca cresce
+  // sem limite: MAX_FLOW_STACK_DEPTH em bot-flow-service.js.
+  flowStack Json?
+
+  // Item 9 (avaliação do cliente): nunca pedir de novo na mesma conversa.
+  // `awaitingRatingScore` faz a PRÓXIMA mensagem do cliente ser interpretada
+  // como nota (1-5) em vez de reclassificada normalmente.
+  ratingRequestedAt   DateTime?
+  awaitingRatingScore Boolean   @default(false)
 
   updatedAt DateTime @updatedAt
   createdAt DateTime @default(now())
@@ -996,23 +1062,32 @@ model BotGlobalSettings {
 // já feitas e soluções já tentadas, mais um resumo curto (2-4 frases) gerado
 // de forma determinística a partir desses fatos (sem chamar IA).
 model BotHandoffContext {
-  id                String    @id @default(cuid())
-  conversationId    String
-  botId             String?
-  botName           String?
-  intentId          String?
-  intentName        String?
-  confidence        Float?
-  category          String?
-  extractedEntities Json?
-  lastRelevantInfo  String?   @db.Text
-  questionsAsked    Json?
-  solutionsTried    Json?
-  summary           String?   @db.Text
-  createdAt         DateTime  @default(now())
+  id                   String    @id @default(cuid())
+  conversationId       String
+  botId                String?
+  botName              String?
+  intentId             String?
+  intentName           String?
+  confidence           Float?
+  category             String?
+  extractedEntities    Json?
+  lastRelevantInfo     String?   @db.Text
+  questionsAsked       Json?
+  solutionsTried       Json?
+  summary              String?   @db.Text
+  // Item 2 (handoff inteligente): quando o handoff aconteceu DENTRO de um
+  // Flow Engine, estes campos vêm do estado estruturado do fluxo (nunca do
+  // heurístico "mensagem termina com ?") — produto coletado, etapa em que
+  // parou, resultado e motivo, para o atendente nunca precisar reler a
+  // conversa inteira.
+  product              String?
+  flowResolutionStatus String?
+  currentStepName      String?
+  handoffReason        String?   @db.Text
+  createdAt            DateTime  @default(now())
   // Retomada explícita do Bot ("[Retomar Bot]") — nunca automática.
-  resumedAt         DateTime?
-  resumedByUserId   String?
+  resumedAt            DateTime?
+  resumedByUserId      String?
 
   conversation  Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   bot           Bot?         @relation(fields: [botId], references: [id], onDelete: SetNull)

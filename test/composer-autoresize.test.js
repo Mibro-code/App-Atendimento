@@ -40,7 +40,7 @@ test("o listener de input do composer aciona o auto-resize a cada tecla", () => 
 });
 
 test("enviar mensagem limpa o texto e reseta a altura do composer", () => {
-  assert.match(js, /input\.value = ""; resetComposerHeight\(\); hideSlashSuggestions\(\);/);
+  assert.match(js, /input\.value = "";\s*resetComposerHeight\(\);\s*hideSlashSuggestions\(\);/);
 });
 
 test("inserir resposta rápida ou atalho '\\/' também re-aplica o auto-resize (texto inserido por script)", () => {

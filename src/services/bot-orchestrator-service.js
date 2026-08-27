@@ -8,13 +8,16 @@ const prisma = require("../database/prisma");
 const { interpret } = require("./bot-interpreter-service");
 const { decide } = require("./bot-decision-service");
 const { respond } = require("./bot-response-service");
-const { getState, getRecentContext, persistDecision } = require("./bot-conversation-state-service");
+const {
+  getState, getRecentContext, persistDecision, mergeContextEntities,
+} = require("./bot-conversation-state-service");
 const { getGlobalSettings, renderPresentationMessage, resolveFeatureFlags } = require("./bot-governance-service");
 const { checkResponseLoop, checkSwitchWindow } = require("./bot-loop-guard-service");
 const { resolveToolDecision } = require("./bot-tool-orchestrator-service");
 const { resolveKnowledgeResponse } = require("./bot-knowledge-response-service");
 const { captureHandoffContext } = require("./bot-handoff-service");
 const { recordAiUsage } = require("./bot-ai-usage-service");
+const { submitRatingFromBot, shouldRequestRating } = require("./bot-rating-service");
 const flowEngine = require("./bot-flow-service");
 
 const categorySelection = { id: true, code: true, name: true, color: true, active: true };
@@ -149,25 +152,43 @@ function flowDecisionStub(intent, outcome) {
 // desligado ou a sessão tiver expirado. `guardState` alimenta as proteções
 // de loop/troca de Bot/apresentação — só é null quando a sessão realmente
 // expirou (essas proteções não dependem de contextEnabled).
+// `humanPaused` (item 3): quando true, o Flow Engine nunca continua nem
+// inicia um fluxo novo (congelado exatamente onde estava) — só
+// interpret()/decide() seguem rodando, para Observação/sugestão de resposta
+// continuarem funcionando. `flowStack`/`seedEntities` — itens 5/6.
 async function runDecisionPipeline({
   bot, message, context, state, guardState, previousIntroducedAt, flags, now, channel, client, sessionExpired = false,
-  toolMode = "OBSERVATION",
+  toolMode = "OBSERVATION", humanPaused = false, flowStack = [], seedEntities = null,
 }) {
   let interpretation;
   let decision;
   let flowUpdate = null;
+  let flowStackUpdate = flowStack;
+  let topicSwitchDetected = false;
 
   // Flow Engine (múltiplas etapas): se já existe uma etapa aguardando
   // resposta nesta conversa, a mensagem é interpretada como resposta a ELA,
   // não reclassificada do zero — mesmo espírito do carryOverFromContext já
-  // existente para "sim"/"não" após esclarecimento (item 5).
-  if (flags.flowEngineEnabled !== false && state?.currentFlowStepId && state?.activeFlowIntentId) {
+  // existente para "sim"/"não" após esclarecimento (item 5). Nunca continua
+  // um fluxo enquanto um humano estiver com a conversa (item 3).
+  if (!humanPaused && flags.flowEngineEnabled !== false && state?.currentFlowStepId && state?.activeFlowIntentId) {
     const flowIntent = findIntentInBot(bot, state.activeFlowIntentId);
     if (flowIntent) {
-      const outcome = await flowEngine.continueFlow({ bot, intent: flowIntent, message, state, channel, mode: toolMode, client });
-      interpretation = flowInterpretationStub(flowIntent, outcome);
-      decision = flowDecisionStub(flowIntent, outcome);
-      flowUpdate = outcome.flow;
+      const outcome = await flowEngine.continueFlow({
+        bot, intent: flowIntent, message, state, channel, mode: toolMode, client, context,
+      });
+      if (outcome.topicSwitch) {
+        // Item 4/5: a mensagem não é resposta à etapa pendente — é uma
+        // intenção nova. Congela o fluxo atual na pilha e cai para o
+        // pipeline normal abaixo, que interpreta/decide como se não houvesse
+        // fluxo em andamento (a nova intenção pode, ela mesma, ter fluxo).
+        topicSwitchDetected = true;
+        flowStackUpdate = flowEngine.pushFlowStack(flowStack, state);
+      } else {
+        interpretation = flowInterpretationStub(flowIntent, outcome);
+        decision = flowDecisionStub(flowIntent, outcome);
+        flowUpdate = outcome.flow;
+      }
     }
   }
 
@@ -179,11 +200,11 @@ async function runDecisionPipeline({
     // conduzida pelo Flow Engine em vez da resposta/Tool/conhecimento de
     // etapa única — reaproveitando resolveToolDecision/KnowledgeProvider por
     // dentro de cada etapa, nunca reimplementando as checagens de segurança.
-    if (flags.flowEngineEnabled !== false && interpretation.intentId && ["RESPOND", "QUERY_TOOL"].includes(decision.action)) {
+    if (!humanPaused && flags.flowEngineEnabled !== false && interpretation.intentId && ["RESPOND", "QUERY_TOOL"].includes(decision.action)) {
       const hasFlow = await flowEngine.hasActiveFlow(interpretation.intentId, client);
       if (hasFlow) {
         const flowIntent = findIntentInBot(bot, interpretation.intentId);
-        const outcome = await flowEngine.startFlow({ bot, intent: flowIntent, channel, mode: toolMode, client });
+        const outcome = await flowEngine.startFlow({ bot, intent: flowIntent, channel, mode: toolMode, client, seedEntities });
         if (outcome) {
           decision = { ...decision, ...flowDecisionStub(flowIntent, outcome) };
           flowUpdate = outcome.flow;
@@ -201,7 +222,23 @@ async function runDecisionPipeline({
       // Item 4: Message -> Intent Interpreter -> Intenção -> KnowledgeProvider ->
       // conhecimento relevante -> Resposta. Só entra em jogo se a decisão ainda
       // for RESPOND (não interfere com QUERY_TOOL/ASK_CLARIFICATION/HANDOFF).
-      decision = await resolveKnowledgeResponse({ bot, decision, interpretation, message, flags });
+      decision = await resolveKnowledgeResponse({ bot, decision, interpretation, message, flags, contextProduct: seedEntities?.productName });
+    }
+  }
+
+  // Item 5 (múltiplas intenções): a intenção que causou a troca de assunto
+  // terminou (fluxo concluído/encaminhado, ou respondida sem fluxo nenhum) —
+  // retoma o que estava pausado na pilha, se houver algo.
+  let resumedFromStack = null;
+  const reachedTerminal = flowUpdate
+    ? flowUpdate.currentStepId === null
+    : ["RESPOND", "HANDOFF_HUMAN"].includes(decision.action);
+  if (!humanPaused && reachedTerminal && flowStackUpdate.length) {
+    const { snapshot, remainingStack } = flowEngine.popFlowStack(flowStackUpdate);
+    if (snapshot) {
+      resumedFromStack = snapshot;
+      flowUpdate = flowEngine.flowPersistFromSnapshot(snapshot);
+      flowStackUpdate = remainingStack;
     }
   }
 
@@ -230,6 +267,12 @@ async function runDecisionPipeline({
 
   let responseText = respond({ bot: targetBot, decision, interpretation });
 
+  // Item 5: sinaliza ao cliente que o assunto anterior não foi esquecido.
+  if (resumedFromStack?.pendingQuestion) {
+    const resumeLine = `Voltando ao que você havia perguntado antes: ${resumedFromStack.pendingQuestion}`;
+    responseText = responseText ? `${responseText}\n\n${resumeLine}` : resumeLine;
+  }
+
   const priorIntroducedAt = previousIntroducedAt === undefined
     ? (guardState?.introducedAt || null) : previousIntroducedAt;
   const shouldIntroduce = Boolean(targetBot.introduceWithName) && Boolean(responseText)
@@ -256,12 +299,17 @@ async function runDecisionPipeline({
     lastResponseRepeatCount: finalLoop.repeatCount,
   };
 
-  return { interpretation, decision, targetBot, responseText, operational, flow: flowUpdate };
+  return {
+    interpretation, decision, targetBot, responseText, operational, flow: flowUpdate,
+    flowStackUpdate, topicSwitchDetected,
+  };
 }
 
 // Interpreta e decide para uma conversa REAL, persistindo o estado do Bot
 // nessa conversa (ConversationBotState). Não altera Conversation/Message.
-async function orchestrate({ conversationId, channel = "META", messageId = null, message, now = new Date() }, client = prisma) {
+async function orchestrate({
+  conversationId, channel = "META", messageId = null, message, now = new Date(), executionMode = "LIVE",
+}, client = prisma) {
   const state = await getState(conversationId, client);
   const bot = await resolveBot(state?.activeBotId, channel, client);
   if (!bot) return null;
@@ -272,33 +320,12 @@ async function orchestrate({ conversationId, channel = "META", messageId = null,
   const conversationalState = flags.contextEnabled && !sessionExpired ? state : null;
   const operationalState = sessionExpired ? null : state;
 
-  const context = flags.contextEnabled
-    ? await getRecentContext(conversationId, { beforeMessageId: messageId, limit: flags.contextMaxMessages }, client)
-    : [];
-
-  // Itens 7/11: uma Tool só é executada de VERDADE quando este Bot está
-  // realmente apto a responder automaticamente ao cliente (automação global
-  // ligada + autoReplyEnabled do Bot). Fora isso, mesmo dentro de uma
-  // conversa real, o modo é "observação" — nunca chama a Tool de verdade,
-  // só registra o que teria sido consultado.
-  const toolMode = (globalSettings.automationEnabled && bot.autoReplyEnabled) ? "LIVE" : "OBSERVATION";
-
-  const { interpretation, decision, targetBot, responseText, operational, flow } = await runDecisionPipeline({
-    bot, message, context, state: conversationalState, guardState: operationalState,
-    previousIntroducedAt: state?.introducedAt || null, flags, now, channel, client, sessionExpired, toolMode,
-  });
-
-  if (decision.action === "HANDOFF_HUMAN") {
-    try {
-      const decisionWithCategoryName = { ...decision, categoryName: categoryNameFor(targetBot, decision.categoryId) };
-      await captureHandoffContext({ conversationId, bot: targetBot, interpretation, decision: decisionWithCategoryName, message, context }, client);
-    } catch (error) {
-      // Nunca pode derrubar a interpretação/observação por falha ao gravar o
-      // contexto de handoff — só loga.
-      console.error("[BOT_HANDOFF] falha ao capturar contexto (ignorada)", error.message);
-    }
-  }
-
+  // Item 3 (humano assumiu): calculado ANTES do pipeline — precisa decidir
+  // se o Flow Engine/Tools rodam de verdade neste turno, não só se a
+  // resposta final seria enviada. Antes desta correção, um humano podia
+  // estar atendendo enquanto o Flow Engine/Tools continuavam avançando (e
+  // até executando Tools reais) por baixo, só porque a resposta final não
+  // era enviada — o estado ficava fora de sincronia com o que o humano via.
   let humanPaused = false;
   if (flags.handoffAutoPauseEnabled) {
     const conversation = await client.conversation.findUnique({
@@ -307,6 +334,75 @@ async function orchestrate({ conversationId, channel = "META", messageId = null,
     humanPaused = Boolean(conversation?.assignedUserId)
       && ["EM_ATENDIMENTO", "AGUARDANDO_RESPOSTA"].includes(conversation?.status);
   }
+
+  // Item 9 (avaliação do cliente): se a mensagem anterior pediu uma nota e
+  // esta é a resposta, trata como avaliação em vez de reclassificar do zero
+  // — nunca roda o pipeline normal de intenção para um dígito de 1 a 5.
+  if (!humanPaused && state?.awaitingRatingScore) {
+    const score = Number(String(message || "").trim());
+    if (Number.isInteger(score) && score >= 1 && score <= 5) {
+      await submitRatingFromBot({
+        botId: bot.id, conversationId, score,
+        resolvedByBot: !state.activeFlowIntentId ? false : state.flowResolutionStatus === "RESOLVED",
+        handoffOccurred: Boolean(state.flowResolutionStatus === "HANDED_OFF"),
+        intentId: state.activeFlowIntentId || state.lastIntentId || null,
+      }, client).catch((error) => {
+        console.error("[BOT_RATING] falha ao registrar avaliação vinda do cliente (ignorada)", error.message);
+      });
+      await client.conversationBotState.update({
+        where: { conversationId }, data: { awaitingRatingScore: false },
+      });
+      return toStandardResult({
+        bot, targetBot: bot,
+        interpretation: { intentId: null, intentName: null, confidence: null, matchedExample: null, entities: {}, provider: "RATING", status: "OK", errorCode: null },
+        decision: { action: "RESPOND", categoryId: null, needsClarification: false, shouldHandoff: false, withinHours: true, summary: "Avaliação do cliente registrada." },
+        responseText: bot.ratingFollowupMessage || null,
+        extras: { humanPaused: false, automationBlocked: false, observationAllowed: false, learningEnabled: flags.learningEnabled, ratingRecorded: true },
+      });
+    }
+  }
+
+  const context = flags.contextEnabled
+    ? await getRecentContext(conversationId, { beforeMessageId: messageId, limit: flags.contextMaxMessages }, client)
+    : [];
+
+  // Itens 7/11: uma Tool só é executada de VERDADE quando este Bot está
+  // realmente apto a responder automaticamente ao cliente (automação global
+  // ligada + autoReplyEnabled do Bot) E nenhum humano assumiu a conversa
+  // (item 3). Fora isso, mesmo dentro de uma conversa real, o modo é
+  // "observação" — nunca chama a Tool de verdade, só registra o que teria
+  // sido consultado.
+  const toolMode = executionMode === "LIVE" && globalSettings.automationEnabled && bot.autoReplyEnabled && !humanPaused
+    ? "LIVE" : "OBSERVATION";
+
+  // Item 6 (contexto de produto): memória de entidades da CONVERSA inteira,
+  // resetada junto com o resto do estado operacional quando a sessão expira
+  // (mesmo TTL — nunca reaproveita produto de uma sessão antiga).
+  const priorContextEntities = sessionExpired ? {} : (state?.contextEntities || {});
+  const flowStackBefore = sessionExpired ? [] : (state?.flowStack || []);
+
+  const {
+    interpretation, decision, targetBot, responseText, operational, flow, flowStackUpdate, topicSwitchDetected,
+  } = await runDecisionPipeline({
+    bot, message, context, state: conversationalState, guardState: operationalState,
+    previousIntroducedAt: state?.introducedAt || null, flags, now, channel, client, sessionExpired, toolMode,
+    humanPaused, flowStack: flowStackBefore, seedEntities: priorContextEntities,
+  });
+
+  if (decision.action === "HANDOFF_HUMAN") {
+    try {
+      const decisionWithCategoryName = { ...decision, categoryName: categoryNameFor(targetBot, decision.categoryId) };
+      await captureHandoffContext({
+        conversationId, bot: targetBot, interpretation, decision: decisionWithCategoryName, message, context,
+        flow, product: priorContextEntities?.productName || interpretation.entities?.productName || null,
+      }, client);
+    } catch (error) {
+      // Nunca pode derrubar a interpretação/observação por falha ao gravar o
+      // contexto de handoff — só loga.
+      console.error("[BOT_HANDOFF] falha ao capturar contexto (ignorada)", error.message);
+    }
+  }
+
   const automationBlocked = !globalSettings.automationEnabled || !targetBot.autoReplyEnabled;
   const observationAllowed = globalSettings.observationEnabled && flags.observationEnabled;
 
@@ -315,11 +411,36 @@ async function orchestrate({ conversationId, channel = "META", messageId = null,
   // campos flow* de uma sessão anterior nunca podem sobreviver "escondidos"
   // no banco, senão a PRÓXIMA mensagem (já dentro da janela, updatedAt
   // acabou de ser renovado) reataria o fluxo antigo como se fosse atual.
-  const flowToPersist = flow || (sessionExpired ? flowEngine.resetFlowPersist() : null);
+  // Enquanto pausado por humano (item 3), o fluxo fica CONGELADO — nunca
+  // resetado nem avançado, `flow` já vem null nesse caso.
+  const flowToPersist = flow || (sessionExpired && !humanPaused ? flowEngine.resetFlowPersist() : null);
+
+  const contextEntitiesUpdate = mergeContextEntities(
+    mergeContextEntities(priorContextEntities, interpretation.entities),
+    flow?.collectedEntities || {},
+  );
+
+  // Item 9 (avaliação do cliente): decide se esta é a hora de pedir a nota —
+  // nunca em Observação, nunca duas vezes na mesma conversa, nunca enquanto
+  // um humano já assumiu.
+  const ratingTrigger = !humanPaused && toolMode === "LIVE"
+    ? shouldRequestRating({ bot, flags, globalSettings, state, decision, flow })
+    : { request: false };
+
+  let finalResponseText = responseText;
+  if (ratingTrigger.request && bot.ratingMessage) {
+    finalResponseText = finalResponseText ? `${finalResponseText}\n\n${bot.ratingMessage}` : bot.ratingMessage;
+  }
 
   await persistDecision({
     conversationId, bot: targetBot, interpretation, decision,
-    operational: { ...operational, humanPausedAt: humanPaused ? now : null }, flow: flowToPersist,
+    operational: {
+      ...operational, humanPausedAt: humanPaused ? (state?.humanPausedAt || now) : null,
+      ...(ratingTrigger.request ? { ratingRequestedAt: now, awaitingRatingScore: true } : {}),
+    },
+    flow: flowToPersist,
+    contextEntities: contextEntitiesUpdate,
+    flowStack: flowStackUpdate,
   }, client);
 
   // Item 15 (custo/uso de IA): registra a chamada real ao provider externo,
@@ -341,12 +462,16 @@ async function orchestrate({ conversationId, channel = "META", messageId = null,
     && flags.autoFinalizeOnResolution === true && toolMode === "LIVE" && !humanPaused;
 
   return toStandardResult({
-    bot, targetBot, interpretation, decision, responseText,
+    bot, targetBot, interpretation, decision, responseText: finalResponseText,
     extras: {
       humanPaused, automationBlocked, observationAllowed, learningEnabled: flags.learningEnabled,
       flowStepId: flow?.currentStepId ?? null, flowResolutionStatus: flow?.resolutionStatus ?? null,
       flowIntentId: flow?.intentId ?? null, flowPendingQuestion: flow?.pendingQuestion ?? null,
-      autoFinalizeRequested,
+      autoFinalizeRequested, topicSwitchDetected, ratingRequested: ratingTrigger.request,
+      // Item 7 (sugestão para o atendente): o texto que o motor calculou
+      // fica sempre disponível aqui (mesmo em modo observação) — quem
+      // decide persistir/mostrar ao atendente é bot-observation-service.js.
+      suggestedResponseText: finalResponseText || null,
     },
   });
 }
@@ -359,10 +484,13 @@ async function simulateOrchestration({ bot, message, context = [], state = null,
   // no modo observação. A cópia em memória nunca é persistida.
   const simulationBot = bot.status === "ACTIVE" ? bot : { ...bot, status: "ACTIVE" };
   const flags = resolveFeatureFlags(simulationBot);
+  const priorContextEntities = state?.contextEntities || {};
 
-  const { interpretation, decision, targetBot: simulatedTargetBot, responseText, operational, flow } = await runDecisionPipeline({
+  const {
+    interpretation, decision, targetBot: simulatedTargetBot, responseText, operational, flow, flowStackUpdate, topicSwitchDetected,
+  } = await runDecisionPipeline({
     bot: simulationBot, message, context, state, guardState: state, flags, now, channel: bot.channel, client: prisma,
-    sessionExpired: false,
+    sessionExpired: false, flowStack: state?.flowStack || [], seedEntities: priorContextEntities,
     // O simulador é uma caixa de areia do painel administrativo (nunca fala
     // com um cliente real) — pode mostrar o comportamento real de uma Tool
     // (LIVE) sem violar a regra de "Observação nunca chama Tool de verdade"
@@ -370,6 +498,11 @@ async function simulateOrchestration({ bot, message, context = [], state = null,
     toolMode: "LIVE",
   });
   const targetBot = simulatedTargetBot.id === simulationBot.id ? bot : simulatedTargetBot;
+
+  const contextEntitiesUpdate = mergeContextEntities(
+    mergeContextEntities(priorContextEntities, interpretation.entities),
+    flow?.collectedEntities || {},
+  );
 
   const nextState = {
     activeBotId: targetBot.id,
@@ -380,6 +513,8 @@ async function simulateOrchestration({ bot, message, context = [], state = null,
     pendingClarification: decision.needsClarification || false,
     extractedEntities: interpretation.entities || {},
     lastBotAction: decision.action || null,
+    contextEntities: contextEntitiesUpdate,
+    flowStack: flowStackUpdate,
     ...operational,
     // Item 8/18 (Simulador): expõe intenção/etapa atual/entidades coletadas/
     // pergunta pendente do Flow Engine para a UI mostrar o progresso do
@@ -394,7 +529,10 @@ async function simulateOrchestration({ bot, message, context = [], state = null,
     pendingQuestion: flow ? (flow.pendingQuestion ?? null) : (state?.pendingQuestion ?? null),
   };
 
-  return { ...toStandardResult({ bot, targetBot, interpretation, decision, responseText }), nextState };
+  return {
+    ...toStandardResult({ bot, targetBot, interpretation, decision, responseText, extras: { topicSwitchDetected } }),
+    nextState,
+  };
 }
 
 // Item 2: gate único para "o Bot pode mesmo enviar esta resposta ao

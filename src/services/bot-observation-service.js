@@ -26,6 +26,7 @@ async function observeIncomingMessage(event, message, { now = new Date() } = {})
       channel: "META",
       message: event.text,
       now,
+      executionMode: "OBSERVATION",
     });
     if (!result) return null;
     // Toggle global + por Bot ("Observação"). Interpretar continua rodando
@@ -78,6 +79,13 @@ async function observeIncomingMessage(event, message, { now = new Date() } = {})
         calledExternalAi: Boolean(result.calledExternalAi),
         flowStepId: result.flowStepId || null,
         flowResolutionStatus: result.flowResolutionStatus || null,
+        // Item 7 (sugestão para o atendente): o texto que o motor calcularia
+        // para esta mensagem — nunca enviado automaticamente, só fica
+        // disponível para o atendente usar quando já assumiu a conversa
+        // (bot-suggestion-service.js). Item 4: se esta mensagem trocou de
+        // assunto no meio de um fluxo em andamento.
+        suggestedResponseText: result.suggestedResponseText || null,
+        topicSwitchDetected: Boolean(result.topicSwitchDetected),
         provider: result.provider,
         mode: "OBSERVATION",
         status: result.status,

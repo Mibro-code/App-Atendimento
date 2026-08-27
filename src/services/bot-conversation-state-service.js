@@ -16,7 +16,24 @@ async function getState(conversationId, client = prisma) {
 // Flow Engine — quando ausente, os campos flow* de ConversationBotState
 // simplesmente não são tocados neste upsert (nem apagados, nem herdados
 // incorretamente: um fluxo só é iniciado/continuado explicitamente).
-async function persistDecision({ conversationId, bot, interpretation, decision, operational = {}, flow = null }, client = prisma) {
+// Item 6 (contexto de produto): mescla entidades novas por cima das já
+// conhecidas da conversa inteira — nunca sobrescreve um valor já capturado
+// com `null`/vazio, e uma entidade nova sempre pode atualizar uma antiga
+// (ex.: cliente troca de produto no meio da conversa).
+function mergeContextEntities(existing, incoming) {
+  const merged = { ...(existing || {}) };
+  for (const [key, value] of Object.entries(incoming || {})) {
+    if (value === undefined || value === null || value === "") continue;
+    merged[key] = value;
+  }
+  return merged;
+}
+
+// `flowStack` (item 5, opcional): quando informado (mesmo `[]`), sobrescreve
+// a pilha de fluxos pausados — undefined = não mexer na pilha atual.
+async function persistDecision({
+  conversationId, bot, interpretation, decision, operational = {}, flow = null, contextEntities = undefined, flowStack = undefined,
+}, client = prisma) {
   const failedInterpretations = decision.action === "ASK_CLARIFICATION" || decision.action === "HANDOFF_HUMAN"
     ? (decision.failureCount ?? 0)
     : 0;
@@ -31,6 +48,8 @@ async function persistDecision({ conversationId, bot, interpretation, decision, 
     // ou fora de um fluxo — só auditoria/depuração, nunca decide nada sozinha.
     lastBotAction: decision.action || null,
     ...operational,
+    ...(contextEntities !== undefined ? { contextEntities } : {}),
+    ...(flowStack !== undefined ? { flowStack } : {}),
     ...(flow ? {
       activeFlowIntentId: flow.intentId,
       currentFlowStepId: flow.currentStepId,
@@ -66,4 +85,4 @@ async function getRecentContext(conversationId, { limit = CONTEXT_MESSAGE_LIMIT,
   return rows.reverse();
 }
 
-module.exports = { getRecentContext, getState, persistDecision };
+module.exports = { getRecentContext, getState, mergeContextEntities, persistDecision };

@@ -44,29 +44,29 @@ function periodRange(period) {
   return { gte: from, lte: now };
 }
 
-// Enquanto não existir um fluxo de avaliação do cliente com token assinado,
-// a submissão manual fica restrita a Master. Isso impede que contas internas
-// comuns contaminem métricas/ranking. A validação de dados continua exigindo
-// Bot e conversa válidos, toggles ligados e uma avaliação por conversa.
-async function submitRating(data, actor) {
-  assertBotManager(actor);
+// Núcleo de validação/criação, compartilhado por submitRating() (manual,
+// exige Master) e submitRatingFromBot() (o próprio motor registrando a
+// resposta 1-5 do cliente — item 9). Nunca pula nenhuma validação entre os
+// dois caminhos: Bot e conversa válidos, toggles ligados, nota no intervalo,
+// e uma avaliação por conversa (constraint única no banco).
+async function createRatingRecord(data, client = prisma) {
   const botId = data?.botId;
   if (!botId) throw fail("Bot é obrigatório para registrar a avaliação.");
-  const bot = await prisma.bot.findFirst({ where: { id: botId, archivedAt: null } });
+  const bot = await client.bot.findFirst({ where: { id: botId, archivedAt: null } });
   if (!bot) throw fail("Bot não encontrado.", 404);
   if (!bot.ratingEnabled) throw fail("A avaliação do atendimento não está habilitada para este Bot.");
-  const globalSettings = await getGlobalSettings();
+  const globalSettings = await getGlobalSettings(client);
   if (!globalSettings.ratingsEnabled) throw fail("As avaliações estão desativadas globalmente.");
 
   let conversation = null;
   if (data.conversationId) {
-    conversation = await prisma.conversation.findUnique({
+    conversation = await client.conversation.findUnique({
       where: { id: data.conversationId }, select: { id: true, channel: true },
     });
     if (!conversation) throw fail("Conversa não encontrada.", 404);
   }
   if (data.intentId) {
-    const intent = await prisma.botIntent.findFirst({ where: { id: data.intentId, botId }, select: { id: true } });
+    const intent = await client.botIntent.findFirst({ where: { id: data.intentId, botId }, select: { id: true } });
     if (!intent) throw fail("A intenção informada não pertence a este Bot.");
   }
 
@@ -78,7 +78,7 @@ async function submitRating(data, actor) {
     ? data.comment.trim().slice(0, 1000) || null : null;
 
   try {
-    return await prisma.botRating.create({
+    return await client.botRating.create({
       data: {
         botId,
         conversationId: data.conversationId || null,
@@ -95,6 +95,42 @@ async function submitRating(data, actor) {
     if (error.code === "P2002") throw fail("Esta conversa já recebeu uma avaliação.");
     throw error;
   }
+}
+
+// Enquanto não existir um fluxo de avaliação do cliente com token assinado,
+// a submissão manual pelo painel fica restrita a Master (impede que contas
+// internas comuns contaminem métricas/ranking). A resposta REAL do cliente
+// (1-5 depois que o próprio Bot pediu a nota) usa submitRatingFromBot(),
+// abaixo, sem essa checagem — é o motor, nunca um humano, registrando.
+async function submitRating(data, actor) {
+  assertBotManager(actor);
+  return createRatingRecord(data);
+}
+
+// Item 9: chamado pelo orquestrador quando o cliente responde com um número
+// de 1 a 5 depois que o Bot pediu a avaliação — nunca por um humano, nunca
+// via painel administrativo. Mesmas validações de submitRating(), sem o
+// gate de Master (não há "ator" humano nesta chamada).
+async function submitRatingFromBot(data, client = prisma) {
+  return createRatingRecord(data, client);
+}
+
+// Item 9: decide se ESTE turno deve pedir a avaliação do cliente — nunca em
+// Observação/simulador (quem chama já garante isso), nunca duas vezes na
+// mesma conversa (`state.ratingRequestedAt`), e só no momento configurado em
+// `requestRatingOn` (item 4 da governança de avaliação):
+//   BOT_COMPLETED  -> o Flow Engine concluiu com RESOLVED (sinal estrutural
+//                      de "atendimento concluído pelo Bot", nunca inferido).
+//   BEFORE_HANDOFF -> exatamente no turno em que o Bot decide encaminhar
+//                      para um humano.
+//   MANUAL/NEVER   -> nunca dispara sozinho.
+function shouldRequestRating({ bot, globalSettings, state, decision, flow }) {
+  if (!bot?.ratingEnabled || !globalSettings?.ratingsEnabled) return { request: false };
+  if (state?.ratingRequestedAt) return { request: false };
+  const mode = bot.requestRatingOn || "BOT_COMPLETED";
+  if (mode === "BOT_COMPLETED" && flow?.resolutionStatus === "RESOLVED") return { request: true };
+  if (mode === "BEFORE_HANDOFF" && decision?.action === "HANDOFF_HUMAN") return { request: true };
+  return { request: false };
 }
 
 async function listRatings(filters, viewer) {
@@ -186,6 +222,18 @@ async function getRanking(viewer) {
   const grouped = await prisma.botRating.groupBy({ by: ["botId"], _avg: { score: true }, _count: { _all: true } });
   const byBotId = new Map(grouped.map((row) => [row.botId, { average: row._avg.score || 0, count: row._count._all }]));
 
+  // Item 13: ranking nunca leva em conta só a média — taxa de resolução pelo
+  // Bot (sem handoff) e taxa de handoff também entram na conta, cada uma já
+  // sobre o próprio universo de avaliações do Bot (mesma amostra mínima `m`).
+  const resolvedGrouped = await prisma.botRating.groupBy({
+    by: ["botId"], where: { resolvedByBot: true }, _count: { _all: true },
+  });
+  const handoffGrouped = await prisma.botRating.groupBy({
+    by: ["botId"], where: { handoffOccurred: true }, _count: { _all: true },
+  });
+  const resolvedByBotId = new Map(resolvedGrouped.map((row) => [row.botId, row._count._all]));
+  const handoffByBotId = new Map(handoffGrouped.map((row) => [row.botId, row._count._all]));
+
   const m = globalSettings.minimumRatingsForRanking;
   const eligible = bots.map((bot) => ({ bot, stats: byBotId.get(bot.id) || { average: 0, count: 0 } }))
     .filter((entry) => entry.stats.count >= m);
@@ -195,10 +243,22 @@ async function getRanking(viewer) {
 
   const ranked = eligible.map(({ bot, stats }) => {
     const { average, count } = stats;
-    const score = (count / (count + m)) * average + (m / (count + m)) * globalAverage;
+    // Bayesiano só sobre a nota (evita 1 avaliação 5 estrelas vencer 2.000
+    // avaliações com média 4,8 — quanto menor `count` em relação a `m`, mais
+    // o score é "puxado" para a média geral).
+    const bayesianAverage = (count / (count + m)) * average + (m / (count + m)) * globalAverage;
+    const resolutionRate = (resolvedByBotId.get(bot.id) || 0) / count;
+    const handoffRate = (handoffByBotId.get(bot.id) || 0) / count;
+    // Combina nota (peso maior), resolução (positivo) e handoff (negativo)
+    // num único score 0-1, todos já na mesma escala — nunca ranqueado só
+    // pela média.
+    const score = 0.6 * (bayesianAverage / RATING_SCORE_MAX) + 0.25 * resolutionRate + 0.15 * (1 - handoffRate);
     return {
       botId: bot.id, botName: bot.name, averageScore: Number(average.toFixed(2)),
-      ratingsCount: count, rankingScore: Number(score.toFixed(3)),
+      ratingsCount: count,
+      resolutionRate: Number(resolutionRate.toFixed(3)),
+      handoffRate: Number(handoffRate.toFixed(3)),
+      rankingScore: Number(score.toFixed(3)),
     };
   }).sort((left, right) => right.rankingScore - left.rankingScore);
 
@@ -284,5 +344,6 @@ async function observationTimeSeries(botId, filters, viewer) {
 }
 
 module.exports = {
-  getRanking, listRatings, observationTimeSeries, ratingMetrics, ratingTimeSeries, submitRating, updateRatingConfig,
+  getRanking, listRatings, observationTimeSeries, ratingMetrics, ratingTimeSeries, submitRating,
+  submitRatingFromBot, shouldRequestRating, updateRatingConfig,
 };

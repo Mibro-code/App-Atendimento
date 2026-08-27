@@ -21,7 +21,7 @@
     <div class="app-version-actions">
   <button id="changelog-button" class="changelog-button" type="button" title="Ver novidades e histórico de versões">
     <span class="changelog-icon" aria-hidden="true">▤</span>
-    <span id="app-version-label">v0.21.0</span>
+    <span id="app-version-label">v0.22.0</span>
     <span id="changelog-unread-dot" class="changelog-unread-dot" hidden></span>
   </button>
 
@@ -120,6 +120,17 @@
           <span><b>Janela de 24 horas encerrada</b><small>A Meta permite retomar este contato somente com um template aprovado.</small></span>
           <button id="open-required-template" type="button">Usar template</button>
         </div>
+        <section id="bot-suggestion-card" class="bot-suggestion-card" hidden aria-live="polite">
+          <div class="bot-suggestion-head"><span>SUGESTÃO DO BOT</span><small id="bot-suggestion-meta"></small></div>
+          <p id="bot-suggestion-text"></p>
+          <div class="bot-suggestion-actions">
+            <button id="use-bot-suggestion" type="button">Usar</button>
+            <button id="edit-bot-suggestion" type="button">Editar</button>
+            <button id="ignore-bot-suggestion" type="button">Ignorar</button>
+            <button id="like-bot-suggestion" type="button" aria-label="Sugestão útil">👍</button>
+            <button id="dislike-bot-suggestion" type="button" aria-label="Sugestão não útil">👎</button>
+          </div>
+        </section>
         <form id="composer" class="composer">
           <label class="attach-image" title="Anexar imagem, vídeo ou documento" aria-label="Anexar imagem, vídeo ou documento"><input id="attachment-input" type="file" accept="image/jpeg,image/png,video/mp4,video/3gpp,video/3gp,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"><span aria-hidden="true">+</span></label>
           <div id="attachment-preview" class="attachment-preview" hidden><img id="attachment-thumb" alt="Prévia da imagem"><span id="attachment-type" class="attachment-type" hidden>DOC</span><span id="attachment-name"></span><button id="remove-attachment" type="button" aria-label="Remover anexo">×</button></div>
@@ -273,7 +284,7 @@
   <div class="changelog-current">
     <div>
       <small>VERSÃO ATUAL</small>
-      <strong id="changelog-current-version">v0.21.0</strong>
+      <strong id="changelog-current-version">v0.22.0</strong>
     </div>
     <span id="changelog-current-date"></span>
   </div>
