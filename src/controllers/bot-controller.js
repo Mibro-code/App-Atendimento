@@ -77,6 +77,31 @@ module.exports = {
     } catch (error) { return next(error); }
   },
 
+  // Fluxo de atendimento (Flow Engine) — etapas de uma intenção.
+  async listFlowSteps(req, res, next) {
+    try { return res.json(await bots.listFlowSteps(req.params.botId, req.params.intentId, req.user)); }
+    catch (error) { return next(error); }
+  },
+  async createFlowStep(req, res, next) {
+    try { return res.status(201).json(await bots.createFlowStep(req.params.botId, req.params.intentId, req.body, req.user)); }
+    catch (error) { return next(error); }
+  },
+  async updateFlowStep(req, res, next) {
+    try {
+      return res.json(await bots.updateFlowStep(req.params.botId, req.params.intentId, req.params.stepId, req.body, req.user));
+    } catch (error) { return next(error); }
+  },
+  async deleteFlowStep(req, res, next) {
+    try {
+      return res.json(await bots.deleteFlowStep(req.params.botId, req.params.intentId, req.params.stepId, req.user));
+    } catch (error) { return next(error); }
+  },
+  async reorderFlowSteps(req, res, next) {
+    try {
+      return res.json(await bots.reorderFlowSteps(req.params.botId, req.params.intentId, req.body.stepIds, req.user));
+    } catch (error) { return next(error); }
+  },
+
   async simulate(req, res, next) {
     try {
       return res.json(await bots.simulate(req.params.botId, req.body.message, req.user, {

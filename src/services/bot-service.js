@@ -3,6 +3,7 @@ const authorization = require("./authorization-service");
 const audit = require("./audit-service");
 const { normalizeText } = require("./bot-simulator-service");
 const { simulateOrchestration } = require("./bot-orchestrator-service");
+const flowEngine = require("./bot-flow-service");
 const learning = require("./bot-learning-service");
 const governance = require("./bot-governance-service");
 const { similarity } = require("./ai/local-fallback-provider");
@@ -533,6 +534,66 @@ async function deleteIntent(botId, intentId, actor) {
   });
 }
 
+function normalizeJsonField(value, fallback) {
+  return value && typeof value === "object" ? value : fallback;
+}
+
+// Fluxo de atendimento (item 7 - UI): CRUD das etapas de uma intenção.
+// Mesma permissão (Master) e mesma checagem de posse (ensureIntent confirma
+// que a intenção pertence a este Bot) usadas no resto do módulo de intenções.
+async function listFlowSteps(botId, intentId, actor) {
+  assertBotManager(actor);
+  await ensureIntent(botId, intentId);
+  return flowEngine.listFlowSteps(intentId);
+}
+
+async function createFlowStep(botId, intentId, data, actor) {
+  assertBotManager(actor);
+  const intent = await ensureIntent(botId, intentId);
+  const step = await flowEngine.createFlowStep(intentId, data);
+  await audit.recordAudit({
+    actor, action: "BOT_FLOW_STEP_CREATED", entityType: "BOT", entityId: botId,
+    summary: `Criou a etapa "${step.name}" no fluxo da intenção ${intent.name}`,
+    details: { intentId, stepId: step.id, name: step.name, action: step.action },
+  });
+  return step;
+}
+
+async function updateFlowStep(botId, intentId, stepId, data, actor) {
+  assertBotManager(actor);
+  const intent = await ensureIntent(botId, intentId);
+  const existing = await prisma.botFlowStep.findFirst({ where: { id: stepId, intentId }, select: { id: true, name: true } });
+  if (!existing) throw fail("Etapa não encontrada.", 404);
+  const step = await flowEngine.updateFlowStep(stepId, data);
+  await audit.recordAudit({
+    actor, action: "BOT_FLOW_STEP_UPDATED", entityType: "BOT", entityId: botId,
+    summary: `Alterou a etapa "${step.name}" no fluxo da intenção ${intent.name}`,
+    details: { intentId, stepId, before: { name: existing.name }, after: { name: step.name } },
+  });
+  return step;
+}
+
+async function deleteFlowStep(botId, intentId, stepId, actor) {
+  assertBotManager(actor);
+  const intent = await ensureIntent(botId, intentId);
+  const existing = await prisma.botFlowStep.findFirst({ where: { id: stepId, intentId }, select: { id: true, name: true } });
+  if (!existing) throw fail("Etapa não encontrada.", 404);
+  const result = await flowEngine.deleteFlowStep(stepId);
+  await audit.recordAudit({
+    actor, action: "BOT_FLOW_STEP_DELETED", entityType: "BOT", entityId: botId,
+    summary: `Removeu a etapa "${existing.name}" do fluxo da intenção ${intent.name}`,
+    details: { intentId, stepId },
+  });
+  return result;
+}
+
+async function reorderFlowSteps(botId, intentId, orderedStepIds, actor) {
+  assertBotManager(actor);
+  await ensureIntent(botId, intentId);
+  if (!Array.isArray(orderedStepIds) || !orderedStepIds.length) throw fail("Informe a ordem das etapas.");
+  return flowEngine.reorderFlowSteps(intentId, orderedStepIds);
+}
+
 function normalizeSimulatorState(state) {
   if (!state || typeof state !== "object") return null;
   return {
@@ -544,6 +605,17 @@ function normalizeSimulatorState(state) {
       ? Math.min(MAX_FAILED_INTERPRETATIONS, Math.max(0, state.failedInterpretations)) : 0,
     pendingClarification: Boolean(state.pendingClarification),
     extractedEntities: state.extractedEntities && typeof state.extractedEntities === "object" ? state.extractedEntities : {},
+    // Item 8 (Simulador): o Flow Engine roda pelo mesmo pipeline de uma
+    // conversa real (bot-orchestrator-service.js), então o estado de fluxo
+    // também precisa ir e voltar pelo cliente, igual ao restante do estado.
+    activeFlowIntentId: typeof state.activeFlowIntentId === "string" ? state.activeFlowIntentId : null,
+    currentFlowStepId: typeof state.currentFlowStepId === "string" ? state.currentFlowStepId : null,
+    flowCollectedEntities: normalizeJsonField(state.flowCollectedEntities, {}),
+    flowAskedQuestions: Array.isArray(state.flowAskedQuestions) ? state.flowAskedQuestions : [],
+    flowAttemptedSolutions: Array.isArray(state.flowAttemptedSolutions) ? state.flowAttemptedSolutions : [],
+    flowFailedSteps: Array.isArray(state.flowFailedSteps) ? state.flowFailedSteps : [],
+    flowStepAttempts: normalizeJsonField(state.flowStepAttempts, {}),
+    flowResolutionStatus: typeof state.flowResolutionStatus === "string" ? state.flowResolutionStatus : null,
   };
 }
 
@@ -773,4 +845,10 @@ module.exports = {
   updateBotStatus,
   updateIntent,
   validateSchedules,
+  // Fluxo de atendimento (Flow Engine).
+  listFlowSteps,
+  createFlowStep,
+  updateFlowStep,
+  deleteFlowStep,
+  reorderFlowSteps,
 };

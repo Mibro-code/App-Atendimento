@@ -63,8 +63,11 @@ const LEARNING_SIMILARITY_CONTENT_THRESHOLD = 0.6;
 const RESOLUTION_POSITIVE_PATTERNS = [
   /\bfuncionou\b/, /\bdeu certo\b/, /\bresolveu\b/, /\bagora foi\b/, /\bagora funcionou\b/, /\bconsegui\b/,
 ];
+// "nao funcionou" precisa vir nos padrões NEGATIVOS — sem isso, a checagem
+// positiva (\bfuncionou\b) casa com a palavra dentro da negação e o Flow
+// Engine (bot-flow-service.js) entenderia "não funcionou" como sucesso.
 const RESOLUTION_NEGATIVE_PATTERNS = [
-  /\bnao resolveu\b/, /\bcontinua igual\b/, /\bnao deu certo\b/, /\bainda nao\b/, /\bpiorou\b/,
+  /\bnao funcionou\b/, /\bnao resolveu\b/, /\bcontinua igual\b/, /\bnao deu certo\b/, /\bainda nao\b/, /\bpiorou\b/,
 ];
 
 // Ordem de prioridade da decisão (bot-decision-service.js) — centralizada
@@ -107,6 +110,10 @@ const FEATURE_FLAG_DEFAULTS = Object.freeze({
   // ligados para uma Tool ser executada de verdade (ver
   // bot-tool-orchestrator-service.js).
   toolsFeatureEnabled: true,
+  // Liga/desliga o Flow Engine (etapas configuráveis por intenção) por Bot.
+  // Desligado, uma intenção com etapas cadastradas volta a responder uma
+  // única vez (responseMessage/toolName/Base de Conhecimento), como antes.
+  flowEngineEnabled: true,
   contextMaxMessages: CONTEXT_MESSAGE_LIMIT,
   contextExpirationMinutes: 120,
   maxSwitchesPerWindow: 3,
@@ -115,7 +122,7 @@ const FEATURE_FLAG_DEFAULTS = Object.freeze({
 const BOOLEAN_FEATURE_FLAG_KEYS = Object.freeze([
   "interpretationEnabled", "conversationalBehaviorEnabled", "contextEnabled", "autoSwitchEnabled",
   "observationEnabled", "learningEnabled", "knowledgeSuggestionsEnabled", "knowledgeBaseEnabled",
-  "handoffAutoPauseEnabled", "handoffEnabled", "toolsFeatureEnabled",
+  "handoffAutoPauseEnabled", "handoffEnabled", "toolsFeatureEnabled", "flowEngineEnabled",
 ]);
 const NUMERIC_FEATURE_FLAG_RANGES = Object.freeze({
   contextMaxMessages: { min: 1, max: 30 },

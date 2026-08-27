@@ -537,16 +537,89 @@ model BotIntent {
   category             Category?               @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   examples             BotIntentExample[]
   conversationStates   ConversationBotState[]
+  activeInFlowStates   ConversationBotState[]  @relation("ConversationActiveFlowIntent")
   feedbackObservations BotObservation[]        @relation("ObservationFeedbackIntent")
   learningSuggestions  BotLearningSuggestion[]
   ratings              BotRating[]
   quickReplyLinks      QuickReplyIntent[]
   knowledgeSources     KnowledgeSource[]
   botHandoffContexts   BotHandoffContext[]
+  flowSteps            BotFlowStep[]
 
   @@index([botId, active, priority])
   @@index([categoryId])
   @@index([globalIntentId])
+}
+
+// Flow Engine: conduz uma intenção por várias etapas em vez de responder uma
+// única vez (item "evoluir o Bot para conduzir atendimentos em múltiplas
+// etapas"). Uma BotIntent sem nenhuma etapa continua se comportando exatamente
+// como antes (responseMessage/toolName/Base de Conhecimento de intenção,
+// single-shot) — o motor só assume quando existem etapas ativas.
+//
+// `nextStepId`/`onSuccessStepId`/`onFailureStepId`/`gotoStepId` são
+// referências por id a outra BotFlowStep da MESMA intenção, guardadas como
+// String simples (sem FK/@relation) de propósito: evita ambiguidade de
+// múltiplas self-relations e cascade ao apagar uma etapa; a validade é
+// checada no serviço (bot-flow-service.js) na escrita e defensivamente na
+// execução (etapa-alvo ausente/inativa => encaminha para humano, nunca trava).
+model BotFlowStep {
+  id       String            @id @default(cuid())
+  intentId String
+  name     String
+  order    Int
+  action   BotFlowStepAction
+
+  // ASK_QUESTION
+  question  String? @db.Text
+  entityKey String?
+  required  Boolean @default(true)
+
+  // USE_KNOWLEDGE (associação direta; se vazio, cai para busca por
+  // intenção/palavra-chave via KnowledgeSourceProvider, igual ao fluxo atual)
+  knowledgeSourceId String?
+
+  // QUERY_TOOL (nome de uma Tool do registry — bot-tools/tool-registry.js;
+  // continua bloqueada se desativada/sem permissão, ver bot-tool-orchestrator-service.js)
+  toolName String?
+
+  // RESPOND (e mensagem de fechamento opcional para RESOLVED/HANDOFF_HUMAN)
+  responseMessage String? @db.Text
+
+  // Roteamento
+  nextStepId      String?
+  onSuccessStepId String?
+  onFailureStepId String?
+  gotoStepId      String?
+  maxAttempts     Int     @default(3)
+
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  intent          BotIntent        @relation(fields: [intentId], references: [id], onDelete: Cascade)
+  knowledgeSource KnowledgeSource? @relation(fields: [knowledgeSourceId], references: [id], onDelete: SetNull)
+
+  @@unique([intentId, order])
+  @@index([intentId, active])
+  @@index([knowledgeSourceId])
+}
+
+enum BotFlowStepAction {
+  ASK_QUESTION
+  USE_KNOWLEDGE
+  QUERY_TOOL
+  RESPOND
+  RESOLVED
+  HANDOFF_HUMAN
+  GOTO_STEP
+}
+
+enum FlowResolutionStatus {
+  IN_PROGRESS
+  RESOLVED
+  HANDED_OFF
+  ABANDONED
 }
 
 // Biblioteca Global de Intenções (item 1): significado + exemplos
@@ -668,15 +741,31 @@ model ConversationBotState {
   // Pausa quando um humano assume a conversa (handoffAutoPause).
   humanPausedAt DateTime?
 
+  // Flow Engine (item "ESTADO DA CONVERSA"): posição e memória do atendimento
+  // em múltiplas etapas em andamento nesta conversa. `currentFlowStepId` nulo
+  // = nenhum fluxo aguardando resposta agora (nova mensagem volta a ser
+  // interpretada normalmente); `activeFlowIntentId` fica preenchido mesmo
+  // depois de resolvido/encaminhado, só como registro do último fluxo rodado.
+  activeFlowIntentId     String?
+  currentFlowStepId      String?
+  flowCollectedEntities  Json?
+  flowAskedQuestions     Json?
+  flowAttemptedSolutions Json?
+  flowFailedSteps        Json?
+  flowStepAttempts       Json?
+  flowResolutionStatus   FlowResolutionStatus?
+
   updatedAt DateTime @updatedAt
   createdAt DateTime @default(now())
 
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  activeBot    Bot?         @relation(fields: [activeBotId], references: [id], onDelete: SetNull)
-  lastIntent   BotIntent?   @relation(fields: [lastIntentId], references: [id], onDelete: SetNull)
+  conversation     Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  activeBot        Bot?         @relation(fields: [activeBotId], references: [id], onDelete: SetNull)
+  lastIntent       BotIntent?   @relation(fields: [lastIntentId], references: [id], onDelete: SetNull)
+  activeFlowIntent BotIntent?   @relation("ConversationActiveFlowIntent", fields: [activeFlowIntentId], references: [id], onDelete: SetNull)
 
   @@index([activeBotId])
   @@index([lastIntentId])
+  @@index([activeFlowIntentId])
 }
 
 // Rastreia se/quando uma conversa já foi analisada pelo motor de
@@ -821,6 +910,7 @@ model KnowledgeSource {
   globalIntent GlobalIntent?        @relation(fields: [globalIntentId], references: [id], onDelete: SetNull)
   intent       BotIntent?           @relation(fields: [intentId], references: [id], onDelete: SetNull)
   botAccesses  KnowledgeSourceBot[]
+  flowSteps    BotFlowStep[]
 
   @@index([botId, active])
   @@index([type])

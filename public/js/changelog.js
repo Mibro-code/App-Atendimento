@@ -1,7 +1,20 @@
 (() => {
-  const APP_VERSION = "0.19.0";
+  const APP_VERSION = "0.20.0";
 
   const CHANGELOG = [
+    {
+      version: "0.20.0",
+      date: "27/08/2026",
+      title: "Fluxos de atendimento em múltiplas etapas",
+      changes: [
+        "Adiciona um editor de fluxo dentro de cada intenção do Bot, com perguntas, coleta de dados, consulta à Base de conhecimento, Tools, respostas e encaminhamento humano.",
+        "Permite configurar próximas etapas e caminhos de sucesso ou falha, além de reorganizar, ativar e desativar etapas sem alterar intenções já existentes.",
+        "Mantém o contexto entre mensagens, evita repetir perguntas já respondidas e limita tentativas e encadeamentos para impedir loops.",
+        "O simulador exibe o andamento do fluxo sem enviar mensagens reais; intenções sem etapas continuam funcionando no modelo anterior.",
+        "Reforça o isolamento da Base de conhecimento: um fluxo nunca usa conteúdo reservado a outro Bot, mesmo diante de configuração antiga ou inválida.",
+        "A atualização não ativa respostas automáticas, preserva o WhatsApp/Meta e mantém o bot de triagem existente."
+      ]
+    },
     {
       version: "0.19.0",
       date: "26/08/2026",
