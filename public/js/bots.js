@@ -106,6 +106,7 @@ const booleanFeatureFlags = [
   "interpretationEnabled", "conversationalBehaviorEnabled", "contextEnabled", "autoSwitchEnabled",
   "observationEnabled", "learningEnabled", "knowledgeSuggestionsEnabled", "knowledgeBaseEnabled",
   "handoffAutoPauseEnabled", "autoFinalizeOnResolution", "externalAiFallbackEnabled",
+  "observeActiveConversations", "observeWithExternalAi",
 ];
 const numericFeatureFlags = {
   contextMaxMessages: 10, contextExpirationMinutes: 120, maxSwitchesPerWindow: 3, switchWindowMinutes: 10,
@@ -115,6 +116,7 @@ const defaultBooleanFeatureFlags = {
   interpretationEnabled: true, conversationalBehaviorEnabled: true, contextEnabled: true, autoSwitchEnabled: true,
   observationEnabled: true, learningEnabled: true, knowledgeSuggestionsEnabled: true, knowledgeBaseEnabled: false,
   handoffAutoPauseEnabled: true, autoFinalizeOnResolution: false, externalAiFallbackEnabled: false,
+  observeActiveConversations: false, observeWithExternalAi: false,
 };
 // Item 3 (Motor de IA): provider externo escolhido por Bot — "GEMINI" é a
 // configuração sugerida inicial (item 8), mas só é chamado de verdade se
@@ -390,6 +392,8 @@ function closeIntentForm() {
   $("#intent-id").value = "";
   $("#intent-priority").value = "0";
   $("#intent-active").checked = true;
+  $("#intent-auto-reply-enabled").checked = false;
+  $("#intent-auto-reply-min-confidence").value = "";
   $("#intent-flow-section").hidden = true;
   closeFlowStepForm();
   state.flowSteps = [];
@@ -407,6 +411,8 @@ async function editIntent(intentId) {
   $("#intent-category").innerHTML = categoryOptions(intent.categoryId || "");
   $("#intent-examples").value = intent.examples.map(({ text }) => text).join("\n");
   $("#intent-active").checked = intent.active;
+  $("#intent-auto-reply-enabled").checked = Boolean(intent.autoReplyEnabled);
+  $("#intent-auto-reply-min-confidence").value = intent.autoReplyMinConfidence ?? "";
   $("#intent-form").hidden = false;
   $("#intent-name").focus();
 
@@ -631,6 +637,8 @@ $("#intent-form").addEventListener("submit", async (event) => {
     fallbackAction: $("#intent-action").value,
     categoryId: $("#intent-category").value || null,
     examples: $("#intent-examples").value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean),
+    autoReplyEnabled: $("#intent-auto-reply-enabled").checked,
+    autoReplyMinConfidence: $("#intent-auto-reply-min-confidence").value === "" ? null : Number($("#intent-auto-reply-min-confidence").value),
   };
   try {
     const url = intentId ? `/api/bots/${state.selected.id}/intents/${intentId}` : `/api/bots/${state.selected.id}/intents`;
@@ -1035,12 +1043,13 @@ async function loadPerformance() {
   if (!botId) return;
   const period = $("#perf-period").value;
   try {
-    const [metrics, intentRows, conflicts, quality, qualityAlerts] = await Promise.all([
+    const [metrics, intentRows, conflicts, quality, qualityAlerts, dashboard] = await Promise.all([
       api(`/api/bots/${botId}/rating-metrics?${period ? `preset=${period}` : ""}`),
       api(`/api/bots/${botId}/intent-metrics`),
       api(`/api/bots/${botId}/intent-conflicts`),
       api(`/api/bots/${botId}/quality-metrics`),
       api(`/api/bots/${botId}/quality-alerts`),
+      api(`/api/bots/${botId}/dashboard?${period ? `preset=${period}` : ""}`),
     ]);
     $("#perf-interpretation-metrics").innerHTML = [
       metricTile(metrics.interpretation.totalObserved, "Mensagens interpretadas (diagnóstico)"),
@@ -1092,6 +1101,18 @@ async function loadPerformance() {
       <article class="learning-card"><p><b>${escapeHtml(alert.type)}</b> <span class="learning-conflict">${escapeHtml(alert.severity)}</span></p>
       <p class="learning-meta">${escapeHtml(alert.message)}</p></article>
     `).join("") : `<div class="intent-empty">Nenhum alerta no momento.</div>`;
+
+    $("#ai-usage-metrics").innerHTML = [
+      metricTile(dashboard.aiUsage.externalAiMessages, "Mensagens com IA externa"),
+      metricTile(dashboard.aiUsage.externalAiRate != null ? `${dashboard.aiUsage.externalAiRate}%` : "-", "% do período"),
+    ].join("");
+    $("#ai-usage-body").innerHTML = dashboard.aiUsage.calls.length ? dashboard.aiUsage.calls.map((row) => `
+      <tr><td>${escapeHtml(row.provider)}</td><td>${escapeHtml(row.model || "-")}</td><td>${escapeHtml(row.reason)}</td>
+      <td>${row.calls}</td><td>${row.inputTokens || 0}</td><td>${row.outputTokens || 0}</td></tr>
+    `).join("") : `<tr><td colspan="6">Nenhuma chamada de IA externa registrada.</td></tr>`;
+    $("#tools-used-list").innerHTML = dashboard.toolsUsed.length ? dashboard.toolsUsed.map((row) => `
+      <article class="learning-card"><p><b>${escapeHtml(row.toolName)}</b></p><p class="learning-meta">${row.count} consulta(s)</p></article>
+    `).join("") : `<div class="intent-empty">Nenhuma Tool consultada ainda.</div>`;
   } catch (error) { toast(error.message, true); }
 }
 $("#perf-refresh").addEventListener("click", loadPerformance);
@@ -1170,6 +1191,7 @@ async function loadGlobalSettings() {
     const settings = await api("/api/bot-settings");
     $("#global-automation").checked = settings.automationEnabled;
     $("#global-observation").checked = settings.observationEnabled;
+    $("#global-observe-active").checked = settings.observeActiveConversations;
     $("#global-learning").checked = settings.learningEnabled;
     $("#global-ratings").checked = settings.ratingsEnabled;
     $("#global-ranking").checked = settings.rankingEnabled;
@@ -1191,6 +1213,7 @@ $("#save-global-settings").addEventListener("click", async () => {
       method: "PATCH",
       body: JSON.stringify({
         observationEnabled: $("#global-observation").checked,
+        observeActiveConversations: $("#global-observe-active").checked,
         learningEnabled: $("#global-learning").checked,
         ratingsEnabled: $("#global-ratings").checked,
         rankingEnabled: $("#global-ranking").checked,

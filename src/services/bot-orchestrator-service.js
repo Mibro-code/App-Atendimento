@@ -92,6 +92,13 @@ function toStandardResult({ bot, targetBot, interpretation, decision, responseTe
     intentId: interpretation.intentId,
     intentName: interpretation.intentName,
     confidence: interpretation.confidence,
+    // Decision Log (item 1): confiança local (antes de qualquer fallback) e
+    // final (depois, se um provider externo substituiu o resultado) —
+    // `confidence` acima continua sendo a final, por compatibilidade.
+    localConfidence: interpretation.localConfidence ?? interpretation.confidence ?? null,
+    finalConfidence: interpretation.confidence ?? null,
+    aiModel: interpretation.aiModel || null,
+    handoffReason: decision.action === "HANDOFF_HUMAN" ? (decision.summary || null) : null,
     matchedExample: interpretation.matchedExample,
     provider: interpretation.provider,
     status: interpretation.status,
@@ -115,6 +122,11 @@ function toStandardResult({ bot, targetBot, interpretation, decision, responseTe
     knowledgeSourceTitle: decision.knowledgeSourceTitle || null,
     knowledgeConflict: Boolean(decision.knowledgeConflict),
     calledExternalAi: Boolean(interpretation.calledExternalAi),
+    // Item 5 (auto reply por intenção): sinaliza se a intenção reconhecida
+    // permite envio automático fino, além do gate de Bot/global — nunca
+    // decide sozinho o envio, só fica disponível para quem eventualmente
+    // ligar o envio automático de verdade a consultar.
+    autoReplyPermitted: decision.autoReplyPermitted ?? null,
     ...extras,
   };
 }
@@ -157,7 +169,7 @@ function flowDecisionStub(intent, outcome) {
 // interpret()/decide() seguem rodando, para Observação/sugestão de resposta
 // continuarem funcionando. `flowStack`/`seedEntities` — itens 5/6.
 async function runDecisionPipeline({
-  bot, message, context, state, guardState, previousIntroducedAt, flags, now, channel, client, sessionExpired = false,
+  bot, message, context, state, guardState, previousIntroducedAt, flags, interpretFlags = null, now, channel, client, sessionExpired = false,
   toolMode = "OBSERVATION", humanPaused = false, flowStack = [], seedEntities = null,
 }) {
   let interpretation;
@@ -193,7 +205,7 @@ async function runDecisionPipeline({
   }
 
   if (!decision) {
-    interpretation = await interpret({ bot, message, context, state, flags });
+    interpretation = await interpret({ bot, message, context, state, flags: interpretFlags || flags });
     decision = decide({ bot, interpretation, message, state, now, flags });
 
     // Uma intenção com etapas configuradas (Fluxo de atendimento) é
@@ -310,6 +322,9 @@ async function runDecisionPipeline({
 async function orchestrate({
   conversationId, channel = "META", messageId = null, message, now = new Date(), executionMode = "LIVE",
 }, client = prisma) {
+  // Item 1 (Decision Log): mede o tempo do pipeline de interpretação/decisão
+  // completo (nunca inclui envio real, que acontece fora deste módulo).
+  const pipelineStartedAt = Date.now();
   const state = await getState(conversationId, client);
   const bot = await resolveBot(state?.activeBotId, channel, client);
   if (!bot) return null;
@@ -357,7 +372,10 @@ async function orchestrate({
         interpretation: { intentId: null, intentName: null, confidence: null, matchedExample: null, entities: {}, provider: "RATING", status: "OK", errorCode: null },
         decision: { action: "RESPOND", categoryId: null, needsClarification: false, shouldHandoff: false, withinHours: true, summary: "Avaliação do cliente registrada." },
         responseText: bot.ratingFollowupMessage || null,
-        extras: { humanPaused: false, automationBlocked: false, observationAllowed: false, learningEnabled: flags.learningEnabled, ratingRecorded: true },
+        extras: {
+          humanPaused: false, automationBlocked: false, observationAllowed: false, learningEnabled: flags.learningEnabled,
+          ratingRecorded: true, durationMs: Date.now() - pipelineStartedAt,
+        },
       });
     }
   }
@@ -375,6 +393,15 @@ async function orchestrate({
   const toolMode = executionMode === "LIVE" && globalSettings.automationEnabled && bot.autoReplyEnabled && !humanPaused
     ? "LIVE" : "OBSERVATION";
 
+  // Item 16 (controle de custo): fora do modo LIVE (ou seja, hoje, toda
+  // conversa real — o Bot só observa, nunca envia sozinho ainda), a IA
+  // externa só roda se o Bot também tiver observeWithExternalAi ligado.
+  // Nunca altera `flags` original (usado por decide()/Flow/Knowledge
+  // adiante) — só a cópia repassada para interpret() dentro do pipeline.
+  const interpretFlags = (toolMode !== "LIVE" && flags.observeWithExternalAi !== true)
+    ? { ...flags, externalAiFallbackEnabled: false }
+    : flags;
+
   // Item 6 (contexto de produto): memória de entidades da CONVERSA inteira,
   // resetada junto com o resto do estado operacional quando a sessão expira
   // (mesmo TTL — nunca reaproveita produto de uma sessão antiga).
@@ -385,7 +412,7 @@ async function orchestrate({
     interpretation, decision, targetBot, responseText, operational, flow, flowStackUpdate, topicSwitchDetected,
   } = await runDecisionPipeline({
     bot, message, context, state: conversationalState, guardState: operationalState,
-    previousIntroducedAt: state?.introducedAt || null, flags, now, channel, client, sessionExpired, toolMode,
+    previousIntroducedAt: state?.introducedAt || null, flags, interpretFlags, now, channel, client, sessionExpired, toolMode,
     humanPaused, flowStack: flowStackBefore, seedEntities: priorContextEntities,
   });
 
@@ -404,6 +431,15 @@ async function orchestrate({
   }
 
   const automationBlocked = !globalSettings.automationEnabled || !targetBot.autoReplyEnabled;
+  // Item 6 (observação de conversas ATIVAS): este comportamento — continuar
+  // observando/decidindo (nunca enviar/assumir/transferir/executar Tool/
+  // finalizar de verdade) mesmo com um humano já na conversa — já existia e
+  // é coberto por testes anteriores (é o que sustenta a sugestão de resposta
+  // ao atendente, item 9). `observeActiveConversations`
+  // (global+flags, default OFF) não restringe isso; ele controla apenas a
+  // camada NOVA desta fase — observar/comparar a resposta real do atendente
+  // (bot-observation-service.js:observeAgentReply) — para nunca mudar o
+  // comportamento já testado por padrão.
   const observationAllowed = globalSettings.observationEnabled && flags.observationEnabled;
 
   // Item 2 (expiração de contexto): a sessão expirou e nenhum fluxo NOVO
@@ -449,8 +485,8 @@ async function orchestrate({
   // passa por aqui) nem quando o fallback externo está desligado.
   if (interpretation.calledExternalAi) {
     await recordAiUsage({
-      botId: targetBot.id, provider: interpretation.provider, reason: "LOW_LOCAL_CONFIDENCE",
-      usage: interpretation.aiUsage,
+      botId: targetBot.id, provider: interpretation.provider, model: interpretation.aiModel || null,
+      reason: "LOW_LOCAL_CONFIDENCE", usage: interpretation.aiUsage,
     }, client);
   }
 
@@ -468,6 +504,7 @@ async function orchestrate({
       flowStepId: flow?.currentStepId ?? null, flowResolutionStatus: flow?.resolutionStatus ?? null,
       flowIntentId: flow?.intentId ?? null, flowPendingQuestion: flow?.pendingQuestion ?? null,
       autoFinalizeRequested, topicSwitchDetected, ratingRequested: ratingTrigger.request,
+      durationMs: Date.now() - pipelineStartedAt,
       // Item 7 (sugestão para o atendente): o texto que o motor calculou
       // fica sempre disponível aqui (mesmo em modo observação) — quem
       // decide persistir/mostrar ao atendente é bot-observation-service.js.

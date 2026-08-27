@@ -8,6 +8,10 @@ const DEFAULT_LOW_CONFIDENCE_THRESHOLD = 0.55;
 // Item 13: abaixo desta confiança (do provider LOCAL), com
 // externalAiFallbackEnabled=true, o motor pode tentar um provider externo.
 const DEFAULT_EXTERNAL_AI_THRESHOLD = 0.7;
+// Item 5 (auto reply por intenção): quando uma BotIntent liga
+// autoReplyEnabled sem informar autoReplyMinConfidence, esta é a confiança
+// mínima exigida.
+const DEFAULT_AUTO_REPLY_MIN_CONFIDENCE = 0.9;
 
 // Motor de IA / Fallback externo: providers REALMENTE implementados (item 3
 // — "mostrar somente providers implementados"). "LOCAL" não é uma chamada
@@ -154,12 +158,23 @@ const FEATURE_FLAG_DEFAULTS = Object.freeze({
   contextExpirationMinutes: 120,
   maxSwitchesPerWindow: 3,
   switchWindowMinutes: 10,
+  // Item 6 (observação de conversas ATIVAS): precisa estar ligado aqui E em
+  // BotGlobalSettings.observeActiveConversations para o Bot continuar
+  // observando (nunca enviar/assumir/transferir/finalizar) mensagens de uma
+  // conversa já assumida por um humano. Default OFF nos dois.
+  observeActiveConversations: false,
+  // Item 16 (controle de custo): quando a observação está rodando fora do
+  // modo LIVE (ou seja, na prática toda conversa real hoje — o Bot só
+  // observa, nunca envia sozinho), a IA externa só é chamada se este flag
+  // também estiver ligado, além de externalAiFallbackEnabled. Default OFF =
+  // observação só com o motor local, nunca gera custo de IA externa.
+  observeWithExternalAi: false,
 });
 const BOOLEAN_FEATURE_FLAG_KEYS = Object.freeze([
   "interpretationEnabled", "conversationalBehaviorEnabled", "contextEnabled", "autoSwitchEnabled",
   "observationEnabled", "learningEnabled", "knowledgeSuggestionsEnabled", "knowledgeBaseEnabled",
   "handoffAutoPauseEnabled", "handoffEnabled", "toolsFeatureEnabled", "flowEngineEnabled",
-  "autoFinalizeOnResolution", "externalAiFallbackEnabled",
+  "autoFinalizeOnResolution", "externalAiFallbackEnabled", "observeActiveConversations", "observeWithExternalAi",
 ]);
 const NUMERIC_FEATURE_FLAG_RANGES = Object.freeze({
   contextMaxMessages: { min: 1, max: 30 },
@@ -215,6 +230,7 @@ module.exports = {
   CONFIRMATION_PATTERN,
   CONTEXT_MESSAGE_LIMIT,
   DECISION_PRIORITY_ORDER,
+  DEFAULT_AUTO_REPLY_MIN_CONFIDENCE,
   DEFAULT_EXTERNAL_AI_PROVIDER,
   DEFAULT_EXTERNAL_AI_THRESHOLD,
   DEFAULT_HIGH_CONFIDENCE_THRESHOLD,

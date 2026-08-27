@@ -13,6 +13,7 @@ const authorization = require("../services/authorization-service");
 const suggestions = require("../services/bot-suggestion-service");
 const quality = require("../services/bot-quality-service");
 const aiCredentials = require("../services/ai/ai-credential-service");
+const observation = require("../services/bot-observation-service");
 
 module.exports = {
   async list(req, res, next) {
@@ -367,5 +368,25 @@ module.exports = {
   async qualityAlerts(req, res, next) {
     try { return res.json(await quality.qualityAlerts(req.params.botId, req.user)); }
     catch (error) { return next(error); }
+  },
+  // Item 3/4/20 (dashboard unificado por Bot/período).
+  async dashboardMetrics(req, res, next) {
+    try {
+      const filters = req.query.preset ? { preset: req.query.preset, from: req.query.from, to: req.query.to } : null;
+      return res.json(await quality.dashboardMetrics(req.params.botId, filters, req.user));
+    } catch (error) { return next(error); }
+  },
+
+  // Item 1/2/21 (Decision Log completo na tela de conversa).
+  async conversationDecisions(req, res, next) {
+    try {
+      return res.json(await observation.listDecisionsForConversation(req.params.conversationId, req.user, { limit: req.query.limit }));
+    } catch (error) { return next(error); }
+  },
+  // Item 17 (pausar observação só desta conversa).
+  async setConversationObservationPaused(req, res, next) {
+    try {
+      return res.json(await observation.setConversationObservationPaused(req.params.conversationId, Boolean(req.body.paused), req.user));
+    } catch (error) { return next(error); }
   },
 };

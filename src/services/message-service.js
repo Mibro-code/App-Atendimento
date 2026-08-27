@@ -123,6 +123,13 @@ async function sendText({ conversationId, text, sentByUserId, channel }) {
     status: "ENVIADA", type: "text", text, occurredAt, sentByUserId: sentByUserId || null, rawPayload: result.data,
   } });
   await updateConversationAfterSending({ conversationId, sentByUserId, occurredAt });
+  // Item 7/15 (observar resposta do atendente): nunca pode atrasar/bloquear
+  // o envio real — roda depois, fire-and-forget, e nunca lança daqui.
+  if (sentByUserId) {
+    require("./bot-observation-service").observeAgentReply({
+      conversationId, replyText: text, sentByUserId, now: occurredAt,
+    }).catch(() => {});
+  }
   return { message, providerData: result.data };
 }
 

@@ -432,9 +432,14 @@ app.post(
   app.get("/api/conversations/:conversationId/bot-suggestion", botController.latestSuggestion);
   app.post("/api/bot-suggestion-feedback", botController.suggestionFeedback);
 
-  // Métricas/alertas de qualidade (itens 11/12).
+  // Métricas/alertas de qualidade (itens 11/12) + dashboard unificado (itens 3/4/20).
   app.get("/api/bots/:botId/quality-metrics", botController.qualityMetrics);
   app.get("/api/bots/:botId/quality-alerts", botController.qualityAlerts);
+  app.get("/api/bots/:botId/dashboard", botController.dashboardMetrics);
+
+  // Decision Log completo na tela de conversa (itens 1/2/17/21).
+  app.get("/api/conversations/:conversationId/bot-decisions", botController.conversationDecisions);
+  app.patch("/api/conversations/:conversationId/bot-observation-pause", botController.setConversationObservationPaused);
 
   // Tools (itens 5-7): listagem só de leitura.
   app.get("/api/bot-tools", botController.listTools);

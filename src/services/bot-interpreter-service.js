@@ -140,27 +140,37 @@ async function interpretWithProviders({ bot, message, context = [], state = null
 async function interpret({ bot, message, context = [], state = null, flags = {} }) {
   const local = getFallbackProvider();
   const localResult = await interpretWithProviders({ bot, message, context, state, primary: local, fallback: local });
+  // Decision Log (item 1): confiança do motor LOCAL, sempre calculada antes
+  // de qualquer tentativa de IA externa — preservada mesmo quando um
+  // provider externo depois substitui o resultado final.
+  const localConfidence = localResult.confidence;
 
   if (localResult.provider === "CONTEXT_CARRYOVER" || localResult.status === "EMPTY_MESSAGE") {
-    return { ...localResult, calledExternalAi: false };
+    return { ...localResult, calledExternalAi: false, localConfidence, aiModel: null };
   }
 
   const threshold = Number.isFinite(flags.externalAiThreshold) ? flags.externalAiThreshold : DEFAULT_EXTERNAL_AI_THRESHOLD;
   const shouldTryExternal = flags.externalAiFallbackEnabled === true
     && (!localResult.intentId || localResult.confidence < threshold);
-  if (!shouldTryExternal) return { ...localResult, calledExternalAi: false };
+  if (!shouldTryExternal) return { ...localResult, calledExternalAi: false, localConfidence, aiModel: null };
 
   const external = await getPrimaryProvider(flags.externalAiProvider, flags.externalAiModel || undefined);
-  if (external.name === "LOCAL_FALLBACK") return { ...localResult, calledExternalAi: false };
+  if (external.name === "LOCAL_FALLBACK") return { ...localResult, calledExternalAi: false, localConfidence, aiModel: null };
 
   const aiOutcome = await interpretWithProviders({ bot, message, context, state, primary: external, fallback: local });
   if (aiOutcome.provider === external.name && aiOutcome.intentId) {
-    return { ...aiOutcome, calledExternalAi: true, aiUsage: aiOutcome.usage || null };
+    return {
+      ...aiOutcome, calledExternalAi: true, aiUsage: aiOutcome.usage || null,
+      localConfidence, aiModel: flags.externalAiModel || null,
+    };
   }
   // A tentativa externa não confirmou nada de novo (erro, timeout ou "não
   // sei") — mantém o resultado local em vez de piorar a resposta, mas marca
   // que a chamada externa realmente aconteceu (item 15: métrica de uso).
-  return { ...localResult, calledExternalAi: aiOutcome.providerAttempted === external.name };
+  return {
+    ...localResult, calledExternalAi: aiOutcome.providerAttempted === external.name,
+    localConfidence, aiModel: null,
+  };
 }
 
 module.exports = { interpret, interpretWithProviders };

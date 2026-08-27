@@ -438,6 +438,26 @@ async function intentInput(data, { partial = false, existing = null } = {}) {
   }
   if (!partial || data.fallbackAction !== undefined) input.fallbackAction = validateFallbackAction(data.fallbackAction);
   if (!partial || data.categoryId !== undefined) input.categoryId = await validateCategoryId(data.categoryId);
+  // Item 5 (auto reply por intenção): default OFF (nulo) — só liga
+  // explicitamente quando informado. `autoReplyMinConfidence` só é aceito
+  // junto de autoReplyEnabled=true (senão fica sem efeito nenhum).
+  if (data.autoReplyEnabled !== undefined) {
+    if (data.autoReplyEnabled !== null && typeof data.autoReplyEnabled !== "boolean") {
+      throw fail("Informe se o envio automático desta intenção está ligado.");
+    }
+    input.autoReplyEnabled = data.autoReplyEnabled;
+  }
+  if (data.autoReplyMinConfidence !== undefined) {
+    if (data.autoReplyMinConfidence === null) {
+      input.autoReplyMinConfidence = null;
+    } else {
+      const value = Number(data.autoReplyMinConfidence);
+      if (!Number.isFinite(value) || value < 0 || value > 1) {
+        throw fail("A confiança mínima do envio automático deve estar entre 0 e 1.");
+      }
+      input.autoReplyMinConfidence = value;
+    }
+  }
   const examples = normalizeExamples(data.examples);
   const resultingAction = input.fallbackAction ?? existing?.fallbackAction ?? "USE_BOT_FALLBACK";
   const resultingCategoryId = input.categoryId !== undefined ? input.categoryId : existing?.categoryId;
@@ -801,17 +821,24 @@ async function listIntentConflicts(botId, viewer) {
 
 // Métricas por intenção (#41): usa BotObservation (diagnóstico do
 // interpretador) e BotRating (sinal real, quando existir) — nunca mistura
-// os dois como se fossem a mesma coisa.
-async function intentMetrics(botId, viewer) {
+// os dois como se fossem a mesma coisa. `filters` (item 3 — dashboard por
+// período) é opcional e usa o mesmo formato de bot-rating-service.periodRange
+// ({ preset } ou { preset: "custom", from, to }); omitido = todo o histórico.
+async function intentMetrics(botId, viewer, filters) {
   assertBotManager(viewer);
   await ensureBot(botId);
-  const [observed, handoffs, ratings, intents] = await Promise.all([
-    prisma.botObservation.groupBy({ by: ["intentId"], where: { botId, intentId: { not: null } }, _count: { _all: true }, _avg: { confidence: true } }),
-    prisma.botObservation.groupBy({ by: ["intentId"], where: { botId, intentId: { not: null }, action: "HANDOFF_HUMAN" }, _count: { _all: true } }),
+  const { periodRange } = require("./bot-rating-service");
+  const createdAt = filters ? periodRange(filters) : null;
+  const observationWhere = { botId, intentId: { not: null }, ...(createdAt ? { createdAt } : {}) };
+  const [observed, handoffs, resolved, ratings, intents] = await Promise.all([
+    prisma.botObservation.groupBy({ by: ["intentId"], where: observationWhere, _count: { _all: true }, _avg: { confidence: true } }),
+    prisma.botObservation.groupBy({ by: ["intentId"], where: { ...observationWhere, action: "HANDOFF_HUMAN" }, _count: { _all: true } }),
+    prisma.botObservation.groupBy({ by: ["intentId"], where: { ...observationWhere, flowResolutionStatus: "RESOLVED" }, _count: { _all: true } }),
     prisma.botRating.groupBy({ by: ["intentId"], where: { botId, intentId: { not: null } }, _count: { _all: true }, _avg: { score: true } }),
     prisma.botIntent.findMany({ where: { botId }, select: { id: true, name: true } }),
   ]);
   const handoffMap = new Map(handoffs.map((row) => [row.intentId, row._count._all]));
+  const resolvedMap = new Map(resolved.map((row) => [row.intentId, row._count._all]));
   const ratingMap = new Map(ratings.map((row) => [row.intentId, { count: row._count._all, avg: row._avg.score }]));
   const nameMap = new Map(intents.map((intent) => [intent.id, intent.name]));
   return observed.map((row) => ({
@@ -819,6 +846,7 @@ async function intentMetrics(botId, viewer) {
     intentName: nameMap.get(row.intentId) || "Intenção removida",
     triggeredCount: row._count._all,
     averageConfidence: row._avg.confidence != null ? Number(row._avg.confidence.toFixed(2)) : null,
+    resolvedCount: resolvedMap.get(row.intentId) || 0,
     handoffCount: handoffMap.get(row.intentId) || 0,
     ratingsCount: ratingMap.get(row.intentId)?.count || 0,
     averageRating: ratingMap.get(row.intentId)?.avg != null ? Number(ratingMap.get(row.intentId).avg.toFixed(2)) : null,

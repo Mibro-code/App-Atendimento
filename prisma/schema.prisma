@@ -319,52 +319,53 @@ model Message {
 }
 
 model User {
-  id                           String                   @id @default(cuid())
-  name                         String
-  email                        String                   @unique
-  passwordHash                 String?
-  role                         UserRole                 @default(ATENDENTE)
-  active                       Boolean                  @default(true)
-  sessionVersion               Int                      @default(0)
-  canViewUncategorized         Boolean                  @default(false)
-  canManageCategories          Boolean                  @default(false)
-  canTransferConversations     Boolean                  @default(false)
-  canViewTeamActivity          Boolean                  @default(false)
-  canViewConversationHistory   Boolean                  @default(false)
-  canViewPreviousMessages      Boolean                  @default(false)
-  hideUncategorized            Boolean                  @default(false)
+  id                            String                   @id @default(cuid())
+  name                          String
+  email                         String                   @unique
+  passwordHash                  String?
+  role                          UserRole                 @default(ATENDENTE)
+  active                        Boolean                  @default(true)
+  sessionVersion                Int                      @default(0)
+  canViewUncategorized          Boolean                  @default(false)
+  canManageCategories           Boolean                  @default(false)
+  canTransferConversations      Boolean                  @default(false)
+  canViewTeamActivity           Boolean                  @default(false)
+  canViewConversationHistory    Boolean                  @default(false)
+  canViewPreviousMessages       Boolean                  @default(false)
+  hideUncategorized             Boolean                  @default(false)
   // Campanhas/prospecção (item 27): Admin sempre pode gerenciar; Supervisor
   // ganha por padrão (auth-service.js concede a quem é ADMIN/SUPERVISOR);
   // este flag permite liberar um Atendente específico sem mudar o cargo.
-  canManageCampaigns           Boolean                  @default(false)
-  createdAt                    DateTime                 @default(now())
-  updatedAt                    DateTime                 @updatedAt
-  assignedConversations        Conversation[]           @relation("AssignedConversations")
-  sentMessages                 Message[]                @relation("SentMessages")
-  contactNotes                 ContactNote[]            @relation("ContactNotes")
-  categoryAccess               UserCategoryAccess[]
-  hiddenCategories             UserHiddenCategory[]
-  conversationPins             ConversationPin[]
-  conversationMasterReads      ConversationMasterRead[]
-  conversationActivities       ConversationActivity[]   @relation("ConversationActivityActor")
-  auditLogs                    AuditLog[]               @relation("AuditLogActor")
-  internalChatMemberships      InternalChatMember[]
-  internalMessages             InternalMessage[]
-  observationFeedback          BotObservation[]         @relation("ObservationFeedbackUser")
-  reviewedLearningSuggestions  BotLearningSuggestion[]  @relation("LearningSuggestionReviewer")
-  botVersions                  BotVersion[]             @relation("BotVersionAuthor")
-  agentFeedback                BotAgentFeedback[]
-  handoffContextsResumed       BotHandoffContext[]      @relation("HandoffResumedByUser")
-  quickRepliesCreated          QuickReply[]             @relation("QuickReplyCreatedBy")
-  quickReplyFavorites          QuickReplyFavorite[]     @relation("QuickReplyFavoriteUser")
-  quickReplyUsages             QuickReplyUsage[]        @relation("QuickReplyUsageUser")
-  suggestionFeedbackGiven      BotSuggestionFeedback[]  @relation("SuggestionFeedbackUser")
-  pushSubscriptions            PushSubscription[]       @relation("UserPushSubscriptions")
-  campaignsCreated             Campaign[]               @relation("CampaignCreatedBy")
-  campaignsResponsible         Campaign[]               @relation("CampaignResponsible")
-  campaignImports              CampaignImport[]         @relation("CampaignImportedBy")
-  optOutsRemoved               OptOut[]                 @relation("OptOutRemovedBy")
-  aiProviderCredentialsUpdated AiProviderCredential[]   @relation("AiProviderCredentialUpdatedBy")
+  canManageCampaigns            Boolean                  @default(false)
+  createdAt                     DateTime                 @default(now())
+  updatedAt                     DateTime                 @updatedAt
+  assignedConversations         Conversation[]           @relation("AssignedConversations")
+  sentMessages                  Message[]                @relation("SentMessages")
+  contactNotes                  ContactNote[]            @relation("ContactNotes")
+  categoryAccess                UserCategoryAccess[]
+  hiddenCategories              UserHiddenCategory[]
+  conversationPins              ConversationPin[]
+  conversationMasterReads       ConversationMasterRead[]
+  conversationActivities        ConversationActivity[]   @relation("ConversationActivityActor")
+  auditLogs                     AuditLog[]               @relation("AuditLogActor")
+  internalChatMemberships       InternalChatMember[]
+  internalMessages              InternalMessage[]
+  observationFeedback           BotObservation[]         @relation("ObservationFeedbackUser")
+  observationActualAgentReplies BotObservation[]         @relation("ObservationActualAgent")
+  reviewedLearningSuggestions   BotLearningSuggestion[]  @relation("LearningSuggestionReviewer")
+  botVersions                   BotVersion[]             @relation("BotVersionAuthor")
+  agentFeedback                 BotAgentFeedback[]
+  handoffContextsResumed        BotHandoffContext[]      @relation("HandoffResumedByUser")
+  quickRepliesCreated           QuickReply[]             @relation("QuickReplyCreatedBy")
+  quickReplyFavorites           QuickReplyFavorite[]     @relation("QuickReplyFavoriteUser")
+  quickReplyUsages              QuickReplyUsage[]        @relation("QuickReplyUsageUser")
+  suggestionFeedbackGiven       BotSuggestionFeedback[]  @relation("SuggestionFeedbackUser")
+  pushSubscriptions             PushSubscription[]       @relation("UserPushSubscriptions")
+  campaignsCreated              Campaign[]               @relation("CampaignCreatedBy")
+  campaignsResponsible          Campaign[]               @relation("CampaignResponsible")
+  campaignImports               CampaignImport[]         @relation("CampaignImportedBy")
+  optOutsRemoved                OptOut[]                 @relation("OptOutRemovedBy")
+  aiProviderCredentialsUpdated  AiProviderCredential[]   @relation("AiProviderCredentialUpdatedBy")
 }
 
 model PushSubscription {
@@ -548,36 +549,45 @@ model BotSchedule {
 // globalIntentId) continuam funcionando exatamente como antes — nada no
 // pipeline de interpretação foi alterado por este campo.
 model BotIntent {
-  id                   String                  @id @default(cuid())
-  botId                String
-  globalIntentId       String?
-  name                 String
-  description          String?
-  responseMessage      String?                 @db.Text
-  priority             Int                     @default(0)
-  active               Boolean                 @default(true)
-  fallbackAction       BotFallbackAction       @default(USE_BOT_FALLBACK)
-  categoryId           String?
+  id                     String                  @id @default(cuid())
+  botId                  String
+  globalIntentId         String?
+  name                   String
+  description            String?
+  responseMessage        String?                 @db.Text
+  priority               Int                     @default(0)
+  active                 Boolean                 @default(true)
+  fallbackAction         BotFallbackAction       @default(USE_BOT_FALLBACK)
+  categoryId             String?
   // Nome de uma Tool (bot-tools/tool-registry.js) associada a esta intenção
   // (item 8: "onde está meu pedido?" -> ACOMPANHAR_PEDIDO -> OrderTool). Só é
   // efetivamente chamada se a Tool existir, estiver habilitada no registry E
   // permitida em Bot.toolPermissions — ver bot-tool-orchestrator-service.js.
-  toolName             String?
-  createdAt            DateTime                @default(now())
-  updatedAt            DateTime                @updatedAt
-  bot                  Bot                     @relation(fields: [botId], references: [id], onDelete: Cascade)
-  globalIntent         GlobalIntent?           @relation(fields: [globalIntentId], references: [id], onDelete: SetNull)
-  category             Category?               @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  examples             BotIntentExample[]
-  conversationStates   ConversationBotState[]
-  activeInFlowStates   ConversationBotState[]  @relation("ConversationActiveFlowIntent")
-  feedbackObservations BotObservation[]        @relation("ObservationFeedbackIntent")
-  learningSuggestions  BotLearningSuggestion[]
-  ratings              BotRating[]
-  quickReplyLinks      QuickReplyIntent[]
-  knowledgeSources     KnowledgeSource[]
-  botHandoffContexts   BotHandoffContext[]
-  flowSteps            BotFlowStep[]
+  toolName               String?
+  // Item 5 (auto reply por intenção): restrição ADICIONAL, mais fina que
+  // Bot.autoReplyEnabled — nulo = herda o comportamento padrão do Bot (sem
+  // restrição extra); `true` só permite o envio automático desta intenção
+  // específica quando a confiança final for >= autoReplyMinConfidence
+  // (padrão DEFAULT_AUTO_REPLY_MIN_CONFIDENCE quando não informado). Default
+  // geral é OFF (nulo) — só passa a valer quando alguém liga explicitamente
+  // pela intenção. Calculado em bot-decision-service.js, nunca aqui.
+  autoReplyEnabled       Boolean?
+  autoReplyMinConfidence Float?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  bot                    Bot                     @relation(fields: [botId], references: [id], onDelete: Cascade)
+  globalIntent           GlobalIntent?           @relation(fields: [globalIntentId], references: [id], onDelete: SetNull)
+  category               Category?               @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  examples               BotIntentExample[]
+  conversationStates     ConversationBotState[]
+  activeInFlowStates     ConversationBotState[]  @relation("ConversationActiveFlowIntent")
+  feedbackObservations   BotObservation[]        @relation("ObservationFeedbackIntent")
+  learningSuggestions    BotLearningSuggestion[]
+  ratings                BotRating[]
+  quickReplyLinks        QuickReplyIntent[]
+  knowledgeSources       KnowledgeSource[]
+  botHandoffContexts     BotHandoffContext[]
+  flowSteps              BotFlowStep[]
 
   @@index([botId, active, priority])
   @@index([categoryId])
@@ -748,6 +758,33 @@ model BotObservation {
   feedbackAt              DateTime?
   suggestedQuickReplyId   String?
   suggestedQuickReplyName String?
+  // Observabilidade/Qualidade (Decision Log completo): confiança local
+  // (antes de qualquer tentativa de IA externa) separada da confiança final
+  // (depois do fallback, se houver) — `confidence` acima continua existindo
+  // por compatibilidade e reflete a confiança final. `aiModel` só é
+  // preenchido quando `calledExternalAi` é true. `durationMs` é o tempo de
+  // processamento do pipeline de interpretação/decisão (nunca inclui envio).
+  // `handoffReason` é uma cópia curta e solta (sem FK) do motivo do
+  // encaminhamento, só para leitura rápida no log — o registro estruturado
+  // completo continua em BotHandoffContext.
+  localConfidence         Float?
+  finalConfidence         Float?
+  aiModel                 String?
+  durationMs              Int?
+  handoffReason           String?                @db.Text
+  // Item 7/10/13 (observar resposta do atendente / comparação Bot x
+  // Humano): preenchido quando um atendente envia uma resposta de texto
+  // depois desta observação, comparando com `suggestedResponseText` acima —
+  // nunca escrito automaticamente pelo Bot, só por message-service.js no
+  // envio real de um humano. `customerReactionSignal` só é preenchido
+  // depois, quando a PRÓXIMA mensagem do cliente contém um sinal claro de
+  // sucesso/falha (bot-learning-service.js:detectResolutionSignal) — nunca
+  // inferido do silêncio do cliente.
+  actualAgentReplyText    String?                @db.Text
+  actualAgentUserId       String?
+  actualAgentRepliedAt    DateTime?
+  customerReactionSignal  String?
+  customerReactionAt      DateTime?
   createdAt               DateTime               @default(now())
 
   conversation        Conversation            @relation(fields: [conversationId], references: [id], onDelete: Cascade)
@@ -757,6 +794,7 @@ model BotObservation {
   feedbackIntent      BotIntent?              @relation("ObservationFeedbackIntent", fields: [feedbackIntentId], references: [id], onDelete: SetNull)
   feedbackByUser      User?                   @relation("ObservationFeedbackUser", fields: [feedbackByUserId], references: [id], onDelete: SetNull)
   suggestedQuickReply QuickReply?             @relation("ObservationSuggestedQuickReply", fields: [suggestedQuickReplyId], references: [id], onDelete: SetNull)
+  actualAgentUser     User?                   @relation("ObservationActualAgent", fields: [actualAgentUserId], references: [id], onDelete: SetNull)
   suggestionFeedback  BotSuggestionFeedback[]
 
   @@index([conversationId, createdAt])
@@ -820,6 +858,12 @@ model ConversationBotState {
 
   // Pausa quando um humano assume a conversa (handoffAutoPause).
   humanPausedAt DateTime?
+
+  // Item 17: pausa a OBSERVAÇÃO (nunca o atendimento) só desta conversa
+  // específica, sem tocar no toggle global/por Bot — um atendente pode
+  // desligar a análise em tempo real de uma conversa só, mantendo o resto
+  // do sistema intocado.
+  observationPausedAt DateTime?
 
   // Flow Engine (item "ESTADO DA CONVERSA"): posição e memória do atendimento
   // em múltiplas etapas em andamento nesta conversa. `currentFlowStepId` nulo
@@ -930,6 +974,10 @@ model BotAiUsage {
   id           String   @id @default(cuid())
   botId        String?
   provider     String
+  // Item 4 (Uso de IA): modelo efetivamente usado na chamada, quando
+  // conhecido (ex.: "gemini-2.0-flash") — nulo em registros antigos, nunca
+  // inventado/preenchido a partir de um default se o motor não informar.
+  model        String?
   reason       String
   inputTokens  Int?
   outputTokens Int?
@@ -1072,6 +1120,12 @@ model BotGlobalSettings {
   // (associar/reaproveitar GlobalIntent entre Bots). Desligar não apaga
   // GlobalIntent/associações — só bloqueia novas operações de biblioteca.
   intentLibraryEnabled        Boolean   @default(true)
+  // Item 6 (observação de conversas ATIVAS): liga/desliga globalmente a
+  // possibilidade de o Bot continuar observando (nunca enviar/assumir/
+  // transferir/finalizar) mensagens de conversas já assumidas por um
+  // humano. Precisa estar ligado aqui E no featureFlag por Bot
+  // (observeActiveConversations) — default OFF nos dois.
+  observeActiveConversations  Boolean   @default(false)
   killSwitchActivatedAt       DateTime?
   killSwitchActivatedByUserId String?
   updatedAt                   DateTime  @updatedAt

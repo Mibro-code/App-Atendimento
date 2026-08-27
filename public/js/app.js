@@ -70,6 +70,7 @@ function closeConversationView() {
   state.botSuggestion = null;
   state.pendingBotSuggestion = null;
   $("#bot-suggestion-card").hidden = true;
+  hideBotAssistant();
   state.customerServiceWindow = null;
   syncCustomerServiceWindow();
   if ($("#contact-files-dialog")?.open) $("#contact-files-dialog").close();
@@ -756,6 +757,93 @@ $("#dislike-bot-suggestion").addEventListener("click", async () => {
   catch (error) { toast(error.message, true); }
 });
 
+// Item 2/17/21 ("Assistente do Bot" + "Decisões do Bot" na tela de
+// conversa): painel recolhível, compacto por padrão — só mostra o estado
+// mais recente (intenção/confiança/etapa/conhecimento/status); a lista
+// cronológica completa só aparece ao clicar em "Ver decisões do Bot".
+function hideBotAssistant() {
+  state.botDecisions = null;
+  $("#bot-assistant-panel").hidden = true;
+  $("#bot-assistant-body").hidden = true;
+  $("#bot-decisions-list").hidden = true;
+}
+
+function formatDecisionConfidence(row) {
+  const value = typeof row.finalConfidence === "number" ? row.finalConfidence
+    : (typeof row.confidence === "number" ? row.confidence : null);
+  return value === null ? "—" : `${Math.round(value * 100)}%`;
+}
+
+function decisionStatusLabel(row) {
+  if (row.status === "ERROR") return "Erro";
+  if (row.action === "HANDOFF_HUMAN") return `Encaminhado${row.handoffReason ? ` — ${row.handoffReason}` : ""}`;
+  if (row.flowResolutionStatus === "RESOLVED") return "Resolvido";
+  if (row.flowResolutionStatus === "HANDED_OFF") return "Encaminhado pelo fluxo";
+  if (row.action === "ASK_CLARIFICATION") return "Pediu esclarecimento";
+  if (!row.intentId) return "Sem intenção reconhecida";
+  return row.action || "—";
+}
+
+function renderBotAssistant(data) {
+  state.botDecisions = data || null;
+  const panel = $("#bot-assistant-panel");
+  const rows = data?.decisions || [];
+  if (!rows.length) { panel.hidden = true; return; }
+  panel.hidden = false;
+  const latest = rows[0];
+  $("#bot-assistant-summary").textContent = `${latest.intentName || "Sem intenção"} · ${formatDecisionConfidence(latest)}`;
+  $("#bot-assistant-intent").textContent = latest.intentName || "—";
+  $("#bot-assistant-confidence").textContent = formatDecisionConfidence(latest);
+  $("#bot-assistant-step").textContent = latest.flowStepId ? latest.flowStepId : "—";
+  $("#bot-assistant-knowledge").textContent = latest.knowledgeSourceTitle || (latest.toolName ? `Tool: ${latest.toolName}` : "—");
+  $("#bot-assistant-status").textContent = decisionStatusLabel(latest);
+  $("#bot-assistant-pause-toggle").checked = Boolean(data.observationPaused);
+
+  const list = $("#bot-decisions-list");
+  list.innerHTML = rows.map((row) => {
+    const when = row.createdAt ? new Date(row.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "";
+    const aiInfo = row.calledExternalAi ? ` · IA externa (${row.provider}${row.aiModel ? `/${row.aiModel}` : ""})` : "";
+    const durationInfo = typeof row.durationMs === "number" ? ` · ${row.durationMs}ms` : "";
+    return `<li>
+      <div class="bot-decision-head"><span>${row.intentName || "Sem intenção"}</span><span>${when}</span></div>
+      <div class="bot-decision-meta">${formatDecisionConfidence(row)} · ${decisionStatusLabel(row)}${aiInfo}${durationInfo}</div>
+    </li>`;
+  }).join("");
+}
+
+async function loadBotAssistant(conversationId, loadSequence) {
+  try {
+    const data = await api(`/api/conversations/${conversationId}/bot-decisions?limit=20`);
+    if (loadSequence !== conversationLoadSequence || state.selectedId !== conversationId) return;
+    renderBotAssistant(data);
+  } catch (_error) {
+    if (loadSequence === conversationLoadSequence && state.selectedId === conversationId) hideBotAssistant();
+  }
+}
+
+$("#bot-assistant-toggle").addEventListener("click", () => {
+  const body = $("#bot-assistant-body");
+  body.hidden = !body.hidden;
+  $("#bot-assistant-caret").textContent = body.hidden ? "▾" : "▴";
+});
+$("#bot-assistant-decisions-toggle").addEventListener("click", () => {
+  const list = $("#bot-decisions-list");
+  list.hidden = !list.hidden;
+});
+$("#bot-assistant-pause-toggle").addEventListener("change", async (event) => {
+  if (!state.selectedId) return;
+  const paused = event.target.checked;
+  try {
+    await api(`/api/conversations/${state.selectedId}/bot-observation-pause`, {
+      method: "PATCH", body: JSON.stringify({ paused }),
+    });
+    toast(paused ? "Observação do Bot pausada nesta conversa." : "Observação do Bot retomada nesta conversa.");
+  } catch (error) {
+    event.target.checked = !paused;
+    toast(error.message, true);
+  }
+});
+
 const chatSkeletonMarkup = () => `<div class="skeleton-list">${[1, 2, 3].map((index) => `<div class="skeleton-row"><div class="skeleton skeleton-avatar"></div><div class="skeleton-lines"><div class="skeleton skeleton-line ${index % 2 ? "long" : "medium"}"></div><div class="skeleton skeleton-line short"></div></div></div>`).join("")}</div>`;
 
 async function openConversation(id, { refreshList = true, markRead = true } = {}) {
@@ -771,6 +859,7 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
     state.selectedMessages = [];
     state.pendingBotSuggestion = null;
     hideBotSuggestion();
+    hideBotAssistant();
     loadQuickRepliesCache(id).catch(() => {});
     $("#empty-state").hidden = true;
     $("#chat-content").hidden = false;
@@ -860,6 +949,7 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
     renderActivities(c.activities || []);
   }
   await loadBotSuggestion(id, loadSequence);
+  await loadBotAssistant(id, loadSequence);
   if (loadSequence !== conversationLoadSequence || state.selectedId !== id) return;
   if (refreshList) await loadConversations();
 }

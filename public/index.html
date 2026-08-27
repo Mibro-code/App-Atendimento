@@ -132,6 +132,25 @@
             <button id="dislike-bot-suggestion" type="button" aria-label="Sugestão não útil">👎</button>
           </div>
         </section>
+        <section id="bot-assistant-panel" class="bot-assistant-panel" hidden aria-live="polite">
+          <button id="bot-assistant-toggle" type="button" class="bot-assistant-toggle">
+            <span>ASSISTENTE DO BOT</span><small id="bot-assistant-summary"></small><span id="bot-assistant-caret" aria-hidden="true">▾</span>
+          </button>
+          <div id="bot-assistant-body" class="bot-assistant-body" hidden>
+            <dl class="bot-assistant-facts">
+              <div><dt>Intenção</dt><dd id="bot-assistant-intent">—</dd></div>
+              <div><dt>Confiança</dt><dd id="bot-assistant-confidence">—</dd></div>
+              <div><dt>Etapa</dt><dd id="bot-assistant-step">—</dd></div>
+              <div><dt>Conhecimento</dt><dd id="bot-assistant-knowledge">—</dd></div>
+              <div><dt>Status</dt><dd id="bot-assistant-status">—</dd></div>
+            </dl>
+            <div class="bot-assistant-actions">
+              <button id="bot-assistant-decisions-toggle" type="button">Ver decisões do Bot</button>
+              <label class="bot-assistant-pause"><input id="bot-assistant-pause-toggle" type="checkbox"> Pausar observação nesta conversa</label>
+            </div>
+            <ol id="bot-decisions-list" class="bot-decisions-list" hidden></ol>
+          </div>
+        </section>
         <form id="composer" class="composer">
           <label class="attach-image" title="Anexar imagem, vídeo ou documento" aria-label="Anexar imagem, vídeo ou documento"><input id="attachment-input" type="file" accept="image/jpeg,image/png,video/mp4,video/3gpp,video/3gp,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"><span aria-hidden="true">+</span></label>
           <div id="attachment-preview" class="attachment-preview" hidden><img id="attachment-thumb" alt="Prévia da imagem"><span id="attachment-type" class="attachment-type" hidden>DOC</span><span id="attachment-name"></span><button id="remove-attachment" type="button" aria-label="Remover anexo">×</button></div>

@@ -107,7 +107,80 @@ async function qualityAlerts(botId, viewer, { sampleMin = MINIMUM_RATINGS_FOR_ME
     }
   }
 
+  if (metrics.started >= sampleMin) {
+    const aiUsageCount = await prisma.botObservation.count({ where: { botId, calledExternalAi: true } });
+    const aiUsageRate = aiUsageCount / metrics.started;
+    if (aiUsageRate >= 0.5) {
+      alerts.push({
+        type: "HIGH_AI_USAGE", severity: "INFO",
+        message: `${Math.round(aiUsageRate * 100)}% das mensagens precisaram de IA externa — vale revisar exemplos/limiar de confiança local.`,
+      });
+    }
+  }
+
+  const knowledgeUsage = await prisma.botObservation.groupBy({
+    by: ["knowledgeSourceId", "knowledgeSourceTitle"], where: { botId, knowledgeSourceId: { not: null } }, _count: { _all: true },
+  });
+  const knowledgeResolved = await prisma.botObservation.groupBy({
+    by: ["knowledgeSourceId"], where: { botId, knowledgeSourceId: { not: null }, flowResolutionStatus: "RESOLVED" }, _count: { _all: true },
+  });
+  const resolvedByKnowledge = new Map(knowledgeResolved.map((row) => [row.knowledgeSourceId, row._count._all]));
+  for (const row of knowledgeUsage) {
+    if (row._count._all < sampleMin) continue;
+    const successRate = (resolvedByKnowledge.get(row.knowledgeSourceId) || 0) / row._count._all;
+    if (successRate < 0.3) {
+      alerts.push({
+        type: "LOW_KNOWLEDGE_SUCCESS", severity: "WARNING",
+        message: `O conhecimento "${row.knowledgeSourceTitle || row.knowledgeSourceId}" foi usado ${row._count._all}x mas só resolveu ${Math.round(successRate * 100)}% das vezes.`,
+      });
+    }
+  }
+
   return { botId, alerts };
 }
 
-module.exports = { qualityMetrics, qualityAlerts };
+// Item 3/4/20 (dashboard unificado): combina as métricas que já existem
+// espalhadas (avaliação/atendimento, por intenção, qualidade/alertas, uso de
+// IA) num único payload por Bot/período — nunca recalcula nada que já esteja
+// pronto em outro serviço, só agrega. `filters` segue o mesmo formato de
+// bot-rating-service.periodRange; omitido = todo o histórico.
+async function dashboardMetrics(botId, filters, viewer) {
+  assertBotManager(viewer);
+  if (!botId) throw fail("Bot é obrigatório.");
+  const { ratingMetrics, periodRange } = require("./bot-rating-service");
+  const { intentMetrics } = require("./bot-service");
+  const { usageSummary } = require("./bot-ai-usage-service");
+
+  const createdAt = periodRange(filters);
+  const [rating, byIntent, quality, alerts, aiUsage, toolsUsed, aiCalledCount] = await Promise.all([
+    ratingMetrics(botId, filters, viewer),
+    intentMetrics(botId, viewer, filters),
+    qualityMetrics(botId, viewer),
+    qualityAlerts(botId, viewer),
+    usageSummary({ botId, since: createdAt?.gte }, prisma),
+    prisma.botObservation.groupBy({
+      by: ["toolName"], where: { botId, toolName: { not: null }, ...(createdAt ? { createdAt } : {}) }, _count: { _all: true },
+    }),
+    prisma.botObservation.count({ where: { botId, calledExternalAi: true, ...(createdAt ? { createdAt } : {}) } }),
+  ]);
+
+  const totalObserved = rating.interpretation.totalObserved;
+  return {
+    botId,
+    period: filters || null,
+    rating,
+    byIntent,
+    quality,
+    alerts: alerts.alerts,
+    aiUsage: {
+      calls: aiUsage,
+      externalAiMessages: aiCalledCount,
+      externalAiRate: totalObserved > 0 ? Number(((aiCalledCount / totalObserved) * 100).toFixed(1)) : null,
+    },
+    toolsUsed: toolsUsed
+      .map((row) => ({ toolName: row.toolName, count: row._count._all }))
+      .sort((left, right) => right.count - left.count),
+  };
+}
+
+module.exports = { qualityMetrics, qualityAlerts, dashboardMetrics };

@@ -344,6 +344,6 @@ async function observationTimeSeries(botId, filters, viewer) {
 }
 
 module.exports = {
-  getRanking, listRatings, observationTimeSeries, ratingMetrics, ratingTimeSeries, submitRating,
+  getRanking, listRatings, observationTimeSeries, periodRange, ratingMetrics, ratingTimeSeries, submitRating,
   submitRatingFromBot, shouldRequestRating, updateRatingConfig,
 };

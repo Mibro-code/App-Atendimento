@@ -3,7 +3,22 @@
 // resposta (isso é bot-response-service.js) nem envia nada a ninguém.
 const { scheduleState } = require("./bot-simulator-service");
 const { detectSocialBehavior } = require("./bot-social-behavior-service");
-const { MAX_FAILED_INTERPRETATIONS, confidenceBand } = require("./bot-constants");
+const { MAX_FAILED_INTERPRETATIONS, confidenceBand, DEFAULT_AUTO_REPLY_MIN_CONFIDENCE } = require("./bot-constants");
+
+// Item 5 (auto reply por intenção): gate ADICIONAL e mais fino que
+// Bot.autoReplyEnabled — default OFF (nulo/false na intenção). Só permite
+// envio automático desta intenção específica quando ela liga
+// autoReplyEnabled explicitamente E a confiança final atinge o mínimo
+// configurado (ou DEFAULT_AUTO_REPLY_MIN_CONFIDENCE quando omitido). Não
+// substitui nenhum outro gate (master switch/Bot ativo/horário/human
+// takeover/Flow Engine/segurança/provider) — todos continuam sendo
+// avaliados antes desta função ser chamada.
+function isAutoReplyPermittedForIntent(intent, confidence) {
+  if (!intent?.autoReplyEnabled) return false;
+  const minConfidence = Number.isFinite(intent.autoReplyMinConfidence)
+    ? intent.autoReplyMinConfidence : DEFAULT_AUTO_REPLY_MIN_CONFIDENCE;
+  return Number(confidence) >= minConfidence;
+}
 
 function findIntent(bot, intentId) {
   return (bot.intents || []).find((intent) => intent.id === intentId) || null;
@@ -120,7 +135,8 @@ function decide({ bot, interpretation, message, state = null, now = new Date(), 
     action: "RESPOND", categoryId, needsClarification: false, shouldHandoff: false,
     withinHours: true, socialBehavior, greetingReply,
     summary: `Cliente demonstrou a intenção "${intent?.name}".`,
+    autoReplyPermitted: isAutoReplyPermittedForIntent(intent, interpretation.confidence),
   };
 }
 
-module.exports = { decide };
+module.exports = { decide, isAutoReplyPermittedForIntent };

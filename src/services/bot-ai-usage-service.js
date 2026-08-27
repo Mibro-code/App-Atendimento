@@ -7,13 +7,14 @@
 // podem consultar BotAiUsage diretamente).
 const prisma = require("../database/prisma");
 
-async function recordAiUsage({ botId = null, provider, reason, usage = null }, client = prisma) {
+async function recordAiUsage({ botId = null, provider, model = null, reason, usage = null }, client = prisma) {
   if (!provider) return null;
   try {
     return await client.botAiUsage.create({
       data: {
         botId: botId || null,
         provider,
+        model: model || null,
         reason: reason || "UNKNOWN",
         inputTokens: usage?.inputTokens ?? null,
         outputTokens: usage?.outputTokens ?? null,
@@ -32,13 +33,14 @@ async function usageSummary({ botId, provider, since } = {}, client = prisma) {
   if (provider) where.provider = provider;
   if (since) where.createdAt = { gte: since };
   const grouped = await client.botAiUsage.groupBy({
-    by: ["provider", "reason"],
+    by: ["provider", "model", "reason"],
     where,
     _count: { _all: true },
     _sum: { inputTokens: true, outputTokens: true },
   });
   return grouped.map((row) => ({
     provider: row.provider,
+    model: row.model,
     reason: row.reason,
     calls: row._count._all,
     inputTokens: row._sum.inputTokens || 0,
