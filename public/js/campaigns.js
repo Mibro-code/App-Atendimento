@@ -1,6 +1,7 @@
 const state = {
   campaigns: [], selected: null, templates: [], categories: [], bots: [],
   importHeaders: [], importCsvText: "", importFileName: "", importErrors: [],
+  templatesAvailable: false,
 };
 const $ = (selector) => document.querySelector(selector);
 
@@ -58,6 +59,16 @@ function renderCampaignList() {
   document.querySelectorAll("[data-campaign-id]").forEach((button) => button.addEventListener("click", () => selectCampaign(button.dataset.campaignId)));
 }
 
+function setTemplatesAvailability(available, message = "") {
+  state.templatesAvailable = available;
+  $("#campaign-template").disabled = !available;
+  $("#campaign-save-button").disabled = !available;
+  $("#campaign-preview-button").disabled = !available;
+  const notice = $("#campaign-api-notice");
+  notice.hidden = available;
+  notice.querySelector("span").textContent = message || "A integração de templates da Meta ainda não está disponível. Você pode consultar campanhas, métricas, configurações e opt-outs normalmente; criação, edição e preview ficam liberados quando a API for configurada.";
+}
+
 // Carrega os templates aprovados da Meta para o seletor da campanha.
 // Nunca assume que a resposta é um array nem que `response.data` existe —
 // qualquer formato inesperado cai no estado de erro, nunca trava a tela.
@@ -68,6 +79,7 @@ async function ensureTemplatesLoaded() {
   const select = $("#campaign-template");
   const status = $("#campaign-templates-status");
   const retry = $("#campaign-templates-retry");
+  setTemplatesAvailability(false, "Consultando os templates da Meta. O restante da área de Campanhas continua disponível.");
   select.innerHTML = `<option value="">Carregando templates...</option>`;
   status.textContent = "";
   retry.hidden = true;
@@ -78,6 +90,7 @@ async function ensureTemplatesLoaded() {
     if (!templates.length) {
       select.innerHTML = `<option value="">Nenhum template aprovado encontrado</option>`;
       status.textContent = "Nenhum template APROVADO foi encontrado na conta da Meta configurada. Crie/aprove um template no WhatsApp Manager e tente novamente.";
+      setTemplatesAvailability(false, status.textContent);
       retry.hidden = false;
       return;
     }
@@ -85,12 +98,13 @@ async function ensureTemplatesLoaded() {
       `<option value="${escapeHtml(template.id)}">${escapeHtml(template.name)} (${escapeHtml(template.language)}) — ${escapeHtml(template.category)}</option>`
     )).join("")}`;
     status.textContent = `${templates.length} template(s) aprovado(s) disponível(is).`;
+    setTemplatesAvailability(true);
   } catch (error) {
     state.templates = [];
     select.innerHTML = `<option value="">Templates da Meta indisponíveis</option>`;
     status.textContent = error.message || "Não foi possível carregar os templates da Meta.";
+    setTemplatesAvailability(false, `${status.textContent} A área de Campanhas permanece disponível em modo limitado.`);
     retry.hidden = false;
-    toast(error.message, true);
   }
 }
 $("#campaign-templates-retry").addEventListener("click", ensureTemplatesLoaded);

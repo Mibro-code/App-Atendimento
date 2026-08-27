@@ -2,11 +2,29 @@ require("dotenv").config();
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const axios = require("axios");
+const fs = require("node:fs");
+const path = require("node:path");
 const MetaCloudChannel = require("../src/channels/meta-cloud-channel");
 const {
   listApprovedTemplates, normalizeTemplate, templatesConfigured,
 } = require("../src/services/meta-template-service");
 const campaigns = require("../src/services/campaign-service");
+
+test("tela de campanhas respeita hidden e mantém modais fechados no carregamento", () => {
+  const css = fs.readFileSync(path.join(__dirname, "../public/css/campaigns.css"), "utf8");
+  const html = fs.readFileSync(path.join(__dirname, "../public/campaigns.html"), "utf8");
+  assert.match(css, /\[hidden\]\s*\{\s*display\s*:\s*none\s*!important/i);
+  assert.match(html, /id="settings-modal"[^>]*hidden/);
+  assert.match(html, /id="optouts-modal"[^>]*hidden/);
+});
+
+test("frontend mantém a área acessível quando templates da Meta estão indisponíveis", () => {
+  const js = fs.readFileSync(path.join(__dirname, "../public/js/campaigns.js"), "utf8");
+  const html = fs.readFileSync(path.join(__dirname, "../public/campaigns.html"), "utf8");
+  assert.match(js, /function setTemplatesAvailability/);
+  assert.match(js, /A área de Campanhas permanece disponível em modo limitado/);
+  assert.match(html, /id="campaign-api-notice"/);
+});
 
 function withEnv(overrides, fn) {
   const previous = {};
