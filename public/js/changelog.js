@@ -1,7 +1,21 @@
 (() => {
-  const APP_VERSION = "0.24.0";
+  const APP_VERSION = "0.24.1";
 
   const CHANGELOG = [
+    {
+      version: "0.24.1",
+      date: "27/08/2026",
+      title: "Acesso às Campanhas e templates da Meta",
+      changes: [
+        "Corrige os overlays de Configurações e Opt-out que apareciam sobre a tela e impediam qualquer clique ao abrir Campanhas.",
+        "Mantém campanhas, métricas, configurações e opt-outs acessíveis mesmo quando a API de templates da Meta ainda não estiver configurada.",
+        "Exibe um modo limitado claro e desabilita somente criação, edição e preview que realmente dependem de um template aprovado.",
+        "Adiciona tentativa manual de recarregar templates e evita que uma falha da Meta interrompa o restante do carregamento da página.",
+        "Torna a seleção de template estável pelo ID e impede chamadas duplicadas à Meta durante o preview.",
+        "Melhora as mensagens de credencial, permissão, WABA inválido, limite de requisições e indisponibilidade sem expor dados sensíveis.",
+        "Preserva o envio em massa desligado por padrão, a integração Meta existente, o atendimento humano e o bot de triagem."
+      ]
+    },
     {
       version: "0.24.0",
       date: "27/08/2026",

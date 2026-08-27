@@ -268,20 +268,20 @@ async function cancelCampaign(campaignId, actor) {
 }
 
 // Item 4: preview do template com um contato de exemplo — nunca "undefined".
+// Busca a lista de templates aprovados uma única vez (evita uma segunda
+// chamada redundante à Meta cujo resultado podia, numa corrida rara —
+// template pausado/editado entre as duas chamadas —, não conter mais o
+// template já validado acima, derrubando o preview com um erro cru).
 async function previewTemplate(channel, { templateName, templateLanguage, variableMapping, sampleContact }) {
   const template = await assertTemplateApproved(channel, { name: templateName, language: templateLanguage });
-  const { normalizeTemplate } = require("./meta-template-service");
-  const full = (await listApprovedTemplates(channel)).find((item) => item.name === templateName && item.language === templateLanguage);
   const sample = sampleContact || { firstName: "Cliente", fullName: "Cliente Exemplo", companyName: "Empresa Exemplo" };
   const values = {};
-  for (const variable of full.variables) {
+  for (const variable of template.variables) {
     const field = (variableMapping || {})[variable.key];
     const isStatic = field?.startsWith?.("static:");
     values[variable.key] = isStatic ? field.slice(7) : (field ? (sample[field] || variable.example || "") : (variable.example || ""));
   }
-  const templates = await listApprovedTemplates(channel);
-  const rendered = templates.find((item) => item.name === templateName && item.language === templateLanguage);
-  return { ...rendered, renderedPreview: renderPreviewText(rendered, values) };
+  return { ...template, renderedPreview: renderPreviewText(template, values) };
 }
 
 function renderPreviewText(template, values) {

@@ -1,6 +1,12 @@
+[hidden]{display:none!important}
 .secondary-button{width:100%;margin:6px 10px 0;padding:9px;border:1px solid var(--line);border-radius:14px;color:var(--ink);background:var(--surface);font-size:8px;font-weight:900}
 .editor-actions button{padding:9px 13px;border:1px solid var(--line);border-radius:16px;color:var(--ink);background:var(--surface);font-size:8px;font-weight:900}
 .editor-actions button.danger{color:#fff;background:var(--danger);border-color:var(--danger)}
 .editor-actions input[type=datetime-local]{height:36px;padding:0 9px;border:1px solid var(--line);border-radius:8px;color:var(--ink);background:var(--surface);font-size:9px}
 .modal{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;background:#0007;padding:16px}
 .modal-content{width:100%;max-width:560px;max-height:86vh;overflow:auto}
+.campaign-api-notice{margin:0 10px 10px;padding:11px;border:1px solid #e8c289;border-radius:10px;color:#81520c;background:#fff8e8;font-size:8px;line-height:1.5}.campaign-api-notice b{display:block;margin-bottom:3px;font-size:9px}.campaign-template-row button:disabled,.card-heading button:disabled{cursor:not-allowed;opacity:.5}
+.campaign-template-row{display:flex;gap:8px;align-items:center}
+.campaign-template-row select{flex:1}
+.campaign-template-row button{padding:8px 12px;border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--ink);font-size:9px;font-weight:800;cursor:pointer;white-space:nowrap}
+.campaign-template-row button:hover{border-color:var(--orange,#ef5b2a);color:var(--orange,#ef5b2a)}

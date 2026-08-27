@@ -41,6 +41,7 @@
       </div>
       <div id="campaign-list" class="bot-list"><div class="skeleton-list"><div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div></div></div>
       <div class="safety-note"><b>Envio real desativado por padrão</b><p>Nenhuma campanha envia mensagens de verdade enquanto o master switch (aba Configurações) estiver desligado.</p></div>
+      <div id="campaign-api-notice" class="campaign-api-notice" role="status" hidden><b>Modo limitado</b><span></span></div>
       <button id="campaign-settings-button" type="button" class="secondary-button" style="margin-top:10px">Configurações globais</button>
       <button id="campaign-optouts-button" type="button" class="secondary-button">Lista de opt-out</button>
     </aside>
@@ -62,12 +63,18 @@
 
         <div class="editor-grid">
           <form id="campaign-form" class="card basic-card">
-            <div class="card-heading"><div><span>CONFIGURAÇÃO</span><h3>Identidade e template</h3></div><button type="submit">Salvar</button></div>
+            <div class="card-heading"><div><span>CONFIGURAÇÃO</span><h3>Identidade e template</h3></div><button id="campaign-save-button" type="submit" disabled>Salvar</button></div>
             <div class="fields two-columns">
               <label><span>Nome *</span><input id="campaign-name" maxlength="150" required></label>
               <label><span>Categoria da campanha</span><input id="campaign-category" maxlength="120" placeholder="Ex.: Prospecção revendedores"></label>
               <label class="full"><span>Descrição</span><textarea id="campaign-description" maxlength="2000"></textarea></label>
-              <label class="full"><span>Template aprovado (Meta) *</span><select id="campaign-template" required><option value="">Carregando templates...</option></select></label>
+              <label class="full"><span>Template aprovado (Meta) *</span>
+                <div class="campaign-template-row">
+                  <select id="campaign-template" required><option value="">Carregando templates...</option></select>
+                  <button id="campaign-templates-retry" type="button" hidden>Tentar novamente</button>
+                </div>
+                <small id="campaign-templates-status" class="card-help"></small>
+              </label>
               <div id="campaign-variables" class="full"></div>
               <label><span>Categoria da conversa ao responder</span><select id="campaign-reply-category"><option value="">Sem categoria automática</option></select></label>
               <label><span>Bot de triagem opcional</span><select id="campaign-reply-bot"><option value="">Nenhum</option></select></label>
@@ -77,7 +84,7 @@
           </form>
 
           <div class="card">
-            <div class="card-heading"><div><span>PREVIEW</span><h3>Pré-visualização com contato de exemplo</h3></div><button id="campaign-preview-button" type="button">Atualizar preview</button></div>
+            <div class="card-heading"><div><span>PREVIEW</span><h3>Pré-visualização com contato de exemplo</h3></div><button id="campaign-preview-button" type="button" disabled>Atualizar preview</button></div>
             <div id="campaign-preview" class="simulator-result"><p>Selecione um template e mapeie as variáveis.</p></div>
           </div>
         </div>

@@ -66,9 +66,15 @@ function componentExample(component, placeholder, index) {
   return "";
 }
 
+// Nunca assume que `components` existe/é array — a Meta pode devolver um
+// template sem esse campo (ex.: rascunho antigo, resposta parcial).
+function safeComponents(template) {
+  return Array.isArray(template?.components) ? template.components : [];
+}
+
 function templateVariables(template) {
   const variables = [];
-  for (const component of template.components || []) {
+  for (const component of safeComponents(template)) {
     if (["BODY", "HEADER"].includes(component.type) && component.format !== "IMAGE" && component.format !== "VIDEO" && component.format !== "DOCUMENT") {
       placeholders(component.text).forEach((placeholder, index) => variables.push({
         key: `${component.type}:${placeholder}`,
@@ -103,19 +109,25 @@ function renderText(text, variables, values) {
   return rendered;
 }
 
+// Formato interno previsível, sempre com os mesmos campos — o frontend
+// nunca precisa checar se uma chave existe: {id, name, language, category,
+// status, components, variables} + os campos derivados de apresentação
+// (supported/preview/etc.) já usados pelo restante do app.
 function normalizeTemplate(template) {
+  const components = safeComponents(template);
   const variables = templateVariables(template);
   const defaults = Object.fromEntries(variables.map((variable) => [variable.key, variable.example]));
-  const header = (template.components || []).find((component) => component.type === "HEADER");
-  const body = (template.components || []).find((component) => component.type === "BODY");
-  const footer = (template.components || []).find((component) => component.type === "FOOTER");
+  const header = components.find((component) => component.type === "HEADER");
+  const body = components.find((component) => component.type === "BODY");
+  const footer = components.find((component) => component.type === "FOOTER");
   const unsupportedHeader = header && ["IMAGE", "VIDEO", "DOCUMENT", "LOCATION"].includes(header.format);
   return {
-    id: template.id,
-    name: template.name,
-    language: template.language,
-    category: template.category,
-    status: template.status,
+    id: template.id ?? null,
+    name: template.name ?? null,
+    language: template.language ?? null,
+    category: template.category ?? null,
+    status: template.status ?? null,
+    components,
     supported: !unsupportedHeader,
     unsupportedReason: unsupportedHeader ? `O template usa cabeçalho ${String(header.format).toLowerCase()}, ainda não disponível neste envio.` : null,
     preview: [renderText(header?.text, variables, defaults), renderText(body?.text, variables, defaults), footer?.text]
@@ -126,9 +138,11 @@ function normalizeTemplate(template) {
 }
 
 async function listApprovedTemplates(channel) {
-  return (await channel.listMessageTemplates())
+  const templates = await channel.listMessageTemplates();
+  const rows = Array.isArray(templates) ? templates : [];
+  return rows
     .map(normalizeTemplate)
-    .sort((left, right) => left.name.localeCompare(right.name, "pt-BR"));
+    .sort((left, right) => String(left.name).localeCompare(String(right.name), "pt-BR"));
 }
 
 function templateComponents(template, values) {

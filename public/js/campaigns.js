@@ -1,6 +1,7 @@
 const state = {
   campaigns: [], selected: null, templates: [], categories: [], bots: [],
   importHeaders: [], importCsvText: "", importFileName: "", importErrors: [],
+  templatesAvailable: false,
 };
 const $ = (selector) => document.querySelector(selector);
 
@@ -58,17 +59,55 @@ function renderCampaignList() {
   document.querySelectorAll("[data-campaign-id]").forEach((button) => button.addEventListener("click", () => selectCampaign(button.dataset.campaignId)));
 }
 
+function setTemplatesAvailability(available, message = "") {
+  state.templatesAvailable = available;
+  $("#campaign-template").disabled = !available;
+  $("#campaign-save-button").disabled = !available;
+  $("#campaign-preview-button").disabled = !available;
+  const notice = $("#campaign-api-notice");
+  notice.hidden = available;
+  notice.querySelector("span").textContent = message || "A integração de templates da Meta ainda não está disponível. Você pode consultar campanhas, métricas, configurações e opt-outs normalmente; criação, edição e preview ficam liberados quando a API for configurada.";
+}
+
+// Carrega os templates aprovados da Meta para o seletor da campanha.
+// Nunca assume que a resposta é um array nem que `response.data` existe —
+// qualquer formato inesperado cai no estado de erro, nunca trava a tela.
+// O valor de cada <option> é o `id` do template (nunca nome/idioma
+// concatenados por texto: um nome com caractere especial poderia quebrar
+// esse parser no frontend).
 async function ensureTemplatesLoaded() {
+  const select = $("#campaign-template");
+  const status = $("#campaign-templates-status");
+  const retry = $("#campaign-templates-retry");
+  setTemplatesAvailability(false, "Consultando os templates da Meta. O restante da área de Campanhas continua disponível.");
+  select.innerHTML = `<option value="">Carregando templates...</option>`;
+  status.textContent = "";
+  retry.hidden = true;
   try {
-    state.templates = await api("/api/campaign-templates");
-    $("#campaign-template").innerHTML = `<option value="">Selecione um template aprovado</option>${state.templates.map((template) => (
-      `<option value="${escapeHtml(template.name)}|${escapeHtml(template.language)}">${escapeHtml(template.name)} (${escapeHtml(template.language)}) — ${escapeHtml(template.category)}</option>`
+    const response = await api("/api/campaign-templates");
+    const templates = Array.isArray(response) ? response : [];
+    state.templates = templates;
+    if (!templates.length) {
+      select.innerHTML = `<option value="">Nenhum template aprovado encontrado</option>`;
+      status.textContent = "Nenhum template APROVADO foi encontrado na conta da Meta configurada. Crie/aprove um template no WhatsApp Manager e tente novamente.";
+      setTemplatesAvailability(false, status.textContent);
+      retry.hidden = false;
+      return;
+    }
+    select.innerHTML = `<option value="">Selecione um template aprovado</option>${templates.map((template) => (
+      `<option value="${escapeHtml(template.id)}">${escapeHtml(template.name)} (${escapeHtml(template.language)}) — ${escapeHtml(template.category)}</option>`
     )).join("")}`;
+    status.textContent = `${templates.length} template(s) aprovado(s) disponível(is).`;
+    setTemplatesAvailability(true);
   } catch (error) {
-    $("#campaign-template").innerHTML = `<option value="">Templates da Meta indisponíveis</option>`;
-    toast(error.message, true);
+    state.templates = [];
+    select.innerHTML = `<option value="">Templates da Meta indisponíveis</option>`;
+    status.textContent = error.message || "Não foi possível carregar os templates da Meta.";
+    setTemplatesAvailability(false, `${status.textContent} A área de Campanhas permanece disponível em modo limitado.`);
+    retry.hidden = false;
   }
 }
+$("#campaign-templates-retry").addEventListener("click", ensureTemplatesLoaded);
 
 async function ensureCategoriesAndBotsLoaded() {
   try {
@@ -86,8 +125,9 @@ async function ensureCategoriesAndBotsLoaded() {
 }
 
 function renderVariableMapping(template, existingMapping = {}) {
-  if (!template) { $("#campaign-variables").innerHTML = ""; return; }
-  $("#campaign-variables").innerHTML = `<div class="fields-heading">MAPEAMENTO DE VARIÁVEIS</div>` + template.variables.map((variable) => `
+  const variables = Array.isArray(template?.variables) ? template.variables : [];
+  if (!template || !variables.length) { $("#campaign-variables").innerHTML = ""; return; }
+  $("#campaign-variables").innerHTML = `<div class="fields-heading">MAPEAMENTO DE VARIÁVEIS</div>` + variables.map((variable) => `
     <label><span>${escapeHtml(variable.label)}</span>
       <select data-variable-key="${escapeHtml(variable.key)}">
         <option value="">Usar exemplo (${escapeHtml(variable.example || "—")})</option>
@@ -108,9 +148,22 @@ function renderVariableMapping(template, existingMapping = {}) {
   }
 }
 
+// Correlaciona pelo `id` do template (valor real da <option>) — nunca por
+// nome/idioma concatenados por texto, que quebraria se o nome contivesse o
+// separador usado no parser.
 function selectedTemplate() {
-  const [name, language] = ($("#campaign-template").value || "").split("|");
-  return state.templates.find((template) => template.name === name && template.language === language);
+  const id = $("#campaign-template").value || "";
+  if (!id) return null;
+  return (state.templates || []).find((template) => template.id === id) || null;
+}
+
+// Uma campanha já salva guarda templateName/templateLanguage (não o id da
+// Meta, que pode ser recriado) — resolve de volta para o id atual da Meta
+// para poder selecionar a <option> certa; se o template já não existir mais
+// na lista de aprovados, o seletor fica sem seleção (nunca quebra).
+function findTemplateOptionValue(name, language) {
+  const found = (state.templates || []).find((template) => template.name === name && template.language === language);
+  return found ? found.id : "";
 }
 
 function currentVariableMapping() {
@@ -136,7 +189,7 @@ function fillEditor(campaign) {
   $("#campaign-name").value = campaign.name;
   $("#campaign-category").value = campaign.category || "";
   $("#campaign-description").value = campaign.description || "";
-  $("#campaign-template").value = `${campaign.templateName}|${campaign.templateLanguage}`;
+  $("#campaign-template").value = findTemplateOptionValue(campaign.templateName, campaign.templateLanguage);
   renderVariableMapping(selectedTemplate(), campaign.variableMapping || {});
   $("#campaign-reply-category").value = campaign.replyCategoryId || "";
   $("#campaign-reply-bot").value = campaign.replyBotId || "";
@@ -186,13 +239,13 @@ $("#campaign-status-filter").addEventListener("change", loadCampaigns);
 
 $("#campaign-form").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const [templateName, templateLanguage] = ($("#campaign-template").value || "").split("|");
-  if (!templateName) { toast("Selecione um template aprovado.", true); return; }
+  const template = selectedTemplate();
+  if (!template) { toast("Selecione um template aprovado.", true); return; }
   const payload = {
     name: $("#campaign-name").value,
     category: $("#campaign-category").value || null,
     description: $("#campaign-description").value || null,
-    templateName, templateLanguage,
+    templateName: template.name, templateLanguage: template.language,
     variableMapping: currentVariableMapping(),
     replyCategoryId: $("#campaign-reply-category").value || null,
     replyBotId: $("#campaign-reply-bot").value || null,
@@ -213,14 +266,26 @@ $("#campaign-form").addEventListener("submit", async (event) => {
 });
 
 $("#campaign-preview-button").addEventListener("click", async () => {
-  const [templateName, templateLanguage] = ($("#campaign-template").value || "").split("|");
-  if (!templateName) { toast("Selecione um template.", true); return; }
+  const template = selectedTemplate();
+  if (!template) { toast("Selecione um template.", true); return; }
+  const button = $("#campaign-preview-button");
+  button.disabled = true;
+  $("#campaign-preview").innerHTML = `<p>Carregando preview...</p>`;
   try {
     const preview = await api("/api/campaign-templates/preview", {
-      method: "POST", body: JSON.stringify({ templateName, templateLanguage, variableMapping: currentVariableMapping() }),
+      method: "POST",
+      body: JSON.stringify({ templateName: template.name, templateLanguage: template.language, variableMapping: currentVariableMapping() }),
     });
-    $("#campaign-preview").innerHTML = `<p>${escapeHtml(preview.renderedPreview).replace(/\n/g, "<br>")}</p>`;
-  } catch (error) { toast(error.message, true); }
+    const text = typeof preview?.renderedPreview === "string" ? preview.renderedPreview : "";
+    $("#campaign-preview").innerHTML = text
+      ? `<p>${escapeHtml(text).replace(/\n/g, "<br>")}</p>`
+      : `<p>Não foi possível montar o preview deste template.</p>`;
+  } catch (error) {
+    $("#campaign-preview").innerHTML = `<p>Não foi possível carregar o preview: ${escapeHtml(error.message)}</p>`;
+    toast(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
 });
 
 // ===== Ações do ciclo de vida =====
