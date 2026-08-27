@@ -9,6 +9,7 @@ const state = {
   customerServiceWindow: null, templates: [], selectedTemplate: null,
   metaStatus: { templatesConfigured:false }, outboundTemplate: null, categoryVisibility: { hideUncategorized:false, hiddenCategoryIds:[] }, visibilityMode:false,
   quickReplies: [], quickReplyCategoryFilter: "", quickReplySearch: "",
+  botSuggestion: null, pendingBotSuggestion: null,
 };
 const $ = (selector) => document.querySelector(selector);
 const defaultDocumentTitle = document.title;
@@ -66,6 +67,9 @@ function closeConversationView() {
   state.selectedMessageItems = [];
   state.selectedMessages = [];
   state.selectedContactName = "";
+  state.botSuggestion = null;
+  state.pendingBotSuggestion = null;
+  $("#bot-suggestion-card").hidden = true;
   state.customerServiceWindow = null;
   syncCustomerServiceWindow();
   if ($("#contact-files-dialog")?.open) $("#contact-files-dialog").close();
@@ -685,6 +689,72 @@ async function loadConversations() {
   renderConversationCards(state.conversations);
 }
 
+function hideBotSuggestion() {
+  state.botSuggestion = null;
+  $("#bot-suggestion-card").hidden = true;
+}
+
+function renderBotSuggestion(suggestion) {
+  state.botSuggestion = suggestion || null;
+  const card = $("#bot-suggestion-card");
+  if (!suggestion?.suggestedResponseText) {
+    card.hidden = true;
+    return;
+  }
+  $("#bot-suggestion-text").textContent = suggestion.suggestedResponseText;
+  const confidence = typeof suggestion.confidence === "number" ? ` · ${Math.round(suggestion.confidence * 100)}%` : "";
+  $("#bot-suggestion-meta").textContent = `${suggestion.intentName || "Resposta sugerida"}${confidence}`;
+  card.hidden = false;
+}
+
+async function loadBotSuggestion(conversationId, loadSequence) {
+  try {
+    const suggestion = await api(`/api/conversations/${conversationId}/bot-suggestion`);
+    if (loadSequence !== conversationLoadSequence || state.selectedId !== conversationId) return;
+    renderBotSuggestion(suggestion);
+  } catch (_error) {
+    if (loadSequence === conversationLoadSequence && state.selectedId === conversationId) hideBotSuggestion();
+  }
+}
+
+async function sendBotSuggestionFeedback(payload) {
+  if (!state.botSuggestion?.id) return;
+  await api("/api/bot-suggestion-feedback", {
+    method: "POST", body: JSON.stringify({ observationId: state.botSuggestion.id, ...payload }),
+  });
+}
+
+function placeBotSuggestionInComposer() {
+  if (!state.botSuggestion?.suggestedResponseText) return;
+  const input = $("#message-input");
+  input.value = state.botSuggestion.suggestedResponseText;
+  state.pendingBotSuggestion = {
+    observationId: state.botSuggestion.id,
+    originalText: state.botSuggestion.suggestedResponseText,
+  };
+  autoResizeComposer();
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
+}
+
+$("#use-bot-suggestion").addEventListener("click", placeBotSuggestionInComposer);
+$("#edit-bot-suggestion").addEventListener("click", placeBotSuggestionInComposer);
+$("#ignore-bot-suggestion").addEventListener("click", async () => {
+  try {
+    await sendBotSuggestionFeedback({ action: "IGNORED" });
+    state.pendingBotSuggestion = null;
+    hideBotSuggestion();
+  } catch (error) { toast(error.message, true); }
+});
+$("#like-bot-suggestion").addEventListener("click", async () => {
+  try { await sendBotSuggestionFeedback({ helpful: true }); toast("Sugestão marcada como útil."); }
+  catch (error) { toast(error.message, true); }
+});
+$("#dislike-bot-suggestion").addEventListener("click", async () => {
+  try { await sendBotSuggestionFeedback({ helpful: false }); toast("Feedback registrado."); }
+  catch (error) { toast(error.message, true); }
+});
+
 const chatSkeletonMarkup = () => `<div class="skeleton-list">${[1, 2, 3].map((index) => `<div class="skeleton-row"><div class="skeleton skeleton-avatar"></div><div class="skeleton-lines"><div class="skeleton skeleton-line ${index % 2 ? "long" : "medium"}"></div><div class="skeleton skeleton-line short"></div></div></div>`).join("")}</div>`;
 
 async function openConversation(id, { refreshList = true, markRead = true } = {}) {
@@ -698,6 +768,8 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
     state.selectedActivitiesSignature = "";
     state.selectedMessageItems = [];
     state.selectedMessages = [];
+    state.pendingBotSuggestion = null;
+    hideBotSuggestion();
     loadQuickRepliesCache(id).catch(() => {});
     $("#empty-state").hidden = true;
     $("#chat-content").hidden = false;
@@ -786,6 +858,8 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
     state.selectedActivitiesSignature = activitiesSignature;
     renderActivities(c.activities || []);
   }
+  await loadBotSuggestion(id, loadSequence);
+  if (loadSequence !== conversationLoadSequence || state.selectedId !== id) return;
   if (refreshList) await loadConversations();
 }
 
@@ -1675,7 +1749,47 @@ $("#message-input").addEventListener("input", () => {
   renderSlashSuggestions();
 });
 
-$("#composer").addEventListener("submit", async (event) => { event.preventDefault(); const input = $("#message-input"); const text = input.value.trim(); if (!text && !selectedAttachment) return; $("#send-button").disabled = true; try { if (selectedAttachment) { const isDocument = isDocumentMime(selectedAttachment.type); const isVideo = selectedAttachment.type.startsWith("video/"); const field = isDocument ? "document" : (isVideo ? "video" : "image"); const endpoint = isDocument ? "documents" : (isVideo ? "videos" : "images"); const form = new FormData(); form.append(field, selectedAttachment); if (text) form.append("caption", text); await api(`/api/conversations/${state.selectedId}/${endpoint}`, { method:"POST", body:form }); clearSelectedAttachment(); } else { await api(`/api/conversations/${state.selectedId}/messages`, { method:"POST", body:JSON.stringify({ text }) }); } input.value = ""; resetComposerHeight(); hideSlashSuggestions(); await openConversation(state.selectedId); } catch (e) { if (e.customerServiceWindow) state.customerServiceWindow = e.customerServiceWindow; toast(e.message, true); } finally { syncCustomerServiceWindow(); input.focus(); } });
+$("#composer").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const input = $("#message-input");
+  const text = input.value.trim();
+  if (!text && !selectedAttachment) return;
+  const pendingSuggestion = state.pendingBotSuggestion;
+  $("#send-button").disabled = true;
+  try {
+    if (selectedAttachment) {
+      const isDocument = isDocumentMime(selectedAttachment.type);
+      const isVideo = selectedAttachment.type.startsWith("video/");
+      const field = isDocument ? "document" : (isVideo ? "video" : "image");
+      const endpoint = isDocument ? "documents" : (isVideo ? "videos" : "images");
+      const form = new FormData();
+      form.append(field, selectedAttachment);
+      if (text) form.append("caption", text);
+      await api(`/api/conversations/${state.selectedId}/${endpoint}`, { method:"POST", body:form });
+      clearSelectedAttachment();
+    } else {
+      await api(`/api/conversations/${state.selectedId}/messages`, { method:"POST", body:JSON.stringify({ text }) });
+    }
+    if (pendingSuggestion?.observationId && text) {
+      const action = text === pendingSuggestion.originalText.trim() ? "USED" : "EDITED";
+      await api("/api/bot-suggestion-feedback", {
+        method: "POST",
+        body: JSON.stringify({ observationId: pendingSuggestion.observationId, action, finalResponseText: text }),
+      }).catch(() => {});
+    }
+    state.pendingBotSuggestion = null;
+    input.value = "";
+    resetComposerHeight();
+    hideSlashSuggestions();
+    await openConversation(state.selectedId);
+  } catch (e) {
+    if (e.customerServiceWindow) state.customerServiceWindow = e.customerServiceWindow;
+    toast(e.message, true);
+  } finally {
+    syncCustomerServiceWindow();
+    input.focus();
+  }
+});
 $("#open-templates").addEventListener("click", openTemplates);
 $("#open-required-template").addEventListener("click", openTemplates);
 $("#close-templates").addEventListener("click", () => $("#template-dialog").close());

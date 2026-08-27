@@ -972,7 +972,7 @@ async function loadPerformance() {
     `).join("") : `<div class="intent-empty">Nenhum conflito identificado entre as intenções ativas.</div>`;
 
     $("#quality-metrics").innerHTML = [
-      metricTile(quality.started, "Atendimentos iniciados"),
+      metricTile(quality.started, "Mensagens observadas"),
       metricTile(quality.resolvedByFlow, "Resolvidos pelo fluxo"),
       metricTile(quality.handoffs, "Handoffs"),
       metricTile(quality.topicSwitches, "Trocas de assunto"),

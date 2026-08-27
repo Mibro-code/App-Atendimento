@@ -307,7 +307,9 @@ async function runDecisionPipeline({
 
 // Interpreta e decide para uma conversa REAL, persistindo o estado do Bot
 // nessa conversa (ConversationBotState). Não altera Conversation/Message.
-async function orchestrate({ conversationId, channel = "META", messageId = null, message, now = new Date() }, client = prisma) {
+async function orchestrate({
+  conversationId, channel = "META", messageId = null, message, now = new Date(), executionMode = "LIVE",
+}, client = prisma) {
   const state = await getState(conversationId, client);
   const bot = await resolveBot(state?.activeBotId, channel, client);
   if (!bot) return null;
@@ -370,7 +372,8 @@ async function orchestrate({ conversationId, channel = "META", messageId = null,
   // (item 3). Fora isso, mesmo dentro de uma conversa real, o modo é
   // "observação" — nunca chama a Tool de verdade, só registra o que teria
   // sido consultado.
-  const toolMode = (globalSettings.automationEnabled && bot.autoReplyEnabled && !humanPaused) ? "LIVE" : "OBSERVATION";
+  const toolMode = executionMode === "LIVE" && globalSettings.automationEnabled && bot.autoReplyEnabled && !humanPaused
+    ? "LIVE" : "OBSERVATION";
 
   // Item 6 (contexto de produto): memória de entidades da CONVERSA inteira,
   // resetada junto com o resto do estado operacional quando a sessão expira

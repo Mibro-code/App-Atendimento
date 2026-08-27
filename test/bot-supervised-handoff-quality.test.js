@@ -1,6 +1,8 @@
 require("dotenv").config();
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const prisma = require("../src/database/prisma");
 const { orchestrate } = require("../src/services/bot-orchestrator-service");
 const { observeIncomingMessage } = require("../src/services/bot-observation-service");
@@ -241,10 +243,7 @@ test("handoff inteligente: contexto capturado inclui produto, etapa e resumo do 
   assert.ok(handoff, "deveria ter capturado o contexto do handoff");
   assert.equal(handoff.product, "GS Pro 2");
   assert.equal(handoff.flowResolutionStatus, "HANDED_OFF");
-  // A última etapa que de fato registrou uma tentativa foi "Modelo" (a
-  // ASK_QUESTION respondida) — a etapa HANDOFF_HUMAN em si é terminal e não
-  // grava tentativa própria.
-  assert.equal(handoff.currentStepName, "Modelo");
+  assert.equal(handoff.currentStepName, "Encaminhar", "deve registrar a etapa terminal HANDOFF_HUMAN, não a tentativa anterior");
   assert.match(handoff.summary, /GS Pro 2/);
   await prisma.bot.delete({ where: { id: bot.id } });
 });
@@ -293,6 +292,30 @@ test("avaliação do cliente: pede uma vez, registra a nota 1-5 e nunca repete",
   await prisma.bot.delete({ where: { id: bot.id } });
 });
 
+test("webhook em observação nunca pede nem captura avaliação como se uma resposta tivesse sido enviada", async () => {
+  await cleanup();
+  const bot = await prisma.bot.create({
+    data: {
+      name: `${botNamePrefix} Rating Observação ${Date.now()}`, status: "ACTIVE", channel: "META",
+      autoReplyEnabled: true, ratingEnabled: true, requestRatingOn: "BOT_COMPLETED",
+      ratingMessage: "De 1 a 5, como foi o atendimento?",
+      initialMessage: "Olá!", outsideHoursMessage: "Fora.", fallbackMessage: "Não entendi.",
+      intents: { create: [{
+        name: "Resolver em observação", active: true, priority: 1,
+        examples: { create: [{ text: "resolver em observacao" }] },
+        flowSteps: { create: [{ name: "Resolvido", order: 1, action: "RESOLVED", responseMessage: "Resolvido." }] },
+      }] },
+    },
+  });
+  const conversation = await seedConversation();
+  const result = await observeMessage(conversation, "resolver em observacao");
+  const state = await prisma.conversationBotState.findUnique({ where: { conversationId: conversation.id } });
+  assert.equal(result.ratingRequested, false);
+  assert.equal(state.awaitingRatingScore, false);
+  assert.equal(state.ratingRequestedAt, null);
+  await prisma.bot.delete({ where: { id: bot.id } });
+});
+
 // Item 10: ausência de avaliação nunca vira negativo — só entra na conta
 // quando o cliente realmente avaliou.
 test("ausência de avaliação nunca é contabilizada como negativa", async () => {
@@ -323,16 +346,39 @@ test("sugestão de resposta: fica disponível para o atendente, e o feedback �
   assert.match(suggestion.suggestedResponseText, /pedido está a caminho/);
 
   const first = await recordSuggestionFeedback({ observationId: suggestion.id, helpful: true }, master);
-  const second = await recordSuggestionFeedback({ observationId: suggestion.id, helpful: false, action: "EDITED" }, master);
+  const second = await recordSuggestionFeedback({
+    observationId: suggestion.id, helpful: false, action: "EDITED", finalResponseText: "Resposta final revisada.",
+  }, master);
+  const third = await recordSuggestionFeedback({ observationId: suggestion.id, helpful: true }, master);
   assert.equal(first.id, second.id, "o mesmo atendente+sugestão nunca deveria duplicar, só atualizar");
-  assert.equal(second.helpful, false);
-  assert.equal(second.action, "EDITED");
+  assert.equal(second.id, third.id);
+  assert.equal(third.helpful, true);
+  assert.equal(third.action, "EDITED");
+  assert.equal(third.finalResponseText, "Resposta final revisada.", "feedback posterior não deve apagar a resposta enviada");
 
   const count = await prisma.botSuggestionFeedback.count({ where: { observationId: suggestion.id } });
   assert.equal(count, 1);
+
+  await prisma.message.create({ data: {
+    conversationId: conversation.id, externalId: `agent-${conversation.id}-${Math.random()}`,
+    direction: "ENVIADA", status: "ENVIADA", type: "text", text: "Resposta enviada pelo atendente.",
+    occurredAt: new Date(Date.now() + 1000),
+  } });
+  assert.equal(await getLatestSuggestion(conversation.id, master), null, "sugestão antiga deve sumir depois da resposta do atendente");
   await prisma.bot.delete({ where: { id: bot.id } });
 });
 
+test("Central de atendimento expõe sugestão supervisionada sem envio automático", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf8");
+  const js = fs.readFileSync(path.join(__dirname, "..", "public", "js", "app.js"), "utf8");
+  assert.match(html, /id="bot-suggestion-card"/);
+  assert.match(html, /id="use-bot-suggestion"/);
+  assert.match(html, /id="edit-bot-suggestion"/);
+  assert.match(html, /id="ignore-bot-suggestion"/);
+  assert.match(js, /pendingBotSuggestion/);
+  assert.match(js, /action = text === pendingSuggestion\.originalText\.trim\(\) \? "USED" : "EDITED"/);
+  assert.match(js, /\/api\/bot-suggestion-feedback/);
+});
 // Item 1: resposta de atendente que resolveu bem e não existe como Resposta
 // Rápida ainda vira sugestão QUICK_REPLY, sempre PENDING (nunca criada
 // sozinha) — e nunca duplicada se a conversa for reanalisada.

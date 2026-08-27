@@ -458,7 +458,7 @@ async function runChain({ bot, intent, stepMap, startStepId, flowState, channel,
         responseText: responses.join("\n\n"),
         terminal: "HANDOFF",
         summary: `Fluxo da intenção "${intent.name}" encaminhado para atendimento humano.`,
-        flow: toFlowPersist(flowState, null, "HANDED_OFF"),
+        flow: { ...toFlowPersist(flowState, null, "HANDED_OFF"), terminalStepName: step.name },
       };
     }
 

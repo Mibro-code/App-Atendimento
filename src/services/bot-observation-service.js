@@ -26,6 +26,7 @@ async function observeIncomingMessage(event, message, { now = new Date() } = {})
       channel: "META",
       message: event.text,
       now,
+      executionMode: "OBSERVATION",
     });
     if (!result) return null;
     // Toggle global + por Bot ("Observação"). Interpretar continua rodando

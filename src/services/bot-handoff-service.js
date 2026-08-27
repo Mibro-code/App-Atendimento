@@ -63,9 +63,9 @@ async function captureHandoffContext({
     ? { questionsAsked: flow.askedQuestions || [], solutionsTried: flowSignals.solutionsTried }
     : deriveConversationSignals(context);
   const confidence = typeof interpretation?.confidence === "number" ? interpretation.confidence : null;
-  const currentStepName = flow?.attemptedSolutions?.length
+  const currentStepName = flow?.terminalStepName || (flow?.attemptedSolutions?.length
     ? flow.attemptedSolutions[flow.attemptedSolutions.length - 1].name
-    : null;
+    : null);
   const summary = buildSummary({
     botName: bot?.name || null,
     intentName: interpretation?.intentName || null,

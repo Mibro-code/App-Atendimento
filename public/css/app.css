@@ -1381,3 +1381,12 @@ html[data-theme="dark"] .device-card { border-color:#333840; background:#22262c;
 html[data-theme="dark"] .device-status { color:#a7adb6; background:#2a2e34; }
 html[data-theme="dark"] .device-status.active { color:#87d7a4; background:#1d3024; }
 @media (max-width:700px) { .devices-dialog { width:100vw; height:100vh; max-height:none; border-radius:0; } .devices-body { max-height:calc(100vh - 110px); } }
+.bot-suggestion-card{margin:0 18px 10px;padding:12px 14px;border:1px solid #f4b49e;border-radius:12px;background:#fff7f3}
+.bot-suggestion-head{display:flex;justify-content:space-between;gap:12px;color:var(--orange);font-size:9px;font-weight:900;letter-spacing:.08em}
+.bot-suggestion-head small{color:var(--muted);font-weight:700;letter-spacing:0}
+.bot-suggestion-card p{margin:7px 0 10px;white-space:pre-wrap;font-size:12px;line-height:1.45}
+.bot-suggestion-actions{display:flex;flex-wrap:wrap;gap:6px}
+.bot-suggestion-actions button{padding:6px 10px;border:1px solid var(--line);border-radius:14px;background:#fff;color:var(--ink);font-size:10px;font-weight:800;cursor:pointer}
+.bot-suggestion-actions button:hover{border-color:var(--orange);color:var(--orange)}
+html[data-theme="dark"] .bot-suggestion-card{border-color:#70402f;background:#25201e}
+html[data-theme="dark"] .bot-suggestion-actions button{border-color:#434850;background:#22262c;color:#e6e8eb}

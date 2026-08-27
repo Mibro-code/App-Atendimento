@@ -11,20 +11,26 @@ function fail(message, statusCode = 400) {
   return Object.assign(new Error(message), { statusCode });
 }
 
-// Última observação desta conversa que tem um texto sugerido — não
-// necessariamente a mensagem mais recente (uma mensagem sem intenção
-// reconhecida não gera sugestão útil).
+// Só devolve sugestão para a mensagem MAIS RECENTE da conversa. Se o
+// atendente já respondeu ou chegou outra mensagem sem sugestão, a anterior
+// não pode reaparecer como se ainda estivesse pendente.
 async function getLatestSuggestion(conversationId, viewer, client = prisma) {
   await authorization.assertCanViewConversation(viewer, conversationId);
-  return client.botObservation.findFirst({
-    where: { conversationId, suggestedResponseText: { not: null } },
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true, botId: true, intentId: true, intentName: true, knowledgeSourceId: true, knowledgeSourceTitle: true,
-      toolName: true, suggestedResponseText: true, topicSwitchDetected: true, confidence: true, provider: true,
-      createdAt: true,
-    },
-  });
+  const [latestMessage, suggestion] = await Promise.all([
+    client.message.findFirst({
+      where: { conversationId }, orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }], select: { id: true },
+    }),
+    client.botObservation.findFirst({
+      where: { conversationId, suggestedResponseText: { not: null } },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true, messageId: true, botId: true, intentId: true, intentName: true,
+        knowledgeSourceId: true, knowledgeSourceTitle: true, toolName: true, suggestedResponseText: true,
+        topicSwitchDetected: true, confidence: true, provider: true, createdAt: true,
+      },
+    }),
+  ]);
+  return latestMessage?.id === suggestion?.messageId ? suggestion : null;
 }
 
 const SUGGESTION_ACTIONS = new Set(["USED", "EDITED", "IGNORED"]);
@@ -44,11 +50,12 @@ async function recordSuggestionFeedback({ observationId, helpful, action, finalR
   if (!observation.suggestedResponseText) throw fail("Esta observação não tem uma sugestão de resposta associada.");
   await authorization.assertCanViewConversation(actor, observation.conversationId);
 
-  const finalText = typeof finalResponseText === "string" ? finalResponseText.trim().slice(0, 4000) || null : null;
+  const hasFinalText = typeof finalResponseText === "string";
+  const finalText = hasFinalText ? finalResponseText.trim().slice(0, 4000) || null : null;
   const data = {
     ...(typeof helpful === "boolean" ? { helpful } : {}),
     ...(SUGGESTION_ACTIONS.has(action) ? { action } : {}),
-    finalResponseText: finalText,
+    ...(hasFinalText ? { finalResponseText: finalText } : {}),
   };
 
   return client.botSuggestionFeedback.upsert({
