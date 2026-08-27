@@ -3,6 +3,7 @@ const state = {
   simulatorHistory: [], simulatorState: null,
   // Fluxo de atendimento (Flow Engine).
   flowSteps: [], flowStepsCache: new Map(), tools: [], knowledgeSources: [],
+  aiProviderOptions: null,
 };
 const flowActionLabels = {
   ASK_QUESTION: "Perguntar", USE_KNOWLEDGE: "Usar conhecimento", QUERY_TOOL: "Consultar Tool",
@@ -115,6 +116,10 @@ const defaultBooleanFeatureFlags = {
   observationEnabled: true, learningEnabled: true, knowledgeSuggestionsEnabled: true, knowledgeBaseEnabled: false,
   handoffAutoPauseEnabled: true, autoFinalizeOnResolution: false, externalAiFallbackEnabled: false,
 };
+// Item 3 (Motor de IA): provider externo escolhido por Bot — "GEMINI" é a
+// configuração sugerida inicial (item 8), mas só é chamado de verdade se
+// "IA externa como fallback" também estiver ligado.
+const defaultExternalAiProvider = "GEMINI";
 
 function renderChannelsChecklist(selectedChannels = []) {
   const primary = $("#bot-channel").value;
@@ -152,6 +157,7 @@ function fillBotForm(bot = null) {
   for (const [key, fallback] of Object.entries(numericFeatureFlags)) {
     $(`#flag-${key}`).value = flags[key] ?? fallback;
   }
+  $("#flag-externalAiProvider").value = flags.externalAiProvider || defaultExternalAiProvider;
 
   $("#rating-enabled").checked = Boolean(bot?.ratingEnabled);
   $("#rating-request-comment").checked = Boolean(bot?.requestRatingComment);
@@ -181,16 +187,35 @@ function renderEditor() {
   renderAiProviderStatus();
 }
 
-// Item 14 (Motor de IA / Fallback externo): mostra provider/configurado/erro
-// sem nunca expor a credencial — o botão "Testar conexão" faz uma chamada
-// real mínima, só quando o Master clicar (nunca automático).
+// Item 3: popula o select "Provider de IA externa" só com providers
+// REALMENTE implementados (LOCAL/ANTHROPIC/GEMINI) — nunca uma lista solta
+// digitada na UI, sempre a mesma lista canônica do backend
+// (AI_PROVIDER_OPTIONS em bot-constants.js).
+const providerLabels = { LOCAL: "Local (sem IA externa)", ANTHROPIC: "Anthropic (Claude)", GEMINI: "Google Gemini", OPENAI: "OpenAI" };
+async function ensureAiProviderOptionsLoaded() {
+  if (state.aiProviderOptions) return state.aiProviderOptions;
+  try {
+    state.aiProviderOptions = await api("/api/bot-ai-providers");
+  } catch {
+    state.aiProviderOptions = ["LOCAL"];
+  }
+  $("#flag-externalAiProvider").innerHTML = state.aiProviderOptions
+    .map((provider) => `<option value="${escapeHtml(provider)}">${escapeHtml(providerLabels[provider] || provider)}</option>`).join("");
+  return state.aiProviderOptions;
+}
+
+// Item 5/14 (Motor de IA / Fallback externo): mostra provider/configurado/
+// erro sem nunca expor a credencial — sempre do provider selecionado no
+// select acima. O botão "Testar conexão" faz uma chamada real mínima, só
+// quando o Master clicar (nunca automático).
 async function renderAiProviderStatus() {
   const box = document.getElementById("ai-provider-status");
   if (!box) return;
+  const provider = $("#flag-externalAiProvider").value || defaultExternalAiProvider;
   try {
-    const status = await api("/api/bot-ai-provider-status");
+    const status = await api(`/api/bot-ai-provider-status?provider=${encodeURIComponent(provider)}`);
     box.innerHTML = `
-      <span>Provider<strong>${escapeHtml(status.provider)}</strong></span>
+      <span>Provider<strong>${escapeHtml(providerLabels[status.provider] || status.provider)}</strong></span>
       <span>Status<strong>${status.configured ? "Configurado" : "Não configurado"}</strong></span>
       ${status.error ? `<span>Erro<strong>${escapeHtml(status.error)}</strong></span>` : ""}
     `;
@@ -198,13 +223,15 @@ async function renderAiProviderStatus() {
     box.innerHTML = `<span>Provider<strong>Indisponível</strong></span>`;
   }
 }
+document.getElementById("flag-externalAiProvider")?.addEventListener("change", renderAiProviderStatus);
 
 document.getElementById("test-ai-provider")?.addEventListener("click", async () => {
   if (!window.confirm("Este teste fará uma chamada real e poderá gerar um pequeno custo no provider de IA. Deseja continuar?")) return;
   const button = document.getElementById("test-ai-provider");
+  const provider = $("#flag-externalAiProvider").value || defaultExternalAiProvider;
   button.disabled = true;
   try {
-    const result = await api("/api/bot-ai-provider-status/test", { method: "POST", body: JSON.stringify({ confirmRealCall: true }) });
+    const result = await api("/api/bot-ai-provider-status/test", { method: "POST", body: JSON.stringify({ confirmRealCall: true, provider }) });
     toast(result.ok ? `Conexão OK (${result.latencyMs}ms).` : `Falha: ${result.error}`, !result.ok);
   } catch (error) {
     toast(error.message, true);
@@ -259,6 +286,7 @@ function botPayload() {
   const featureFlags = {};
   for (const key of booleanFeatureFlags) featureFlags[key] = $(`#flag-${key}`).checked;
   for (const key of Object.keys(numericFeatureFlags)) featureFlags[key] = Number($(`#flag-${key}`).value);
+  featureFlags.externalAiProvider = $("#flag-externalAiProvider").value || defaultExternalAiProvider;
   return {
     name: $("#bot-name").value,
     description: $("#bot-description").value,
@@ -1120,6 +1148,7 @@ $("#obs-refresh").addEventListener("click", loadObservations);
     $("#bot-category").innerHTML = categoryOptions();
     $("#intent-category").innerHTML = categoryOptions();
     renderSchedules();
+    await ensureAiProviderOptionsLoaded();
     await loadBots();
     await loadGlobalSettings();
   } catch (error) {

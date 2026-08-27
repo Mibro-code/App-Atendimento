@@ -5,7 +5,8 @@
 // instancia esta classe.
 const axios = require("axios");
 const { AIProvider } = require("./ai-provider");
-const { extractEntities: extractEntitiesLocally, sanitizeEntities } = require("../bot-entity-extractor");
+const { extractEntities: extractEntitiesLocally } = require("../bot-entity-extractor");
+const { parseJsonResponse, validateClassification } = require("./classification-utils");
 
 const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
 const DEFAULT_TIMEOUT_MS = 8000;
@@ -38,26 +39,6 @@ function buildIntentPrompt({ bot, message, context = [] }) {
   ].filter(Boolean).join("\n");
 }
 
-function parseJsonResponse(text) {
-  if (typeof text !== "string") return null;
-  const match = text.match(/\{[\s\S]*\}/);
-  if (!match) return null;
-  try {
-    return JSON.parse(match[0]);
-  } catch (_error) {
-    return null;
-  }
-}
-
-function validateClassification(parsed, bot) {
-  if (!parsed || typeof parsed !== "object") return null;
-  const validIntentIds = new Set((bot.intents || []).map((intent) => intent.id));
-  const intentId = typeof parsed.intentId === "string" && validIntentIds.has(parsed.intentId) ? parsed.intentId : null;
-  const rawConfidence = Number(parsed.confidence);
-  const confidence = Number.isFinite(rawConfidence) ? Math.min(1, Math.max(0, rawConfidence)) : 0;
-  if (!intentId) return { intentId: null, confidence: 0, entities: sanitizeEntities(parsed.entities) };
-  return { intentId, confidence, entities: sanitizeEntities(parsed.entities) };
-}
 
 class AnthropicProvider extends AIProvider {
   constructor({

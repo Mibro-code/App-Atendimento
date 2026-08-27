@@ -9,7 +9,7 @@ const prisma = require("../database/prisma");
 const authorization = require("./authorization-service");
 const audit = require("./audit-service");
 const {
-  BOOLEAN_FEATURE_FLAG_KEYS, DEFAULT_PRESENTATION_MESSAGE, FEATURE_FLAG_DEFAULTS,
+  BOOLEAN_FEATURE_FLAG_KEYS, DEFAULT_PRESENTATION_MESSAGE, ENUM_FEATURE_FLAG_KEYS, FEATURE_FLAG_DEFAULTS,
   FLOAT_FEATURE_FLAG_RANGES, NUMERIC_FEATURE_FLAG_RANGES, PRESENTATION_ALLOWED_VARS, RATING_REQUEST_MODES,
 } = require("./bot-constants");
 
@@ -64,6 +64,11 @@ function validateFeatureFlagsInput(input) {
       throw fail(`O valor de "${key}" deve ser um número entre ${range.min} e ${range.max}.`);
     }
     result[key] = value;
+  }
+  for (const [key, allowed] of Object.entries(ENUM_FEATURE_FLAG_KEYS)) {
+    if (input[key] === undefined) continue;
+    if (!allowed.includes(input[key])) throw fail(`"${key}" deve ser um dos valores: ${allowed.join(", ")}.`);
+    result[key] = input[key];
   }
   return result;
 }

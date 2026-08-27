@@ -1,53 +1,88 @@
-// Ponto único de escolha do provider de IA. Se ANTHROPIC_API_KEY não estiver
-// configurada, a aplicação continua funcionando normalmente usando apenas o
-// LocalFallbackProvider (correspondência literal/fuzzy), como antes desta fase.
+// Ponto único de escolha do provider de IA externa. Cada provider (Anthropic,
+// Gemini) só é instanciado se a variável de ambiente correspondente existir
+// — sem credencial, a aplicação continua funcionando normalmente usando
+// apenas o LocalFallbackProvider (correspondência literal/fuzzy). Qual
+// provider usar é escolhido NA CONFIGURAÇÃO DO BOT
+// (featureFlags.externalAiProvider — ver bot-constants.js/
+// bot-governance-service.js), nunca um único provider global fixo: Bots
+// diferentes podem escolher providers diferentes.
 const { LocalFallbackProvider } = require("./local-fallback-provider");
 const { AnthropicProvider } = require("./anthropic-provider");
+const { GeminiProvider } = require("./gemini-provider");
+const { EXTERNAL_AI_PROVIDERS } = require("../bot-constants");
 
 const localFallbackProvider = new LocalFallbackProvider();
-let anthropicProvider = null;
-let anthropicInitError = null;
 
-if (process.env.ANTHROPIC_API_KEY) {
+// Registro central de providers externos IMPLEMENTADOS (item 3: "mostrar
+// somente providers realmente implementados"). EXTERNAL_AI_PROVIDERS
+// (bot-constants.js) é a lista canônica usada pela UI/validação de
+// featureFlags; este objeto só sabe COMO instanciar cada um — nunca duplica
+// a lista, só implementa contra ela.
+const providerFactories = {
+  ANTHROPIC: () => new AnthropicProvider(),
+  GEMINI: () => new GeminiProvider(),
+};
+
+const instances = {}; // { ANTHROPIC: { provider, error }, GEMINI: {...} }
+
+function resolveInstance(name) {
+  if (!providerFactories[name]) return null;
+  if (instances[name]) return instances[name];
+  const entry = { provider: null, error: null };
   try {
-    anthropicProvider = new AnthropicProvider();
+    entry.provider = providerFactories[name]();
   } catch (error) {
-    anthropicInitError = error.message;
+    entry.error = error.message;
   }
+  instances[name] = entry;
+  return entry;
 }
 
-function getPrimaryProvider() {
-  return anthropicProvider ? { provider: anthropicProvider, name: "ANTHROPIC" } : { provider: localFallbackProvider, name: "LOCAL_FALLBACK" };
+// `providerName` vem de Bot.featureFlags.externalAiProvider. Sem credencial
+// configurada para o provider escolhido (ou provider desconhecido), cai
+// para o provider local — nunca quebra a aplicação.
+function getPrimaryProvider(providerName) {
+  const entry = resolveInstance(providerName);
+  if (entry?.provider) return { provider: entry.provider, name: providerName };
+  return { provider: localFallbackProvider, name: "LOCAL_FALLBACK" };
 }
 
 function getFallbackProvider() {
   return { provider: localFallbackProvider, name: "LOCAL_FALLBACK" };
 }
 
-// Item 14 (UI "Motor de IA"): status sem NUNCA expor a credencial — só se
-// está configurada/qual provider/erro de inicialização, se houver.
-function getProviderStatus() {
-  return {
-    provider: "ANTHROPIC",
-    configured: Boolean(anthropicProvider),
-    error: anthropicInitError,
-  };
+// Item 5 (status): Configurado / Não configurado / Erro — nunca expõe a
+// credencial, só se ela existe e se a inicialização deu certo.
+function getProviderStatus(providerName) {
+  if (!providerName || providerName === "LOCAL") {
+    return { provider: "LOCAL", configured: true, error: null };
+  }
+  if (!EXTERNAL_AI_PROVIDERS.includes(providerName)) {
+    return { provider: providerName, configured: false, error: "Provider não implementado." };
+  }
+  const entry = resolveInstance(providerName);
+  return { provider: providerName, configured: Boolean(entry?.provider), error: entry?.error || null };
 }
 
-// Item 14 ("testar conexão"): chamada real mínima só para validar a
+// Item 6 ("Testar conexão"): chamada real mínima só para validar a
 // credencial/rede — nunca usada no caminho quente de interpretação. Nunca
-// derruba a aplicação: falha vira { ok: false, error }.
-async function testConnection() {
-  if (!anthropicProvider) return { ok: false, error: anthropicInitError || "Provider não configurado." };
+// derruba a aplicação: falha vira { ok: false, error }, sem jamais incluir a
+// credencial na resposta.
+async function testConnection(providerName) {
+  if (providerName === "LOCAL") return { ok: true, latencyMs: 0 };
+  const entry = resolveInstance(providerName);
+  if (!entry?.provider) return { ok: false, error: entry?.error || "Provider não configurado." };
   const startedAt = Date.now();
   try {
-    await anthropicProvider.classifyIntent({ bot: { intents: [] }, message: "teste de conexão", context: [] });
+    await entry.provider.classifyIntent({ bot: { intents: [] }, message: "teste de conexão", context: [] });
     return { ok: true, latencyMs: Date.now() - startedAt };
   } catch (error) {
-    return { ok: false, error: error.message };
+    // Nunca vaza a credencial — só o código/mensagem já normalizados pelo
+    // provider (ex.: AUTH_ERROR/RATE_LIMIT/QUOTA_EXCEEDED/TIMEOUT no Gemini).
+    return { ok: false, error: error.message, code: error.code || null };
   }
 }
 
 module.exports = {
-  anthropicInitError, getFallbackProvider, getPrimaryProvider, getProviderStatus, testConnection,
+  getFallbackProvider, getPrimaryProvider, getProviderStatus, testConnection,
 };

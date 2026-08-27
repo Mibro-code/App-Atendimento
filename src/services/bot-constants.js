@@ -9,6 +9,19 @@ const DEFAULT_LOW_CONFIDENCE_THRESHOLD = 0.55;
 // externalAiFallbackEnabled=true, o motor pode tentar um provider externo.
 const DEFAULT_EXTERNAL_AI_THRESHOLD = 0.7;
 
+// Motor de IA / Fallback externo: providers REALMENTE implementados (item 3
+// — "mostrar somente providers implementados"). "LOCAL" não é uma chamada
+// externa (é o LocalFallbackProvider, sempre disponível); os demais só
+// funcionam se a variável de ambiente correspondente estiver configurada
+// (ver src/services/ai/get-ai-provider.js). OPENAI de propósito fora desta
+// lista: não há OpenAIProvider implementado nesta fase.
+const EXTERNAL_AI_PROVIDERS = Object.freeze(["ANTHROPIC", "GEMINI"]);
+const AI_PROVIDER_OPTIONS = Object.freeze(["LOCAL", ...EXTERNAL_AI_PROVIDERS]);
+// Item 8 (configuração sugerida inicial): Gemini pré-selecionado, mas o
+// fallback externo continua OFF por padrão — só passa a ser chamado depois
+// que um Master ligar externalAiFallbackEnabled explicitamente.
+const DEFAULT_EXTERNAL_AI_PROVIDER = "GEMINI";
+
 const BOT_ACTIONS = Object.freeze([
   "RESPOND",
   "ASK_CLARIFICATION",
@@ -130,6 +143,9 @@ const FEATURE_FLAG_DEFAULTS = Object.freeze({
   // local ficar abaixo de externalAiThreshold (ou não reconhecer nada).
   externalAiFallbackEnabled: false,
   externalAiThreshold: DEFAULT_EXTERNAL_AI_THRESHOLD,
+  // Item 3: qual provider externo este Bot usaria SE externalAiFallbackEnabled
+  // estiver ligado — nunca chamado sozinho, sempre condicionado ao flag acima.
+  externalAiProvider: DEFAULT_EXTERNAL_AI_PROVIDER,
   contextMaxMessages: CONTEXT_MESSAGE_LIMIT,
   contextExpirationMinutes: 120,
   maxSwitchesPerWindow: 3,
@@ -151,6 +167,11 @@ const NUMERIC_FEATURE_FLAG_RANGES = Object.freeze({
 // NUMERIC_FEATURE_FLAG_RANGES porque aquele valida com Number.isInteger.
 const FLOAT_FEATURE_FLAG_RANGES = Object.freeze({
   externalAiThreshold: { min: 0, max: 1 },
+});
+// Feature flags de texto restrito a um vocabulário fixo — nunca uma string
+// solta (mesmo espírito de RATING_REQUEST_MODES).
+const ENUM_FEATURE_FLAG_KEYS = Object.freeze({
+  externalAiProvider: AI_PROVIDER_OPTIONS,
 });
 
 const RATING_REQUEST_MODES = Object.freeze(["BOT_COMPLETED", "BEFORE_HANDOFF", "MANUAL", "NEVER"]);
@@ -179,15 +200,19 @@ function validateConfidenceThresholds(low, high) {
 }
 
 module.exports = {
+  AI_PROVIDER_OPTIONS,
   BOOLEAN_FEATURE_FLAG_KEYS,
   BOT_ACTIONS,
   CONFIRMATION_PATTERN,
   CONTEXT_MESSAGE_LIMIT,
   DECISION_PRIORITY_ORDER,
+  DEFAULT_EXTERNAL_AI_PROVIDER,
   DEFAULT_EXTERNAL_AI_THRESHOLD,
   DEFAULT_HIGH_CONFIDENCE_THRESHOLD,
   DEFAULT_LOW_CONFIDENCE_THRESHOLD,
   DEFAULT_PRESENTATION_MESSAGE,
+  ENUM_FEATURE_FLAG_KEYS,
+  EXTERNAL_AI_PROVIDERS,
   FEATURE_FLAG_DEFAULTS,
   FLOAT_FEATURE_FLAG_RANGES,
   GOODBYE_PATTERNS,
