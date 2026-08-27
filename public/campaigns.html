@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#ef5b2a">
+  <link rel="icon" type="image/png" sizes="192x192" href="/assets/app-icon-192.png">
+  <title>Campanhas &bull; Central de Atendimento</title>
+  <script>try{const saved=localStorage.getItem("mibro-theme");document.documentElement.dataset.theme=saved||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch{}</script>
+  <link rel="stylesheet" href="/css/skeleton.css">
+  <link rel="stylesheet" href="/css/bots.css">
+  <link rel="stylesheet" href="/css/campaigns.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/"><img src="/assets/mibro-logo.png" alt="Mibro"><span></span><small>Campanhas</small></a>
+    <div class="phase-badge">ENVIO EM MASSA &bull; WHATSAPP</div>
+    <a class="back-link" href="/">&larr; Central</a>
+    <button id="theme-toggle" class="round-button" type="button" title="Alternar tema">&#9790;</button>
+    <button id="logout" class="user-button" type="button"><span id="current-user">Master</span> &bull; Sair</button>
+  </header>
+
+  <main class="bots-shell">
+    <aside class="bots-sidebar">
+      <div class="sidebar-heading">
+        <div><span>PROSPECÇÃO</span><h1>Campanhas</h1><p id="campaign-count">Carregando...</p></div>
+        <button id="new-campaign" type="button">+ Nova</button>
+      </div>
+      <div class="qr-filters">
+        <select id="campaign-status-filter">
+          <option value="">Todas</option>
+          <option value="DRAFT">Rascunhos</option>
+          <option value="SCHEDULED">Agendadas</option>
+          <option value="QUEUED">Na fila</option>
+          <option value="RUNNING">Em envio</option>
+          <option value="PAUSED">Pausadas</option>
+          <option value="COMPLETED">Concluídas</option>
+          <option value="CANCELLED">Canceladas</option>
+          <option value="FAILED">Falharam</option>
+        </select>
+      </div>
+      <div id="campaign-list" class="bot-list"><div class="skeleton-list"><div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div></div></div>
+      <div class="safety-note"><b>Envio real desativado por padrão</b><p>Nenhuma campanha envia mensagens de verdade enquanto o master switch (aba Configurações) estiver desligado.</p></div>
+      <button id="campaign-settings-button" type="button" class="secondary-button" style="margin-top:10px">Configurações globais</button>
+      <button id="campaign-optouts-button" type="button" class="secondary-button">Lista de opt-out</button>
+    </aside>
+
+    <section class="bots-workspace">
+      <div id="empty-state" class="empty-state">
+        <div>📣</div><h2>Crie sua primeira campanha</h2>
+        <p>Envie mensagens em massa usando templates aprovados da Meta, com fila controlada e opt-out automático.</p>
+        <button id="empty-new-campaign" type="button">Criar campanha</button>
+      </div>
+
+      <div id="editor" hidden>
+        <header class="editor-heading">
+          <div><span id="editor-eyebrow">CAMPANHA SELECIONADA</span><h2 id="editor-title">Nova campanha</h2><p id="editor-description">Preencha nome e template para começar.</p></div>
+          <div id="status-actions" class="status-actions" hidden>
+            <span id="status-badge" class="status-badge"></span>
+          </div>
+        </header>
+
+        <div class="editor-grid">
+          <form id="campaign-form" class="card basic-card">
+            <div class="card-heading"><div><span>CONFIGURAÇÃO</span><h3>Identidade e template</h3></div><button type="submit">Salvar</button></div>
+            <div class="fields two-columns">
+              <label><span>Nome *</span><input id="campaign-name" maxlength="150" required></label>
+              <label><span>Categoria da campanha</span><input id="campaign-category" maxlength="120" placeholder="Ex.: Prospecção revendedores"></label>
+              <label class="full"><span>Descrição</span><textarea id="campaign-description" maxlength="2000"></textarea></label>
+              <label class="full"><span>Template aprovado (Meta) *</span><select id="campaign-template" required><option value="">Carregando templates...</option></select></label>
+              <div id="campaign-variables" class="full"></div>
+              <label><span>Categoria da conversa ao responder</span><select id="campaign-reply-category"><option value="">Sem categoria automática</option></select></label>
+              <label><span>Bot de triagem opcional</span><select id="campaign-reply-bot"><option value="">Nenhum</option></select></label>
+              <label><span>Número autorizado para teste</span><input id="campaign-test-phone" placeholder="(11) 90000-0000"></label>
+              <label><span>Tamanho do lote</span><input id="campaign-batch-size" type="number" min="1" max="500" placeholder="Padrão global"></label>
+            </div>
+          </form>
+
+          <div class="card">
+            <div class="card-heading"><div><span>PREVIEW</span><h3>Pré-visualização com contato de exemplo</h3></div><button id="campaign-preview-button" type="button">Atualizar preview</button></div>
+            <div id="campaign-preview" class="simulator-result"><p>Selecione um template e mapeie as variáveis.</p></div>
+          </div>
+        </div>
+
+        <section class="card requires-bot">
+          <div class="card-heading"><div><span>AÇÕES</span><h3>Ciclo de vida da campanha</h3></div></div>
+          <div class="editor-actions" style="display:flex;gap:8px;flex-wrap:wrap">
+            <input id="campaign-scheduled-at" type="datetime-local">
+            <button id="campaign-schedule" type="button">Agendar</button>
+            <button id="campaign-queue-now" type="button">Enviar agora</button>
+            <button id="campaign-pause" type="button">Pausar</button>
+            <button id="campaign-resume" type="button">Retomar</button>
+            <button id="campaign-cancel" type="button" class="danger">Cancelar</button>
+            <button id="campaign-send-test" type="button">Enviar teste</button>
+          </div>
+        </section>
+
+        <section class="card requires-bot">
+          <div class="card-heading"><div><span>PÚBLICO</span><h3>Importar contatos (CSV)</h3></div></div>
+          <p class="card-help">Etapas: selecionar arquivo → mapear colunas → validar → confirmar. Telefone é obrigatório e é normalizado automaticamente (DDI 55).</p>
+          <input id="import-file" type="file" accept=".csv,text/csv">
+          <div id="import-mapping" hidden>
+            <div class="card-heading"><h3>Mapear colunas</h3></div>
+            <div id="import-mapping-fields" class="fields two-columns"></div>
+            <div class="form-actions">
+              <button id="import-validate" type="button">Validar</button>
+              <button id="import-commit" type="button" hidden>Confirmar importação</button>
+              <button id="import-download-errors" type="button" hidden>Baixar erros</button>
+            </div>
+            <div id="import-summary" class="result-grid"></div>
+          </div>
+        </section>
+
+        <section class="card requires-bot">
+          <div class="card-heading"><div><span>PÚBLICO</span><h3>Estimar tamanho do público</h3></div><button id="estimate-audience" type="button">Estimar</button></div>
+          <div class="fields two-columns">
+            <label><span>Cidade</span><input id="segment-city"></label>
+            <label><span>UF</span><input id="segment-state" maxlength="2"></label>
+            <label><span>Empresa contém</span><input id="segment-company"></label>
+            <label><span>Origem</span><select id="segment-source">
+              <option value="">Qualquer</option>
+              <option value="EVENT">Evento</option><option value="MANUAL_IMPORT">Importação manual</option>
+              <option value="SHOPIFY">Shopify</option><option value="FORM">Formulário</option>
+              <option value="WHATSAPP">WhatsApp</option><option value="PARTNER">Parceiro</option><option value="OTHER">Outro</option>
+            </select></label>
+          </div>
+          <div id="audience-result" class="result-grid"></div>
+        </section>
+
+        <section class="card requires-bot">
+          <div class="card-heading"><div><span>MÉTRICAS</span><h3>Progresso e resultados</h3></div><button id="refresh-metrics" type="button">Atualizar</button></div>
+          <div id="campaign-metrics" class="metrics-strip"></div>
+        </section>
+
+        <section class="card requires-bot">
+          <div class="card-heading"><div><span>DESTINATÁRIOS</span><h3>Lista de contatos</h3></div>
+            <div>
+              <select id="contacts-status-filter">
+                <option value="">Todos</option>
+                <option value="PENDING">Pendentes</option><option value="SENT">Enviados</option>
+                <option value="DELIVERED">Entregues</option><option value="READ">Lidos</option>
+                <option value="REPLIED">Responderam</option><option value="FAILED">Falharam</option>
+                <option value="OPTED_OUT">Opt-out</option><option value="SKIPPED">Ignorados</option>
+              </select>
+              <button id="export-contacts" type="button">Exportar CSV</button>
+            </div>
+          </div>
+          <div class="observations-table-wrap">
+            <table class="observations-table">
+              <thead><tr><th>Telefone</th><th>Nome</th><th>Status</th><th>Prospecção</th><th>Enviado em</th><th>Erro</th></tr></thead>
+              <tbody id="contacts-body"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <div id="settings-modal" class="modal" hidden>
+    <div class="modal-content card">
+      <div class="card-heading"><div><span>CONFIGURAÇÕES GLOBAIS</span><h3>Envio em massa</h3></div><button id="close-settings" type="button">Fechar</button></div>
+      <div class="fields two-columns">
+        <label class="checkbox critical-toggle full"><input id="setting-mass-enabled" type="checkbox"><span>Envio em massa ativado (master switch)</span></label>
+        <label class="checkbox full"><input id="setting-allow-scheduling" type="checkbox"><span>Permitir agendamento</span></label>
+        <label class="checkbox full"><input id="setting-allow-imports" type="checkbox"><span>Permitir importação</span></label>
+        <label><span>Máx. destinatários por campanha</span><input id="setting-max-recipients" type="number" min="1"></label>
+        <label><span>Tamanho de lote padrão</span><input id="setting-batch-size" type="number" min="1"></label>
+        <label><span>Intervalo entre lotes (s)</span><input id="setting-delay" type="number" min="1"></label>
+        <label><span>Máx. tentativas</span><input id="setting-max-retries" type="number" min="0"></label>
+      </div>
+      <div class="form-actions"><button id="save-settings" type="button">Salvar</button></div>
+    </div>
+  </div>
+
+  <div id="optouts-modal" class="modal" hidden>
+    <div class="modal-content card">
+      <div class="card-heading"><div><span>SUPRESSÃO GLOBAL</span><h3>Opt-out</h3></div><button id="close-optouts" type="button">Fechar</button></div>
+      <div id="optouts-list" class="observations-table-wrap"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <script src="/js/campaigns.js"></script>
+</body>
+</html>

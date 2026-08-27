@@ -201,18 +201,19 @@ enum ToolRiskLevel {
 }
 
 model Contact {
-  id            String         @id @default(cuid())
-  channel       Channel        @default(META)
-  externalId    String
+  id               String            @id @default(cuid())
+  channel          Channel           @default(META)
+  externalId       String
   // Opcional: nem todo canal tem telefone (Mercado Livre = buyerId, e-mail =
   // endereço, Google Review = reviewer). WhatsApp continua sempre populando.
-  phone         String?
-  name          String?
-  customName    String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  conversations Conversation[]
-  notes         ContactNote[]
+  phone            String?
+  name             String?
+  customName       String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  conversations    Conversation[]
+  notes            ContactNote[]
+  campaignContacts CampaignContact[]
 
   @@unique([channel, externalId])
   @@index([phone])
@@ -234,46 +235,56 @@ model ContactNote {
 }
 
 model Conversation {
-  id                     String                     @id @default(cuid())
-  contactId              String
-  channel                Channel                    @default(META)
-  channelScope           String                     @default("LEGACY")
+  id                      String                     @id @default(cuid())
+  contactId               String
+  channel                 Channel                    @default(META)
+  channelScope            String                     @default("LEGACY")
   // Conta específica do canal que originou esta conversa (multi-conta por
   // plataforma — item 5). Null para conversas do canal Meta já existentes.
-  channelAccountId       String?
+  channelAccountId        String?
   // ID da conversa/thread na plataforma externa — nunca é usado como chave
   // primária interna (item 19). Null para WhatsApp (Contact+channel já basta).
-  externalConversationId String?
-  kind                   ConversationKind           @default(PRIVATE_CONVERSATION)
-  categoryId             String?
-  assignedUserId         String?
-  status                 ConversationStatus         @default(NOVO)
-  unreadCount            Int                        @default(0)
-  lastMessageAt          DateTime?
-  finalizedAt            DateTime?
-  createdAt              DateTime                   @default(now())
-  updatedAt              DateTime                   @updatedAt
-  contact                Contact                    @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  category               Category?                  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  assignedUser           User?                      @relation("AssignedConversations", fields: [assignedUserId], references: [id], onDelete: SetNull)
-  messages               Message[]
-  activities             ConversationActivity[]
-  pins                   ConversationPin[]
-  masterReads            ConversationMasterRead[]
-  internalMessages       InternalMessage[]
-  botObservations        BotObservation[]
-  botState               ConversationBotState?
-  learningSuggestions    BotLearningSuggestion[]
-  learningState          ConversationLearningState?
-  rating                 BotRating?
-  agentFeedback          BotAgentFeedback[]
-  handoffContexts        BotHandoffContext[]
-  quickReplyUsages       QuickReplyUsage[]
-  suggestionFeedback     BotSuggestionFeedback[]
-  channelAccount         ChannelAccount?            @relation(fields: [channelAccountId], references: [id], onDelete: SetNull)
+  externalConversationId  String?
+  kind                    ConversationKind           @default(PRIVATE_CONVERSATION)
+  categoryId              String?
+  assignedUserId          String?
+  status                  ConversationStatus         @default(NOVO)
+  unreadCount             Int                        @default(0)
+  lastMessageAt           DateTime?
+  finalizedAt             DateTime?
+  // Campanhas (item 15): quando a conversa nasceu de uma resposta a uma
+  // campanha de envio em massa — `originSource = "OUTBOUND_CAMPAIGN"` é o
+  // vocabulário controlado citado no pedido; nunca preenchido para conversas
+  // que chegaram por qualquer outro caminho.
+  originSource            String?
+  originCampaignId        String?
+  originCampaignContactId String?
+  createdAt               DateTime                   @default(now())
+  updatedAt               DateTime                   @updatedAt
+  contact                 Contact                    @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  category                Category?                  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  assignedUser            User?                      @relation("AssignedConversations", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  messages                Message[]
+  activities              ConversationActivity[]
+  pins                    ConversationPin[]
+  masterReads             ConversationMasterRead[]
+  internalMessages        InternalMessage[]
+  botObservations         BotObservation[]
+  botState                ConversationBotState?
+  learningSuggestions     BotLearningSuggestion[]
+  learningState           ConversationLearningState?
+  rating                  BotRating?
+  agentFeedback           BotAgentFeedback[]
+  handoffContexts         BotHandoffContext[]
+  quickReplyUsages        QuickReplyUsage[]
+  suggestionFeedback      BotSuggestionFeedback[]
+  channelAccount          ChannelAccount?            @relation(fields: [channelAccountId], references: [id], onDelete: SetNull)
+  originCampaign          Campaign?                  @relation(fields: [originCampaignId], references: [id], onDelete: SetNull)
+  originCampaignContact   CampaignContact?           @relation(fields: [originCampaignContactId], references: [id], onDelete: SetNull)
 
   @@unique([contactId, channel, channelScope])
   @@index([status, lastMessageAt])
+  @@index([originCampaignId])
   @@index([categoryId, lastMessageAt])
   @@index([assignedUserId])
   @@index([channelAccountId])
@@ -322,6 +333,10 @@ model User {
   canViewConversationHistory  Boolean                  @default(false)
   canViewPreviousMessages     Boolean                  @default(false)
   hideUncategorized           Boolean                  @default(false)
+  // Campanhas/prospecção (item 27): Admin sempre pode gerenciar; Supervisor
+  // ganha por padrão (auth-service.js concede a quem é ADMIN/SUPERVISOR);
+  // este flag permite liberar um Atendente específico sem mudar o cargo.
+  canManageCampaigns          Boolean                  @default(false)
   createdAt                   DateTime                 @default(now())
   updatedAt                   DateTime                 @updatedAt
   assignedConversations       Conversation[]           @relation("AssignedConversations")
@@ -345,6 +360,10 @@ model User {
   quickReplyUsages            QuickReplyUsage[]        @relation("QuickReplyUsageUser")
   suggestionFeedbackGiven     BotSuggestionFeedback[]  @relation("SuggestionFeedbackUser")
   pushSubscriptions           PushSubscription[]       @relation("UserPushSubscriptions")
+  campaignsCreated            Campaign[]               @relation("CampaignCreatedBy")
+  campaignsResponsible        Campaign[]               @relation("CampaignResponsible")
+  campaignImports             CampaignImport[]         @relation("CampaignImportedBy")
+  optOutsRemoved              OptOut[]                 @relation("OptOutRemovedBy")
 }
 
 model PushSubscription {
@@ -438,6 +457,7 @@ model Category {
   botIntents      BotIntent[]
   botObservations BotObservation[]
   quickReplies    QuickReply[]
+  campaigns       Campaign[]
 
   @@index([parentId, displayOrder])
 }
@@ -497,6 +517,7 @@ model Bot {
   knowledgeSourceAccesses KnowledgeSourceBot[]
   handoffContexts         BotHandoffContext[]
   suggestionFeedback      BotSuggestionFeedback[]
+  campaigns               Campaign[]
 
   @@index([status, channel])
   @@index([defaultCategoryId])
@@ -1125,6 +1146,7 @@ model ChannelAccount {
   conversations Conversation[]
   oauthStates   ChannelOAuthState[]
   events        ExternalChannelEvent[]
+  campaigns     Campaign[]
 
   @@unique([channel, name])
   @@index([channel, enabled])
@@ -1327,4 +1349,245 @@ model InternalMessage {
   @@index([chatId, createdAt])
   @@index([senderUserId])
   @@index([conversationId])
+}
+
+// =============================================================================
+// Campanhas / Envio em massa (WhatsApp) — reaproveita integralmente a
+// integração Meta já existente (meta-template-service.js/MetaCloudChannel):
+// nenhum cliente HTTP novo, nenhuma credencial nova. O motor de envio é uma
+// fila em processo (mesmo padrão de conversation-inactivity-service.js —
+// setInterval, sem dependência de fila externa), nunca dispara tudo direto
+// numa requisição HTTP.
+// =============================================================================
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  QUEUED
+  RUNNING
+  PAUSED
+  COMPLETED
+  CANCELLED
+  FAILED
+}
+
+enum CampaignContactStatus {
+  PENDING
+  QUEUED
+  SENDING
+  SENT
+  DELIVERED
+  READ
+  REPLIED
+  FAILED
+  SKIPPED
+  OPTED_OUT
+}
+
+// Vocabulário controlado de origem do contato (item 12) — nunca inventar um
+// valor fora desta lista.
+enum ContactSource {
+  EVENT
+  MANUAL_IMPORT
+  SHOPIFY
+  FORM
+  WHATSAPP
+  PARTNER
+  OTHER
+}
+
+// UNKNOWN nunca vira OPTED_IN sozinho (item 12) — só muda por ação explícita
+// (import com a coluna preenchida, ou opt-out detectado por mensagem).
+enum ConsentStatus {
+  UNKNOWN
+  OPTED_IN
+  OPTED_OUT
+}
+
+// Status comercial (item 24) — nunca substitui o status técnico de envio
+// (CampaignContactStatus); alterado manualmente pelo atendente/responsável.
+enum ProspectStatus {
+  NEW
+  CONTACTED
+  REPLIED
+  INTERESTED
+  QUALIFIED
+  NOT_INTERESTED
+  CONVERTED
+}
+
+// Configuração global (item 31) — registro único, mesmo padrão de
+// BotGlobalSettings. `massMessagingEnabled` é o master switch: mesmo com
+// campanhas cadastradas/agendadas, nenhum envio real acontece com ele OFF
+// (item 32 — estado inicial seguro).
+model CampaignGlobalSettings {
+  id                                String   @id @default("singleton")
+  massMessagingEnabled              Boolean  @default(false)
+  maxCampaignRecipients             Int      @default(5000)
+  allowScheduling                   Boolean  @default(true)
+  allowImports                      Boolean  @default(true)
+  // Item 18: limites centralizados aqui — nunca hardcoded em outro arquivo.
+  defaultBatchSize                  Int      @default(20)
+  defaultDelayBetweenBatchesSeconds Int      @default(5)
+  defaultMaxRetries                 Int      @default(2)
+  updatedAt                         DateTime @updatedAt
+  createdAt                         DateTime @default(now())
+}
+
+model Campaign {
+  id               String  @id @default(cuid())
+  name             String
+  description      String? @db.Text
+  channel          Channel @default(META)
+  // Conta específica do canal (multi-conta) — null usa a conta padrão.
+  channelAccountId String?
+  // Template Meta selecionado (item 3) — nome+idioma são a chave real usada
+  // para buscar o template aprovado na Meta a cada envio (nunca cacheia o
+  // conteúdo aqui: sempre confere status/aprovação no momento de enviar).
+  templateName     String
+  templateLanguage String
+  templateCategory String?
+  // Mapa {{variableKey}} -> nome do campo do CampaignContact (ou um valor
+  // fixo prefixado "static:") — ver campaign-template-service.js.
+  variableMapping  Json?
+
+  category          String? // categoria/tipo da campanha (livre, ex.: "Prospecção")
+  replyCategoryId   String? // categoria/equipe da CONVERSA quando o contato responde
+  replyBotId        String? // Bot de triagem opcional após resposta (item 16)
+  responsibleUserId String?
+
+  status      CampaignStatus @default(DRAFT)
+  timezone    String         @default("America/Sao_Paulo")
+  scheduledAt DateTime?
+  startedAt   DateTime?
+  pausedAt    DateTime?
+  completedAt DateTime?
+  cancelledAt DateTime?
+  failedAt    DateTime?
+  lastBatchAt DateTime?
+
+  // Item 17/18: limites desta campanha — se ausentes, o worker usa os
+  // defaults de CampaignGlobalSettings (nunca hardcoded).
+  batchSize                  Int?
+  delayBetweenBatchesSeconds Int?
+  maxRetries                 Int?
+
+  // Item 29: telefone autorizado para "Enviar teste" — nunca contabilizado
+  // nas métricas reais (CampaignContact.isTest).
+  testPhone String?
+
+  segmentFilters Json? // critérios de segmentação combináveis (item 10)
+
+  createdByUserId String?
+  updatedByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  createdBy      User?             @relation("CampaignCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  responsible    User?             @relation("CampaignResponsible", fields: [responsibleUserId], references: [id], onDelete: SetNull)
+  replyCategory  Category?         @relation(fields: [replyCategoryId], references: [id], onDelete: SetNull)
+  replyBot       Bot?              @relation(fields: [replyBotId], references: [id], onDelete: SetNull)
+  channelAccount ChannelAccount?   @relation(fields: [channelAccountId], references: [id], onDelete: SetNull)
+  contacts       CampaignContact[]
+  imports        CampaignImport[]
+  conversations  Conversation[]
+
+  @@index([status, scheduledAt])
+  @@index([createdByUserId])
+}
+
+// Participante de uma campanha (item 5) — dados PRÓPRIOS da campanha, nunca
+// duplicando Contact desnecessariamente: `contactId` só é vinculado quando
+// já existe (ou passa a existir) um Contact real para o telefone (item 8).
+model CampaignContact {
+  id         String  @id @default(cuid())
+  campaignId String
+  contactId  String?
+
+  phone       String // sempre E.164 normalizado (item 6)
+  firstName   String?
+  fullName    String?
+  email       String?
+  companyName String?
+  document    String? // CPF/CNPJ, opcional
+  city        String?
+  state       String?
+  tags        String[] @default([])
+  notes       String?  @db.Text
+
+  source        ContactSource @default(OTHER)
+  consentStatus ConsentStatus @default(UNKNOWN)
+  // Cache local de opt-out (item 13) — sempre derivado da tabela OptOut
+  // global no momento da importação/segmentação; nunca a única fonte de
+  // verdade (o worker sempre reconfere OptOut antes de enviar).
+  optOut        Boolean       @default(false)
+
+  status            CampaignContactStatus @default(PENDING)
+  isTest            Boolean               @default(false)
+  externalMessageId String?
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  readAt            DateTime?
+  repliedAt         DateTime?
+  failedAt          DateTime?
+  failureReason     String?               @db.Text
+  retryCount        Int                   @default(0)
+
+  prospectStatus ProspectStatus @default(NEW)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  campaign      Campaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contact       Contact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  conversations Conversation[]
+
+  // Item 8: nunca duas linhas para o mesmo telefone normalizado na mesma
+  // campanha.
+  @@unique([campaignId, phone])
+  @@index([campaignId, status])
+  @@index([contactId])
+  @@index([externalMessageId])
+}
+
+// Um lote de importação (item 6/26) — guarda quem importou e um resumo para
+// auditoria/histórico; os erros linha-a-linha voltam na resposta da própria
+// requisição de importação (baixados como CSV pelo cliente), não persistidos
+// aqui para não guardar duas vezes os mesmos dados brutos do arquivo.
+model CampaignImport {
+  id               String   @id @default(cuid())
+  campaignId       String
+  fileName         String?
+  totalRows        Int      @default(0)
+  validRows        Int      @default(0)
+  invalidRows      Int      @default(0)
+  duplicateRows    Int      @default(0)
+  optOutRows       Int      @default(0)
+  importedByUserId String?
+  createdAt        DateTime @default(now())
+
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  importedBy User?    @relation("CampaignImportedBy", fields: [importedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([campaignId, createdAt])
+}
+
+// Lista de supressão GLOBAL por telefone (item 11/13) — nunca por campanha:
+// um opt-out vale para TODAS as campanhas futuras. Nunca removido (apagado)
+// de verdade: `removedAt` marca a reversão manual, mantendo o histórico
+// completo para auditoria (item 13/26).
+model OptOut {
+  id              String    @id @default(cuid())
+  phone           String    @unique
+  contactId       String?
+  reason          String?   @db.Text
+  source          String // ex.: "REPLY_KEYWORD", "MANUAL", "IMPORT_FLAG"
+  createdAt       DateTime  @default(now())
+  removedAt       DateTime?
+  removedByUserId String?
+  removalReason   String?   @db.Text
+
+  removedByUser User? @relation("OptOutRemovedBy", fields: [removedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([phone])
 }

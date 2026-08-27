@@ -11,7 +11,7 @@ const { handleIncomingTriage } = require("./services/triage-bot-service");
 const { observeIncomingMessage } = require("./services/bot-observation-service");
 const { createInboxController } = require("./controllers/inbox-controller");
 const authController = require("./controllers/auth-controller");
-const { authenticate, requireMasterPage, requirePageAuth } = require("./middleware/auth");
+const { authenticate, requireCampaignsPage, requireMasterPage, requirePageAuth } = require("./middleware/auth");
 const verifyMetaSignature = require("./middleware/meta-signature");
 const integrationAuth = require("./middleware/integration-auth");
 const { registerExternalLead } = require("./services/external-lead-service");
@@ -26,6 +26,8 @@ const integrationsController = require("./controllers/integrations-controller");
 const quickReplyController = require("./controllers/quick-reply-controller");
 const pushController = require("./controllers/push-controller");
 const pushService = require("./services/push-service");
+const campaignReplyService = require("./services/campaign-reply-service");
+const { createCampaignController } = require("./controllers/campaign-controller");
 const { NEW_CHANNELS } = require("./services/channels/channel-constants");
 const { createAdapter } = require("./services/channels/channel-adapter-registry");
 const { decryptSecrets } = require("./services/channels/integration-secret-service");
@@ -72,11 +74,25 @@ const internalFileUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 100 * 1024 * 1024, files: 1 },
 }).single("file");
+// Item 6/28 (Campanhas): upload de importação — CSV apenas, tamanho e MIME
+// validados aqui (nunca soltos em outro arquivo — ver campaign-constants.js).
+const { CSV_MAX_FILE_SIZE, CSV_ALLOWED_MIME } = require("./services/campaign-constants");
+const campaignImportUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: CSV_MAX_FILE_SIZE, files: 1 },
+  fileFilter(_req, file, callback) {
+    if (!CSV_ALLOWED_MIME.has(file.mimetype) && !/\.csv$/i.test(file.originalname || "")) {
+      return callback(Object.assign(new Error("Envie um arquivo CSV."), { statusCode: 400 }));
+    }
+    return callback(null, true);
+  },
+}).single("file");
 
 function createApp({ channel = new MetaCloudChannel() } = {}) {
   const app = express();
   if (process.env.NODE_ENV === "production") app.set("trust proxy", 1);
   const inbox = createInboxController(channel);
+  const campaignController = createCampaignController(channel);
   app.use(helmet({ contentSecurityPolicy: false }));
   app.use(express.json({
     limit: "1mb",
@@ -117,6 +133,15 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
               await handleIncomingTriage(event, result.message, channel);
               observeIncomingMessage(event, result.message).catch(() => {});
               pushService.notifyIncomingMessage(result.message).catch(() => {});
+              // Campanhas (itens 9/13): nunca bloqueia o atendimento normal —
+              // só reage em paralelo (opt-out por palavra-chave, resposta
+              // vinculada à campanha de origem).
+              if (event.type === "text" && event.text) {
+                campaignReplyService.handleInboundMessage({
+                  phone: event.phone || event.contactExternalId, text: event.text,
+                  conversationId: result.message.conversationId,
+                }).catch(() => {});
+              }
             }
             changed = true;
           }
@@ -124,6 +149,7 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
         if (event.kind === "status") {
           const result = await updateStatus(event);
           if (result?.count) changed = true;
+          campaignReplyService.handleCampaignStatusEvent(event).catch(() => {});
         }
       }
       if (changed) inboxEvents.publish();
@@ -211,6 +237,9 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   ));
   app.get(["/knowledge-base", "/knowledge-base.html"], requireMasterPage, (_req, res) => (
     res.sendFile(path.join(process.cwd(), "public", "knowledge-base.html"))
+  ));
+  app.get(["/campaigns", "/campaigns.html"], requireCampaignsPage, (_req, res) => (
+    res.sendFile(path.join(process.cwd(), "public", "campaigns.html"))
   ));
   app.get("/service-worker.js", (_req, res) => {
     res.set("Cache-Control", "no-cache, no-store, must-revalidate");
@@ -414,6 +443,31 @@ app.post(
   app.get("/api/bot-ai-provider-status", botController.aiProviderStatus);
   app.post("/api/bot-ai-provider-status/test", botController.testAiProvider);
   app.get("/api/bot-ai-usage", botController.aiUsageSummary);
+
+  // Campanhas / envio em massa (WhatsApp).
+  app.get("/api/campaign-templates", campaignController.listTemplates);
+  app.post("/api/campaign-templates/preview", campaignController.previewTemplate);
+  app.get("/api/campaign-settings", campaignController.getSettings);
+  app.patch("/api/campaign-settings", campaignController.updateSettings);
+  app.get("/api/campaign-opt-outs", campaignController.listOptOuts);
+  app.post("/api/campaign-opt-outs/:phone/remove", campaignController.removeOptOut);
+  app.get("/api/campaigns", campaignController.list);
+  app.post("/api/campaigns", campaignController.create);
+  app.get("/api/campaigns/:id", campaignController.detail);
+  app.patch("/api/campaigns/:id", campaignController.update);
+  app.post("/api/campaigns/:id/estimate-audience", campaignController.estimateAudience);
+  app.post("/api/campaigns/:id/schedule", campaignController.schedule);
+  app.post("/api/campaigns/:id/queue-now", campaignController.queueNow);
+  app.post("/api/campaigns/:id/pause", campaignController.pause);
+  app.post("/api/campaigns/:id/resume", campaignController.resume);
+  app.post("/api/campaigns/:id/cancel", campaignController.cancel);
+  app.post("/api/campaigns/:id/send-test", campaignController.sendTest);
+  app.post("/api/campaigns/:id/import/parse", campaignImportUpload, campaignController.parseImport);
+  app.post("/api/campaigns/:id/import/validate", campaignController.validateImport);
+  app.post("/api/campaigns/:id/import/commit", campaignController.commitImport);
+  app.get("/api/campaigns/:id/export", campaignController.exportContacts);
+  app.get("/api/campaigns/:id/contacts", campaignController.listContacts);
+  app.get("/api/campaigns/:id/metrics", campaignController.metrics);
 
   app.get("/api/integrations/overview", integrationsController.overview);
   app.get("/api/integrations/settings", integrationsController.getGlobalSettings);
