@@ -146,6 +146,10 @@ enum BotLearningSuggestionType {
   CLARIFICATION
   KNOWLEDGE
   ENTITY_PATTERN
+  // Item 16 (Aprendizado Supervisionado x Flow Engine): conversa em que o
+  // fluxo terminou em HANDOFF_HUMAN (não resolvido) — sugere revisão manual
+  // da etapa/conhecimento, nunca altera o fluxo sozinho.
+  FLOW_REVIEW
 }
 
 enum BotLearningSuggestionStatus {
@@ -689,6 +693,14 @@ model BotObservation {
   // mode === "OBSERVATION" — ver bot-tool-orchestrator-service.js.
   toolName                String?
   toolResult              Json?
+  // Item 19 (Observação): rastro do que o motor teria usado/decidido sem
+  // executar nada de verdade — mesma regra de "nunca inventar" das outras
+  // colunas acima, só que para conhecimento e IA externa.
+  knowledgeSourceId       String?
+  knowledgeSourceTitle    String?
+  calledExternalAi        Boolean                @default(false)
+  flowStepId              String?
+  flowResolutionStatus    String?
   provider                String?
   mode                    String                 @default("OBSERVATION")
   status                  String                 @default("OK")
@@ -754,6 +766,15 @@ model ConversationBotState {
   flowFailedSteps        Json?
   flowStepAttempts       Json?
   flowResolutionStatus   FlowResolutionStatus?
+  // Item "ESTADO DA CONVERSA" (fase de contexto/conhecimento/Tools):
+  // `pendingQuestion` guarda o texto exato da pergunta aguardando resposta
+  // (a mesma etapa ASK_QUESTION já identificada por currentFlowStepId — só
+  // evita uma consulta extra para exibir/auditar a pergunta em aberto).
+  // `lastBotAction` é a última ação decidida pelo motor (RESPOND,
+  // ASK_CLARIFICATION, QUERY_TOOL, HANDOFF_HUMAN...), fora ou dentro de um
+  // fluxo — nunca usado para decidir nada sozinho, só auditoria/depuração.
+  pendingQuestion        String?               @db.Text
+  lastBotAction          String?
 
   updatedAt DateTime @updatedAt
   createdAt DateTime @default(now())
@@ -810,6 +831,24 @@ model BotLearningSuggestion {
   @@index([status, createdAt])
   @@index([botId, status])
   @@index([type, status])
+}
+
+// Item 15 (Custo/uso de IA externa): um registro por chamada REAL a um
+// provider externo (nunca para o provider local, nunca para o simulador —
+// ver bot-ai-usage-service.js). Sem relação FK para Bot de propósito (mesmo
+// padrão solto de BotObservation.knowledgeSourceId): só estatística, nunca
+// trava a inserção se o Bot for removido depois.
+model BotAiUsage {
+  id           String   @id @default(cuid())
+  botId        String?
+  provider     String
+  reason       String
+  inputTokens  Int?
+  outputTokens Int?
+  createdAt    DateTime @default(now())
+
+  @@index([botId, createdAt])
+  @@index([provider, createdAt])
 }
 
 // Snapshot completo do Bot (campos + intenções + horários + featureFlags) em

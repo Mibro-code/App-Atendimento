@@ -5,6 +5,9 @@ const CONTEXT_MESSAGE_LIMIT = 10;
 const MAX_FAILED_INTERPRETATIONS = 3;
 const DEFAULT_HIGH_CONFIDENCE_THRESHOLD = 0.8;
 const DEFAULT_LOW_CONFIDENCE_THRESHOLD = 0.55;
+// Item 13: abaixo desta confiança (do provider LOCAL), com
+// externalAiFallbackEnabled=true, o motor pode tentar um provider externo.
+const DEFAULT_EXTERNAL_AI_THRESHOLD = 0.7;
 
 const BOT_ACTIONS = Object.freeze([
   "RESPOND",
@@ -62,12 +65,14 @@ const LEARNING_SIMILARITY_CONTENT_THRESHOLD = 0.6;
 
 const RESOLUTION_POSITIVE_PATTERNS = [
   /\bfuncionou\b/, /\bdeu certo\b/, /\bresolveu\b/, /\bagora foi\b/, /\bagora funcionou\b/, /\bconsegui\b/,
+  /\bperfeito\b/, /\bvoltou ao normal\b/,
 ];
 // "nao funcionou" precisa vir nos padrões NEGATIVOS — sem isso, a checagem
 // positiva (\bfuncionou\b) casa com a palavra dentro da negação e o Flow
 // Engine (bot-flow-service.js) entenderia "não funcionou" como sucesso.
 const RESOLUTION_NEGATIVE_PATTERNS = [
   /\bnao funcionou\b/, /\bnao resolveu\b/, /\bcontinua igual\b/, /\bnao deu certo\b/, /\bainda nao\b/, /\bpiorou\b/,
+  /\bsegue com problema\b/,
 ];
 
 // Ordem de prioridade da decisão (bot-decision-service.js) — centralizada
@@ -114,6 +119,17 @@ const FEATURE_FLAG_DEFAULTS = Object.freeze({
   // Desligado, uma intenção com etapas cadastradas volta a responder uma
   // única vez (responseMessage/toolName/Base de Conhecimento), como antes.
   flowEngineEnabled: true,
+  // Item 4 (resolução não finaliza tudo automaticamente): RESOLVED do Flow
+  // Engine sempre responde (ex.: "Precisa de ajuda com mais alguma coisa?"),
+  // mas só FINALIZA a Conversation de verdade quando este flag está ON.
+  // Default OFF = comportamento atual (nunca finaliza sozinho).
+  autoFinalizeOnResolution: false,
+  // Item 12/13 (IA externa como fallback): desligado por padrão — o motor
+  // nunca chama um provider externo em nenhuma mensagem até um Master ligar
+  // isto explicitamente por Bot. Ligado, só é chamado quando a confiança
+  // local ficar abaixo de externalAiThreshold (ou não reconhecer nada).
+  externalAiFallbackEnabled: false,
+  externalAiThreshold: DEFAULT_EXTERNAL_AI_THRESHOLD,
   contextMaxMessages: CONTEXT_MESSAGE_LIMIT,
   contextExpirationMinutes: 120,
   maxSwitchesPerWindow: 3,
@@ -123,12 +139,18 @@ const BOOLEAN_FEATURE_FLAG_KEYS = Object.freeze([
   "interpretationEnabled", "conversationalBehaviorEnabled", "contextEnabled", "autoSwitchEnabled",
   "observationEnabled", "learningEnabled", "knowledgeSuggestionsEnabled", "knowledgeBaseEnabled",
   "handoffAutoPauseEnabled", "handoffEnabled", "toolsFeatureEnabled", "flowEngineEnabled",
+  "autoFinalizeOnResolution", "externalAiFallbackEnabled",
 ]);
 const NUMERIC_FEATURE_FLAG_RANGES = Object.freeze({
   contextMaxMessages: { min: 1, max: 30 },
   contextExpirationMinutes: { min: 5, max: 1440 },
   maxSwitchesPerWindow: { min: 1, max: 20 },
   switchWindowMinutes: { min: 1, max: 180 },
+});
+// Item 13: faixas de ponto flutuante (0-1) — separadas de
+// NUMERIC_FEATURE_FLAG_RANGES porque aquele valida com Number.isInteger.
+const FLOAT_FEATURE_FLAG_RANGES = Object.freeze({
+  externalAiThreshold: { min: 0, max: 1 },
 });
 
 const RATING_REQUEST_MODES = Object.freeze(["BOT_COMPLETED", "BEFORE_HANDOFF", "MANUAL", "NEVER"]);
@@ -162,10 +184,12 @@ module.exports = {
   CONFIRMATION_PATTERN,
   CONTEXT_MESSAGE_LIMIT,
   DECISION_PRIORITY_ORDER,
+  DEFAULT_EXTERNAL_AI_THRESHOLD,
   DEFAULT_HIGH_CONFIDENCE_THRESHOLD,
   DEFAULT_LOW_CONFIDENCE_THRESHOLD,
   DEFAULT_PRESENTATION_MESSAGE,
   FEATURE_FLAG_DEFAULTS,
+  FLOAT_FEATURE_FLAG_RANGES,
   GOODBYE_PATTERNS,
   GREETING_PHRASES,
   HUMAN_HANDOFF_PATTERNS,

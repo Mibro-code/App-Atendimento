@@ -27,6 +27,9 @@ async function persistDecision({ conversationId, bot, interpretation, decision, 
     failedInterpretations,
     pendingClarification: decision.needsClarification || false,
     extractedEntities: interpretation.entities || {},
+    // Item 1 (estado da conversa): última ação decidida pelo motor, dentro
+    // ou fora de um fluxo — só auditoria/depuração, nunca decide nada sozinha.
+    lastBotAction: decision.action || null,
     ...operational,
     ...(flow ? {
       activeFlowIntentId: flow.intentId,
@@ -37,6 +40,7 @@ async function persistDecision({ conversationId, bot, interpretation, decision, 
       flowFailedSteps: flow.failedSteps,
       flowStepAttempts: flow.stepAttempts,
       flowResolutionStatus: flow.resolutionStatus,
+      pendingQuestion: flow.pendingQuestion ?? null,
     } : {}),
   };
   return client.conversationBotState.upsert({

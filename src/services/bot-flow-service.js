@@ -257,7 +257,10 @@ function cloneFlowState(state, intentId) {
   };
 }
 
-function toFlowPersist(flowState, currentStepId, resolutionStatus) {
+// Item 1 (estado da conversa): `pendingQuestion` guarda o texto exato da
+// pergunta em aberto (nulo quando o fluxo não está esperando resposta) —
+// evita uma consulta extra só para exibir/auditar a pergunta pendente.
+function toFlowPersist(flowState, currentStepId, resolutionStatus, pendingQuestion = null) {
   return {
     intentId: flowState.intentId,
     currentStepId: currentStepId || null,
@@ -267,11 +270,14 @@ function toFlowPersist(flowState, currentStepId, resolutionStatus) {
     failedSteps: flowState.failedSteps,
     stepAttempts: flowState.stepAttempts,
     resolutionStatus,
+    pendingQuestion,
   };
 }
 
-function recordAttempt(flowState, step, outcome) {
-  flowState.attemptedSolutions.push({ stepId: step.id, name: step.name, action: step.action, outcome, at: new Date().toISOString() });
+function recordAttempt(flowState, step, outcome, meta = {}) {
+  flowState.attemptedSolutions.push({
+    stepId: step.id, name: step.name, action: step.action, outcome, at: new Date().toISOString(), ...meta,
+  });
   if (outcome === "FAILURE" && !flowState.failedSteps.includes(step.id)) flowState.failedSteps.push(step.id);
 }
 
@@ -301,28 +307,37 @@ function evaluateAskQuestionAnswer(step, message, flowState) {
   return attempts >= maxAttempts ? "MAX_ATTEMPTS" : "RETRY";
 }
 
-async function resolveStepKnowledgeText({ step, bot, intent, client }) {
+// Retorna { text, knowledgeSourceId, knowledgeSourceTitle, knowledgeSourceVersion, conflict }
+// nunca uma string solta — item 7 (auditoria: qual conhecimento foi usado) e
+// item 6 (conflito nunca é resolvido escolhendo "no escuro").
+async function resolveStepKnowledgeText({ step, bot, intent, flowState, client }) {
   if (step.knowledgeSourceId) {
     const row = await client.knowledgeSource.findFirst({
       where: { id: step.knowledgeSourceId, active: true, ...knowledgeAccessWhere(bot.id) },
     });
-    if (row && isActiveNow(row)) return row.content || null;
-    return null;
+    if (row && isActiveNow(row)) {
+      return { text: row.content || null, knowledgeSourceId: row.id, knowledgeSourceTitle: row.title, knowledgeSourceVersion: row.version };
+    }
+    return { text: null };
   }
   try {
     // Sem trecho de busca natural aqui (a etapa decide sozinha buscar
     // conhecimento, não é uma resposta livre do cliente) — string vazia usa
-    // o score padrão do provider e deixa o filtro por intentId (mais preciso
-    // neste contexto) decidir a relevância, em vez de comparar contra a
-    // última resposta curta do cliente ("sim"/"não"/etc.).
+    // o score padrão do provider e deixa o filtro por intentId/produto (mais
+    // preciso neste contexto) decidir a relevância, em vez de comparar
+    // contra a última resposta curta do cliente ("sim"/"não"/etc.).
     const results = await defaultKnowledgeProvider.search("", {
       botId: bot.id, intentId: intent.id, globalIntentId: intent.globalIntentId || null,
+      product: flowState?.collectedEntities?.productName || flowState?.collectedEntities?.product || null,
     });
-    return results[0]?.content || null;
+    if (results.conflict) return { text: null, conflict: true };
+    const best = results[0];
+    if (!best) return { text: null };
+    return { text: best.content || null, knowledgeSourceId: best.id, knowledgeSourceTitle: best.title, knowledgeSourceVersion: best.version };
   } catch (error) {
     // Nunca derruba o fluxo por falha na busca — degrada para "sem conteúdo".
     console.error("[BOT_FLOW] falha ao buscar conhecimento da etapa (ignorada)", error.message);
-    return null;
+    return { text: null };
   }
 }
 
@@ -381,15 +396,20 @@ async function runChain({ bot, intent, stepMap, startStepId, flowState, channel,
         responseText: responses.join("\n\n"),
         terminal: null,
         summary: `Aguardando resposta da etapa "${step.name}".`,
-        flow: toFlowPersist(flowState, step.id, "IN_PROGRESS"),
+        flow: toFlowPersist(flowState, step.id, "IN_PROGRESS", step.question || step.name),
       };
     }
 
     if (step.action === "USE_KNOWLEDGE") {
-      const text = await resolveStepKnowledgeText({ step, bot, intent, client });
-      recordAttempt(flowState, step, text ? "SUCCESS" : "FAILURE");
-      if (text) responses.push(text);
-      stepId = resolveNextStepId(step, text ? "SUCCESS" : "FAILURE");
+      const knowledge = await resolveStepKnowledgeText({ step, bot, intent, flowState, client });
+      recordAttempt(flowState, step, knowledge.text ? "SUCCESS" : "FAILURE", {
+        knowledgeSourceId: knowledge.knowledgeSourceId || null,
+        knowledgeSourceTitle: knowledge.knowledgeSourceTitle || null,
+        knowledgeSourceVersion: knowledge.knowledgeSourceVersion || null,
+        knowledgeConflict: Boolean(knowledge.conflict),
+      });
+      if (knowledge.text) responses.push(knowledge.text);
+      stepId = resolveNextStepId(step, knowledge.text ? "SUCCESS" : "FAILURE");
       continue;
     }
 
@@ -493,7 +513,7 @@ async function continueFlow({ bot, intent, message, state, channel, mode, client
       responseText: currentStep.question || currentStep.name,
       terminal: null,
       summary: `Resposta não compreendida na etapa "${currentStep.name}"; repetindo a pergunta.`,
-      flow: toFlowPersist(flowState, currentStep.id, "IN_PROGRESS"),
+      flow: toFlowPersist(flowState, currentStep.id, "IN_PROGRESS", currentStep.question || currentStep.name),
     };
   }
 
@@ -512,8 +532,17 @@ async function continueFlow({ bot, intent, message, state, channel, mode, client
   return runChain({ bot, intent, stepMap, startStepId: nextStepId, flowState, channel, mode, client, message });
 }
 
+// Item 2 (expiração de contexto): estado "vazio" para limpar os campos flow*
+// de uma conversa cuja sessão expirou — nunca reaproveitar uma etapa/
+// intenção antiga como se fosse a atual (bot-orchestrator-service.js chama
+// isto quando a sessão expira e nenhum fluxo novo começou neste turno).
+function resetFlowPersist() {
+  return toFlowPersist(emptyFlowState(null), null, null, null);
+}
+
 module.exports = {
   FLOW_STEP_ACTIONS,
+  resetFlowPersist,
   listFlowSteps,
   getActiveOrderedSteps,
   hasActiveFlow,

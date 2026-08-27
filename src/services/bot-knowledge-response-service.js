@@ -30,6 +30,11 @@ async function resolveKnowledgeResponse({ bot, decision, interpretation, message
   try {
     results = await provider.search(message, {
       botId: bot.id, intentId: interpretation.intentId, globalIntentId: intent?.globalIntentId || null,
+      // Item 5: prioriza o produto/modelo já coletado na conversa (entidade
+      // "productName", a mesma extraída/coletada em qualquer etapa do Flow
+      // Engine) — "GS Pro 2 não conecta" deve priorizar "Pareamento GS Pro 2"
+      // sobre um artigo genérico de conexão.
+      product: interpretation.entities?.productName || null,
     });
   } catch (error) {
     // Busca de conhecimento nunca pode derrubar a resposta — degrada para
@@ -39,12 +44,20 @@ async function resolveKnowledgeResponse({ bot, decision, interpretation, message
   }
   if (!results.length) return decision;
 
+  // Item 6 (conflito): nunca escolher "no escuro" entre duas fontes válidas
+  // e igualmente específicas — a decisão volta inalterada (resposta segura
+  // configurada da intenção/fallback), sinalizando o conflito para auditoria.
+  if (results.conflict) {
+    return { ...decision, knowledgeConflict: true };
+  }
+
   const best = results[0];
   return {
     ...decision,
     knowledgeResponseText: best.content || null,
     knowledgeSourceId: best.id,
     knowledgeSourceTitle: best.title,
+    knowledgeSourceVersion: best.version,
   };
 }
 

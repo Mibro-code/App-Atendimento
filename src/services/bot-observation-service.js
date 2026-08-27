@@ -46,6 +46,10 @@ async function observeIncomingMessage(event, message, { now = new Date() } = {})
       category: result.categoryName,
       provider: result.provider,
       status: result.status,
+      toolName: result.toolName || null,
+      knowledgeSourceId: result.knowledgeSourceId || null,
+      calledExternalAi: Boolean(result.calledExternalAi),
+      flowResolutionStatus: result.flowResolutionStatus || null,
     }));
 
     const suggestedQuickReply = await suggestQuickReplySafely(result.intentId);
@@ -68,6 +72,12 @@ async function observeIncomingMessage(event, message, { now = new Date() } = {})
         confidence: result.confidence,
         action: result.action,
         extractedEntities: result.extractedEntities || {},
+        toolName: result.toolName || null,
+        knowledgeSourceId: result.knowledgeSourceId || null,
+        knowledgeSourceTitle: result.knowledgeSourceTitle || null,
+        calledExternalAi: Boolean(result.calledExternalAi),
+        flowStepId: result.flowStepId || null,
+        flowResolutionStatus: result.flowResolutionStatus || null,
         provider: result.provider,
         mode: "OBSERVATION",
         status: result.status,

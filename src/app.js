@@ -402,6 +402,11 @@ app.post(
   // Tools (itens 5-7): listagem só de leitura.
   app.get("/api/bot-tools", botController.listTools);
 
+  // Motor de IA / Fallback externo (itens 12-15).
+  app.get("/api/bot-ai-provider-status", botController.aiProviderStatus);
+  app.post("/api/bot-ai-provider-status/test", botController.testAiProvider);
+  app.get("/api/bot-ai-usage", botController.aiUsageSummary);
+
   app.get("/api/integrations/overview", integrationsController.overview);
   app.get("/api/integrations/settings", integrationsController.getGlobalSettings);
   app.patch("/api/integrations/settings", integrationsController.setGlobalSettings);
