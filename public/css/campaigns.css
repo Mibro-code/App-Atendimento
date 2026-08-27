@@ -4,3 +4,7 @@
 .editor-actions input[type=datetime-local]{height:36px;padding:0 9px;border:1px solid var(--line);border-radius:8px;color:var(--ink);background:var(--surface);font-size:9px}
 .modal{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;background:#0007;padding:16px}
 .modal-content{width:100%;max-width:560px;max-height:86vh;overflow:auto}
+.campaign-template-row{display:flex;gap:8px;align-items:center}
+.campaign-template-row select{flex:1}
+.campaign-template-row button{padding:8px 12px;border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--ink);font-size:9px;font-weight:800;cursor:pointer;white-space:nowrap}
+.campaign-template-row button:hover{border-color:var(--orange,#ef5b2a);color:var(--orange,#ef5b2a)}
