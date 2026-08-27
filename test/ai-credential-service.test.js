@@ -54,7 +54,7 @@ test("salvar chave: nunca em texto puro no banco, só os últimos 4 caracteres e
   await cleanup();
   await withEncryptionKey(async () => {
     const key = "AIzaSySECRETVALUE7890abcd";
-    const saved = await credentials.saveCredential("GEMINI", { apiKey: key, defaultModel: "gemini-2.0-flash" }, admin);
+    const saved = await credentials.saveCredential("GEMINI", { apiKey: key, defaultModel: "gemini-3.6-flash" }, admin);
     assert.equal(saved.lastFour, "abcd");
     assert.equal(saved.configured, true);
 
@@ -62,7 +62,7 @@ test("salvar chave: nunca em texto puro no banco, só os últimos 4 caracteres e
     assert.ok(row.encryptedKey instanceof Uint8Array && row.encryptedKey.length > 0);
     assert.doesNotMatch(Buffer.from(row.encryptedKey).toString("utf8"), /AIzaSySECRETVALUE/, "a chave nunca deveria ficar legível no valor bruto salvo");
     assert.equal(row.lastFour, "abcd");
-    assert.equal(row.defaultModel, "gemini-2.0-flash");
+    assert.equal(row.defaultModel, "gemini-3.6-flash");
   });
 });
 

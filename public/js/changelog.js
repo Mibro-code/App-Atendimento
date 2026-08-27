@@ -1,7 +1,21 @@
 (() => {
-  const APP_VERSION = "0.23.0";
+  const APP_VERSION = "0.24.0";
 
   const CHANGELOG = [
+    {
+      version: "0.24.0",
+      date: "27/08/2026",
+      title: "Providers e cofre de chaves de IA",
+      changes: [
+        "Adiciona Google Gemini e OpenAI ao motor de interpretação, mantendo Anthropic e o processamento local já existentes.",
+        "Permite escolher, em cada Bot, o provider e o modelo usados quando o fallback externo estiver habilitado.",
+        "Inclui a aba Chaves de IA para uma conta Master cadastrar, substituir, remover e testar credenciais globais sem editar a VPS.",
+        "Protege as credenciais no banco com AES-256-GCM e uma chave mestra exclusiva; o painel e a auditoria nunca recebem a chave completa.",
+        "Aplica imediatamente uma troca de credencial, sem cache e sem reiniciar o servidor; variáveis de ambiente continuam disponíveis como compatibilidade.",
+        "Mantém a IA externa desligada por padrão em cada Bot e usa o motor local quando não houver credencial ou ocorrer falha no provider.",
+        "Atualiza o modelo padrão do Gemini para gemini-3.6-flash e preserva campanhas, Meta, atendimento humano e bot de triagem."
+      ]
+    },
     {
       version: "0.23.0",
       date: "27/08/2026",
