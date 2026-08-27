@@ -38,26 +38,41 @@ const providerClasses = {
 // credencial; sem nenhum dos dois, o provider usa seu próprio default.
 async function resolveInstance(name, modelOverride) {
   const ProviderClass = providerClasses[name];
-  if (!ProviderClass) return { provider: null, error: "Provider não implementado." };
+  if (!ProviderClass) return { provider: null, error: "Provider não implementado.", reason: "NOT_IMPLEMENTED" };
   const credential = await resolveCredential(name);
-  if (!credential.apiKey) return { provider: null, error: "Provider não configurado." };
+  if (!credential.apiKey) {
+    // Diferencia "nunca configurado" de "configurado, mas a chave mestra
+    // (AI_SECRETS_ENCRYPTION_KEY) não decifra mais a credencial salva" —
+    // dois problemas com correções bem diferentes para um Master, nenhum
+    // pode ficar escondido atrás de um genérico "não configurado".
+    if (credential.source === "ERROR") {
+      return {
+        provider: null,
+        error: "Credencial salva no painel não pôde ser decifrada (verifique AI_SECRETS_ENCRYPTION_KEY).",
+        reason: "DECRYPT_ERROR",
+      };
+    }
+    return { provider: null, error: "Provider não configurado.", reason: "NOT_CONFIGURED" };
+  }
   try {
     const options = { apiKey: credential.apiKey };
     const model = modelOverride || credential.model;
     if (model) options.model = model;
-    return { provider: new ProviderClass(options), error: null };
+    return { provider: new ProviderClass(options), error: null, reason: null };
   } catch (error) {
-    return { provider: null, error: error.message };
+    return { provider: null, error: error.message, reason: "INIT_ERROR" };
   }
 }
 
 // `providerName` vem de Bot.featureFlags.externalAiProvider. Sem credencial
 // configurada para o provider escolhido (painel ou env), ou provider
 // desconhecido, cai para o provider local — nunca quebra a aplicação.
+// `reason` (NOT_CONFIGURED/DECRYPT_ERROR/NOT_IMPLEMENTED/INIT_ERROR) viaja
+// junto para quem chama poder mostrar o motivo real, nunca só "LOCAL_FALLBACK".
 async function getPrimaryProvider(providerName, modelOverride) {
   const entry = await resolveInstance(providerName, modelOverride);
   if (entry.provider) return { provider: entry.provider, name: providerName };
-  return { provider: localFallbackProvider, name: "LOCAL_FALLBACK" };
+  return { provider: localFallbackProvider, name: "LOCAL_FALLBACK", reason: entry.reason, error: entry.error };
 }
 
 function getFallbackProvider() {

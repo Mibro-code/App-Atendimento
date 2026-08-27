@@ -115,6 +115,16 @@ function toStandardResult({ bot, targetBot, interpretation, decision, responseTe
     knowledgeSourceTitle: decision.knowledgeSourceTitle || null,
     knowledgeConflict: Boolean(decision.knowledgeConflict),
     calledExternalAi: Boolean(interpretation.calledExternalAi),
+    // Item "não mascarar erro do Gemini como LOCAL_FALLBACK": diagnóstico
+    // completo da tentativa de IA externa, sempre presente — quem exibe
+    // (simulador, observação) decide como resumir isso, mas a informação
+    // nunca é descartada aqui.
+    externalAiAttempted: Boolean(interpretation.externalAiAttempted),
+    externalAiProvider: interpretation.externalAiProvider ?? null,
+    externalAiSucceeded: interpretation.externalAiSucceeded ?? null,
+    externalAiErrorCode: interpretation.externalAiErrorCode ?? null,
+    externalAiErrorMessage: interpretation.externalAiErrorMessage ?? null,
+    externalAiSkippedReason: interpretation.externalAiSkippedReason ?? null,
     ...extras,
   };
 }

@@ -655,6 +655,34 @@ function entitiesSummary(entities) {
   return entries.map(([key, value]) => `${key}: ${value}`).join(", ");
 }
 
+// Nunca mascara uma falha real do provider externo como se fosse só
+// "LOCAL_FALLBACK" — sempre diz claramente um dos três estados: IA externa
+// não necessária/desligada/não configurada, IA externa usada com sucesso,
+// ou IA externa tentada e FALHOU (com o motivo já sanitizado pelo backend
+// — nunca a chave), caindo então para o motor local.
+const externalAiSkippedLabels = {
+  NOT_APPLICABLE: "IA externa não necessária (contexto/mensagem vazia).",
+  DISABLED: "IA externa não necessária ('IA externa como fallback' está desligada para este Bot).",
+  NOT_NEEDED: "IA externa não necessária (confiança local já suficiente).",
+  NOT_CONFIGURED: "IA externa não chamada: provider selecionado sem credencial configurada.",
+  DECRYPT_ERROR: "IA externa não chamada: a credencial salva no painel não pôde ser decifrada (verifique a chave mestra AI_SECRETS_ENCRYPTION_KEY no ambiente).",
+};
+function externalAiStatusInfo(result) {
+  const providerLabel = (name) => providerLabels[name] || name || "-";
+  if (result.externalAiAttempted) {
+    if (result.externalAiSucceeded) {
+      return { text: `${providerLabel(result.externalAiProvider)} usado com sucesso.`, tone: "ok" };
+    }
+    const reason = result.externalAiErrorMessage || result.externalAiErrorCode || "motivo não informado";
+    return {
+      text: `${providerLabel(result.externalAiProvider)} FALHOU (${reason}) — usando o motor local (LOCAL_FALLBACK).`,
+      tone: "error",
+    };
+  }
+  const tone = result.externalAiSkippedReason === "DECRYPT_ERROR" ? "error" : "neutral";
+  return { text: externalAiSkippedLabels[result.externalAiSkippedReason] || "IA externa não necessária.", tone };
+}
+
 $("#simulator-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const message = $("#simulator-message").value;
@@ -670,6 +698,7 @@ $("#simulator-form").addEventListener("submit", async (event) => {
     renderSimulatorTranscript();
     $("#simulator-message").value = "";
 
+    const externalAiInfo = externalAiStatusInfo(result);
     $("#simulator-result").innerHTML = `<b>${escapeHtml(result.response || "Sem resposta automática")}</b><div class="result-grid">
       <span>Bot<strong>${escapeHtml(result.botName || "-")}</strong></span>
       <span>Intenção<strong>${escapeHtml(result.intentName || "Nenhuma")}</strong></span>
@@ -679,9 +708,10 @@ $("#simulator-form").addEventListener("submit", async (event) => {
       <span>Entidades<strong>${escapeHtml(entitiesSummary(result.extractedEntities))}</strong></span>
       <span>Tool<strong>${escapeHtml(result.toolName || "Nenhuma")}</strong></span>
       <span>Conhecimento<strong>${escapeHtml(result.knowledgeSourceTitle || "Nenhum")}</strong></span>
-      <span>IA externa<strong>${result.calledExternalAi ? "Chamada" : "Não chamada"}</strong></span>
-      <span>Provider<strong>${escapeHtml(result.provider || "-")}</strong></span>
-    </div><p>${escapeHtml(result.warning)}</p>`;
+      <span>Resultado final vindo de<strong>${escapeHtml(result.provider || "-")}</strong></span>
+    </div>
+    <p class="simulator-external-ai simulator-external-ai-${externalAiInfo.tone}"><b>IA externa:</b> ${escapeHtml(externalAiInfo.text)}</p>
+    <p>${escapeHtml(result.warning)}</p>`;
     await renderSimulatorFlowInfo(result.nextState);
   } catch (error) { toast(error.message, true); }
 });

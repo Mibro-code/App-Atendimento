@@ -75,12 +75,16 @@ async function interpretWithProviders({ bot, message, context = [], state = null
   let errorCode = null;
   let providerAttempted = null;
 
+  let errorMessage = null;
   try {
     providerAttempted = primary.name;
     result = await runProvider(primary, { bot, message, context });
   } catch (error) {
     status = "PROVIDER_ERROR";
     errorCode = error.code || "PROVIDER_REQUEST_FAILED";
+    // Mensagem já sanitizada pelo provider (ex.: gemini-provider.js:mapGeminiError)
+    // — nunca contém a chave, só uma descrição segura da falha.
+    errorMessage = error.message || null;
   }
 
   if ((!result || status === "PROVIDER_ERROR") && primary.name !== fallback.name) {
@@ -102,7 +106,7 @@ async function interpretWithProviders({ bot, message, context = [], state = null
     return {
       intentId: null, intentName: null, confidence: 0, matchedExample: null,
       entities: localEntities, provider: status === "PROVIDER_ERROR" ? fallback.name : primary.name,
-      status, errorCode, socialBehavior, greetingReply, providerAttempted,
+      status, errorCode, errorMessage, socialBehavior, greetingReply, providerAttempted,
     };
   }
 
@@ -137,30 +141,76 @@ async function interpretWithProviders({ bot, message, context = [], state = null
 //     tenta o externo).
 // Nunca troca um resultado local válido por um resultado externo pior: só
 // substitui quando o provider externo realmente classificou algo.
+// Diagnóstico da IA externa (nunca mascarar um erro real do provider como
+// se fosse simplesmente "LOCAL_FALLBACK"): sempre presente no retorno,
+// dizendo com clareza se a IA externa nem era necessária, se foi chamada e
+// funcionou, ou se foi chamada e falhou (com o motivo já sanitizado pelo
+// próprio provider — nunca a chave). `skippedReason` só é preenchido
+// quando `attempted` é false.
+function externalAiDiagnostics({ attempted, providerName = null, succeeded = null, errorCode = null, errorMessage = null, skippedReason = null }) {
+  return {
+    externalAiAttempted: attempted,
+    externalAiProvider: providerName,
+    externalAiSucceeded: succeeded,
+    externalAiErrorCode: errorCode,
+    externalAiErrorMessage: errorMessage,
+    externalAiSkippedReason: attempted ? null : skippedReason,
+  };
+}
+
 async function interpret({ bot, message, context = [], state = null, flags = {} }) {
   const local = getFallbackProvider();
   const localResult = await interpretWithProviders({ bot, message, context, state, primary: local, fallback: local });
 
   if (localResult.provider === "CONTEXT_CARRYOVER" || localResult.status === "EMPTY_MESSAGE") {
-    return { ...localResult, calledExternalAi: false };
+    return { ...localResult, calledExternalAi: false, ...externalAiDiagnostics({ attempted: false, skippedReason: "NOT_APPLICABLE" }) };
   }
 
   const threshold = Number.isFinite(flags.externalAiThreshold) ? flags.externalAiThreshold : DEFAULT_EXTERNAL_AI_THRESHOLD;
-  const shouldTryExternal = flags.externalAiFallbackEnabled === true
-    && (!localResult.intentId || localResult.confidence < threshold);
-  if (!shouldTryExternal) return { ...localResult, calledExternalAi: false };
+  if (flags.externalAiFallbackEnabled !== true) {
+    return { ...localResult, calledExternalAi: false, ...externalAiDiagnostics({ attempted: false, skippedReason: "DISABLED" }) };
+  }
+  const shouldTryExternal = !localResult.intentId || localResult.confidence < threshold;
+  if (!shouldTryExternal) {
+    return { ...localResult, calledExternalAi: false, ...externalAiDiagnostics({ attempted: false, skippedReason: "NOT_NEEDED" }) };
+  }
 
   const external = await getPrimaryProvider(flags.externalAiProvider, flags.externalAiModel || undefined);
-  if (external.name === "LOCAL_FALLBACK") return { ...localResult, calledExternalAi: false };
+  if (external.name === "LOCAL_FALLBACK") {
+    // `external.reason` distingue "nunca configurado" de "credencial salva
+    // mas a chave mestra não decifra mais" (get-ai-provider.js) — nunca
+    // colapsar os dois em "não configurado" genérico.
+    return {
+      ...localResult, calledExternalAi: false,
+      ...externalAiDiagnostics({
+        attempted: false, providerName: flags.externalAiProvider || null,
+        skippedReason: external.reason === "DECRYPT_ERROR" ? "DECRYPT_ERROR" : "NOT_CONFIGURED",
+        errorMessage: external.reason === "DECRYPT_ERROR" ? external.error : null,
+      }),
+    };
+  }
 
   const aiOutcome = await interpretWithProviders({ bot, message, context, state, primary: external, fallback: local });
   if (aiOutcome.provider === external.name && aiOutcome.intentId) {
-    return { ...aiOutcome, calledExternalAi: true, aiUsage: aiOutcome.usage || null };
+    return {
+      ...aiOutcome, calledExternalAi: true, aiUsage: aiOutcome.usage || null,
+      ...externalAiDiagnostics({ attempted: true, providerName: external.name, succeeded: true }),
+    };
   }
-  // A tentativa externa não confirmou nada de novo (erro, timeout ou "não
-  // sei") — mantém o resultado local em vez de piorar a resposta, mas marca
-  // que a chamada externa realmente aconteceu (item 15: métrica de uso).
-  return { ...localResult, calledExternalAi: aiOutcome.providerAttempted === external.name };
+  // A tentativa externa não confirmou nada de novo (erro, timeout, quota
+  // excedida, credencial inválida ou "não sei") — mantém o resultado local
+  // em vez de piorar a resposta, mas NUNCA esconde o que de fato aconteceu:
+  // provider tentado, código/mensagem de erro (já sanitizados pelo próprio
+  // provider — ex.: gemini-provider.js:mapGeminiError) ficam sempre visíveis
+  // em externalAi*, mesmo quando o resultado final volta a ser local.
+  const attempted = aiOutcome.providerAttempted === external.name;
+  return {
+    ...localResult, calledExternalAi: attempted,
+    ...externalAiDiagnostics({
+      attempted, providerName: external.name, succeeded: attempted ? false : null,
+      errorCode: attempted ? aiOutcome.errorCode : null, errorMessage: attempted ? aiOutcome.errorMessage : null,
+    }),
+  };
 }
 
 module.exports = { interpret, interpretWithProviders };
