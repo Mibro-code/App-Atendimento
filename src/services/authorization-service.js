@@ -60,7 +60,18 @@ function canTransfer(user) {
   return isMaster(user) || Boolean(user?.canTransferConversations);
 }
 
+// Campanhas/prospecção (item 27): Admin e Supervisor por padrão; Atendente
+// só com o flag explícito canManageCampaigns.
+function canManageCampaigns(user) {
+  return isMaster(user) || user?.role === "SUPERVISOR" || Boolean(user?.canManageCampaigns);
+}
+
+function assertCanManageCampaigns(user) {
+  if (!canManageCampaigns(user)) throw forbidden("Você não tem permissão para gerenciar campanhas.");
+}
+
 module.exports = {
-  allowedCategoryIds, assertCanAccessContact, assertCanManageCategories, assertCanViewConversation,
-  assertMaster, canAccessCategory, canTransfer, conversationScope, forbidden, isMaster,
+  allowedCategoryIds, assertCanAccessContact, assertCanManageCampaigns, assertCanManageCategories,
+  assertCanViewConversation, assertMaster, canAccessCategory, canManageCampaigns, canTransfer,
+  conversationScope, forbidden, isMaster,
 };

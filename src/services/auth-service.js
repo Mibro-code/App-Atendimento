@@ -21,6 +21,9 @@ function publicUser(user) {
     canViewTeamActivity: user.role === "ADMIN" || user.canViewTeamActivity,
     canViewConversationHistory: user.role === "ADMIN" || user.canViewConversationHistory,
     canViewPreviousMessages: user.role === "ADMIN" || user.canViewPreviousMessages,
+    // Campanhas/prospecção (item 27): Admin e Supervisor têm acesso por
+    // padrão; um Atendente específico pode ganhar via canManageCampaigns.
+    canManageCampaigns: user.role === "ADMIN" || user.role === "SUPERVISOR" || user.canManageCampaigns,
   };
 }
 

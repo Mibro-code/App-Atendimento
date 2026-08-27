@@ -1,0 +1,6 @@
+.secondary-button{width:100%;margin:6px 10px 0;padding:9px;border:1px solid var(--line);border-radius:14px;color:var(--ink);background:var(--surface);font-size:8px;font-weight:900}
+.editor-actions button{padding:9px 13px;border:1px solid var(--line);border-radius:16px;color:var(--ink);background:var(--surface);font-size:8px;font-weight:900}
+.editor-actions button.danger{color:#fff;background:var(--danger);border-color:var(--danger)}
+.editor-actions input[type=datetime-local]{height:36px;padding:0 9px;border:1px solid var(--line);border-radius:8px;color:var(--ink);background:var(--surface);font-size:9px}
+.modal{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;background:#0007;padding:16px}
+.modal-content{width:100%;max-width:560px;max-height:86vh;overflow:auto}
