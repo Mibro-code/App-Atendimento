@@ -10,7 +10,8 @@ const authorization = require("./authorization-service");
 const audit = require("./audit-service");
 const {
   BOOLEAN_FEATURE_FLAG_KEYS, DEFAULT_PRESENTATION_MESSAGE, ENUM_FEATURE_FLAG_KEYS, FEATURE_FLAG_DEFAULTS,
-  FLOAT_FEATURE_FLAG_RANGES, NUMERIC_FEATURE_FLAG_RANGES, PRESENTATION_ALLOWED_VARS, RATING_REQUEST_MODES,
+  FLOAT_FEATURE_FLAG_RANGES, FREE_TEXT_FEATURE_FLAG_KEYS, NUMERIC_FEATURE_FLAG_RANGES, PRESENTATION_ALLOWED_VARS,
+  RATING_REQUEST_MODES,
 } = require("./bot-constants");
 
 function fail(message, statusCode = 400) {
@@ -69,6 +70,11 @@ function validateFeatureFlagsInput(input) {
     if (input[key] === undefined) continue;
     if (!allowed.includes(input[key])) throw fail(`"${key}" deve ser um dos valores: ${allowed.join(", ")}.`);
     result[key] = input[key];
+  }
+  for (const [key, { maxLength }] of Object.entries(FREE_TEXT_FEATURE_FLAG_KEYS)) {
+    if (input[key] === undefined) continue;
+    if (typeof input[key] !== "string") throw fail(`"${key}" deve ser um texto.`);
+    result[key] = input[key].trim().slice(0, maxLength);
   }
   return result;
 }

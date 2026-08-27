@@ -150,7 +150,7 @@ async function interpret({ bot, message, context = [], state = null, flags = {} 
     && (!localResult.intentId || localResult.confidence < threshold);
   if (!shouldTryExternal) return { ...localResult, calledExternalAi: false };
 
-  const external = getPrimaryProvider(flags.externalAiProvider);
+  const external = await getPrimaryProvider(flags.externalAiProvider, flags.externalAiModel || undefined);
   if (external.name === "LOCAL_FALLBACK") return { ...localResult, calledExternalAi: false };
 
   const aiOutcome = await interpretWithProviders({ bot, message, context, state, primary: external, fallback: local });

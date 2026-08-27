@@ -158,6 +158,7 @@ function fillBotForm(bot = null) {
     $(`#flag-${key}`).value = flags[key] ?? fallback;
   }
   $("#flag-externalAiProvider").value = flags.externalAiProvider || defaultExternalAiProvider;
+  $("#flag-externalAiModel").value = flags.externalAiModel || "";
 
   $("#rating-enabled").checked = Boolean(bot?.ratingEnabled);
   $("#rating-request-comment").checked = Boolean(bot?.requestRatingComment);
@@ -240,6 +241,79 @@ document.getElementById("test-ai-provider")?.addEventListener("click", async () 
   }
 });
 
+// ===== Cofre de credenciais de IA (aba "Chaves de IA", só Master) =====
+// Global: uma credencial por provider para toda a instalação — nunca
+// mostra a chave inteira, só os últimos 4 caracteres.
+async function loadAiKeys() {
+  const box = document.getElementById("ai-keys-list");
+  if (!box) return;
+  box.innerHTML = "<p>Carregando...</p>";
+  try {
+    const list = await api("/api/bot-ai-credentials");
+    box.innerHTML = list.map((item) => `
+      <article class="learning-card" data-ai-key-provider="${escapeHtml(item.provider)}">
+        <header>
+          <b>${escapeHtml(providerLabels[item.provider] || item.provider)}</b>
+          <span class="learning-type ${item.configured ? "" : "learning-conflict"}">${item.configured ? "Configurado" : "Não configurado"}</span>
+        </header>
+        <p class="learning-meta">
+          ${item.configured ? `Terminada em ••••${escapeHtml(item.lastFour || "")} · origem: ${escapeHtml(item.source === "PAINEL" ? "Painel" : "Variável de ambiente")}` : "Nenhuma chave cadastrada."}
+          ${item.defaultModel ? ` · modelo padrão: ${escapeHtml(item.defaultModel)}` : ""}
+          ${item.updatedBy ? ` · alterado por ${escapeHtml(item.updatedBy)} em ${new Date(item.updatedAt).toLocaleString("pt-BR")}` : ""}
+        </p>
+        <div class="learning-actions">
+          <input type="password" placeholder="Nova API Key" data-ai-key-input maxlength="4000" style="flex:1;min-width:180px">
+          <input type="text" placeholder="Modelo padrão (opcional)" data-ai-key-model maxlength="120" style="width:180px">
+          <button type="button" data-ai-key-save>Salvar / substituir</button>
+          ${item.source === "PAINEL" ? '<button type="button" class="secondary" data-ai-key-remove>Remover</button>' : ""}
+          <button type="button" class="secondary" data-ai-key-test>Testar conexão</button>
+        </div>
+      </article>
+    `).join("");
+
+    document.querySelectorAll("[data-ai-key-save]").forEach((button) => button.addEventListener("click", async () => {
+      const card = button.closest("[data-ai-key-provider]");
+      const provider = card.dataset.aiKeyProvider;
+      const apiKey = card.querySelector("[data-ai-key-input]").value;
+      const defaultModel = card.querySelector("[data-ai-key-model]").value;
+      if (!apiKey.trim()) { toast("Informe a API Key.", true); return; }
+      try {
+        await api(`/api/bot-ai-credentials/${encodeURIComponent(provider)}`, { method: "PUT", body: JSON.stringify({ apiKey, defaultModel: defaultModel || null }) });
+        toast("Chave salva.");
+        await loadAiKeys();
+      } catch (error) { toast(error.message, true); }
+    }));
+
+    document.querySelectorAll("[data-ai-key-remove]").forEach((button) => button.addEventListener("click", async () => {
+      const card = button.closest("[data-ai-key-provider]");
+      const provider = card.dataset.aiKeyProvider;
+      if (!window.confirm(`Remover a chave de API do ${provider}? Bots configurados para usá-lo deixarão de ter fallback externo até uma nova chave ser cadastrada.`)) return;
+      try {
+        await api(`/api/bot-ai-credentials/${encodeURIComponent(provider)}`, { method: "DELETE" });
+        toast("Chave removida.");
+        await loadAiKeys();
+      } catch (error) { toast(error.message, true); }
+    }));
+
+    document.querySelectorAll("[data-ai-key-test]").forEach((button) => button.addEventListener("click", async () => {
+      if (!window.confirm("Este teste fará uma chamada real e poderá gerar um pequeno custo no provider de IA. Deseja continuar?")) return;
+      const card = button.closest("[data-ai-key-provider]");
+      const provider = card.dataset.aiKeyProvider;
+      button.disabled = true;
+      try {
+        const result = await api("/api/bot-ai-provider-status/test", { method: "POST", body: JSON.stringify({ confirmRealCall: true, provider }) });
+        toast(result.ok ? `Conexão OK (${result.latencyMs}ms).` : `Falha: ${result.error}`, !result.ok);
+      } catch (error) {
+        toast(error.message, true);
+      } finally {
+        button.disabled = false;
+      }
+    }));
+  } catch (error) {
+    box.innerHTML = `<div class="intent-empty">Não foi possível carregar (${escapeHtml(error.message)}).</div>`;
+  }
+}
+
 async function loadBots(selectId = state.selected?.id) {
   state.bots = await api("/api/bots");
   renderBotList();
@@ -287,6 +361,7 @@ function botPayload() {
   for (const key of booleanFeatureFlags) featureFlags[key] = $(`#flag-${key}`).checked;
   for (const key of Object.keys(numericFeatureFlags)) featureFlags[key] = Number($(`#flag-${key}`).value);
   featureFlags.externalAiProvider = $("#flag-externalAiProvider").value || defaultExternalAiProvider;
+  featureFlags.externalAiModel = $("#flag-externalAiModel").value.trim();
   return {
     name: $("#bot-name").value,
     description: $("#bot-description").value,
@@ -925,6 +1000,7 @@ function setActiveTab(tab) {
   $("#performance-panel").hidden = tab !== "performance";
   $("#versions-panel").hidden = tab !== "versions";
   $("#ranking-panel").hidden = tab !== "ranking";
+  $("#ai-keys-panel").hidden = tab !== "ai-keys";
   if (tab === "config") {
     renderEditor();
     return;
@@ -944,6 +1020,8 @@ function setActiveTab(tab) {
     loadVersions();
   } else if (tab === "ranking") {
     loadRanking();
+  } else if (tab === "ai-keys") {
+    loadAiKeys();
   }
 }
 

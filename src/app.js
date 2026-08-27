@@ -445,6 +445,12 @@ app.post(
   app.post("/api/bot-ai-provider-status/test", botController.testAiProvider);
   app.get("/api/bot-ai-usage", botController.aiUsageSummary);
 
+  // Cofre de credenciais de IA (GEMINI/ANTHROPIC/OPENAI) — RBAC Admin-only
+  // dentro dos próprios services (ver ai-credential-service.js).
+  app.get("/api/bot-ai-credentials", botController.listAiCredentials);
+  app.put("/api/bot-ai-credentials/:provider", botController.saveAiCredential);
+  app.delete("/api/bot-ai-credentials/:provider", botController.removeAiCredential);
+
   // Campanhas / envio em massa (WhatsApp).
   app.get("/api/campaign-templates", campaignController.listTemplates);
   app.post("/api/campaign-templates/preview", campaignController.previewTemplate);

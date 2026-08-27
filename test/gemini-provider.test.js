@@ -132,21 +132,21 @@ test("mapGeminiError: erro genérico de servidor vira PROVIDER_REQUEST_FAILED", 
 
 // ===== get-ai-provider.js: seleção por Bot, status, testConnection =====
 
-test("getProviderStatus: LOCAL está sempre 'configurado'; provider desconhecido nunca quebra", () => {
-  assert.deepEqual(getProviderStatus("LOCAL"), { provider: "LOCAL", configured: true, error: null });
-  const unknown = getProviderStatus("OPENAI");
+test("getProviderStatus: LOCAL está sempre 'configurado'; provider desconhecido nunca quebra", async () => {
+  assert.deepEqual(await getProviderStatus("LOCAL"), { provider: "LOCAL", configured: true, error: null });
+  const unknown = await getProviderStatus("MISTRAL");
   assert.equal(unknown.configured, false);
   assert.match(unknown.error, /não implementado/);
 });
 
-test("getProviderStatus/getPrimaryProvider: GEMINI sem GEMINI_API_KEY nunca derruba a app, cai para local", () => {
+test("getProviderStatus/getPrimaryProvider: GEMINI sem credencial (painel ou env) nunca derruba a app, cai para local", async () => {
   const previous = process.env.GEMINI_API_KEY;
   delete process.env.GEMINI_API_KEY;
   try {
-    const status = getProviderStatus("GEMINI");
+    const status = await getProviderStatus("GEMINI");
     assert.equal(status.provider, "GEMINI");
     assert.equal(status.configured, false);
-    const { name } = getPrimaryProvider("GEMINI");
+    const { name } = await getPrimaryProvider("GEMINI");
     assert.equal(name, "LOCAL_FALLBACK");
   } finally {
     if (previous !== undefined) process.env.GEMINI_API_KEY = previous;
