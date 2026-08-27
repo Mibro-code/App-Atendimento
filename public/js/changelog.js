@@ -1,7 +1,21 @@
 (() => {
-  const APP_VERSION = "0.20.0";
+  const APP_VERSION = "0.21.0";
 
   const CHANGELOG = [
+    {
+      version: "0.21.0",
+      date: "27/08/2026",
+      title: "Contexto, conhecimento e fallback inteligente dos Bots",
+      changes: [
+        "Aprimora o contexto do Flow Engine, registra a pergunta pendente e impede que uma sessão expirada retome etapas antigas.",
+        "Prioriza conhecimentos específicos por produto e intenção e sinaliza conflitos entre fontes equivalentes, sem escolher uma resposta no escuro.",
+        "Amplia o simulador e as observações com rastros de etapa, Tool, conhecimento e provider utilizados, sem enviar mensagens reais.",
+        "O aprendizado supervisionado passa a sugerir conhecimento recorrente ou revisão do fluxo, sempre pendente de aprovação humana.",
+        "Adiciona fallback opcional de IA externa para baixa confiança e métricas de uso; fica desligado por padrão e o teste de conexão exige confirmação por poder gerar custo.",
+        "A finalização automática fica apenas sinalizada para ocorrer após um futuro envio confirmado; esta versão não finaliza conversas nem ativa respostas automáticas pelo modo de observação.",
+        "Preserva integralmente o WhatsApp/Meta, o atendimento humano e o bot de triagem existentes."
+      ]
+    },
     {
       version: "0.20.0",
       date: "27/08/2026",

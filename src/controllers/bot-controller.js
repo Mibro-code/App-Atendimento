@@ -304,6 +304,9 @@ module.exports = {
   async testAiProvider(req, res, next) {
     try {
       if (!authorization.isMaster(req.user)) throw authorization.forbidden("Somente uma conta Master pode testar o provider de IA.");
+      if (req.body?.confirmRealCall !== true) {
+        throw Object.assign(new Error("Confirme a chamada real ao provider de IA."), { statusCode: 400 });
+      }
       return res.json(await aiProvider.testConnection());
     } catch (error) { return next(error); }
   },

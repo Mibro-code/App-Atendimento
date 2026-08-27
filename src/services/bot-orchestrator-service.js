@@ -333,22 +333,12 @@ async function orchestrate({ conversationId, channel = "META", messageId = null,
     }, client);
   }
 
-  // Item 4 (resolução não finaliza tudo automaticamente): só finaliza a
-  // Conversation de verdade quando o Bot está realmente respondendo ao vivo
-  // (nunca em modo observação) e o Master ligou autoFinalizeOnResolution
-  // explicitamente para este Bot — default OFF preserva o comportamento
-  // atual (a conversa segue aberta após o RESOLVED do fluxo).
-  if (flow?.resolutionStatus === "RESOLVED" && flags.autoFinalizeOnResolution === true
-    && toolMode === "LIVE" && !humanPaused) {
-    try {
-      await client.conversation.updateMany({
-        where: { id: conversationId, status: { not: "FINALIZADO" } },
-        data: { status: "FINALIZADO", finalizedAt: now },
-      });
-    } catch (error) {
-      console.error("[BOT_FLOW] falha ao auto-finalizar a conversa (ignorada)", error.message);
-    }
-  }
+  // A finalização só pode ocorrer DEPOIS que uma futura camada de envio
+  // confirmar a entrega da resposta. Hoje o orquestrador também é chamado
+  // pelo observador passivo; portanto ele apenas sinaliza a intenção e nunca
+  // altera Conversation diretamente.
+  const autoFinalizeRequested = flow?.resolutionStatus === "RESOLVED"
+    && flags.autoFinalizeOnResolution === true && toolMode === "LIVE" && !humanPaused;
 
   return toStandardResult({
     bot, targetBot, interpretation, decision, responseText,
@@ -356,6 +346,7 @@ async function orchestrate({ conversationId, channel = "META", messageId = null,
       humanPaused, automationBlocked, observationAllowed, learningEnabled: flags.learningEnabled,
       flowStepId: flow?.currentStepId ?? null, flowResolutionStatus: flow?.resolutionStatus ?? null,
       flowIntentId: flow?.intentId ?? null, flowPendingQuestion: flow?.pendingQuestion ?? null,
+      autoFinalizeRequested,
     },
   });
 }

@@ -3,12 +3,13 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const prisma = require("../src/database/prisma");
 const { orchestrate, simulateOrchestration } = require("../src/services/bot-orchestrator-service");
-const { interpret } = require("../src/services/bot-interpreter-service");
+const { interpret, interpretWithProviders } = require("../src/services/bot-interpreter-service");
 const { KnowledgeSourceProvider } = require("../src/services/bot-knowledge/knowledge-provider");
 const { analyzeConversation } = require("../src/services/bot-learning-service");
 const { recordAiUsage, usageSummary } = require("../src/services/bot-ai-usage-service");
 const { detectFlowOutcome } = require("../src/services/bot-flow-service");
 const { getPrimaryProvider } = require("../src/services/ai/get-ai-provider");
+const botController = require("../src/controllers/bot-controller");
 
 const botNamePrefix = "Bot Contexto IA Teste";
 const externalId = "bot-contexto-ia-test-contact";
@@ -161,7 +162,7 @@ test("autoFinalizeOnResolution=OFF (default): RESOLVED responde mas não finaliz
   await prisma.bot.delete({ where: { id: bot.id } });
 });
 
-test("autoFinalizeOnResolution=ON: RESOLVED finaliza a conversa de verdade", async () => {
+test("autoFinalizeOnResolution=ON: sinaliza finalização, mas não finaliza antes de um envio confirmado", async () => {
   await cleanupKnowledge();
   const { bot } = await createConexaoBot({ botOverrides: { autoFinalizeOnResolution: true } });
   await prisma.knowledgeSource.create({
@@ -169,9 +170,10 @@ test("autoFinalizeOnResolution=ON: RESOLVED finaliza a conversa de verdade", asy
   });
   const conversation = await seedConversation();
   await sendMessage(conversation, "não conecta");
-  await sendMessage(conversation, "GS Pro 2");
+  const result = await sendMessage(conversation, "GS Pro 2");
   const conversationRow = await prisma.conversation.findUnique({ where: { id: conversation.id } });
-  assert.equal(conversationRow.status, "FINALIZADO", "com o flag ligado, RESOLVED deveria finalizar a conversa");
+  assert.equal(result.autoFinalizeRequested, true);
+  assert.notEqual(conversationRow.status, "FINALIZADO", "o observador nunca deve finalizar antes de um envio confirmado");
   await prisma.bot.delete({ where: { id: bot.id } });
 });
 
@@ -215,6 +217,25 @@ test("provider externo sem credencial configurada: getPrimaryProvider nunca lan�
     bot: botFixtureForInterpret(), message: "onde esta meu pedido", flags: { externalAiFallbackEnabled: true, externalAiThreshold: 0.99 },
   });
   assert.ok(result.status !== undefined, "a interpretação nunca deveria lançar mesmo tentando o fallback externo");
+});
+
+test("falha do provider externo ainda registra que a chamada real aconteceu", async () => {
+  const local = { name: "LOCAL_FALLBACK", provider: { classifyIntent: async () => null } };
+  const external = { name: "ANTHROPIC", provider: { classifyIntent: async () => { throw new Error("falha externa"); } } };
+  const result = await interpretWithProviders({
+    bot: botFixtureForInterpret(), message: "mensagem ambígua", primary: external, fallback: local,
+  });
+  assert.equal(result.providerAttempted, "ANTHROPIC");
+});
+
+test("teste de conexão da IA exige confirmação explícita antes da chamada real", async () => {
+  let capturedError = null;
+  await botController.testAiProvider(
+    { user: { role: "ADMIN" }, body: {} },
+    { json: () => assert.fail("não deveria chamar o provider sem confirmação") },
+    (error) => { capturedError = error; },
+  );
+  assert.equal(capturedError?.statusCode, 400);
 });
 
 // Item 18: o simulador nunca envia mensagem real e expõe se a IA externa

@@ -73,8 +73,10 @@ async function interpretWithProviders({ bot, message, context = [], state = null
   let result = null;
   let status = "OK";
   let errorCode = null;
+  let providerAttempted = null;
 
   try {
+    providerAttempted = primary.name;
     result = await runProvider(primary, { bot, message, context });
   } catch (error) {
     status = "PROVIDER_ERROR";
@@ -100,7 +102,7 @@ async function interpretWithProviders({ bot, message, context = [], state = null
     return {
       intentId: null, intentName: null, confidence: 0, matchedExample: null,
       entities: localEntities, provider: status === "PROVIDER_ERROR" ? fallback.name : primary.name,
-      status, errorCode, socialBehavior, greetingReply,
+      status, errorCode, socialBehavior, greetingReply, providerAttempted,
     };
   }
 
@@ -117,6 +119,7 @@ async function interpretWithProviders({ bot, message, context = [], state = null
     socialBehavior,
     greetingReply,
     usage: result.usage || null,
+    providerAttempted,
   };
 }
 
@@ -157,7 +160,7 @@ async function interpret({ bot, message, context = [], state = null, flags = {} 
   // A tentativa externa não confirmou nada de novo (erro, timeout ou "não
   // sei") — mantém o resultado local em vez de piorar a resposta, mas marca
   // que a chamada externa realmente aconteceu (item 15: métrica de uso).
-  return { ...localResult, calledExternalAi: aiOutcome.provider === external.name };
+  return { ...localResult, calledExternalAi: aiOutcome.providerAttempted === external.name };
 }
 
 module.exports = { interpret, interpretWithProviders };

@@ -200,10 +200,11 @@ async function renderAiProviderStatus() {
 }
 
 document.getElementById("test-ai-provider")?.addEventListener("click", async () => {
+  if (!window.confirm("Este teste fará uma chamada real e poderá gerar um pequeno custo no provider de IA. Deseja continuar?")) return;
   const button = document.getElementById("test-ai-provider");
   button.disabled = true;
   try {
-    const result = await api("/api/bot-ai-provider-status/test", { method: "POST" });
+    const result = await api("/api/bot-ai-provider-status/test", { method: "POST", body: JSON.stringify({ confirmRealCall: true }) });
     toast(result.ok ? `Conexão OK (${result.latencyMs}ms).` : `Falha: ${result.error}`, !result.ok);
   } catch (error) {
     toast(error.message, true);
