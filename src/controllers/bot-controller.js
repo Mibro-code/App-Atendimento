@@ -7,6 +7,9 @@ const knowledge = require("../services/bot-knowledge-source-service");
 const globalIntents = require("../services/global-intent-service");
 const handoff = require("../services/bot-handoff-service");
 const toolRegistry = require("../services/bot-tools/tool-registry");
+const aiProvider = require("../services/ai/get-ai-provider");
+const aiUsage = require("../services/bot-ai-usage-service");
+const authorization = require("../services/authorization-service");
 
 module.exports = {
   async list(req, res, next) {
@@ -290,5 +293,29 @@ module.exports = {
   async listTools(req, res, next) {
     try { return res.json(toolRegistry.listTools()); }
     catch (error) { return next(error); }
+  },
+
+  // Item 14 (Motor de IA / Fallback externo): status nunca expõe a
+  // credencial. "Testar conexão" é restrito a Master (chamada real à API).
+  async aiProviderStatus(req, res, next) {
+    try { return res.json(aiProvider.getProviderStatus()); }
+    catch (error) { return next(error); }
+  },
+  async testAiProvider(req, res, next) {
+    try {
+      if (!authorization.isMaster(req.user)) throw authorization.forbidden("Somente uma conta Master pode testar o provider de IA.");
+      if (req.body?.confirmRealCall !== true) {
+        throw Object.assign(new Error("Confirme a chamada real ao provider de IA."), { statusCode: 400 });
+      }
+      return res.json(await aiProvider.testConnection());
+    } catch (error) { return next(error); }
+  },
+
+  // Item 15 (custo/uso de IA externa) — só leitura, sem dashboard complexo.
+  async aiUsageSummary(req, res, next) {
+    try {
+      if (!authorization.isMaster(req.user)) throw authorization.forbidden("Somente uma conta Master pode ver o uso de IA.");
+      return res.json(await aiUsage.usageSummary(req.query));
+    } catch (error) { return next(error); }
   },
 };

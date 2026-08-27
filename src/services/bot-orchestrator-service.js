@@ -14,6 +14,7 @@ const { checkResponseLoop, checkSwitchWindow } = require("./bot-loop-guard-servi
 const { resolveToolDecision } = require("./bot-tool-orchestrator-service");
 const { resolveKnowledgeResponse } = require("./bot-knowledge-response-service");
 const { captureHandoffContext } = require("./bot-handoff-service");
+const { recordAiUsage } = require("./bot-ai-usage-service");
 const flowEngine = require("./bot-flow-service");
 
 const categorySelection = { id: true, code: true, name: true, color: true, active: true };
@@ -102,6 +103,15 @@ function toStandardResult({ bot, targetBot, interpretation, decision, responseTe
     extractedEntities: interpretation.entities,
     summary: decision.summary,
     response: responseText,
+    // Item 18/19 (simulador/observação): rastro do que o motor usaria/
+    // chamaria, sem nunca ter executado nada externo de verdade fora do
+    // modo LIVE — reaproveita o que decide()/resolveToolDecision()/
+    // resolveKnowledgeResponse() já calcularam, nunca recalcula aqui.
+    toolName: decision.toolName || null,
+    knowledgeSourceId: decision.knowledgeSourceId || null,
+    knowledgeSourceTitle: decision.knowledgeSourceTitle || null,
+    knowledgeConflict: Boolean(decision.knowledgeConflict),
+    calledExternalAi: Boolean(interpretation.calledExternalAi),
     ...extras,
   };
 }
@@ -162,7 +172,7 @@ async function runDecisionPipeline({
   }
 
   if (!decision) {
-    interpretation = await interpret({ bot, message, context, state });
+    interpretation = await interpret({ bot, message, context, state, flags });
     decision = decide({ bot, interpretation, message, state, now, flags });
 
     // Uma intenção com etapas configuradas (Fluxo de atendimento) é
@@ -300,16 +310,43 @@ async function orchestrate({ conversationId, channel = "META", messageId = null,
   const automationBlocked = !globalSettings.automationEnabled || !targetBot.autoReplyEnabled;
   const observationAllowed = globalSettings.observationEnabled && flags.observationEnabled;
 
+  // Item 2 (expiração de contexto): a sessão expirou e nenhum fluxo NOVO
+  // começou neste turno (ex.: a intenção reconhecida não tem etapas) — os
+  // campos flow* de uma sessão anterior nunca podem sobreviver "escondidos"
+  // no banco, senão a PRÓXIMA mensagem (já dentro da janela, updatedAt
+  // acabou de ser renovado) reataria o fluxo antigo como se fosse atual.
+  const flowToPersist = flow || (sessionExpired ? flowEngine.resetFlowPersist() : null);
+
   await persistDecision({
     conversationId, bot: targetBot, interpretation, decision,
-    operational: { ...operational, humanPausedAt: humanPaused ? now : null }, flow,
+    operational: { ...operational, humanPausedAt: humanPaused ? now : null }, flow: flowToPersist,
   }, client);
+
+  // Item 15 (custo/uso de IA): registra a chamada real ao provider externo,
+  // independente do resultado ter virado resposta ou não — o gasto já
+  // aconteceu. Nunca acontece para o simulador (simulateOrchestration não
+  // passa por aqui) nem quando o fallback externo está desligado.
+  if (interpretation.calledExternalAi) {
+    await recordAiUsage({
+      botId: targetBot.id, provider: interpretation.provider, reason: "LOW_LOCAL_CONFIDENCE",
+      usage: interpretation.aiUsage,
+    }, client);
+  }
+
+  // A finalização só pode ocorrer DEPOIS que uma futura camada de envio
+  // confirmar a entrega da resposta. Hoje o orquestrador também é chamado
+  // pelo observador passivo; portanto ele apenas sinaliza a intenção e nunca
+  // altera Conversation diretamente.
+  const autoFinalizeRequested = flow?.resolutionStatus === "RESOLVED"
+    && flags.autoFinalizeOnResolution === true && toolMode === "LIVE" && !humanPaused;
 
   return toStandardResult({
     bot, targetBot, interpretation, decision, responseText,
     extras: {
       humanPaused, automationBlocked, observationAllowed, learningEnabled: flags.learningEnabled,
       flowStepId: flow?.currentStepId ?? null, flowResolutionStatus: flow?.resolutionStatus ?? null,
+      flowIntentId: flow?.intentId ?? null, flowPendingQuestion: flow?.pendingQuestion ?? null,
+      autoFinalizeRequested,
     },
   });
 }
@@ -342,9 +379,11 @@ async function simulateOrchestration({ bot, message, context = [], state = null,
       ? (decision.failureCount ?? 0) : 0,
     pendingClarification: decision.needsClarification || false,
     extractedEntities: interpretation.entities || {},
+    lastBotAction: decision.action || null,
     ...operational,
-    // Item 8 (Simulador): expõe intenção/etapa atual/entidades coletadas do
-    // Flow Engine para a UI mostrar o progresso do atendimento em etapas.
+    // Item 8/18 (Simulador): expõe intenção/etapa atual/entidades coletadas/
+    // pergunta pendente do Flow Engine para a UI mostrar o progresso do
+    // atendimento em etapas.
     activeFlowIntentId: flow ? flow.intentId : (state?.activeFlowIntentId ?? null),
     currentFlowStepId: flow ? flow.currentStepId : null,
     flowCollectedEntities: flow ? flow.collectedEntities : (state?.flowCollectedEntities ?? null),
@@ -352,6 +391,7 @@ async function simulateOrchestration({ bot, message, context = [], state = null,
     flowAttemptedSolutions: flow ? flow.attemptedSolutions : (state?.flowAttemptedSolutions ?? null),
     flowFailedSteps: flow ? flow.failedSteps : (state?.flowFailedSteps ?? null),
     flowResolutionStatus: flow ? flow.resolutionStatus : (state?.flowResolutionStatus ?? null),
+    pendingQuestion: flow ? (flow.pendingQuestion ?? null) : (state?.pendingQuestion ?? null),
   };
 
   return { ...toStandardResult({ bot, targetBot, interpretation, decision, responseText }), nextState };

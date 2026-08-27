@@ -104,15 +104,16 @@ function renderIntents() {
 const booleanFeatureFlags = [
   "interpretationEnabled", "conversationalBehaviorEnabled", "contextEnabled", "autoSwitchEnabled",
   "observationEnabled", "learningEnabled", "knowledgeSuggestionsEnabled", "knowledgeBaseEnabled",
-  "handoffAutoPauseEnabled",
+  "handoffAutoPauseEnabled", "autoFinalizeOnResolution", "externalAiFallbackEnabled",
 ];
 const numericFeatureFlags = {
   contextMaxMessages: 10, contextExpirationMinutes: 120, maxSwitchesPerWindow: 3, switchWindowMinutes: 10,
+  externalAiThreshold: 0.7,
 };
 const defaultBooleanFeatureFlags = {
   interpretationEnabled: true, conversationalBehaviorEnabled: true, contextEnabled: true, autoSwitchEnabled: true,
   observationEnabled: true, learningEnabled: true, knowledgeSuggestionsEnabled: true, knowledgeBaseEnabled: false,
-  handoffAutoPauseEnabled: true,
+  handoffAutoPauseEnabled: true, autoFinalizeOnResolution: false, externalAiFallbackEnabled: false,
 };
 
 function renderChannelsChecklist(selectedChannels = []) {
@@ -177,7 +178,40 @@ function renderEditor() {
   renderSchedules(bot.schedules);
   renderIntents();
   renderBotList();
+  renderAiProviderStatus();
 }
+
+// Item 14 (Motor de IA / Fallback externo): mostra provider/configurado/erro
+// sem nunca expor a credencial — o botão "Testar conexão" faz uma chamada
+// real mínima, só quando o Master clicar (nunca automático).
+async function renderAiProviderStatus() {
+  const box = document.getElementById("ai-provider-status");
+  if (!box) return;
+  try {
+    const status = await api("/api/bot-ai-provider-status");
+    box.innerHTML = `
+      <span>Provider<strong>${escapeHtml(status.provider)}</strong></span>
+      <span>Status<strong>${status.configured ? "Configurado" : "Não configurado"}</strong></span>
+      ${status.error ? `<span>Erro<strong>${escapeHtml(status.error)}</strong></span>` : ""}
+    `;
+  } catch (error) {
+    box.innerHTML = `<span>Provider<strong>Indisponível</strong></span>`;
+  }
+}
+
+document.getElementById("test-ai-provider")?.addEventListener("click", async () => {
+  if (!window.confirm("Este teste fará uma chamada real e poderá gerar um pequeno custo no provider de IA. Deseja continuar?")) return;
+  const button = document.getElementById("test-ai-provider");
+  button.disabled = true;
+  try {
+    const result = await api("/api/bot-ai-provider-status/test", { method: "POST", body: JSON.stringify({ confirmRealCall: true }) });
+    toast(result.ok ? `Conexão OK (${result.latencyMs}ms).` : `Falha: ${result.error}`, !result.ok);
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+});
 
 async function loadBots(selectId = state.selected?.id) {
   state.bots = await api("/api/bots");
@@ -540,6 +574,10 @@ $("#simulator-form").addEventListener("submit", async (event) => {
       <span>Ação<strong>${escapeHtml(actionLabels[result.action] || result.action || "-")}</strong></span>
       <span>Categoria<strong>${escapeHtml(result.categoryName || "Nenhuma")}</strong></span>
       <span>Entidades<strong>${escapeHtml(entitiesSummary(result.extractedEntities))}</strong></span>
+      <span>Tool<strong>${escapeHtml(result.toolName || "Nenhuma")}</strong></span>
+      <span>Conhecimento<strong>${escapeHtml(result.knowledgeSourceTitle || "Nenhum")}</strong></span>
+      <span>IA externa<strong>${result.calledExternalAi ? "Chamada" : "Não chamada"}</strong></span>
+      <span>Provider<strong>${escapeHtml(result.provider || "-")}</strong></span>
     </div><p>${escapeHtml(result.warning)}</p>`;
     await renderSimulatorFlowInfo(result.nextState);
   } catch (error) { toast(error.message, true); }
@@ -563,6 +601,8 @@ async function renderSimulatorFlowInfo(nextState) {
   const currentStep = steps.find((step) => step.id === nextState.currentFlowStepId);
   const lastKnowledge = [...(nextState.flowAttemptedSolutions || [])].reverse()
     .find((entry) => entry.action === "USE_KNOWLEDGE" && entry.outcome === "SUCCESS");
+  const lastTool = [...(nextState.flowAttemptedSolutions || [])].reverse()
+    .find((entry) => entry.action === "QUERY_TOOL");
   const status = !nextState.currentFlowStepId
     ? (nextState.flowResolutionStatus === "RESOLVED" ? "Resolvido" : nextState.flowResolutionStatus === "HANDED_OFF" ? "Encaminhado para humano" : "Em andamento")
     : "Aguardando resposta do cliente";
@@ -571,8 +611,10 @@ async function renderSimulatorFlowInfo(nextState) {
   box.innerHTML = `<b>Fluxo de atendimento</b><div class="result-grid">
     <span>Etapa atual<strong>${escapeHtml(currentStep ? `${currentStep.order}. ${currentStep.name}` : "—")}</strong></span>
     <span>Status<strong>${escapeHtml(status)}</strong></span>
+    <span>Pergunta pendente<strong>${escapeHtml(nextState.pendingQuestion || "Nenhuma")}</strong></span>
     <span>Entidades coletadas<strong>${escapeHtml(entitiesSummary(nextState.flowCollectedEntities))}</strong></span>
     <span>Conhecimento usado<strong>${escapeHtml(lastKnowledge ? lastKnowledge.name : "Nenhum")}</strong></span>
+    <span>Tool usada<strong>${escapeHtml(lastTool ? `${lastTool.name} (${lastTool.outcome})` : "Nenhuma")}</strong></span>
   </div>`;
 }
 

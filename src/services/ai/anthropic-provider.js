@@ -89,7 +89,12 @@ class AnthropicProvider extends AIProvider {
     });
     const text = response.data?.content?.[0]?.text;
     const parsed = parseJsonResponse(text);
-    return validateClassification(parsed, bot);
+    const classification = validateClassification(parsed, bot);
+    // Item 15 (custo/uso de IA): tokens reais devolvidos pela API, quando
+    // presentes — nunca estimados/inventados.
+    const rawUsage = response.data?.usage;
+    const usage = rawUsage ? { inputTokens: rawUsage.input_tokens ?? null, outputTokens: rawUsage.output_tokens ?? null } : null;
+    return { ...classification, usage };
   }
 
   async extractEntities({ message }) {

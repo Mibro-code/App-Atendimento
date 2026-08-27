@@ -5,7 +5,7 @@
 const { normalizeText } = require("./bot-simulator-service");
 const { extractEntities, mergeEntities } = require("./bot-entity-extractor");
 const { getPrimaryProvider, getFallbackProvider } = require("./ai/get-ai-provider");
-const { DEFAULT_HIGH_CONFIDENCE_THRESHOLD } = require("./bot-constants");
+const { DEFAULT_HIGH_CONFIDENCE_THRESHOLD, DEFAULT_EXTERNAL_AI_THRESHOLD } = require("./bot-constants");
 const { detectSocialBehavior } = require("./bot-social-behavior-service");
 
 function findIntent(bot, intentId) {
@@ -73,8 +73,10 @@ async function interpretWithProviders({ bot, message, context = [], state = null
   let result = null;
   let status = "OK";
   let errorCode = null;
+  let providerAttempted = null;
 
   try {
+    providerAttempted = primary.name;
     result = await runProvider(primary, { bot, message, context });
   } catch (error) {
     status = "PROVIDER_ERROR";
@@ -100,7 +102,7 @@ async function interpretWithProviders({ bot, message, context = [], state = null
     return {
       intentId: null, intentName: null, confidence: 0, matchedExample: null,
       entities: localEntities, provider: status === "PROVIDER_ERROR" ? fallback.name : primary.name,
-      status, errorCode, socialBehavior, greetingReply,
+      status, errorCode, socialBehavior, greetingReply, providerAttempted,
     };
   }
 
@@ -116,13 +118,49 @@ async function interpretWithProviders({ bot, message, context = [], state = null
     errorCode,
     socialBehavior,
     greetingReply,
+    usage: result.usage || null,
+    providerAttempted,
   };
 }
 
-async function interpret({ bot, message, context = [], state = null }) {
-  return interpretWithProviders({
-    bot, message, context, state, primary: getPrimaryProvider(), fallback: getFallbackProvider(),
-  });
+// Item 12/13 (IA externa como fallback INTELIGENTE, nunca em toda mensagem):
+// 1) regras locais/contexto (carryOverFromContext, acima) já resolvidas por
+// interpretWithProviders(); 2) SEMPRE roda o provider LOCAL primeiro aqui —
+// nunca o externo; 3) só tenta um provider externo quando TODAS as condições
+// abaixo são verdadeiras:
+//   - flags.externalAiFallbackEnabled === true (default false: nunca chama);
+//   - o resultado local não achou intenção OU a confiança ficou abaixo de
+//     flags.externalAiThreshold (default DEFAULT_EXTERNAL_AI_THRESHOLD);
+//   - existe um provider externo de fato configurado (getPrimaryProvider()
+//     só devolve algo != LOCAL_FALLBACK quando a credencial existe — ver
+//     ai/get-ai-provider.js; sem credencial, a app nunca quebra, só não
+//     tenta o externo).
+// Nunca troca um resultado local válido por um resultado externo pior: só
+// substitui quando o provider externo realmente classificou algo.
+async function interpret({ bot, message, context = [], state = null, flags = {} }) {
+  const local = getFallbackProvider();
+  const localResult = await interpretWithProviders({ bot, message, context, state, primary: local, fallback: local });
+
+  if (localResult.provider === "CONTEXT_CARRYOVER" || localResult.status === "EMPTY_MESSAGE") {
+    return { ...localResult, calledExternalAi: false };
+  }
+
+  const threshold = Number.isFinite(flags.externalAiThreshold) ? flags.externalAiThreshold : DEFAULT_EXTERNAL_AI_THRESHOLD;
+  const shouldTryExternal = flags.externalAiFallbackEnabled === true
+    && (!localResult.intentId || localResult.confidence < threshold);
+  if (!shouldTryExternal) return { ...localResult, calledExternalAi: false };
+
+  const external = getPrimaryProvider();
+  if (external.name === "LOCAL_FALLBACK") return { ...localResult, calledExternalAi: false };
+
+  const aiOutcome = await interpretWithProviders({ bot, message, context, state, primary: external, fallback: local });
+  if (aiOutcome.provider === external.name && aiOutcome.intentId) {
+    return { ...aiOutcome, calledExternalAi: true, aiUsage: aiOutcome.usage || null };
+  }
+  // A tentativa externa não confirmou nada de novo (erro, timeout ou "não
+  // sei") — mantém o resultado local em vez de piorar a resposta, mas marca
+  // que a chamada externa realmente aconteceu (item 15: métrica de uso).
+  return { ...localResult, calledExternalAi: aiOutcome.providerAttempted === external.name };
 }
 
 module.exports = { interpret, interpretWithProviders };

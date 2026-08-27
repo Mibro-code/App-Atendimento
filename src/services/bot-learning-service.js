@@ -118,6 +118,56 @@ async function upsertResponseSuggestion(client, { botId, topic, content, convers
   });
 }
 
+// Item 16 (Aprendizado x Flow Engine): resultado ESTRUTURAL do fluxo
+// (ConversationBotState.flowResolutionStatus), mais preciso que o sinal de
+// texto (detectResolutionSignal) para conversas conduzidas por etapas.
+// RESOLVED sugere "solução recorrente" (type KNOWLEDGE); HANDED_OFF sugere
+// revisão manual do fluxo/conhecimento (type FLOW_REVIEW). Nunca altera o
+// fluxo/conhecimento sozinho — sempre PENDING até um Master aprovar
+// (approveSuggestion/rejectSuggestion), mesma exigência do restante deste
+// módulo.
+async function analyzeFlowOutcome(client, { conversationId }) {
+  const botState = await client.conversationBotState.findUnique({
+    where: { conversationId },
+    select: {
+      activeBotId: true, activeFlowIntentId: true, flowResolutionStatus: true,
+      flowAttemptedSolutions: true, flowFailedSteps: true,
+    },
+  });
+  if (!botState?.activeFlowIntentId || !["RESOLVED", "HANDED_OFF"].includes(botState.flowResolutionStatus)) return null;
+
+  const bot = botState.activeBotId ? await client.bot.findUnique({ where: { id: botState.activeBotId }, select: { featureFlags: true } }) : null;
+  if (bot && !resolveFeatureFlags(bot).learningEnabled) return null;
+
+  const intent = await client.botIntent.findUnique({ where: { id: botState.activeFlowIntentId }, select: { name: true } });
+  const intentName = intent?.name || "intenção";
+  const attempted = Array.isArray(botState.flowAttemptedSolutions) ? botState.flowAttemptedSolutions : [];
+
+  if (botState.flowResolutionStatus === "RESOLVED") {
+    const lastSuccess = [...attempted].reverse().find((item) => item.outcome === "SUCCESS");
+    const summary = lastSuccess?.knowledgeSourceTitle || lastSuccess?.name || intentName;
+    const content = sanitizeForLearning(`Fluxo "${intentName}" resolvido com sucesso pela etapa "${summary}".`);
+    if (!content) return null;
+    return upsertSuggestion(client, {
+      botId: botState.activeBotId, intentId: botState.activeFlowIntentId, type: "KNOWLEDGE",
+      title: `Solução recorrente: ${intentName}`, suggestedContent: content, conversationId,
+      confidence: null, metadata: { source: "FLOW_RESOLVED" },
+    });
+  }
+
+  const failedNames = attempted.filter((item) => item.outcome === "FAILURE").map((item) => item.name);
+  const content = sanitizeForLearning(
+    `Fluxo "${intentName}" não resolveu automaticamente e foi encaminhado para atendimento humano. `
+    + `Etapas que falharam: ${failedNames.length ? failedNames.join(", ") : "não identificadas"}.`,
+  );
+  if (!content) return null;
+  return upsertSuggestion(client, {
+    botId: botState.activeBotId, intentId: botState.activeFlowIntentId, type: "FLOW_REVIEW",
+    title: `Revisar fluxo: ${intentName}`, suggestedContent: content, conversationId,
+    confidence: null, metadata: { source: "FLOW_HANDED_OFF" },
+  });
+}
+
 // Analisa UMA conversa já finalizada e gera no máximo algumas sugestões.
 // Nunca lança: qualquer falha vira { analyzed: false, reason: "ERROR" }, e
 // nunca escreve nada em Conversation/Message — só em tabelas próprias de
@@ -193,6 +243,9 @@ async function analyzeConversation(conversationId, { force = false, client = pri
         }));
       }
     }
+
+    const flowSuggestion = await analyzeFlowOutcome(client, { conversationId });
+    if (flowSuggestion) suggestions.push(flowSuggestion);
 
     await client.conversationLearningState.upsert({
       where: { conversationId },

@@ -39,6 +39,12 @@ class KnowledgeSourceProvider extends KnowledgeProvider {
     this.client = client;
   }
 
+  // Item 6 (ranking): 1) produto/modelo exato > 2) intenção > 3) categoria >
+  // 4) tags > 5) conteúdo geral (texto). Os filtros `product`/`intentId`/
+  // `category`/`tags` continuam OPCIONAIS no WHERE (item 5, comentário
+  // acima) — aqui eles também viram BOOST de score quando o registro bate
+  // exatamente, para que "Pareamento GS Pro 2" vença um artigo genérico
+  // mesmo quando ambos passam no filtro de texto.
   async search(query, {
     domains = knowledgeDomains, botId = null, intentId = null, globalIntentId = null,
     category = null, product = null, tags = [], limit = 5, minScore = 0.15,
@@ -70,11 +76,22 @@ class KnowledgeSourceProvider extends KnowledgeProvider {
     const active = rows.filter((row) => isActiveNow(row, now));
 
     const queryTokens = normalizeText(query || "").split(/\s+/).filter(Boolean);
+    const normalizedProduct = product ? normalizeText(product) : null;
+    const normalizedCategory = category ? normalizeText(category) : null;
+    const normalizedTags = new Set((tags || []).map((tag) => normalizeText(tag)));
+
     const scored = active.map((row) => {
-      const titleScore = scoreText(queryTokens, row.title) * 1.5;
-      const contentScore = scoreText(queryTokens, row.content || "");
-      const tagScore = (row.tags || []).some((tag) => queryTokens.includes(normalizeText(tag))) ? 0.5 : 0;
-      const score = queryTokens.length ? Math.min(1, (titleScore + contentScore + tagScore) / 2) : 0.3;
+      const textScore = queryTokens.length
+        ? Math.min(1, (scoreText(queryTokens, row.title) * 1.5 + scoreText(queryTokens, row.content || "")) / 2)
+        : 0.3;
+      // Boosts de especificidade (item 6), somados sobre o score textual —
+      // nunca substituem a checagem de "ativo/vigente" nem o filtro do WHERE,
+      // só decidem a ORDEM entre resultados que já passaram por ambos.
+      const productBoost = normalizedProduct && row.product && normalizeText(row.product) === normalizedProduct ? 3 : 0;
+      const intentBoost = intentId && row.intentId === intentId ? 1.5 : 0;
+      const categoryBoost = normalizedCategory && row.category && normalizeText(row.category) === normalizedCategory ? 0.75 : 0;
+      const tagBoost = (row.tags || []).some((tag) => normalizedTags.has(normalizeText(tag)) || queryTokens.includes(normalizeText(tag))) ? 0.4 : 0;
+      const score = textScore + productBoost + intentBoost + categoryBoost + tagBoost;
       return {
         id: row.id,
         domain: row.type,
@@ -84,15 +101,35 @@ class KnowledgeSourceProvider extends KnowledgeProvider {
         source: row.source,
         category: row.category,
         product: row.product,
+        version: row.version,
         globalIntentId: row.globalIntentId,
         intentId: row.intentId,
+        // Especificidade "mais alta" atingida por este item — usada só para
+        // detectar conflito (dois itens no MESMO nível de especificidade),
+        // nunca para decidir a ordem (o `score` já faz isso).
+        specificity: productBoost ? "PRODUCT" : intentBoost ? "INTENT" : categoryBoost ? "CATEGORY" : tagBoost ? "TAGS" : "GENERAL",
       };
     });
 
-    return scored
+    const results = scored
       .filter((item) => item.score >= minScore)
       .sort((a, b) => b.score - a.score)
       .slice(0, limit);
+
+    // Item 6 (conflito): dois resultados válidos, na MESMA especificidade
+    // mais alta, com conteúdo diferente e score muito próximo — nunca
+    // escolher um dos dois "no escuro". Quem chama (bot-knowledge-response-
+    // service.js / bot-flow-service.js) decide o que fazer (handoff/resposta
+    // segura), nunca esta camada.
+    const conflict = results.length >= 2
+      && results[0].specificity === results[1].specificity
+      && results[0].content !== results[1].content
+      && (results[0].score - results[1].score) < 0.1;
+    // Propriedade extra num array normal (nunca quebra .length/[i] para quem
+    // já consome o retorno como array simples).
+    Object.defineProperty(results, "conflict", { value: conflict, enumerable: false });
+
+    return results;
   }
 }
 

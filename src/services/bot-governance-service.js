@@ -10,7 +10,7 @@ const authorization = require("./authorization-service");
 const audit = require("./audit-service");
 const {
   BOOLEAN_FEATURE_FLAG_KEYS, DEFAULT_PRESENTATION_MESSAGE, FEATURE_FLAG_DEFAULTS,
-  NUMERIC_FEATURE_FLAG_RANGES, PRESENTATION_ALLOWED_VARS, RATING_REQUEST_MODES,
+  FLOAT_FEATURE_FLAG_RANGES, NUMERIC_FEATURE_FLAG_RANGES, PRESENTATION_ALLOWED_VARS, RATING_REQUEST_MODES,
 } = require("./bot-constants");
 
 function fail(message, statusCode = 400) {
@@ -54,6 +54,14 @@ function validateFeatureFlagsInput(input) {
     const value = Number(input[key]);
     if (!Number.isInteger(value) || value < range.min || value > range.max) {
       throw fail(`O valor de "${key}" deve ser um inteiro entre ${range.min} e ${range.max}.`);
+    }
+    result[key] = value;
+  }
+  for (const [key, range] of Object.entries(FLOAT_FEATURE_FLAG_RANGES)) {
+    if (input[key] === undefined) continue;
+    const value = Number(input[key]);
+    if (!Number.isFinite(value) || value < range.min || value > range.max) {
+      throw fail(`O valor de "${key}" deve ser um número entre ${range.min} e ${range.max}.`);
     }
     result[key] = value;
   }

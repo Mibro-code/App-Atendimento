@@ -126,12 +126,21 @@
               <label class="checkbox"><input id="flag-knowledgeSuggestionsEnabled" type="checkbox" checked><span>Sugestões de conhecimento</span></label>
               <label class="checkbox"><input id="flag-knowledgeBaseEnabled" type="checkbox"><span>Base de conhecimento</span></label>
               <label class="checkbox"><input id="flag-handoffAutoPauseEnabled" type="checkbox" checked><span>Pausar ao humano assumir</span></label>
+              <label class="checkbox"><input id="flag-autoFinalizeOnResolution" type="checkbox"><span>Preparar finalização após resposta confirmada (Flow Engine)</span></label>
+              <label class="checkbox"><input id="flag-externalAiFallbackEnabled" type="checkbox"><span>IA externa como fallback (quando a confiança local for baixa)</span></label>
               <label><span>Máx. mensagens de contexto</span><input id="flag-contextMaxMessages" type="number" min="1" max="30" value="10"></label>
               <label><span>Expiração de contexto (min)</span><input id="flag-contextExpirationMinutes" type="number" min="5" max="1440" value="120"></label>
               <label><span>Máx. trocas de Bot / janela</span><input id="flag-maxSwitchesPerWindow" type="number" min="1" max="20" value="3"></label>
               <label><span>Janela de troca de Bot (min)</span><input id="flag-switchWindowMinutes" type="number" min="1" max="180" value="10"></label>
+              <label><span>Limiar de confiança para IA externa</span><input id="flag-externalAiThreshold" type="number" min="0" max="1" step="0.05" value="0.7"></label>
             </div>
           </form>
+
+          <section class="card requires-bot">
+            <div class="card-heading"><div><span>MOTOR DE IA</span><h3>Fallback externo</h3></div><button id="test-ai-provider" type="button">Testar conexão</button></div>
+            <p class="card-help">A IA externa só é chamada quando "IA externa como fallback" está ligada acima e a confiança local fica abaixo do limiar — nunca em toda mensagem. Sem credencial configurada, o Bot continua funcionando normalmente só com o motor local.</p>
+            <div id="ai-provider-status" class="metrics-strip"></div>
+          </section>
 
           <form id="rating-config-form" class="card requires-bot">
             <div class="card-heading"><div><span>QUALIDADE</span><h3>Avaliação do atendimento</h3></div><button type="submit">Salvar avaliação</button></div>
