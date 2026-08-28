@@ -50,6 +50,10 @@ async function observeIncomingMessage(event, message, { now = new Date() } = {})
       toolName: result.toolName || null,
       knowledgeSourceId: result.knowledgeSourceId || null,
       calledExternalAi: Boolean(result.calledExternalAi),
+      externalProvider: result.externalProvider || null,
+      externalAccepted: Boolean(result.externalAccepted),
+      externalStatus: result.externalStatus || null,
+      externalErrorCode: result.externalErrorCode || null,
       flowResolutionStatus: result.flowResolutionStatus || null,
     }));
 

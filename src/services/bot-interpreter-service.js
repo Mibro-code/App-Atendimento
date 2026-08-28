@@ -155,12 +155,24 @@ async function interpret({ bot, message, context = [], state = null, flags = {} 
 
   const aiOutcome = await interpretWithProviders({ bot, message, context, state, primary: external, fallback: local });
   if (aiOutcome.provider === external.name && aiOutcome.intentId) {
-    return { ...aiOutcome, calledExternalAi: true, aiUsage: aiOutcome.usage || null };
+    return {
+      ...aiOutcome, calledExternalAi: true, externalProvider: external.name,
+      externalAccepted: true, externalStatus: aiOutcome.status,
+      externalErrorCode: aiOutcome.errorCode, aiUsage: aiOutcome.usage || null,
+    };
   }
   // A tentativa externa não confirmou nada de novo (erro, timeout ou "não
   // sei") — mantém o resultado local em vez de piorar a resposta, mas marca
   // que a chamada externa realmente aconteceu (item 15: métrica de uso).
-  return { ...localResult, calledExternalAi: aiOutcome.providerAttempted === external.name };
+  const calledExternalAi = aiOutcome.providerAttempted === external.name;
+  return {
+    ...localResult, calledExternalAi,
+    externalProvider: calledExternalAi ? external.name : null,
+    externalAccepted: false,
+    externalStatus: aiOutcome.status,
+    externalErrorCode: aiOutcome.errorCode,
+    aiUsage: aiOutcome.usage || null,
+  };
 }
 
 module.exports = { interpret, interpretWithProviders };

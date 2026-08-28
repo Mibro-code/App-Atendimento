@@ -14,6 +14,33 @@ const { buildIntentPrompt } = require("./anthropic-provider");
 const DEFAULT_MODEL = "gemini-3.6-flash";
 const DEFAULT_TIMEOUT_MS = 8000;
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
+const ENTITY_KEYS = ["orderNumber", "cpf", "cnpj", "serialNumber", "email", "productName", "trackingCode"];
+
+function buildResponseJsonSchema(bot) {
+  const intentIds = (bot.intents || []).filter((intent) => intent.active).map((intent) => intent.id);
+  const nullableString = { anyOf: [{ type: "string" }, { type: "null" }] };
+  return {
+    type: "object",
+    properties: {
+      intentId: intentIds.length ? { anyOf: [{ type: "string", enum: intentIds }, { type: "null" }] } : { type: "null" },
+      confidence: { type: "number", minimum: 0, maximum: 1 },
+      entities: {
+        type: "object",
+        properties: Object.fromEntries(ENTITY_KEYS.map((key) => [key, nullableString])),
+        additionalProperties: false,
+      },
+    },
+    required: ["intentId", "confidence", "entities"],
+    additionalProperties: false,
+  };
+}
+
+function extractCandidateText(response) {
+  return (response.data?.candidates?.[0]?.content?.parts || [])
+    .map((part) => part?.text)
+    .filter((text) => typeof text === "string")
+    .join("");
+}
 
 // Item 4 (tratamento de rate limit/quota/autenticação/timeout): nunca deixa
 // a chave vazar na mensagem de erro (a chave só viaja no header
@@ -62,7 +89,11 @@ class GeminiProvider extends AIProvider {
     try {
       response = await axios.post(`${API_BASE}/${this.model}:generateContent`, {
         contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: "application/json", maxOutputTokens: 400 },
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseJsonSchema: buildResponseJsonSchema(bot),
+          maxOutputTokens: 400,
+        },
       }, {
         timeout: this.timeoutMs,
         headers: {
@@ -75,7 +106,7 @@ class GeminiProvider extends AIProvider {
     } catch (error) {
       throw mapGeminiError(error);
     }
-    const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    const text = extractCandidateText(response);
     // Item 4 (JSON inválido): parseJsonResponse nunca lança — devolve null,
     // e validateClassification(null, ...) já degrada para "sem intenção"
     // (nunca inventa), reaproveitando o mesmo caminho seguro do Anthropic.
@@ -97,4 +128,4 @@ class GeminiProvider extends AIProvider {
   }
 }
 
-module.exports = { GeminiProvider, DEFAULT_MODEL, mapGeminiError };
+module.exports = { GeminiProvider, DEFAULT_MODEL, buildResponseJsonSchema, extractCandidateText, mapGeminiError };

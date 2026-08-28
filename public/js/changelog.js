@@ -1,7 +1,18 @@
 (() => {
-  const APP_VERSION = "0.24.2";
+  const APP_VERSION = "0.24.3";
 
   const CHANGELOG = [
+    {
+      version: "0.24.3",
+      date: "28/08/2026",
+      title: "Fallback de IA com Gemini",
+      changes: [
+        "Corrige a classificação do Gemini com saída JSON estruturada e restrita aos IDs reais das intenções do Bot.",
+        "Passa a processar respostas divididas em múltiplas partes e aceita o nome exato de uma intenção somente quando ele corresponde de forma única.",
+        "Registra corretamente qual provider externo foi chamado e se a classificação foi aceita, sem mascarar a tentativa como motor local.",
+        "Mantém o fallback local seguro quando a IA externa falhar ou não confirmar uma intenção válida."
+      ]
+    },
     {
       version: "0.24.2",
       date: "28/08/2026",

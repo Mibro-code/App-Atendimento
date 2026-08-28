@@ -115,6 +115,10 @@ function toStandardResult({ bot, targetBot, interpretation, decision, responseTe
     knowledgeSourceTitle: decision.knowledgeSourceTitle || null,
     knowledgeConflict: Boolean(decision.knowledgeConflict),
     calledExternalAi: Boolean(interpretation.calledExternalAi),
+    externalProvider: interpretation.externalProvider || null,
+    externalAccepted: Boolean(interpretation.externalAccepted),
+    externalStatus: interpretation.externalStatus || null,
+    externalErrorCode: interpretation.externalErrorCode || null,
     ...extras,
   };
 }
@@ -451,7 +455,7 @@ async function orchestrate({
   // passa por aqui) nem quando o fallback externo está desligado.
   if (interpretation.calledExternalAi) {
     await recordAiUsage({
-      botId: targetBot.id, provider: interpretation.provider, reason: "LOW_LOCAL_CONFIDENCE",
+      botId: targetBot.id, provider: interpretation.externalProvider || interpretation.provider, reason: "LOW_LOCAL_CONFIDENCE",
       usage: interpretation.aiUsage,
     }, client);
   }
