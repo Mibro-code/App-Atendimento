@@ -53,7 +53,8 @@ async function observeIncomingMessage(event, message, { now = new Date() } = {})
       flowResolutionStatus: result.flowResolutionStatus || null,
     }));
 
-    const suggestedQuickReply = await suggestQuickReplySafely(result.intentId);
+    const suggestionsAllowed = result.agentSuggestionsAllowed !== false;
+    const suggestedQuickReply = suggestionsAllowed ? await suggestQuickReplySafely(result.intentId) : null;
 
     await prisma.botObservation.create({
       data: {
@@ -84,7 +85,7 @@ async function observeIncomingMessage(event, message, { now = new Date() } = {})
         // disponível para o atendente usar quando já assumiu a conversa
         // (bot-suggestion-service.js). Item 4: se esta mensagem trocou de
         // assunto no meio de um fluxo em andamento.
-        suggestedResponseText: result.suggestedResponseText || null,
+        suggestedResponseText: suggestionsAllowed ? (result.suggestedResponseText || null) : null,
         topicSwitchDetected: Boolean(result.topicSwitchDetected),
         provider: result.provider,
         mode: "OBSERVATION",

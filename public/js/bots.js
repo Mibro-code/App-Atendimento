@@ -104,7 +104,7 @@ function renderIntents() {
 
 const booleanFeatureFlags = [
   "interpretationEnabled", "conversationalBehaviorEnabled", "contextEnabled", "autoSwitchEnabled",
-  "observationEnabled", "learningEnabled", "knowledgeSuggestionsEnabled", "knowledgeBaseEnabled",
+  "observationEnabled", "learningEnabled", "agentSuggestionsEnabled", "knowledgeSuggestionsEnabled", "knowledgeBaseEnabled",
   "handoffAutoPauseEnabled", "autoFinalizeOnResolution", "externalAiFallbackEnabled",
 ];
 const numericFeatureFlags = {
@@ -113,7 +113,7 @@ const numericFeatureFlags = {
 };
 const defaultBooleanFeatureFlags = {
   interpretationEnabled: true, conversationalBehaviorEnabled: true, contextEnabled: true, autoSwitchEnabled: true,
-  observationEnabled: true, learningEnabled: true, knowledgeSuggestionsEnabled: true, knowledgeBaseEnabled: false,
+  observationEnabled: true, learningEnabled: true, agentSuggestionsEnabled: true, knowledgeSuggestionsEnabled: true, knowledgeBaseEnabled: false,
   handoffAutoPauseEnabled: true, autoFinalizeOnResolution: false, externalAiFallbackEnabled: false,
 };
 // Item 3 (Motor de IA): provider externo escolhido por Bot — "GEMINI" é a

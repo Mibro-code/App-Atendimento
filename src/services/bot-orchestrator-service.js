@@ -389,6 +389,8 @@ async function orchestrate({
     humanPaused, flowStack: flowStackBefore, seedEntities: priorContextEntities,
   });
 
+  const targetFlags = targetBot.id === bot.id ? flags : resolveFeatureFlags(targetBot);
+
   if (decision.action === "HANDOFF_HUMAN") {
     try {
       const decisionWithCategoryName = { ...decision, categoryName: categoryNameFor(targetBot, decision.categoryId) };
@@ -465,13 +467,14 @@ async function orchestrate({
     bot, targetBot, interpretation, decision, responseText: finalResponseText,
     extras: {
       humanPaused, automationBlocked, observationAllowed, learningEnabled: flags.learningEnabled,
+      agentSuggestionsAllowed: targetFlags.agentSuggestionsEnabled,
       flowStepId: flow?.currentStepId ?? null, flowResolutionStatus: flow?.resolutionStatus ?? null,
       flowIntentId: flow?.intentId ?? null, flowPendingQuestion: flow?.pendingQuestion ?? null,
       autoFinalizeRequested, topicSwitchDetected, ratingRequested: ratingTrigger.request,
       // Item 7 (sugestão para o atendente): o texto que o motor calculou
       // fica sempre disponível aqui (mesmo em modo observação) — quem
       // decide persistir/mostrar ao atendente é bot-observation-service.js.
-      suggestedResponseText: finalResponseText || null,
+      suggestedResponseText: targetFlags.agentSuggestionsEnabled ? (finalResponseText || null) : null,
     },
   });
 }
