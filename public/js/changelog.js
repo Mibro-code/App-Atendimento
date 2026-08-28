@@ -1,7 +1,17 @@
 (() => {
-  const APP_VERSION = "0.24.3";
+  const APP_VERSION = "0.24.4";
 
   const CHANGELOG = [
+    {
+      version: "0.24.4",
+      date: "28/08/2026",
+      title: "Estabilidade do Gemini",
+      changes: [
+        "Reduz o raciocínio interno do Gemini ao mínimo necessário para classificação de intenção, evitando respostas vazias por consumo do limite de tokens.",
+        "Amplia o timeout padrão do Gemini de 8 para 15 segundos para acomodar a latência real observada sem abandonar prematuramente a chamada.",
+        "Preserva o schema de intenções e o fallback local seguro da versão anterior."
+      ]
+    },
     {
       version: "0.24.3",
       date: "28/08/2026",
