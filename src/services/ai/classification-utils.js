@@ -17,8 +17,15 @@ function parseJsonResponse(text) {
 function validateClassification(parsed, bot) {
   const { sanitizeEntities } = require("../bot-entity-extractor");
   if (!parsed || typeof parsed !== "object") return { intentId: null, confidence: 0, entities: {} };
-  const validIntentIds = new Set((bot.intents || []).map((intent) => intent.id));
-  const intentId = typeof parsed.intentId === "string" && validIntentIds.has(parsed.intentId) ? parsed.intentId : null;
+  const intents = bot.intents || [];
+  const validIntentIds = new Set(intents.map((intent) => intent.id));
+  const candidate = typeof parsed.intentId === "string" ? parsed.intentId.trim() : "";
+  let intentId = validIntentIds.has(candidate) ? candidate : null;
+  if (!intentId && candidate) {
+    const normalizedCandidate = candidate.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const matches = intents.filter((intent) => String(intent.name || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === normalizedCandidate);
+    if (matches.length === 1) intentId = matches[0].id;
+  }
   const rawConfidence = Number(parsed.confidence);
   const confidence = Number.isFinite(rawConfidence) ? Math.min(1, Math.max(0, rawConfidence)) : 0;
   if (!intentId) return { intentId: null, confidence: 0, entities: sanitizeEntities(parsed.entities) };

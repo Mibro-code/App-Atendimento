@@ -59,6 +59,18 @@ test("GeminiProvider: chave válida — classifica a intenção a partir de uma 
   assert.ok(captured.url.includes(DEFAULT_MODEL));
   assert.equal(captured.config.headers["x-goog-api-key"], "fake-key");
   assert.doesNotMatch(captured.url, /fake-key/, "a chave nunca deveria aparecer na URL");
+  assert.deepEqual(captured.body.generationConfig.responseJsonSchema.properties.intentId.anyOf[0].enum, ["intent-pedido"]);
+});
+
+test("GeminiProvider: concatena partes e resolve nome exato sem aceitar intenção inventada", async (t) => {
+  const provider = new GeminiProvider({ apiKey: "fake-key" });
+  t.mock.method(axios, "post", async () => ({ data: { candidates: [{ content: { parts: [
+    { text: '{"intentId":"Acompanhar ' },
+    { text: 'pedido","confidence":0.88,"entities":{}}' },
+  ] } }] } }));
+  const result = await provider.classifyIntent({ bot: botFixture(), message: "pedido", context: [] });
+  assert.equal(result.intentId, "intent-pedido");
+  assert.equal(result.confidence, 0.88);
 });
 
 // Item "JSON inválido": nunca lança, nunca inventa intenção — degrada para
