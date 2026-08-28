@@ -115,6 +115,9 @@ const FEATURE_FLAG_DEFAULTS = Object.freeze({
   autoSwitchEnabled: true,
   observationEnabled: true,
   learningEnabled: true,
+  // Sugestões de resposta exibidas na Central para o atendente. Desligar
+  // não interrompe Observação/Aprendizado e nunca altera mensagens reais.
+  agentSuggestionsEnabled: true,
   knowledgeSuggestionsEnabled: true,
   knowledgeBaseEnabled: false,
   handoffAutoPauseEnabled: true,
@@ -157,7 +160,7 @@ const FEATURE_FLAG_DEFAULTS = Object.freeze({
 });
 const BOOLEAN_FEATURE_FLAG_KEYS = Object.freeze([
   "interpretationEnabled", "conversationalBehaviorEnabled", "contextEnabled", "autoSwitchEnabled",
-  "observationEnabled", "learningEnabled", "knowledgeSuggestionsEnabled", "knowledgeBaseEnabled",
+  "observationEnabled", "learningEnabled", "agentSuggestionsEnabled", "knowledgeSuggestionsEnabled", "knowledgeBaseEnabled",
   "handoffAutoPauseEnabled", "handoffEnabled", "toolsFeatureEnabled", "flowEngineEnabled",
   "autoFinalizeOnResolution", "externalAiFallbackEnabled",
 ]);

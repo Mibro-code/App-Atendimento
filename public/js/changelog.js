@@ -1,7 +1,18 @@
 (() => {
-  const APP_VERSION = "0.24.1";
+  const APP_VERSION = "0.24.2";
 
   const CHANGELOG = [
+    {
+      version: "0.24.2",
+      date: "28/08/2026",
+      title: "Controle de sugestões por Bot",
+      changes: [
+        "Adiciona em cada Bot a opção Sugestões de resposta ao atendente.",
+        "Ao desativar, a Central deixa de exibir sugestões novas e antigas daquele Bot imediatamente.",
+        "Observação e aprendizado supervisionado continuam funcionando normalmente, sem envio automático de mensagens.",
+        "Mantém o recurso habilitado por padrão nos Bots existentes para preservar o comportamento atual; uma conta Master pode desligá-lo individualmente."
+      ]
+    },
     {
       version: "0.24.1",
       date: "27/08/2026",

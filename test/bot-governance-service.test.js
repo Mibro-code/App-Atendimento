@@ -7,6 +7,7 @@ test("resolveFeatureFlags aplica defaults quando o Bot não tem overrides", () =
   assert.equal(flags.interpretationEnabled, true);
   assert.equal(flags.autoSwitchEnabled, true);
   assert.equal(flags.knowledgeBaseEnabled, false);
+  assert.equal(flags.agentSuggestionsEnabled, true);
   assert.equal(flags.contextExpirationMinutes, 120);
 });
 
@@ -21,6 +22,10 @@ test("validateFeatureFlagsInput rejeita chaves desconhecidas silenciosamente e v
   const result = governance.validateFeatureFlagsInput({ contextEnabled: true, chaveInventada: "x" });
   assert.deepEqual(result, { contextEnabled: true });
   assert.throws(() => governance.validateFeatureFlagsInput({ contextEnabled: "sim" }), /verdadeiro ou falso/);
+});
+
+test("validateFeatureFlagsInput aceita controle por Bot das sugestões ao atendente", () => {
+  assert.deepEqual(governance.validateFeatureFlagsInput({ agentSuggestionsEnabled: false }), { agentSuggestionsEnabled: false });
 });
 
 test("validateFeatureFlagsInput valida faixa de valores numéricos", () => {

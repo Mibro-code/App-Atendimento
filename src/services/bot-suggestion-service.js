@@ -6,6 +6,7 @@
 // [Usar]/[Editar]/[Ignorar] — nunca enviado sozinho.
 const prisma = require("../database/prisma");
 const authorization = require("./authorization-service");
+const { resolveFeatureFlags } = require("./bot-governance-service");
 
 function fail(message, statusCode = 400) {
   return Object.assign(new Error(message), { statusCode });
@@ -27,10 +28,14 @@ async function getLatestSuggestion(conversationId, viewer, client = prisma) {
         id: true, messageId: true, botId: true, intentId: true, intentName: true,
         knowledgeSourceId: true, knowledgeSourceTitle: true, toolName: true, suggestedResponseText: true,
         topicSwitchDetected: true, confidence: true, provider: true, createdAt: true,
+        bot: { select: { featureFlags: true } },
       },
     }),
   ]);
-  return latestMessage?.id === suggestion?.messageId ? suggestion : null;
+  if (latestMessage?.id !== suggestion?.messageId || !suggestion?.bot) return null;
+  if (!resolveFeatureFlags(suggestion.bot).agentSuggestionsEnabled) return null;
+  const { bot: _bot, ...visibleSuggestion } = suggestion;
+  return visibleSuggestion;
 }
 
 const SUGGESTION_ACTIONS = new Set(["USED", "EDITED", "IGNORED"]);

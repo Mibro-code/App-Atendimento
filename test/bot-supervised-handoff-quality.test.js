@@ -378,6 +378,24 @@ test("Central de atendimento expõe sugestão supervisionada sem envio automáti
   assert.match(js, /pendingBotSuggestion/);
   assert.match(js, /action = text === pendingSuggestion\.originalText\.trim\(\) \? "USED" : "EDITED"/);
   assert.match(js, /\/api\/bot-suggestion-feedback/);
+  const botsHtml = fs.readFileSync(path.join(__dirname, "..", "public", "bots.html"), "utf8");
+  const botsJs = fs.readFileSync(path.join(__dirname, "..", "public", "js", "bots.js"), "utf8");
+  assert.match(botsHtml, /id="flag-agentSuggestionsEnabled"/);
+  assert.match(botsJs, /agentSuggestionsEnabled/);
+});
+
+test("toggle por Bot desativa sugestões ao atendente sem desligar a observação", async () => {
+  await cleanup();
+  const { bot } = await createTwoIntentBot({ featureFlags: { agentSuggestionsEnabled: false } });
+  const conversation = await seedConversation();
+  const result = await observeMessage(conversation, "onde esta meu pedido");
+  assert.equal(result.agentSuggestionsAllowed, false);
+  assert.equal(await getLatestSuggestion(conversation.id, master), null);
+  const observation = await prisma.botObservation.findFirst({ where: { conversationId: conversation.id, botId: bot.id }, orderBy: { createdAt: "desc" } });
+  assert.ok(observation, "a observação continua sendo registrada");
+  assert.equal(observation.suggestedResponseText, null);
+  assert.equal(observation.suggestedQuickReplyId, null);
+  await prisma.bot.delete({ where: { id: bot.id } });
 });
 // Item 1: resposta de atendente que resolveu bem e não existe como Resposta
 // Rápida ainda vira sugestão QUICK_REPLY, sempre PENDING (nunca criada
