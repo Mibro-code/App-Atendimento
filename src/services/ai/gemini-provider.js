@@ -12,7 +12,7 @@ const { parseJsonResponse, validateClassification } = require("./classification-
 const { buildIntentPrompt } = require("./anthropic-provider");
 
 const DEFAULT_MODEL = "gemini-3.6-flash";
-const DEFAULT_TIMEOUT_MS = 8000;
+const DEFAULT_TIMEOUT_MS = 15000;
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const ENTITY_KEYS = ["orderNumber", "cpf", "cnpj", "serialNumber", "email", "productName", "trackingCode"];
 
@@ -92,6 +92,7 @@ class GeminiProvider extends AIProvider {
         generationConfig: {
           responseMimeType: "application/json",
           responseJsonSchema: buildResponseJsonSchema(bot),
+          thinkingConfig: { thinkingLevel: "minimal" },
           maxOutputTokens: 400,
         },
       }, {

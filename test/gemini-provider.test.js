@@ -33,7 +33,7 @@ test("GeminiProvider: sem GEMINI_API_KEY, construtor lança erro claro (nunca ch
 test("GeminiProvider: modelo e timeout usam defaults sensatos quando não informados", () => {
   const provider = new GeminiProvider({ apiKey: "fake-key" });
   assert.equal(provider.model, DEFAULT_MODEL);
-  assert.equal(provider.timeoutMs, 8000);
+  assert.equal(provider.timeoutMs, 15000);
 });
 
 test("GeminiProvider: modelo/timeout configuráveis via construtor", () => {
@@ -60,6 +60,7 @@ test("GeminiProvider: chave válida — classifica a intenção a partir de uma 
   assert.equal(captured.config.headers["x-goog-api-key"], "fake-key");
   assert.doesNotMatch(captured.url, /fake-key/, "a chave nunca deveria aparecer na URL");
   assert.deepEqual(captured.body.generationConfig.responseJsonSchema.properties.intentId.anyOf[0].enum, ["intent-pedido"]);
+  assert.equal(captured.body.generationConfig.thinkingConfig.thinkingLevel, "minimal");
 });
 
 test("GeminiProvider: concatena partes e resolve nome exato sem aceitar intenção inventada", async (t) => {
