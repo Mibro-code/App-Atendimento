@@ -11,7 +11,10 @@ const { handleIncomingTriage } = require("./services/triage-bot-service");
 const { observeIncomingMessage } = require("./services/bot-observation-service");
 const { createInboxController } = require("./controllers/inbox-controller");
 const authController = require("./controllers/auth-controller");
-const { authenticate, requireCampaignsPage, requireMasterPage, requirePageAuth } = require("./middleware/auth");
+const {
+  authenticate, requireCampaignsPage, requireConversationSettingsPage, requireMasterPage, requirePageAuth,
+} = require("./middleware/auth");
+const conversationSettingsController = require("./controllers/conversation-settings-controller");
 const verifyMetaSignature = require("./middleware/meta-signature");
 const integrationAuth = require("./middleware/integration-auth");
 const { registerExternalLead } = require("./services/external-lead-service");
@@ -241,6 +244,9 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   app.get(["/campaigns", "/campaigns.html"], requireCampaignsPage, (_req, res) => (
     res.sendFile(path.join(process.cwd(), "public", "campaigns.html"))
   ));
+  app.get(["/configuracoes", "/configuracoes.html"], requireConversationSettingsPage, (_req, res) => (
+    res.sendFile(path.join(process.cwd(), "public", "configuracoes.html"))
+  ));
   app.get("/service-worker.js", (_req, res) => {
     res.set("Cache-Control", "no-cache, no-store, must-revalidate");
     return res.sendFile(path.join(process.cwd(), "public", "service-worker.js"));
@@ -456,6 +462,9 @@ app.post(
   app.post("/api/campaign-templates/preview", campaignController.previewTemplate);
   app.get("/api/campaign-settings", campaignController.getSettings);
   app.patch("/api/campaign-settings", campaignController.updateSettings);
+
+  app.get("/api/conversation-settings", conversationSettingsController.getSettings);
+  app.patch("/api/conversation-settings", conversationSettingsController.updateSettings);
   app.get("/api/campaign-opt-outs", campaignController.listOptOuts);
   app.post("/api/campaign-opt-outs/:phone/remove", campaignController.removeOptOut);
   app.get("/api/campaigns", campaignController.list);

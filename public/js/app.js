@@ -363,6 +363,7 @@ async function loadCurrentUser() {
   $("#knowledge-base-button").hidden = !status.user.isMaster;
   $("#integrations-button").hidden = !status.user.isMaster;
   $("#campaigns-button").hidden = !status.user.canManageCampaigns;
+  $("#conversation-settings-button").hidden = !status.user.isMaster && status.user.role !== "SUPERVISOR";
   $("#team-button").hidden = !status.user.isMaster && !status.user.canViewTeamActivity;
   $("#open-audit").hidden = !status.user.isMaster;
   $("#manage-categories").hidden = !status.user.canManageCategories;
@@ -1132,6 +1133,7 @@ $("#bots-button").addEventListener("click", () => { location.href = "/bots"; });
 $("#quick-replies-admin-button").addEventListener("click", () => { location.href = "/quick-replies"; });
 $("#knowledge-base-button").addEventListener("click", () => { location.href = "/knowledge-base"; });
 $("#campaigns-button").addEventListener("click", () => { location.href = "/campaigns"; });
+$("#conversation-settings-button").addEventListener("click", () => { location.href = "/configuracoes"; });
 $("#integrations-button").addEventListener("click", () => { location.href = "/integrations"; });
 $("#user-button").addEventListener("click", async () => { await api("/api/auth/logout", { method:"POST" }); location.replace("/login.html"); });
 $("#team-button").addEventListener("click", async () => { try { await loadAdminUsers(); resetTeamForm(); $("#new-team-user").hidden = !state.currentUser.isMaster; $("#team-form").hidden = !state.currentUser.isMaster; $("#team-dialog").classList.toggle("activity-only", !state.currentUser.isMaster); $("#team-dialog").showModal(); } catch (e) { toast(e.message, true); } });

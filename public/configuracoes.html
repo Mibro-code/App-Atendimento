@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#ef5b2a">
+  <link rel="icon" type="image/png" sizes="192x192" href="/assets/app-icon-192.png">
+  <title>Configurações &bull; Conversas &bull; Central de Atendimento</title>
+  <script>try{const saved=localStorage.getItem("mibro-theme");document.documentElement.dataset.theme=saved||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch{}</script>
+  <link rel="stylesheet" href="/css/skeleton.css">
+  <link rel="stylesheet" href="/css/bots.css">
+  <link rel="stylesheet" href="/css/configuracoes.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/"><img src="/assets/mibro-logo.png" alt="Mibro"><span></span><small>Configurações</small></a>
+    <div class="phase-badge">CONFIGURAÇÕES &bull; CONVERSAS</div>
+    <a class="back-link" href="/">&larr; Central</a>
+    <button id="theme-toggle" class="round-button" type="button" title="Alternar tema">&#9790;</button>
+    <button id="logout" class="user-button" type="button"><span id="current-user">Usuário</span> &bull; Sair</button>
+  </header>
+
+  <main class="settings-shell">
+    <div class="settings-heading">
+      <div><span>CONVERSAS</span><h1>Configurações de Conversas</h1><p>Fonte central de SLAs, alertas, contexto do Bot e reabertura — nenhum desses prazos vive hardcoded em outro lugar do sistema.</p></div>
+      <div id="settings-readonly-note" class="readonly-note" hidden>Modo somente leitura — apenas uma conta Master pode alterar estas configurações.</div>
+    </div>
+
+    <form id="settings-form" class="settings-grid">
+      <details class="card" open>
+        <summary><span>GERAL</span><h3>Reabertura e contexto do Bot</h3></summary>
+        <div class="fields two-columns">
+          <label class="checkbox full"><input id="cs-reopen-enabled" type="checkbox"><span>Reabrir conversa ao receber mensagem real do cliente</span></label>
+          <label><span>Janela de reabertura (min, opcional)</span><input id="cs-reopen-window" type="number" min="1" max="43200" placeholder="Sem limite"></label>
+          <label><span>TTL do contexto do Bot (min)</span><input id="cs-bot-ttl" type="number" min="1" max="1440"></label>
+        </div>
+        <p class="card-help">Mensagens de status (entregue/lido) e eventos técnicos nunca reabrem uma conversa finalizada — só uma mensagem real do cliente reabre.</p>
+      </details>
+
+      <details class="card" open>
+        <summary><span>FINALIZAÇÃO</span><h3>Finalização automática</h3></summary>
+        <div class="fields two-columns">
+          <label class="checkbox full"><input id="cs-auto-finalize-enabled" type="checkbox"><span>Finalizar conversas inativas automaticamente</span></label>
+          <label><span>Tempo de inatividade (min)</span><input id="cs-auto-finalize-minutes" type="number" min="1" max="1440"></label>
+        </div>
+        <p class="card-help">Só finaliza quando a última mensagem foi da empresa — se o cliente ficou aguardando resposta, a conversa nunca é finalizada automaticamente.</p>
+      </details>
+
+      <details class="card" open>
+        <summary><span>SLA</span><h3>Prazos de resposta</h3></summary>
+        <div class="fields two-columns">
+          <label class="checkbox full"><input id="cs-first-response-enabled" type="checkbox"><span>SLA de primeira resposta</span></label>
+          <label><span>Prazo da primeira resposta (min)</span><input id="cs-first-response-minutes" type="number" min="1" max="1440"></label>
+          <label class="checkbox full"><input id="cs-response-enabled" type="checkbox"><span>SLA de resposta durante atendimento</span></label>
+          <label><span>Prazo de resposta em atendimento (min)</span><input id="cs-response-minutes" type="number" min="1" max="1440"></label>
+          <label class="checkbox full"><input id="cs-business-hours-only" type="checkbox"><span>Considerar apenas horário comercial nos SLAs</span></label>
+        </div>
+        <p class="card-help">Ultrapassar o prazo marca a conversa como "Resposta atrasada" — nunca finaliza automaticamente por causa de SLA.</p>
+      </details>
+
+      <details class="card" open>
+        <summary><span>ALERTAS</span><h3>Conversas que precisam de atenção</h3></summary>
+        <div class="fields two-columns">
+          <label class="checkbox full"><input id="cs-unanswered-enabled" type="checkbox"><span>Alertar cliente aguardando resposta</span></label>
+          <label><span>Prazo do alerta (min)</span><input id="cs-unanswered-minutes" type="number" min="1" max="1440"></label>
+          <label class="checkbox full"><input id="cs-stalled-enabled" type="checkbox"><span>Alertar conversa parada</span></label>
+          <label><span>Prazo de inatividade (min)</span><input id="cs-stalled-minutes" type="number" min="1" max="1440"></label>
+        </div>
+        <p class="card-help">Alertas são só internos, para a equipe — nenhuma mensagem automática é enviada ao cliente nesta fase.</p>
+      </details>
+
+      <details class="card">
+        <summary><span>BOT</span><h3>Retomada após atendimento humano</h3></summary>
+        <div class="fields two-columns">
+          <label class="checkbox full"><input id="cs-bot-resume-enabled" type="checkbox" disabled><span>Bot retoma automaticamente após atendimento humano <em>(em breve)</em></span></label>
+          <label><span>Tempo até retomar (min)</span><input id="cs-bot-resume-minutes" type="number" min="1" max="1440" disabled></label>
+        </div>
+        <p class="card-help">Estrutura preparada para uso futuro — hoje o Bot só retoma quando alguém da equipe clica em "Retomar Bot" manualmente. Enquanto houver atendimento humano ativo, o Bot nunca retoma sozinho.</p>
+      </details>
+
+      <div class="form-actions">
+        <button id="save-settings" type="submit">Salvar configurações</button>
+      </div>
+    </form>
+  </main>
+
+  <div id="toast" class="toast"></div>
+  <script src="/js/configuracoes.js"></script>
+</body>
+</html>

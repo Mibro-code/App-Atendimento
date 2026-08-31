@@ -70,8 +70,21 @@ function assertCanManageCampaigns(user) {
   if (!canManageCampaigns(user)) throw forbidden("Você não tem permissão para gerenciar campanhas.");
 }
 
+// Configurações → Conversas: Admin edita (via assertMaster), Supervisor só
+// visualiza — mesma régua de "edição de alto risco não delegável" usada em
+// Campanhas/Bots, mas com leitura liberada para Supervisor acompanhar SLAs.
+function canViewConversationSettings(user) {
+  return isMaster(user) || user?.role === "SUPERVISOR";
+}
+
+function assertCanViewConversationSettings(user) {
+  if (!canViewConversationSettings(user)) {
+    throw forbidden("Você não pode visualizar as configurações de Conversas.");
+  }
+}
+
 module.exports = {
   allowedCategoryIds, assertCanAccessContact, assertCanManageCampaigns, assertCanManageCategories,
-  assertCanViewConversation, assertMaster, canAccessCategory, canManageCampaigns, canTransfer,
-  conversationScope, forbidden, isMaster,
+  assertCanViewConversation, assertCanViewConversationSettings, assertMaster, canAccessCategory,
+  canManageCampaigns, canTransfer, canViewConversationSettings, conversationScope, forbidden, isMaster,
 };

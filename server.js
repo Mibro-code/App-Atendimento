@@ -5,6 +5,7 @@ const { createApp } = require("./src/app");
 const prisma = require("./src/database/prisma");
 const MetaCloudChannel = require("./src/channels/meta-cloud-channel");
 const { startInactivityMonitor } = require("./src/services/conversation-inactivity-service");
+const { startSlaMonitor } = require("./src/services/conversation-sla-service");
 const { startCampaignWorker } = require("./src/services/campaign-worker-service");
 const inboxEvents = require("./src/realtime/inbox-events");
 
@@ -14,6 +15,9 @@ const server = createApp({ channel }).listen(PORT, () => {
   console.log(`Servidor rodando em http://localhost:${PORT}`);
 });
 const stopInactivityMonitor = startInactivityMonitor({ onChange: () => inboxEvents.publish() });
+// Configurações → Conversas: SLAs/alertas (itens 1-4) rodam no mesmo padrão
+// de monitor em processo, nunca finalizam nem enviam mensagem ao cliente.
+const stopSlaMonitor = startSlaMonitor({ onChange: () => inboxEvents.publish() });
 // Item 17: fila de envio de Campanhas — mesmo padrão de monitor em processo
 // do startInactivityMonitor acima; nunca dispara nada fora deste tick, e o
 // master switch (CampaignGlobalSettings.massMessagingEnabled) é reconferido
@@ -23,6 +27,7 @@ const stopCampaignWorker = startCampaignWorker({ channel, onChange: () => inboxE
 async function shutdown(signal) {
   console.log(`${signal} recebido. Encerrando servidor...`);
   stopInactivityMonitor();
+  stopSlaMonitor();
   stopCampaignWorker();
   server.close(async () => {
     await prisma.$disconnect();

@@ -235,52 +235,56 @@ model ContactNote {
 }
 
 model Conversation {
-  id                      String                     @id @default(cuid())
-  contactId               String
-  channel                 Channel                    @default(META)
-  channelScope            String                     @default("LEGACY")
+  id                       String                     @id @default(cuid())
+  contactId                String
+  channel                  Channel                    @default(META)
+  channelScope             String                     @default("LEGACY")
   // Conta específica do canal que originou esta conversa (multi-conta por
   // plataforma — item 5). Null para conversas do canal Meta já existentes.
-  channelAccountId        String?
+  channelAccountId         String?
   // ID da conversa/thread na plataforma externa — nunca é usado como chave
   // primária interna (item 19). Null para WhatsApp (Contact+channel já basta).
-  externalConversationId  String?
-  kind                    ConversationKind           @default(PRIVATE_CONVERSATION)
-  categoryId              String?
-  assignedUserId          String?
-  status                  ConversationStatus         @default(NOVO)
-  unreadCount             Int                        @default(0)
-  lastMessageAt           DateTime?
-  finalizedAt             DateTime?
+  externalConversationId   String?
+  kind                     ConversationKind           @default(PRIVATE_CONVERSATION)
+  categoryId               String?
+  assignedUserId           String?
+  status                   ConversationStatus         @default(NOVO)
+  unreadCount              Int                        @default(0)
+  lastMessageAt            DateTime?
+  finalizedAt              DateTime?
+  // SLA de primeira resposta (Configurações → Conversas, item 1): true
+  // enquanto o cliente aguarda a primeira resposta da empresa além do prazo
+  // configurado. Não afeta `status`/máquina de estados — é só um indicador.
+  firstResponseSlaBreached Boolean                    @default(false)
   // Campanhas (item 15): quando a conversa nasceu de uma resposta a uma
   // campanha de envio em massa — `originSource = "OUTBOUND_CAMPAIGN"` é o
   // vocabulário controlado citado no pedido; nunca preenchido para conversas
   // que chegaram por qualquer outro caminho.
-  originSource            String?
-  originCampaignId        String?
-  originCampaignContactId String?
-  createdAt               DateTime                   @default(now())
-  updatedAt               DateTime                   @updatedAt
-  contact                 Contact                    @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  category                Category?                  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  assignedUser            User?                      @relation("AssignedConversations", fields: [assignedUserId], references: [id], onDelete: SetNull)
-  messages                Message[]
-  activities              ConversationActivity[]
-  pins                    ConversationPin[]
-  masterReads             ConversationMasterRead[]
-  internalMessages        InternalMessage[]
-  botObservations         BotObservation[]
-  botState                ConversationBotState?
-  learningSuggestions     BotLearningSuggestion[]
-  learningState           ConversationLearningState?
-  rating                  BotRating?
-  agentFeedback           BotAgentFeedback[]
-  handoffContexts         BotHandoffContext[]
-  quickReplyUsages        QuickReplyUsage[]
-  suggestionFeedback      BotSuggestionFeedback[]
-  channelAccount          ChannelAccount?            @relation(fields: [channelAccountId], references: [id], onDelete: SetNull)
-  originCampaign          Campaign?                  @relation(fields: [originCampaignId], references: [id], onDelete: SetNull)
-  originCampaignContact   CampaignContact?           @relation(fields: [originCampaignContactId], references: [id], onDelete: SetNull)
+  originSource             String?
+  originCampaignId         String?
+  originCampaignContactId  String?
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime                   @updatedAt
+  contact                  Contact                    @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  category                 Category?                  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  assignedUser             User?                      @relation("AssignedConversations", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  messages                 Message[]
+  activities               ConversationActivity[]
+  pins                     ConversationPin[]
+  masterReads              ConversationMasterRead[]
+  internalMessages         InternalMessage[]
+  botObservations          BotObservation[]
+  botState                 ConversationBotState?
+  learningSuggestions      BotLearningSuggestion[]
+  learningState            ConversationLearningState?
+  rating                   BotRating?
+  agentFeedback            BotAgentFeedback[]
+  handoffContexts          BotHandoffContext[]
+  quickReplyUsages         QuickReplyUsage[]
+  suggestionFeedback       BotSuggestionFeedback[]
+  channelAccount           ChannelAccount?            @relation(fields: [channelAccountId], references: [id], onDelete: SetNull)
+  originCampaign           Campaign?                  @relation(fields: [originCampaignId], references: [id], onDelete: SetNull)
+  originCampaignContact    CampaignContact?           @relation(fields: [originCampaignContactId], references: [id], onDelete: SetNull)
 
   @@unique([contactId, channel, channelScope])
   @@index([status, lastMessageAt])
@@ -1433,6 +1437,54 @@ model CampaignGlobalSettings {
   defaultMaxRetries                 Int      @default(2)
   updatedAt                         DateTime @updatedAt
   createdAt                         DateTime @default(now())
+}
+
+// Configurações → Conversas: registro único, mesmo padrão de
+// CampaignGlobalSettings/BotGlobalSettings. Fonte central de todos os
+// prazos/flags de SLA, alertas, contexto do Bot e reabertura de conversa —
+// nenhum desses números deve viver hardcoded em outro arquivo (item 11).
+model ConversationSettings {
+  id String @id @default("singleton")
+
+  // SLA de primeira resposta (item 1)
+  firstResponseSlaEnabled Boolean @default(false)
+  firstResponseSlaMinutes Int     @default(10)
+
+  // SLA de resposta durante atendimento (item 2)
+  responseSlaEnabled Boolean @default(false)
+  responseSlaMinutes Int     @default(15)
+
+  // Alerta de conversa sem resposta (item 3)
+  unansweredConversationAlertEnabled Boolean @default(false)
+  unansweredConversationAlertMinutes Int     @default(30)
+
+  // Alerta de conversa parada (item 4)
+  stalledConversationAlertEnabled Boolean @default(false)
+  stalledConversationAlertMinutes Int     @default(360)
+
+  // Contexto do Bot (item 5) — default global; flag por Bot continua existindo
+  // e tem prioridade quando definido (ver bot-orchestrator-service.js).
+  botContextTtlMinutes Int @default(120)
+
+  // Retomada do Bot após humano (item 6) — nasce OFF; só estrutura, nenhum
+  // job automático ainda age sobre estes campos (ver conversation-sla-service.js).
+  botResumeAfterHumanEnabled Boolean @default(false)
+  botResumeAfterHumanMinutes Int     @default(60)
+
+  // Reabertura de conversa (itens 7 e 8)
+  reopenConversationOnCustomerMessage Boolean @default(true)
+  reopenWindowMinutes                 Int?
+
+  // Horário comercial aplicado a SLA (item 9) — reusa business-hours-service.js.
+  slaBusinessHoursOnly Boolean @default(false)
+
+  // Finalização automática (já existente em conversation-inactivity-service.js,
+  // antes hardcoded — agora configurável a partir daqui).
+  autoFinalizationEnabled Boolean @default(true)
+  autoFinalizationMinutes Int     @default(1440)
+
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
 }
 
 model Campaign {

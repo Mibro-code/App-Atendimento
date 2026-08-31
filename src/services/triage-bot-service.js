@@ -1,27 +1,14 @@
 const prisma = require("../database/prisma");
 const audit = require("./audit-service");
+const { businessHoursText, isBusinessHours } = require("./business-hours-service");
 
 const categoryReplyPrefix = "triage_category:";
 const triageCategoryCodes = ["ATENDIMENTO", "SUPORTE", "COMERCIAL", "PARCERIAS"];
-const businessTimeZone = "America/Sao_Paulo";
-const businessHoursText = "segunda a sexta-feira, das 8h às 17h (horário de Brasília)";
 
 function contactFirstName(contact) {
   const name = contact?.name?.trim();
   if (!name || name === contact?.phone) return "Olá";
   return name.split(/\s+/)[0];
-}
-
-function businessParts(date = new Date()) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: businessTimeZone, weekday: "short", hour: "2-digit", hourCycle: "h23",
-  }).formatToParts(date);
-  return Object.fromEntries(parts.map(({ type, value }) => [type, value]));
-}
-
-function isBusinessHours(date = new Date()) {
-  const { weekday, hour } = businessParts(date);
-  return !["Sat", "Sun"].includes(weekday) && Number(hour) >= 8 && Number(hour) < 17;
 }
 
 function welcomeText(contact) {
