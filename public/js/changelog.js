@@ -1,7 +1,17 @@
 (() => {
-  const APP_VERSION = "0.25.1";
+  const APP_VERSION = "0.25.2";
 
   const CHANGELOG = [
+    {
+      version: "0.25.2",
+      date: "31/08/2026",
+      title: "Navegação organizada e layout das configurações",
+      changes: [
+        "Agrupa os atalhos da Central nos menus Atendimento, Automação, Canais e Administração, preservando permissões e ações existentes.",
+        "Corrige a rolagem vertical da tela de Configurações quando as seções são abertas.",
+        "Evita sobreposição dos textos de ajuda com campos e linhas divisórias e deixa as seções recolhidas mais compactas."
+      ]
+    },
     {
       version: "0.25.1",
       date: "31/08/2026",
