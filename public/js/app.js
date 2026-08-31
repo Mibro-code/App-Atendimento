@@ -1844,3 +1844,22 @@ loadCurrentUser()
     }
   });
 setInterval(() => { (document.hidden ? checkAlerts() : refreshInbox()).catch(() => {}); }, 30000);
+
+
+// Navegação por áreas: mantém apenas um menu aberto e fecha ao escolher
+// uma opção ou clicar fora, sem alterar os handlers/permissões dos botões.
+document.querySelectorAll(".topbar-menu").forEach((menu) => {
+  menu.addEventListener("toggle", () => {
+    if (!menu.open) return;
+    document.querySelectorAll(".topbar-menu[open]").forEach((other) => {
+      if (other !== menu) other.removeAttribute("open");
+    });
+  });
+});
+document.addEventListener("click", (event) => {
+  document.querySelectorAll(".topbar-menu[open]").forEach((menu) => {
+    if (!menu.contains(event.target) || event.target.closest(".topbar-menu-item")) {
+      menu.removeAttribute("open");
+    }
+  });
+});
