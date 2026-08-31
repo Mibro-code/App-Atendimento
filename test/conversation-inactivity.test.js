@@ -29,7 +29,7 @@ test("finaliza após 24 horas somente quando a equipe aguarda o cliente", async 
     data: { contactId: outgoingContact.id, categoryId: support.id, status: "EM_ATENDIMENTO", lastMessageAt: old },
   });
   const incomingConversation = await prisma.conversation.create({
-    data: { contactId: incomingContact.id, categoryId: support.id, status: "AGUARDANDO_RESPOSTA", lastMessageAt: old },
+    data: { contactId: incomingContact.id, categoryId: support.id, status: "AGUARDANDO_EQUIPE", lastMessageAt: old },
   });
   const routingConversation = await prisma.conversation.create({
     data: { contactId: routingContact.id, categoryId: support.id, status: "NOVO", lastMessageAt: old },
@@ -46,7 +46,7 @@ test("finaliza após 24 horas somente quando a equipe aguarda o cliente", async 
   assert.equal(finalized.categoryId, null);
   assert.equal(finalized.assignedUserId, null);
   assert.ok(finalized.finalizedAt);
-  assert.equal((await prisma.conversation.findUnique({ where: { id: incomingConversation.id } })).status, "AGUARDANDO_RESPOSTA");
+  assert.equal((await prisma.conversation.findUnique({ where: { id: incomingConversation.id } })).status, "AGUARDANDO_EQUIPE");
   assert.equal((await prisma.conversation.findUnique({ where: { id: routingConversation.id } })).status, "NOVO");
   assert.equal(await prisma.conversationActivity.count({
     where: { conversationId: outgoingConversation.id, action: "AUTO_FINALIZED_INACTIVITY" },

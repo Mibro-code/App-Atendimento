@@ -15,8 +15,13 @@ function createInboxController(channel) {
   return {
     async list(req, res, next) {
       try {
-        if (req.query.status && !inbox.conversationStatuses.has(req.query.status)) {
+        // Filtros combináveis (item 11): status/priority aceitam lista
+        // separada por vírgula — valida cada valor individualmente.
+        if (req.query.status && !String(req.query.status).split(",").every((value) => inbox.conversationStatuses.has(value.trim()))) {
           return res.status(400).json({ error: "Status inválido." });
+        }
+        if (req.query.priority && !String(req.query.priority).split(",").every((value) => inbox.conversationPriorities.has(value.trim()))) {
+          return res.status(400).json({ error: "Prioridade inválida." });
         }
         return res.json(await inbox.listConversations(req.query, req.user));
       } catch (error) { return next(error); }

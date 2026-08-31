@@ -73,9 +73,18 @@
         <button class="filter active" data-status=""><span>Todos</span><strong id="count-all">0</strong></button>
         <button class="filter" data-status="NOVO"><span>Novos</span><strong id="count-new">0</strong></button>
         <button class="filter" data-status="EM_ATENDIMENTO"><span>Em atendimento</span><strong id="count-in-progress">0</strong></button>
-        <button class="filter" data-status="AGUARDANDO_RESPOSTA"><span>Aguardando resposta</span><strong id="count-waiting">0</strong></button>
+        <button class="filter" data-status="AGUARDANDO_EQUIPE"><span>Aguardando equipe</span><strong id="count-waiting">0</strong></button>
         <button class="filter" data-status="BOT"><span>Bot</span><strong id="count-bot">0</strong></button>
         <button class="filter" data-status="FINALIZADO"><span>Finalizados</span><strong id="count-finalized">0</strong></button>
+        <p class="nav-title">FILTROS RÁPIDOS</p>
+        <div class="toggle-filters">
+          <button class="toggle-filter" type="button" data-toggle-filter="slaBreached:true"><span>SLA atrasado</span><strong id="count-overdue">0</strong></button>
+          <button class="toggle-filter" type="button" data-toggle-filter="unassigned:true"><span>Sem responsável</span><strong id="count-unassigned">0</strong></button>
+          <button class="toggle-filter" type="button" data-toggle-filter="priority:URGENTE"><span>Urgente</span><strong id="count-urgent">0</strong></button>
+          <button class="toggle-filter" type="button" data-toggle-filter="priority:ALTA"><span>Alta prioridade</span></button>
+          <button class="toggle-filter" type="button" data-toggle-filter="status:AGUARDANDO_CLIENTE"><span>Aguardando cliente</span></button>
+          <button class="toggle-filter" type="button" data-toggle-filter="status:HANDOFF_BOT"><span>Bot transferiu</span></button>
+        </div>
         <div class="categories-heading"><p class="nav-title categories-title">CATEGORIAS</p><span><button id="toggle-hidden-categories" type="button" title="Mostrar categorias ocultas" aria-label="Mostrar categorias ocultas">◉</button><button id="manage-categories" type="button" title="Criar e editar categorias" aria-label="Gerenciar categorias">+</button></span></div>
         <div id="category-filters"></div>
 <div class="internal-chat-nav">
@@ -126,6 +135,7 @@
         <div class="conversation-meta">
           <span id="status-badge"></span>
           <label class="assignee-control"><span>Responsável</span><select id="assignee-select" aria-label="Atendente responsável"><option value="">Sem responsável</option></select></label>
+          <label class="assignee-control"><span>Prioridade</span><select id="priority-select" aria-label="Prioridade da conversa"><option value="NORMAL">Normal</option><option value="ALTA">Alta</option><option value="URGENTE">Urgente</option></select></label>
           <button id="claim-conversation" class="claim-action" type="button">Assumir conversa</button>
         </div>
         <div id="messages" class="messages"></div>
@@ -264,6 +274,7 @@
           <label class="team-check"><input id="permission-team" type="checkbox"><span><b>Acompanhar equipe</b><small>Filtrar atendimentos de outros membros.</small></span></label>
           <label class="team-check"><input id="permission-history" type="checkbox"><span><b>Visualizar histórico</b><small>Consultar as ações registradas nas conversas permitidas.</small></span></label>
           <label class="team-check"><input id="permission-previous-messages" type="checkbox"><span><b>Ver mensagens anteriores</b><small>Ao receber um encaminhamento, visualizar também as mensagens anteriores.</small></span></label>
+          <label class="team-check"><input id="permission-priority" type="checkbox"><span><b>Definir prioridade da conversa</b><small>Marcar atendimentos como Alta ou Urgente. Admin e Supervisor sempre podem, independente deste campo.</small></span></label>
         </fieldset>
         <fieldset class="team-categories"><legend>Categorias liberadas</legend><p>“Sem categoria”, cada categoria e cada subcategoria devem ser liberadas separadamente.</p><div id="team-category-access"></div></fieldset>
         <div class="team-form-actions"><button id="cancel-team-edit" type="button">Limpar</button><button type="submit">Salvar conta</button></div>

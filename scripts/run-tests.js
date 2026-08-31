@@ -11,7 +11,13 @@ const env = { ...process.env, DATABASE_URL: testUrl, NODE_ENV: "test" };
 for (const [command, args] of [
   ["node", ["node_modules/prisma/build/index.js", "db", "push", "--skip-generate", "--accept-data-loss"]],
   ["node", ["prisma/seed.js"]],
-  ["node", ["--test", "--test-concurrency=1"]],
+  // Restringe explicitamente a "test/**/*.test.js": sem isso, o test runner
+  // varre o cwd inteiro recursivamente e pode pegar arquivos de teste de
+  // outras cópias do projeto soltas no repositório (ex.: diretórios de
+  // trabalho de outra ferramenta), rodando contra um Prisma Client
+  // desatualizado (schema diferente) e gerando falhas que nada têm a ver
+  // com o código deste projeto.
+  ["node", ["--test", "--test-concurrency=1", "test/**/*.test.js"]],
 ]) {
   const result = spawnSync(command, args, { cwd: process.cwd(), env, stdio: "inherit" });
   if (result.error) throw result.error;

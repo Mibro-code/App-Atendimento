@@ -1,6 +1,11 @@
 const state = {
   conversations: [], categories: [], users: [], currentUser: null,
   selectedId: null, selectedContactId: null, selectedCategoryId: "", status: "", category: "", search: "",
+  // Filtros combináveis adicionais (item 11): multi-select, somam-se ao filtro
+  // de status principal (single-select, inalterado) em vez de substituí-lo —
+  // o backend já aceita status/priority como CSV, então cada Set aqui só
+  // precisa virar uma lista separada por vírgula na hora de montar a query.
+  statusToggle: new Set(), priorityToggle: new Set(), slaBreached: false, unassigned: false,
   categorySignature: "", listSignature: "", selectedHeaderSignature: "",
   selectedMessagesSignature: "", selectedNotesSignature: "", selectedActivitiesSignature: "", selectedMessageItems: [],
   selectedMessages: [], selectedContactName: "", contactFilesTab: "media",
@@ -20,8 +25,28 @@ const escapeHtml = (value = "") => String(value).replace(/[&<>'"]/g, (char) => (
 const initials = (name = "?") => name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
 const conversationTimeZone = "America/Sao_Paulo";
 const time = (value) => value ? new Intl.DateTimeFormat("pt-BR", { hour:"2-digit", minute:"2-digit", timeZone:conversationTimeZone }).format(new Date(value)) : "";
-const statusLabel = (value) => ({ NOVO:"Novo", EM_ATENDIMENTO:"Em atendimento", AGUARDANDO_RESPOSTA:"Aguardando resposta", BOT:"Bot", FINALIZADO:"Finalizado" })[value] || value;
+const statusLabel = (value) => ({ NOVO:"Novo", EM_ATENDIMENTO:"Em atendimento", AGUARDANDO_EQUIPE:"Aguardando equipe", AGUARDANDO_CLIENTE:"Aguardando cliente", HANDOFF_BOT:"Bot transferiu", BOT:"Bot", FINALIZADO:"Finalizado" })[value] || value;
 const categoryLabel = (category) => category?.parent?.name ? `${category.parent.name}: ${category.name}` : (category?.name || "Sem categoria");
+// Indicador discreto de prioridade (item 5): só aparece quando != NORMAL — mesmo padrão de badge pequeno já usado para categoria/status/responsável.
+const priorityLabels = { ALTA:"Alta", URGENTE:"Urgente" };
+const priorityLabel = (value) => priorityLabels[value] || value;
+const priorityBadge = (priority) => priority && priority !== "NORMAL"
+  ? `<span class="priority-label priority-${priority.toLowerCase()}">${escapeHtml(priorityLabel(priority))}</span>` : "";
+// Tempo decorrido desde a última mensagem, em formato curto (min/h/d) — usado no card da lista.
+function elapsedShort(value) {
+  if (!value) return "";
+  const minutes = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 60000));
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
+}
+// Indicador de SLA (item 10): estourado (destaque de alerta) ou minutos restantes — null quando não há SLA aplicável ao status atual (ver computeSlaMinutesRemaining no backend).
+function slaBadge(minutesRemaining) {
+  if (minutesRemaining === null || minutesRemaining === undefined) return "";
+  if (minutesRemaining < 0) return `<span class="sla-label sla-overdue">SLA estourado</span>`;
+  return `<span class="sla-label">SLA: ${minutesRemaining}min restantes</span>`;
+}
 const documentTypeLabels = new Map([
   ["application/pdf", "PDF"], ["text/plain", "TXT"], ["application/msword", "DOC"],
   ["application/vnd.openxmlformats-officedocument.wordprocessingml.document", "DOCX"],
@@ -139,6 +164,7 @@ function conversationSignature(conversation) {
     conversation.id, conversation.id === state.selectedId, conversation.status, conversation.unreadCount, conversation.lastMessageAt,
     conversation.categoryId, conversation.category?.name, conversation.category?.color, conversation.category?.parent?.name,
     conversation.assignedUserId, conversation.assignedUser?.name,
+    conversation.priority, conversation.firstResponseSlaBreached, conversation.responseSlaBreached, conversation.slaMinutesRemaining,
     conversation.isPinned,
     conversation.contact.customName, conversation.contact.name, conversation.contact.phone, conversation.contact._count?.notes,
     note?.id, note?.content,
@@ -152,9 +178,9 @@ function conversationCardMarkup(c) {
     <span class="card-grip" aria-hidden="true"></span><span class="avatar">${escapeHtml(initials(name))}</span><span class="card-main">
     <span class="card-title"><strong>${c.isPinned ? `<i class="conversation-pin" title="Conversa fixada">★</i>` : ""}${escapeHtml(name)}</strong><small>${escapeHtml(c.contact.phone)}</small></span>
     <span class="preview">${escapeHtml(messagePreview(last))}</span>
-    <span class="card-labels"><span class="category-label" style="color:${c.category?.color || "#666"};border-color:${c.category?.color || "#aaa"}">${escapeHtml(categoryLabel(c.category))}</span><span class="status-label">${escapeHtml(statusLabel(c.status))}</span>${c.assignedUser ? `<span class="assignee-label">${escapeHtml(c.assignedUser.name)}</span>` : ""}</span>
+    <span class="card-labels"><span class="category-label" style="color:${c.category?.color || "#666"};border-color:${c.category?.color || "#aaa"}">${escapeHtml(categoryLabel(c.category))}</span><span class="status-label">${escapeHtml(statusLabel(c.status))}</span>${c.assignedUser ? `<span class="assignee-label">${escapeHtml(c.assignedUser.name)}</span>` : ""}${priorityBadge(c.priority)}${slaBadge(c.slaMinutesRemaining)}</span>
     <span class="note-preview"><b>NOTA</b> ${escapeHtml(note?.content || "Sem notas para este contato")}${c.contact._count?.notes ? `<i>${c.contact._count.notes}</i>` : ""}</span></span>
-    <span class="card-side"><span>${time(c.lastMessageAt)}</span>${c.unreadCount ? `<span class="unread">${c.unreadCount}</span>` : ""}</span></button>`;
+    <span class="card-side"><span>${time(c.lastMessageAt)}</span><span class="card-elapsed">${escapeHtml(elapsedShort(c.lastMessageAt))}</span>${c.unreadCount ? `<span class="unread">${c.unreadCount}</span>` : ""}</span></button>`;
 }
 
 function renderConversationCards(conversations) {
@@ -368,6 +394,11 @@ async function loadCurrentUser() {
   $("#open-audit").hidden = !status.user.isMaster;
   $("#manage-categories").hidden = !status.user.canManageCategories;
   $("#assignee-select").disabled = !status.user.canTransferConversations;
+  // Controle de prioridade fica visível para todos (mesmo padrão do
+  // assignee-select acima) — só desabilitado quando o usuário não tem
+  // permissão, já que o backend (assertCanSetPriority) barra o PATCH de
+  // qualquer forma; mais simples do que esconder o controle inteiro.
+  $("#priority-select").disabled = !(status.user.isMaster || status.user.role === "SUPERVISOR" || status.user.canSetConversationPriority);
   $("#history-toggle").hidden = !status.user.canViewConversationHistory;
   configureNotificationButton();
   const cursorKey = `mibro-alert-cursor:${status.user.id}`;
@@ -655,10 +686,14 @@ function renderCategoryManager() {
 async function loadConversations() {
   const params = new URLSearchParams();
   if (state.search) params.set("search", state.search);
-  if (state.status) params.set("status", state.status);
   if (state.category) params.set("category", state.category);
   if (state.assignedUser) params.set("assignedUser", state.assignedUser);
   if (state.assignedUserActiveOnly) params.set("activeOnly", "true");
+  const statusValues = [...(state.status ? [state.status] : []), ...state.statusToggle];
+  if (statusValues.length) params.set("status", statusValues.join(","));
+  if (state.priorityToggle.size) params.set("priority", [...state.priorityToggle].join(","));
+  if (state.slaBreached) params.set("slaBreached", "true");
+  if (state.unassigned) params.set("unassigned", "true");
   const [conversations, summary] = await Promise.all([
     api(`/api/conversations?${params}`),
     api("/api/conversations/summary"),
@@ -670,11 +705,14 @@ async function loadConversations() {
   $("#count-all").textContent = summary.total || 0;
   $("#count-new").textContent = summary.statuses.NOVO || 0;
   $("#count-in-progress").textContent = summary.statuses.EM_ATENDIMENTO || 0;
-  $("#count-waiting").textContent = summary.statuses.AGUARDANDO_RESPOSTA || 0;
-  document.querySelector('[data-status="AGUARDANDO_RESPOSTA"]').classList.toggle("attention", Boolean(summary.attentionWaiting));
+  $("#count-waiting").textContent = summary.statuses.AGUARDANDO_EQUIPE || 0;
+  document.querySelector('[data-status="AGUARDANDO_EQUIPE"]').classList.toggle("attention", Boolean(summary.attentionWaiting));
   syncWaitingAttention(summary.attentionWaiting);
   $("#count-bot").textContent = summary.statuses.BOT || 0;
   $("#count-finalized").textContent = summary.statuses.FINALIZADO || 0;
+  $("#count-overdue").textContent = summary.overdue || 0;
+  $("#count-urgent").textContent = summary.urgent || 0;
+  $("#count-unassigned").textContent = summary.unassigned || 0;
   document.querySelectorAll("[data-category-count]").forEach((counter) => {
     const categoryId = counter.dataset.categoryCount;
     const category = state.categories.find((item) => item.id === categoryId);
@@ -788,6 +826,7 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
     category: c.category && [c.category.id, c.category.name, c.category.color, c.category.active, c.category.parentId, c.category.parent?.name],
     assignedUserId: c.assignedUserId,
     assignedUser: c.assignedUser && [c.assignedUser.id, c.assignedUser.name],
+    priority: c.priority,
     isPinned: c.isPinned,
     canViewHistory: c.canViewHistory,
     contact: [c.contact.id, c.contact.customName, c.contact.name, c.contact.phone],
@@ -829,6 +868,7 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
       $("#assignee-select").add(new Option(c.assignedUser?.name || "Outro atendente", c.assignedUserId));
     }
     $("#assignee-select").value = c.assignedUserId || "";
+    $("#priority-select").value = c.priority || "NORMAL";
     $("#claim-conversation").hidden = c.assignedUserId === state.currentUser?.id;
     $("#toggle-finalized").textContent = c.status === "FINALIZADO" ? "Reabrir" : "Finalizar"; $("#toggle-finalized").dataset.status = c.status;
     $("#delete-conversation").hidden = !state.currentUser?.isMaster;
@@ -1002,6 +1042,7 @@ function editTeamUser(userId) {
   $("#permission-team").checked = user.canViewTeamActivity;
   $("#permission-history").checked = user.canViewConversationHistory;
   $("#permission-previous-messages").checked = user.canViewPreviousMessages;
+  $("#permission-priority").checked = user.canSetConversationPriority;
   $("#team-form-eyebrow").textContent = "EDITAR CONTA";
   $("#team-form-title").textContent = user.name;
   renderTeamCategoryAccess(user.categoryAccess.map((access) => access.categoryId), user.canViewUncategorized);
@@ -1062,6 +1103,19 @@ $("#conversation-list").addEventListener("click", (event) => {
 });
 document.querySelectorAll("[data-status]").forEach((button) => button.addEventListener("click", () => {
   document.querySelectorAll(".filter").forEach((item) => item.classList.remove("active")); button.classList.add("active"); state.status = button.dataset.status; state.category = ""; loadConversations();
+}));
+// Filtros combináveis adicionais (item 11): multi-select — somam-se ao
+// status principal em vez de substituí-lo, já que o backend aceita CSV.
+document.querySelectorAll("[data-toggle-filter]").forEach((button) => button.addEventListener("click", () => {
+  const [kind, value] = button.dataset.toggleFilter.split(":");
+  if (kind === "slaBreached") { state.slaBreached = !state.slaBreached; button.classList.toggle("active", state.slaBreached); }
+  else if (kind === "unassigned") { state.unassigned = !state.unassigned; button.classList.toggle("active", state.unassigned); }
+  else {
+    const set = kind === "status" ? state.statusToggle : state.priorityToggle;
+    if (set.has(value)) set.delete(value); else set.add(value);
+    button.classList.toggle("active", set.has(value));
+  }
+  loadConversations();
 }));
 let searchTimer; $("#search").addEventListener("input", (event) => { clearTimeout(searchTimer); state.search = event.target.value.trim(); searchTimer = setTimeout(loadConversations, 250); });
 $("#refresh").addEventListener("click", loadConversations);
@@ -1278,6 +1332,7 @@ $("#team-form").addEventListener("submit", async (event) => {
     canViewTeamActivity: $("#permission-team").checked,
     canViewConversationHistory: $("#permission-history").checked,
     canViewPreviousMessages: $("#permission-previous-messages").checked,
+    canSetConversationPriority: $("#permission-priority").checked,
     categoryIds: [...document.querySelectorAll("#team-category-access .team-category-access-input:checked")].map((input) => input.value),
   };
   if (password) body.password = password;
@@ -1378,6 +1433,14 @@ $("#close-transfer").addEventListener("click", () => $("#transfer-dialog").close
 $("#cancel-transfer").addEventListener("click", () => $("#transfer-dialog").close());
 $("#transfer-dialog").addEventListener("click", (event) => { if (event.target === $("#transfer-dialog")) $("#transfer-dialog").close(); });
 $("#assignee-select").addEventListener("change", async (event) => { try { await api(`/api/conversations/${state.selectedId}`, { method:"PATCH", body:JSON.stringify({ assignedUserId:event.target.value || null }) }); toast(event.target.value ? "Responsável atualizado." : "Conversa sem responsável."); await openConversation(state.selectedId); } catch (e) { toast(e.message, true); } });
+$("#priority-select").addEventListener("change", async (event) => {
+  const previous = state.selectedId ? (state.conversations.find((c) => c.id === state.selectedId)?.priority || "NORMAL") : "NORMAL";
+  try {
+    await api(`/api/conversations/${state.selectedId}`, { method:"PATCH", body:JSON.stringify({ priority:event.target.value }) });
+    toast("Prioridade atualizada.");
+    await openConversation(state.selectedId);
+  } catch (e) { event.target.value = previous; toast(e.message, true); }
+});
 $("#toggle-hidden-categories").addEventListener("click", async () => {
   state.visibilityMode = !state.visibilityMode;
   $("#toggle-hidden-categories").classList.toggle("active", state.visibilityMode);

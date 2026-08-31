@@ -8,6 +8,10 @@ const booleanPermissions = [
   "canViewUncategorized", "canManageCategories", "canTransferConversations", "canViewTeamActivity",
   "canViewConversationHistory",
   "canViewPreviousMessages",
+  // Prioridade manual de conversa (item 16 do pedido de SLA/prioridade):
+  // Admin/Supervisor sempre podem (authorization.canSetPriority), este flag
+  // libera um Atendente específico sem mudar o cargo.
+  "canSetConversationPriority",
 ];
 
 function validateName(value) {
@@ -54,6 +58,7 @@ const publicSelection = {
   canTransferConversations: true, canViewTeamActivity: true,
   canViewConversationHistory: true,
   canViewPreviousMessages: true,
+  canSetConversationPriority: true,
   categoryAccess: { include: { category: { select: { id: true, name: true, parentId: true, color: true } } } },
   _count: { select: { assignedConversations: true, sentMessages: true } },
 };

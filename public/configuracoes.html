@@ -47,15 +47,17 @@
       </details>
 
       <details class="card" open>
-        <summary><span>SLA</span><h3>Prazos de resposta</h3></summary>
+        <summary><span>SLA E PRIORIDADE</span><h3>Prazos de resposta</h3></summary>
         <div class="fields two-columns">
           <label class="checkbox full"><input id="cs-first-response-enabled" type="checkbox"><span>SLA de primeira resposta</span></label>
           <label><span>Prazo da primeira resposta (min)</span><input id="cs-first-response-minutes" type="number" min="1" max="1440"></label>
           <label class="checkbox full"><input id="cs-response-enabled" type="checkbox"><span>SLA de resposta durante atendimento</span></label>
           <label><span>Prazo de resposta em atendimento (min)</span><input id="cs-response-minutes" type="number" min="1" max="1440"></label>
           <label class="checkbox full"><input id="cs-business-hours-only" type="checkbox"><span>Considerar apenas horário comercial nos SLAs</span></label>
+          <label class="checkbox full"><input id="cs-sla-near-breach-enabled" type="checkbox"><span>Avisar quando o SLA estiver perto do limite</span></label>
+          <label><span>Avisar ao atingir X% do prazo</span><input id="cs-sla-near-breach-percent" type="number" min="1" max="99"></label>
         </div>
-        <p class="card-help">Ultrapassar o prazo marca a conversa como "Resposta atrasada" — nunca finaliza automaticamente por causa de SLA.</p>
+        <p class="card-help">Ultrapassar o prazo marca a conversa como "Resposta atrasada" — nunca finaliza automaticamente por causa de SLA. A prioridade manual (Normal/Alta/Urgente) é definida por conversa, direto na tela de atendimento, por quem tiver permissão — não há configuração de prioridade nesta tela além do acesso concedido ao usuário.</p>
       </details>
 
       <details class="card" open>
@@ -65,6 +67,8 @@
           <label><span>Prazo do alerta (min)</span><input id="cs-unanswered-minutes" type="number" min="1" max="1440"></label>
           <label class="checkbox full"><input id="cs-stalled-enabled" type="checkbox"><span>Alertar conversa parada</span></label>
           <label><span>Prazo de inatividade (min)</span><input id="cs-stalled-minutes" type="number" min="1" max="1440"></label>
+          <label class="checkbox full"><input id="cs-unassigned-enabled" type="checkbox"><span>Alertar conversa sem responsável</span></label>
+          <label><span>Prazo do alerta (min)</span><input id="cs-unassigned-minutes" type="number" min="1" max="1440"></label>
         </div>
         <p class="card-help">Alertas são só internos, para a equipe — nenhuma mensagem automática é enviada ao cliente nesta fase.</p>
       </details>

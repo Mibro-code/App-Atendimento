@@ -346,7 +346,7 @@ async function orchestrate({
       where: { id: conversationId }, select: { assignedUserId: true, status: true },
     });
     humanPaused = Boolean(conversation?.assignedUserId)
-      && ["EM_ATENDIMENTO", "AGUARDANDO_RESPOSTA"].includes(conversation?.status);
+      && ["EM_ATENDIMENTO", "AGUARDANDO_EQUIPE", "AGUARDANDO_CLIENTE"].includes(conversation?.status);
   }
 
   // Item 9 (avaliação do cliente): se a mensagem anterior pediu uma nota e
@@ -416,6 +416,21 @@ async function orchestrate({
       // Nunca pode derrubar a interpretação/observação por falha ao gravar o
       // contexto de handoff — só loga.
       console.error("[BOT_HANDOFF] falha ao capturar contexto (ignorada)", error.message);
+    }
+    // Item 8 (status operacional): só em execução real (LIVE — nunca em
+    // simulação/observação) e só quando a conversa ainda não tem humano
+    // ativo (não sobrescreve EM_ATENDIMENTO/AGUARDANDO_CLIENTE/HANDOFF_BOT/
+    // FINALIZADO já existentes). Nunca lança: uma falha aqui não pode
+    // impedir a resposta de handoff de ser enviada ao cliente.
+    if (executionMode === "LIVE") {
+      try {
+        await client.conversation.updateMany({
+          where: { id: conversationId, status: { in: ["NOVO", "BOT", "AGUARDANDO_EQUIPE"] } },
+          data: { status: "HANDOFF_BOT" },
+        });
+      } catch (error) {
+        console.error("[BOT_HANDOFF] falha ao marcar status HANDOFF_BOT (ignorada)", error.message);
+      }
     }
   }
 

@@ -41,23 +41,30 @@ async function alreadyAlerted(conversationId, action, since, client) {
 }
 
 // Item 2: última mensagem válida é do cliente durante atendimento
-// (AGUARDANDO_RESPOSTA já é esse sinal na máquina de estados existente) além
-// do prazo -> destaca + ConversationActivity. Reseta quando a empresa
-// responde (status sai de AGUARDANDO_RESPOSTA via updateConversationAfterSending).
+// (AGUARDANDO_EQUIPE/HANDOFF_BOT já são esse sinal na máquina de estados
+// existente) além do prazo -> marca o indicador (mesmo padrão do item 1,
+// não só ConversationActivity) + ConversationActivity para o alerta
+// interno. Reseta quando a empresa responde (updateConversationAfterSending).
 async function checkResponseSla({ now, settings, client = prisma }) {
   if (!settings.responseSlaEnabled || !shouldEvaluateSla(now, settings)) return 0;
   const cutoff = new Date(now.getTime() - settings.responseSlaMinutes * 60 * 1000);
   const candidates = await client.conversation.findMany({
-    where: { status: "AGUARDANDO_RESPOSTA", lastMessageAt: { lte: cutoff } },
+    where: { status: { in: ["AGUARDANDO_EQUIPE", "HANDOFF_BOT"] }, responseSlaBreached: false, lastMessageAt: { lte: cutoff } },
     select: { id: true, lastMessageAt: true },
   });
   let flagged = 0;
   for (const conversation of candidates) {
-    if (await alreadyAlerted(conversation.id, "SLA_RESPONSE_BREACHED", conversation.lastMessageAt, client)) continue;
-    await client.conversationActivity.create({ data: {
-      conversationId: conversation.id, action: "SLA_RESPONSE_BREACHED",
-      details: { responseSlaMinutes: settings.responseSlaMinutes },
-    } });
+    const claimed = await client.conversation.updateMany({
+      where: { id: conversation.id, responseSlaBreached: false },
+      data: { responseSlaBreached: true },
+    });
+    if (!claimed.count) continue;
+    if (!(await alreadyAlerted(conversation.id, "SLA_RESPONSE_BREACHED", conversation.lastMessageAt, client))) {
+      await client.conversationActivity.create({ data: {
+        conversationId: conversation.id, action: "SLA_RESPONSE_BREACHED",
+        details: { responseSlaMinutes: settings.responseSlaMinutes },
+      } });
+    }
     flagged += 1;
   }
   return flagged;
@@ -70,7 +77,7 @@ async function checkUnansweredConversationAlert({ now, settings, client = prisma
   if (!settings.unansweredConversationAlertEnabled) return 0;
   const cutoff = new Date(now.getTime() - settings.unansweredConversationAlertMinutes * 60 * 1000);
   const candidates = await client.conversation.findMany({
-    where: { status: "AGUARDANDO_RESPOSTA", lastMessageAt: { lte: cutoff } },
+    where: { status: { in: ["AGUARDANDO_EQUIPE", "HANDOFF_BOT"] }, lastMessageAt: { lte: cutoff } },
     select: { id: true, lastMessageAt: true },
   });
   let flagged = 0;
@@ -92,7 +99,7 @@ async function checkStalledConversationAlert({ now, settings, client = prisma })
   if (!settings.stalledConversationAlertEnabled) return 0;
   const cutoff = new Date(now.getTime() - settings.stalledConversationAlertMinutes * 60 * 1000);
   const candidates = await client.conversation.findMany({
-    where: { status: { in: ["EM_ATENDIMENTO", "AGUARDANDO_RESPOSTA"] }, lastMessageAt: { lte: cutoff } },
+    where: { status: { in: ["EM_ATENDIMENTO", "AGUARDANDO_EQUIPE", "AGUARDANDO_CLIENTE", "HANDOFF_BOT"] }, lastMessageAt: { lte: cutoff } },
     select: { id: true, lastMessageAt: true },
   });
   let flagged = 0;
@@ -107,6 +114,79 @@ async function checkStalledConversationAlert({ now, settings, client = prisma })
   return flagged;
 }
 
+// Alerta interno de SLA "próximo do limite" (item 3 do pedido de SLA/
+// prioridade): dispara quando já passou X% do prazo configurado, mas ainda
+// não estourou. Avalia os dois SLAs (primeira resposta e resposta durante
+// atendimento) com o mesmo percentual central — nunca finaliza nem envia
+// nada ao cliente, só ConversationActivity para a equipe. Idempotente pelo
+// mesmo padrão de "episódio" (não repete enquanto lastMessageAt não mudar).
+async function checkSlaNearBreachAlert({ now, settings, client = prisma }) {
+  if (!settings.slaNearBreachAlertEnabled || !shouldEvaluateSla(now, settings)) return 0;
+  const percent = Math.min(Math.max(settings.slaNearBreachPercent, 1), 99) / 100;
+  let flagged = 0;
+
+  if (settings.firstResponseSlaEnabled) {
+    const nearCutoff = new Date(now.getTime() - settings.firstResponseSlaMinutes * percent * 60 * 1000);
+    const candidates = await client.conversation.findMany({
+      where: { status: "NOVO", firstResponseSlaBreached: false, lastMessageAt: { lte: nearCutoff } },
+      select: { id: true, lastMessageAt: true },
+    });
+    for (const conversation of candidates) {
+      if (await alreadyAlerted(conversation.id, "SLA_NEAR_BREACH_FIRST_RESPONSE", conversation.lastMessageAt, client)) continue;
+      await client.conversationActivity.create({ data: {
+        conversationId: conversation.id, action: "SLA_NEAR_BREACH_FIRST_RESPONSE",
+        details: { firstResponseSlaMinutes: settings.firstResponseSlaMinutes, percent: settings.slaNearBreachPercent },
+      } });
+      flagged += 1;
+    }
+  }
+
+  if (settings.responseSlaEnabled) {
+    const nearCutoff = new Date(now.getTime() - settings.responseSlaMinutes * percent * 60 * 1000);
+    const candidates = await client.conversation.findMany({
+      where: { status: { in: ["AGUARDANDO_EQUIPE", "HANDOFF_BOT"] }, responseSlaBreached: false, lastMessageAt: { lte: nearCutoff } },
+      select: { id: true, lastMessageAt: true },
+    });
+    for (const conversation of candidates) {
+      if (await alreadyAlerted(conversation.id, "SLA_NEAR_BREACH_RESPONSE", conversation.lastMessageAt, client)) continue;
+      await client.conversationActivity.create({ data: {
+        conversationId: conversation.id, action: "SLA_NEAR_BREACH_RESPONSE",
+        details: { responseSlaMinutes: settings.responseSlaMinutes, percent: settings.slaNearBreachPercent },
+      } });
+      flagged += 1;
+    }
+  }
+
+  return flagged;
+}
+
+// Alerta interno de "conversa sem responsável" (item 3): conversa ativa
+// (não NOVO — que naturalmente ainda não tem responsável e já aparece na
+// fila — nem BOT/FINALIZADO) sem assignedUserId há X minutos. Idempotente
+// pelo mesmo padrão de "episódio".
+async function checkUnassignedConversationAlert({ now, settings, client = prisma }) {
+  if (!settings.unassignedConversationAlertEnabled) return 0;
+  const cutoff = new Date(now.getTime() - settings.unassignedConversationAlertMinutes * 60 * 1000);
+  const candidates = await client.conversation.findMany({
+    where: {
+      assignedUserId: null,
+      status: { in: ["AGUARDANDO_EQUIPE", "AGUARDANDO_CLIENTE", "HANDOFF_BOT"] },
+      lastMessageAt: { lte: cutoff },
+    },
+    select: { id: true, lastMessageAt: true },
+  });
+  let flagged = 0;
+  for (const conversation of candidates) {
+    if (await alreadyAlerted(conversation.id, "UNASSIGNED_CONVERSATION_ALERT", conversation.lastMessageAt, client)) continue;
+    await client.conversationActivity.create({ data: {
+      conversationId: conversation.id, action: "UNASSIGNED_CONVERSATION_ALERT",
+      details: { unassignedConversationAlertMinutes: settings.unassignedConversationAlertMinutes },
+    } });
+    flagged += 1;
+  }
+  return flagged;
+}
+
 async function runSlaChecks({ now = new Date(), client = prisma, settings } = {}) {
   const resolvedSettings = settings || await getConversationSettings(client);
   const results = {
@@ -114,6 +194,8 @@ async function runSlaChecks({ now = new Date(), client = prisma, settings } = {}
     responseBreached: await checkResponseSla({ now, settings: resolvedSettings, client }),
     unansweredAlerted: await checkUnansweredConversationAlert({ now, settings: resolvedSettings, client }),
     stalledAlerted: await checkStalledConversationAlert({ now, settings: resolvedSettings, client }),
+    slaNearBreachAlerted: await checkSlaNearBreachAlert({ now, settings: resolvedSettings, client }),
+    unassignedAlerted: await checkUnassignedConversationAlert({ now, settings: resolvedSettings, client }),
   };
   return results;
 }
@@ -141,5 +223,6 @@ function startSlaMonitor({ intervalMs = 60 * 1000, onChange } = {}) {
 
 module.exports = {
   checkFirstResponseSla, checkResponseSla, checkStalledConversationAlert,
-  checkUnansweredConversationAlert, runSlaChecks, startSlaMonitor,
+  checkUnansweredConversationAlert, checkSlaNearBreachAlert, checkUnassignedConversationAlert,
+  runSlaChecks, startSlaMonitor,
 };

@@ -53,9 +53,13 @@ async function saveIncoming(event) {
             }
           }
         }
+        // Item 8: nova mensagem do cliente em conversa ativa (já assumida,
+        // aguardando o cliente, ou aguardando a equipe pegar um handoff do
+        // Bot) sempre volta para AGUARDANDO_EQUIPE — nunca mexe em NOVO
+        // (ainda não assumida) nem BOT (fluxo de triagem em andamento).
         await tx.conversation.updateMany({
-          where: { id: conversation.id, status: { in: ["EM_ATENDIMENTO", "AGUARDANDO_RESPOSTA"] } },
-          data: { status: "AGUARDANDO_RESPOSTA" },
+          where: { id: conversation.id, status: { in: ["EM_ATENDIMENTO", "AGUARDANDO_EQUIPE", "AGUARDANDO_CLIENTE", "HANDOFF_BOT"] } },
+          data: { status: "AGUARDANDO_EQUIPE" },
         });
       }
       return { message, duplicate: false };
@@ -92,11 +96,17 @@ async function updateConversationAfterSending({ conversationId, sentByUserId, oc
       where: { id: conversationId },
       data: {
         lastMessageAt: occurredAt,
-        status: "EM_ATENDIMENTO",
+        // Item 8: a empresa/Bot acabou de responder — a última mensagem
+        // válida agora é nossa, então a conversa vira AGUARDANDO_CLIENTE
+        // (antes ficava em EM_ATENDIMENTO, mesmo valor usado só para "o
+        // atendente assumiu, ainda não respondeu" — agora diferenciados).
+        status: "AGUARDANDO_CLIENTE",
         finalizedAt: null,
-        // SLA de primeira resposta (item 1): a empresa acabou de responder,
-        // então o indicador de atraso não se aplica mais a esta conversa.
+        // SLA de primeira resposta (item 1) e de resposta durante
+        // atendimento (item 2): a empresa acabou de responder, então nenhum
+        // dos dois indicadores de atraso se aplica mais a esta conversa.
         firstResponseSlaBreached: false,
+        responseSlaBreached: false,
         ...(sentByUserId ? { assignedUserId: sentByUserId } : {}),
       },
     });
