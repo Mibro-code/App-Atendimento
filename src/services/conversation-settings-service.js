@@ -22,9 +22,19 @@ function invalidateCache() {
 
 async function getConversationSettings(client = prisma) {
   if (client === prisma && cache && Date.now() < cacheExpiresAt) return cache;
-  const settings = await client.conversationSettings.upsert({
-    where: { id: SETTINGS_ID }, update: {}, create: { id: SETTINGS_ID },
-  });
+  let settings;
+  try {
+    settings = await client.conversationSettings.upsert({
+      where: { id: SETTINGS_ID }, update: {}, create: { id: SETTINGS_ID },
+    });
+  } catch (error) {
+    // Dois monitores/processos podem tentar criar o singleton no mesmo
+    // instante durante o primeiro boot. O vencedor já criou o registro;
+    // o perdedor apenas relê, sem transformar essa corrida esperada em erro.
+    if (error?.code !== "P2002") throw error;
+    settings = await client.conversationSettings.findUnique({ where: { id: SETTINGS_ID } });
+    if (!settings) throw error;
+  }
   if (client === prisma) {
     cache = settings;
     cacheExpiresAt = Date.now() + CACHE_TTL_MS;
