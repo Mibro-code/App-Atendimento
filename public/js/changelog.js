@@ -1,7 +1,21 @@
 (() => {
-  const APP_VERSION = "0.24.4";
+  const APP_VERSION = "0.25.0";
 
   const CHANGELOG = [
+    {
+      version: "0.25.0",
+      date: "31/08/2026",
+      title: "Configurações de conversas e SLAs",
+      changes: [
+        "Adiciona uma tela central de Configurações para controlar reabertura, finalização automática, contexto do Bot, SLAs e alertas de atendimento.",
+        "Permite que uma conta Master edite as regras e que Supervisores consultem os valores em modo somente leitura.",
+        "Inclui SLA de primeira resposta e de resposta durante o atendimento, com indicadores internos e avaliação opcional no horário comercial.",
+        "Adiciona alertas internos para conversas aguardando resposta ou paradas, sem enviar mensagens automáticas ao cliente.",
+        "Torna configuráveis a janela de reabertura, o tempo de finalização por inatividade e o TTL global do contexto dos Bots.",
+        "Mantém a retomada automática do Bot após atendimento humano desativada e identificada como recurso futuro.",
+        "Preserva a integração Meta, o atendimento humano, o bot de triagem e os comportamentos atuais por meio de defaults seguros."
+      ]
+    },
     {
       version: "0.24.4",
       date: "28/08/2026",

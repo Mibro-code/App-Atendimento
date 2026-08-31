@@ -12,6 +12,7 @@ const {
   getState, getRecentContext, persistDecision, mergeContextEntities,
 } = require("./bot-conversation-state-service");
 const { getGlobalSettings, renderPresentationMessage, resolveFeatureFlags } = require("./bot-governance-service");
+const { getConversationSettings } = require("./conversation-settings-service");
 const { checkResponseLoop, checkSwitchWindow } = require("./bot-loop-guard-service");
 const { resolveToolDecision } = require("./bot-tool-orchestrator-service");
 const { resolveKnowledgeResponse } = require("./bot-knowledge-response-service");
@@ -78,10 +79,10 @@ function categoryNameFor(bot, categoryId) {
 // Sessão "expirada": o estado operacional (intenção pendente, falhas,
 // esclarecimento em aberto) não pode ser tratado como verdade para uma nova
 // conversa — não apaga histórico real, só reinicia o estado do Bot.
-function isSessionExpired(state, flags, now) {
+function isSessionExpired(state, ttlMinutes, now) {
   if (!state?.updatedAt) return false;
   const elapsedMinutes = (now.getTime() - new Date(state.updatedAt).getTime()) / 60000;
-  return elapsedMinutes > flags.contextExpirationMinutes;
+  return elapsedMinutes > ttlMinutes;
 }
 
 function toStandardResult({ bot, targetBot, interpretation, decision, responseText, extras = {} }) {
@@ -320,7 +321,16 @@ async function orchestrate({
 
   const globalSettings = await getGlobalSettings(client);
   const flags = resolveFeatureFlags(bot);
-  const sessionExpired = isSessionExpired(state, flags, now);
+  // Configurações → Conversas (item 5): contextExpirationMinutes só é
+  // explícito quando o próprio Bot o define em featureFlags; caso contrário,
+  // o TTL vem do default global central (botContextTtlMinutes), não mais do
+  // hardcode 120 em bot-constants.js.
+  const hasExplicitBotTtl = bot.featureFlags && typeof bot.featureFlags === "object"
+    && bot.featureFlags.contextExpirationMinutes !== undefined;
+  const contextTtlMinutes = hasExplicitBotTtl
+    ? flags.contextExpirationMinutes
+    : (await getConversationSettings(client)).botContextTtlMinutes;
+  const sessionExpired = isSessionExpired(state, contextTtlMinutes, now);
   const conversationalState = flags.contextEnabled && !sessionExpired ? state : null;
   const operationalState = sessionExpired ? null : state;
 

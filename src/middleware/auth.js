@@ -41,4 +41,21 @@ async function requireCampaignsPage(req, res, next) {
   } catch (error) { return next(error); }
 }
 
-module.exports = { authenticate, requireCampaignsPage, requireMasterPage, requirePageAuth };
+// Configurações → Conversas (item 13): Admin edita, Supervisor só visualiza —
+// mesma régua de "requireCampaignsPage", trocando o flag por checagem de role.
+async function requireConversationSettingsPage(req, res, next) {
+  try {
+    const user = await auth.userFromToken(req.cookies[auth.COOKIE_NAME]);
+    if (!user) return res.redirect("/login.html");
+    const publicUser = auth.publicUser(user);
+    if (publicUser.role !== "ADMIN" && publicUser.role !== "SUPERVISOR") {
+      return res.status(403).send("Acesso restrito a Admin ou Supervisor.");
+    }
+    req.user = publicUser;
+    return next();
+  } catch (error) { return next(error); }
+}
+
+module.exports = {
+  authenticate, requireCampaignsPage, requireConversationSettingsPage, requireMasterPage, requirePageAuth,
+};

@@ -2,11 +2,15 @@ const prisma = require("../database/prisma");
 const { findOrCreateMetaConversation } = require("./conversation-service");
 const { removeImage, storeAudio, storeDocument, storeImage, storeSticker, storeVideo } = require("./media-storage-service");
 const { formatTeamMessage } = require("./team-message-formatter");
+const { getConversationSettings } = require("./conversation-settings-service");
 const statuses = { sent: "ENVIADA", delivered: "ENTREGUE", read: "LIDA", failed: "FALHOU" };
 const closingMessage = "Agradecemos pelo seu contato. Se precisar de qualquer ajuda, estamos à disposição. Você pode voltar a falar conosco quando quiser.";
 
 async function saveIncoming(event) {
   try {
+    // Fora da transação: leitura de config só (cacheada), não precisa do
+    // isolamento da transação abaixo.
+    const settings = await getConversationSettings();
     return await prisma.$transaction(async (tx) => {
       const existing = await tx.message.findUnique({ where: { externalId: event.externalId } });
       if (existing) return { message: existing, duplicate: true };
@@ -27,10 +31,28 @@ async function saveIncoming(event) {
         await tx.conversation.update({ where: { id: conversation.id }, data: {
           unreadCount: { increment: 1 }, lastMessageAt: event.occurredAt,
         } });
-        await tx.conversation.updateMany({
-          where: { id: conversation.id, status: "FINALIZADO" },
-          data: { categoryId: null, assignedUserId: null, status: "NOVO", finalizedAt: null },
-        });
+        // Reabertura de conversa finalizada (itens 7 e 8): só reabre se a
+        // conversa realmente estava FINALIZADO (evita gravar atividade em
+        // toda mensagem) e se o toggle central estiver ligado. Se houver uma
+        // janela configurada e a conversa tiver finalizado há mais tempo que
+        // ela, não reabre — fica como está, sem criar conversa nova (fora de
+        // escopo, ver plano item 8).
+        if (conversation.status === "FINALIZADO" && settings.reopenConversationOnCustomerMessage) {
+          const withinWindow = !settings.reopenWindowMinutes || !conversation.finalizedAt
+            || (event.occurredAt.getTime() - conversation.finalizedAt.getTime()) <= settings.reopenWindowMinutes * 60 * 1000;
+          if (withinWindow) {
+            const reopened = await tx.conversation.updateMany({
+              where: { id: conversation.id, status: "FINALIZADO" },
+              data: { categoryId: null, assignedUserId: null, status: "NOVO", finalizedAt: null },
+            });
+            if (reopened.count) {
+              await tx.conversationActivity.create({ data: {
+                conversationId: conversation.id, action: "REOPENED_BY_CUSTOMER_MESSAGE",
+                details: { reopenWindowMinutes: settings.reopenWindowMinutes || null },
+              } });
+            }
+          }
+        }
         await tx.conversation.updateMany({
           where: { id: conversation.id, status: { in: ["EM_ATENDIMENTO", "AGUARDANDO_RESPOSTA"] } },
           data: { status: "AGUARDANDO_RESPOSTA" },
@@ -72,6 +94,9 @@ async function updateConversationAfterSending({ conversationId, sentByUserId, oc
         lastMessageAt: occurredAt,
         status: "EM_ATENDIMENTO",
         finalizedAt: null,
+        // SLA de primeira resposta (item 1): a empresa acabou de responder,
+        // então o indicador de atraso não se aplica mais a esta conversa.
+        firstResponseSlaBreached: false,
         ...(sentByUserId ? { assignedUserId: sentByUserId } : {}),
       },
     });

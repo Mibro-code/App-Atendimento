@@ -1,5 +1,6 @@
 const prisma = require("../database/prisma");
 const { analyzeConversation } = require("./bot-learning-service");
+const { getConversationSettings } = require("./conversation-settings-service");
 
 const defaultInactivityMinutes = 1440;
 
@@ -47,14 +48,23 @@ async function finalizeInactiveConversations({
 }
 
 function startInactivityMonitor({
-  intervalMs = 60 * 1000, inactivityMinutes = defaultInactivityMinutes, onChange,
+  intervalMs = 60 * 1000, inactivityMinutes, onChange,
 } = {}) {
   let running = false;
   const run = async () => {
     if (running) return;
     running = true;
     try {
-      const finalized = await finalizeInactiveConversations({ inactivityMinutes });
+      // Configurações → Conversas (item 11): o default de produção vem do
+      // singleton central, não mais de uma constante fixa. `inactivityMinutes`
+      // continua aceito como override explícito (usado pelos testes).
+      let minutes = inactivityMinutes;
+      if (minutes === undefined) {
+        const settings = await getConversationSettings();
+        if (!settings.autoFinalizationEnabled) return;
+        minutes = settings.autoFinalizationMinutes;
+      }
+      const finalized = await finalizeInactiveConversations({ inactivityMinutes: minutes });
       if (finalized) onChange?.(finalized);
     } catch (error) {
       console.error("Erro ao finalizar conversas inativas:", error);
