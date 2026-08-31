@@ -1,6 +1,6 @@
 // Versão do cache da aplicação.
 // Altere somente APP_VERSION a cada nova publicação.
-const APP_VERSION = "0.24.4";
+const APP_VERSION = "0.25.0";
 const CACHE_NAME = `mibro-shell-v${APP_VERSION}`;
 
 const STATIC_ASSETS = [
@@ -12,6 +12,7 @@ const STATIC_ASSETS = [
   "/css/skeleton.css",
   "/css/knowledge-base.css",
   "/css/campaigns.css",
+  "/css/configuracoes.css",
 
   "/js/app.js",
   "/js/bots.js",
@@ -21,6 +22,7 @@ const STATIC_ASSETS = [
   "/js/pwa.js",
   "/js/knowledge-base.js",
   "/js/campaigns.js",
+  "/js/configuracoes.js",
 
   "/assets/mibro-logo.png",
   "/assets/app-icon-192.png",
