@@ -47,6 +47,15 @@ class ChannelAdapter {
     return false;
   }
 
+  // Quando um canal pode ter múltiplas ChannelAccount (ex.: duas Páginas do
+  // Facebook), a rota genérica de webhook usa isto para descobrir qual conta
+  // corresponde ao payload recebido, em vez de assumir "a primeira ativada".
+  // Default true preserva o comportamento atual para todo adapter que não
+  // sobrescreve isto (nenhuma regressão nos canais já existentes).
+  matchesWebhookPayload(_rawPayload) {
+    return true;
+  }
+
   // Só verifica credenciais/escopo — nunca envia nada real (item 12).
   async testConnection() {
     throw channelError("NOT_SUPPORTED", `${this.constructor.name} não implementa teste de conexão.`);

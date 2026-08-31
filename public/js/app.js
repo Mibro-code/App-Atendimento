@@ -1,6 +1,6 @@
 const state = {
   conversations: [], categories: [], users: [], currentUser: null,
-  selectedId: null, selectedContactId: null, selectedCategoryId: "", status: "", category: "", search: "",
+  selectedId: null, selectedContactId: null, selectedCategoryId: "", status: "", category: "", search: "", channel: "",
   categorySignature: "", listSignature: "", selectedHeaderSignature: "",
   selectedMessagesSignature: "", selectedNotesSignature: "", selectedActivitiesSignature: "", selectedMessageItems: [],
   selectedMessages: [], selectedContactName: "", contactFilesTab: "media",
@@ -22,6 +22,16 @@ const conversationTimeZone = "America/Sao_Paulo";
 const time = (value) => value ? new Intl.DateTimeFormat("pt-BR", { hour:"2-digit", minute:"2-digit", timeZone:conversationTimeZone }).format(new Date(value)) : "";
 const statusLabel = (value) => ({ NOVO:"Novo", EM_ATENDIMENTO:"Em atendimento", AGUARDANDO_RESPOSTA:"Aguardando resposta", BOT:"Bot", FINALIZADO:"Finalizado" })[value] || value;
 const categoryLabel = (category) => category?.parent?.name ? `${category.parent.name}: ${category.name}` : (category?.name || "Sem categoria");
+const channelBadgeLabels = {
+  INSTAGRAM_DIRECT: "IG", INSTAGRAM_COMMENTS: "IG",
+  FACEBOOK_MESSENGER: "FB", FACEBOOK_COMMENTS: "FB",
+  EMAIL: "Email", MERCADO_LIVRE: "ML", TIKTOK_SHOP: "TikTok",
+  AMAZON_MARKETPLACE: "Amazon", SHOPEE: "Shopee", SHEIN_MARKETPLACE: "Shein",
+  GOOGLE_REVIEWS: "Google", RECLAME_AQUI: "RA", ZENVIA: "Zenvia",
+};
+// WhatsApp (META) é o canal padrão/legado: não recebe badge para não competir
+// visualmente com os demais rótulos do card nem sinalizar "novidade".
+const channelBadge = (channelValue) => channelBadgeLabels[channelValue] || "";
 const documentTypeLabels = new Map([
   ["application/pdf", "PDF"], ["text/plain", "TXT"], ["application/msword", "DOC"],
   ["application/vnd.openxmlformats-officedocument.wordprocessingml.document", "DOCX"],
@@ -136,7 +146,7 @@ function conversationSignature(conversation) {
   const lastMessage = conversation.messages?.[0];
   const note = conversation.contact.notes?.[0];
   return JSON.stringify([
-    conversation.id, conversation.id === state.selectedId, conversation.status, conversation.unreadCount, conversation.lastMessageAt,
+    conversation.id, conversation.id === state.selectedId, conversation.status, conversation.channel, conversation.unreadCount, conversation.lastMessageAt,
     conversation.categoryId, conversation.category?.name, conversation.category?.color, conversation.category?.parent?.name,
     conversation.assignedUserId, conversation.assignedUser?.name,
     conversation.isPinned,
@@ -152,7 +162,7 @@ function conversationCardMarkup(c) {
     <span class="card-grip" aria-hidden="true"></span><span class="avatar">${escapeHtml(initials(name))}</span><span class="card-main">
     <span class="card-title"><strong>${c.isPinned ? `<i class="conversation-pin" title="Conversa fixada">★</i>` : ""}${escapeHtml(name)}</strong><small>${escapeHtml(c.contact.phone)}</small></span>
     <span class="preview">${escapeHtml(messagePreview(last))}</span>
-    <span class="card-labels"><span class="category-label" style="color:${c.category?.color || "#666"};border-color:${c.category?.color || "#aaa"}">${escapeHtml(categoryLabel(c.category))}</span><span class="status-label">${escapeHtml(statusLabel(c.status))}</span>${c.assignedUser ? `<span class="assignee-label">${escapeHtml(c.assignedUser.name)}</span>` : ""}</span>
+    <span class="card-labels">${channelBadge(c.channel) ? `<span class="channel-label">${escapeHtml(channelBadge(c.channel))}</span>` : ""}<span class="category-label" style="color:${c.category?.color || "#666"};border-color:${c.category?.color || "#aaa"}">${escapeHtml(categoryLabel(c.category))}</span><span class="status-label">${escapeHtml(statusLabel(c.status))}</span>${c.assignedUser ? `<span class="assignee-label">${escapeHtml(c.assignedUser.name)}</span>` : ""}</span>
     <span class="note-preview"><b>NOTA</b> ${escapeHtml(note?.content || "Sem notas para este contato")}${c.contact._count?.notes ? `<i>${c.contact._count.notes}</i>` : ""}</span></span>
     <span class="card-side"><span>${time(c.lastMessageAt)}</span>${c.unreadCount ? `<span class="unread">${c.unreadCount}</span>` : ""}</span></button>`;
 }
@@ -657,6 +667,7 @@ async function loadConversations() {
   if (state.search) params.set("search", state.search);
   if (state.status) params.set("status", state.status);
   if (state.category) params.set("category", state.category);
+  if (state.channel) params.set("channel", state.channel);
   if (state.assignedUser) params.set("assignedUser", state.assignedUser);
   if (state.assignedUserActiveOnly) params.set("activeOnly", "true");
   const [conversations, summary] = await Promise.all([
@@ -1064,6 +1075,7 @@ document.querySelectorAll("[data-status]").forEach((button) => button.addEventLi
   document.querySelectorAll(".filter").forEach((item) => item.classList.remove("active")); button.classList.add("active"); state.status = button.dataset.status; state.category = ""; loadConversations();
 }));
 let searchTimer; $("#search").addEventListener("input", (event) => { clearTimeout(searchTimer); state.search = event.target.value.trim(); searchTimer = setTimeout(loadConversations, 250); });
+$("#channel-filter").addEventListener("change", (event) => { state.channel = event.target.value; loadConversations(); });
 $("#refresh").addEventListener("click", loadConversations);
 $("#new-conversation").addEventListener("click", openOutboundConversation);
 $("#close-outbound").addEventListener("click", () => $("#outbound-dialog").close());

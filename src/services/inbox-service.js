@@ -60,11 +60,16 @@ function contactDisplayName(contact) {
   return contact?.customName || contact?.name || contact?.phone || "Contato";
 }
 
-async function listConversations({ search, category, status, assignedUser, activeOnly }, viewer) {
+async function listConversations({ search, category, status, assignedUser, activeOnly, channel }, viewer) {
   const where = {};
 
   if (status) where.status = status;
   else if (activeOnly === "true") where.status = { not: "FINALIZADO" };
+
+  if (channel) {
+    const channels = String(channel).split(",").filter(Boolean);
+    where.channel = channels.length > 1 ? { in: channels } : channels[0];
+  }
 
   if (category === "UNCATEGORIZED") {
     where.categoryId = null;

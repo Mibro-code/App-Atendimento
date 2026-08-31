@@ -9,8 +9,9 @@ ao escopo `seller.customer_service`.
   documenta (mensagens, mídia limitada, marcar como lido, webhook), mas
   `testConnection()` nunca afirma `CONNECTED` sozinho: valida só a presença
   estrutural de `appKey`/`appSecret`/`shopId` e, com token, retorna
-  `NOT_SUPPORTED` com mensagem explicando que o acesso ao Customer Service
-  ainda não foi aprovado/verificado para a conta.
+  `NEEDS_APPROVAL` (status honesto: a API existe, mas a TikTok ainda não
+  aprovou o escopo do app) com mensagem explicando que o acesso ao Customer
+  Service ainda não foi aprovado/verificado para a conta.
 - Sem token: retorna `AUTH_PENDING` (não é erro de código — é apenas
   autorização pendente).
 
@@ -30,4 +31,4 @@ quando o escopo for aprovado).
 
 Nunca tratar ausência do escopo `customer_service` como erro de código —
 é uma condição de negócio (aprovação pendente na TikTok), refletida como
-`AUTH_PENDING`/`NOT_SUPPORTED`, nunca como exceção não tratada.
+`AUTH_PENDING`/`NEEDS_APPROVAL`, nunca como exceção não tratada.

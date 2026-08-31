@@ -9,7 +9,9 @@ const { getCustomerServiceWindow, listApprovedTemplates, sendApprovedTemplate, t
 const { createOutboundConversation } = require("../services/outbound-conversation-service");
 const { analyzeConversation } = require("../services/bot-learning-service");
 const { submitAgentFeedback } = require("../services/bot-agent-feedback-service");
+const { Channel: ChannelEnum } = require("@prisma/client");
 
+const knownChannels = new Set(Object.values(ChannelEnum));
 
 function createInboxController(channel) {
   return {
@@ -17,6 +19,9 @@ function createInboxController(channel) {
       try {
         if (req.query.status && !inbox.conversationStatuses.has(req.query.status)) {
           return res.status(400).json({ error: "Status inválido." });
+        }
+        if (req.query.channel && !String(req.query.channel).split(",").every((value) => knownChannels.has(value))) {
+          return res.status(400).json({ error: "Canal inválido." });
         }
         return res.json(await inbox.listConversations(req.query, req.user));
       } catch (error) { return next(error); }

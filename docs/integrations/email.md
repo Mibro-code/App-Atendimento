@@ -11,15 +11,22 @@
   `conversationId` do próprio provider) — a conversa interna nunca usa esse
   valor como `Conversation.id`.
 - `kind: EMAIL_THREAD` na `Conversation`.
+- `sendMessage`/`sendMedia` reais: Gmail via MIME cru
+  (`messages/send`, threading por `In-Reply-To`/`References` + `threadId`);
+  Microsoft via `sendMail` ou `/messages/{id}/reply` quando `inReplyTo` é
+  informado (anexo + resposta de thread juntos não é suportado no Graph
+  nesta fase — ver código, lança `NOT_SUPPORTED` explicando).
+- `normalizeInboundEvent` já pronto para consumir uma mensagem vinda de uma
+  futura busca/poll (Gmail `messages.get` ou Graph `GET /me/messages/{id}`)
+  — só não há, ainda, o poller/push que alimenta isso.
 
 ## Não implementado nesta fase
 
-- Recebimento por push (Gmail Pub/Sub watch / Microsoft Graph subscriptions):
-  `supportsWebhook: false` deliberadamente — nesta fase o recebimento seria
-  por consulta periódica, não por webhook. A rota de webhook genérica não
-  aceita eventos de `EMAIL` até isso ser implementado.
-- Envio real de e-mail (o método existe na interface, mas ainda não foi
-  ligado a uma chamada de envio real do Gmail/Graph).
+- Recebimento por push (Gmail Pub/Sub watch / Microsoft Graph subscriptions)
+  ou por polling: `supportsWebhook: false` deliberadamente — a rota de
+  webhook genérica não aceita eventos de `EMAIL` até isso ser implementado.
+  `normalizeInboundEvent` está pronto, falta o job que chama a API e
+  alimenta ele.
 
 ## Credenciais necessárias
 

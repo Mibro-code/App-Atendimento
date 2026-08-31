@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Conectando…</title>
+  <style>
+    body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0d1117;color:#e6e6e6;text-align:center;padding:24px}
+    p{max-width:360px;font-size:14px;line-height:1.5}
+  </style>
+</head>
+<body>
+  <p id="status">Concluindo a conexão…</p>
+  <script>
+    // Página de retorno do OAuth (item 13). Só troca o "code" recebido do
+    // provider pelo token junto ao próprio backend (POST
+    // /api/integrations/oauth/callback, autenticado pela sessão Master já
+    // aberta na aba original) e avisa quem abriu este popup — nunca lida
+    // com client_secret nem grava nada aqui, isto é só uma ponte de UI.
+    (async () => {
+      const statusEl = document.getElementById("status");
+      const params = new URLSearchParams(location.search);
+      const code = params.get("code");
+      const state = params.get("state");
+      const providerError = params.get("error_description") || params.get("error");
+      function finish(ok, error) {
+        try {
+          window.opener?.postMessage({ source: "mibro-oauth-callback", ok, error: error || null }, location.origin);
+        } catch { /* opener pode já ter fechado */ }
+        statusEl.textContent = ok ? "Conectado! Pode fechar esta janela." : (error || "Falha ao conectar.");
+        setTimeout(() => window.close(), ok ? 1200 : 4000);
+      }
+      if (providerError) return finish(false, providerError);
+      if (!code || !state) return finish(false, "Resposta de autorização incompleta.");
+      try {
+        const response = await fetch("/api/integrations/oauth/callback", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code, state }),
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) return finish(false, body?.error || "Falha ao concluir a autorização.");
+        finish(true);
+      } catch {
+        finish(false, "Erro de rede ao concluir a autorização.");
+      }
+    })();
+  </script>
+</body>
+</html>
