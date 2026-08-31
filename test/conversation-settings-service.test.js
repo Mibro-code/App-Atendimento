@@ -58,6 +58,19 @@ test("defaults corretos no primeiro getConversationSettings()", async () => {
   assert.equal(settings.reopenConversationOnCustomerMessage, true);
 });
 
+test("criação concorrente do singleton não gera erro P2002", async () => {
+  await prisma.conversationSettings.deleteMany({ where: { id: "singleton" } });
+  settingsService.invalidateCache();
+
+  const results = await Promise.all(
+    Array.from({ length: 8 }, () => settingsService.getConversationSettings()),
+  );
+
+  assert.equal(results.length, 8);
+  assert.ok(results.every((settings) => settings.id === "singleton"));
+  assert.equal(await prisma.conversationSettings.count({ where: { id: "singleton" } }), 1);
+});
+
 test("updateConversationSettings rejeita não-Admin, incluindo Supervisor", async () => {
   await assert.rejects(
     () => settingsService.updateConversationSettings({ firstResponseSlaMinutes: 5 }, attendant),

@@ -1,7 +1,16 @@
 (() => {
-  const APP_VERSION = "0.25.0";
+  const APP_VERSION = "0.25.1";
 
   const CHANGELOG = [
+    {
+      version: "0.25.1",
+      date: "31/08/2026",
+      title: "Inicialização segura das configurações",
+      changes: [
+        "Evita conflito ao criar as Configurações de Conversas quando os monitores de SLA e inatividade iniciam simultaneamente.",
+        "Mantém um único registro global de configurações e elimina o erro transitório P2002 dos logs de inicialização."
+      ]
+    },
     {
       version: "0.25.0",
       date: "31/08/2026",
