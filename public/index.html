@@ -21,7 +21,7 @@
     <div class="app-version-actions">
   <button id="changelog-button" class="changelog-button" type="button" title="Ver novidades e histórico de versões">
     <span class="changelog-icon" aria-hidden="true">▤</span>
-    <span id="app-version-label">v0.26.1</span>
+    <span id="app-version-label">v0.26.2</span>
     <span id="changelog-unread-dot" class="changelog-unread-dot" hidden></span>
   </button>
 
@@ -117,6 +117,7 @@
       <div id="empty-state" class="empty-state"><div class="empty-icon">◌</div><h2>Selecione uma conversa</h2><p>Escolha um atendimento na lista para visualizar o histórico e responder.</p></div>
       <div id="chat-content" class="chat-content" hidden>
         <header class="chat-header">
+          <button id="toggle-conversation-list" class="panel-collapse-button" type="button" title="Recolher lista de conversas" aria-label="Recolher lista de conversas" aria-expanded="true">&lsaquo;</button>
           <div class="contact-avatar" id="contact-avatar"></div>
          <div class="contact-info-wrap">
   <button id="contact-details" class="contact-info" type="button" title="Ver arquivos e links desta conversa">
@@ -179,7 +180,7 @@
           <label class="attach-image" title="Anexar imagem, vídeo ou documento" aria-label="Anexar imagem, vídeo ou documento"><input id="attachment-input" type="file" accept="image/jpeg,image/png,video/mp4,video/3gpp,video/3gp,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"><span aria-hidden="true">+</span></label>
           <div id="attachment-preview" class="attachment-preview" hidden><img id="attachment-thumb" alt="Prévia da imagem"><span id="attachment-type" class="attachment-type" hidden>DOC</span><span id="attachment-name"></span><button id="remove-attachment" type="button" aria-label="Remover anexo">×</button></div>
           <button id="open-templates" class="template-shortcut" type="button" title="Enviar template aprovado pela Meta" hidden>Templates</button>
-          <button id="open-quick-replies" class="quick-reply-shortcut" type="button" title="Respostas rápidas" aria-label="Respostas rápidas">⚡</button>
+          <button id="open-quick-replies" class="quick-reply-shortcut" type="button" title="Respostas rápidas" aria-label="Respostas rápidas"><svg viewBox="0 0 32 32" aria-hidden="true" focusable="false"><defs><linearGradient id="quick-bolt-gradient" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".5" stop-color="#c9c9c9"/><stop offset="1" stop-color="#555b63"/></linearGradient></defs><path d="M18.5 2.5 7 17h8l-1.5 12.5L25 14h-8.2l1.7-11.5Z"/></svg></button>
           <div class="composer-input-wrap">
             <textarea id="message-input" rows="1" maxlength="4096" placeholder="Digite uma mensagem... (use / para respostas rápidas)"></textarea>
             <div id="slash-suggestions" class="slash-suggestions" hidden></div>
@@ -331,7 +332,7 @@
   <div class="changelog-current">
     <div>
       <small>VERSÃO ATUAL</small>
-      <strong id="changelog-current-version">v0.26.1</strong>
+      <strong id="changelog-current-version">v0.26.2</strong>
     </div>
     <span id="changelog-current-date"></span>
   </div>

@@ -155,6 +155,17 @@ function setFiltersPanelCollapsed(collapsed, persist = true) {
   button.title = collapsed ? "Mostrar filtros e categorias" : "Recolher filtros e categorias";
   if (persist) try { localStorage.setItem("mibro-filters-collapsed", collapsed ? "1" : "0"); } catch {}
 }
+
+function setConversationListCollapsed(collapsed) {
+  if (collapsed && !state.selectedId) return;
+  const workspace = $(".workspace");
+  const button = $("#toggle-conversation-list");
+  workspace.classList.toggle("conversation-list-collapsed", collapsed);
+  button.textContent = collapsed ? "\u203a" : "\u2039";
+  button.setAttribute("aria-expanded", String(!collapsed));
+  button.setAttribute("aria-label", collapsed ? "Mostrar lista de conversas" : "Recolher lista de conversas");
+  button.title = collapsed ? "Mostrar lista de conversas" : "Recolher lista de conversas";
+}
 const messagePreview = (message) => {
   if (!message) return "Conversa sem mensagens";
   if (message.type === "image") return message.text && message.text !== "[image]" ? `📷 ${message.text}` : "📷 Imagem";
@@ -199,10 +210,10 @@ function conversationCardMarkup(c) {
     <span class="card-grip" aria-hidden="true"></span><span class="avatar">${escapeHtml(initials(name))}</span><span class="card-main">
     <span class="card-title"><strong>${c.isPinned ? `<i class="conversation-pin" title="Conversa fixada">★</i>` : ""}${escapeHtml(name)}</strong><small>${escapeHtml(c.contact.phone)}</small></span>
     <span class="preview">${escapeHtml(messagePreview(last))}</span>
-    <span class="card-labels">${channelBadge(c.channel) ? `<span class="channel-label">${escapeHtml(channelBadge(c.channel))}</span>` : ""}<span class="category-label" style="color:${c.category?.color || "#666"};border-color:${c.category?.color || "#aaa"}">${escapeHtml(categoryLabel(c.category))}</span><span class="status-label">${escapeHtml(statusLabel(c.status))}</span>${c.assignedUser ? `<span class="assignee-label">${escapeHtml(c.assignedUser.name)}</span>` : ""}${priorityBadge(c.priority)}${slaBadge(c.slaMinutesRemaining)}</span>    <span class="note-preview"><b>NOTA</b> ${escapeHtml(note?.content || "Sem notas para este contato")}${c.contact._count?.notes ? `<i>${c.contact._count.notes}</i>` : ""}</span></span>
-    <span class="card-side"><span>${time(c.lastMessageAt)}</span><span class="card-elapsed">${escapeHtml(elapsedShort(c.lastMessageAt))}</span>${c.unreadCount ? `<span class="unread">${c.unreadCount}</span>` : ""}</span></button>`;
+    <span class="card-labels">${channelBadge(c.channel) ? `<span class="channel-label">${escapeHtml(channelBadge(c.channel))}</span>` : ""}<span class="category-label" style="color:${c.category?.color || "#666"};border-color:${c.category?.color || "#aaa"}">${escapeHtml(categoryLabel(c.category))}</span><span class="status-label">${escapeHtml(statusLabel(c.status))}</span>${c.assignedUser ? `<span class="assignee-label">${escapeHtml(c.assignedUser.name)}</span>` : ""}${priorityBadge(c.priority)}${slaBadge(c.slaMinutesRemaining)}</span></span>
+    <span class="card-side"><span>${time(c.lastMessageAt)}</span><span class="card-elapsed">${escapeHtml(elapsedShort(c.lastMessageAt))}</span>${c.unreadCount ? `<span class="unread">${c.unreadCount}</span>` : ""}</span>
+    <span class="note-preview"><b>NOTA</b> ${escapeHtml(note?.content || "Sem notas para este contato")}${c.contact._count?.notes ? `<i>${c.contact._count.notes}</i>` : ""}</span></button>`;
 }
-
 function renderConversationCards(conversations) {
   const list = $("#conversation-list");
   list.querySelector(".skeleton-list")?.remove();
@@ -1208,6 +1219,10 @@ $("#theme-toggle").addEventListener("click", () => {
 
 $("#toggle-filters-panel").addEventListener("click", () => {
   setFiltersPanelCollapsed(!$(".workspace").classList.contains("filters-collapsed"));
+});
+
+$("#toggle-conversation-list").addEventListener("click", () => {
+  setConversationListCollapsed(!$(".workspace").classList.contains("conversation-list-collapsed"));
 });
 $("#bots-button").addEventListener("click", () => { location.href = "/bots"; });
 $("#quick-replies-admin-button").addEventListener("click", () => { location.href = "/quick-replies"; });
