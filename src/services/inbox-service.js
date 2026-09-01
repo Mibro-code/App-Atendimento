@@ -61,36 +61,13 @@ function contactAuditSnapshot(conversation) {
   };
 }
 
-// Fila por prioridade (item 4 do pedido de SLA/prioridade): "aparece
-// primeiro" nunca reordena mensagens dentro da conversa — só a ordem da
-// lista de conversas. Critério hierárquico, do mais urgente para o menos:
-// 0. SLA já estourado (primeira resposta OU resposta durante atendimento);
-// 1. cliente aguardando resposta da equipe (AGUARDANDO_EQUIPE/HANDOFF_BOT);
-// 2. conversa NOVA (ainda não assumida);
-// 3/4. prioridade manual (URGENTE antes de ALTA);
-// 5. resto (EM_ATENDIMENTO/AGUARDANDO_CLIENTE em dia, sem SLA/prioridade).
-// FINALIZADO sempre no fim — não é "fila operacional".
-function queueBucket(conversation) {
-  if (conversation.status === "FINALIZADO") return 9;
-  if (conversation.firstResponseSlaBreached || conversation.responseSlaBreached) return 0;
-  if (conversation.status === "AGUARDANDO_EQUIPE" || conversation.status === "HANDOFF_BOT") return 1;
-  if (conversation.status === "NOVO") return 2;
-  if (conversation.priority === "URGENTE") return 3;
-  if (conversation.priority === "ALTA") return 4;
-  return 5;
-}
-
-// Dentro do mesmo "balde" (mesmo nível de urgência), quem espera há mais
-// tempo aparece primeiro — usa lastMessageAt (ou createdAt como
-// fallback para conversas sem nenhuma mensagem ainda).
-function queueWaitingSince(conversation) {
-  return (conversation.lastMessageAt || conversation.createdAt).getTime();
-}
-
-function compareByQueue(left, right) {
-  const bucketDiff = queueBucket(left) - queueBucket(right);
-  if (bucketDiff !== 0) return bucketDiff;
-  return queueWaitingSince(left) - queueWaitingSince(right);
+// A fila acompanha a atividade real: a conversa que recebeu ou enviou a
+// mensagem mais recente aparece primeiro. Conversas sem mensagens usam a
+// data de criacao como fallback.
+function compareByLatestMessage(left, right) {
+  const leftTime = (left.lastMessageAt || left.createdAt).getTime();
+  const rightTime = (right.lastMessageAt || right.createdAt).getTime();
+  return rightTime - leftTime;
 }
 
 // SLA restante (item 10 — UI): minutos até estourar (negativo = já
@@ -324,13 +301,12 @@ async function listConversations({
         slaMinutesRemaining: computeSlaMinutesRemaining(conversation, slaSettings, now),
       };
     })
-    // Fila por prioridade (item 4): fixadas manualmente sempre no topo
-    // (decisão explícita do atendente), depois a fila automática decide a
-    // ordem entre o resto — nunca reordena mensagens dentro da conversa.
+    // Fixadas manualmente continuam no topo por escolha explicita do usuario;
+    // todas as demais seguem a ultima atividade, da mais nova para a mais antiga.
     .sort((left, right) => {
       const pinDiff = Number(right.isPinned) - Number(left.isPinned);
       if (pinDiff !== 0) return pinDiff;
-      return compareByQueue(left, right);
+      return compareByLatestMessage(left, right);
     });
 }
 
