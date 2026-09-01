@@ -198,17 +198,17 @@ function conversationSignature(conversation) {
     conversation.assignedUserId, conversation.assignedUser?.name,
     conversation.priority, conversation.firstResponseSlaBreached, conversation.responseSlaBreached, conversation.slaMinutesRemaining,
     conversation.isPinned,
-    conversation.contact.customName, conversation.contact.name, conversation.contact.phone, conversation.contact._count?.notes,
+    conversation.contact.customName, conversation.contact.name, conversation.contact.email, conversation.contact.phone, conversation.contact._count?.notes,
     note?.id, note?.content,
     lastMessage?.id, lastMessage?.text, lastMessage?.type,
   ]);
 }
 
 function conversationCardMarkup(c) {
-  const last = c.messages[0]; const name = c.contact.customName || c.contact.name || c.contact.phone; const note = c.contact.notes?.[0];
+  const last = c.messages[0]; const name = c.contact.customName || c.contact.name || c.contact.email || c.contact.phone; const note = c.contact.notes?.[0];
   return `<button class="conversation-card ${c.id === state.selectedId ? "active" : ""}" data-id="${escapeHtml(c.id)}">
     <span class="card-grip" aria-hidden="true"></span><span class="avatar">${escapeHtml(initials(name))}</span><span class="card-main">
-    <span class="card-title"><strong>${c.isPinned ? `<i class="conversation-pin" title="Conversa fixada">★</i>` : ""}${escapeHtml(name)}</strong><small>${escapeHtml(c.contact.phone)}</small></span>
+    <span class="card-title"><strong>${c.isPinned ? `<i class="conversation-pin" title="Conversa fixada">★</i>` : ""}${escapeHtml(name)}</strong><small>${escapeHtml(c.contact.email || c.contact.phone || "")}</small></span>
     <span class="preview">${escapeHtml(messagePreview(last))}</span>
     <span class="card-labels">${channelBadge(c.channel) ? `<span class="channel-label">${escapeHtml(channelBadge(c.channel))}</span>` : ""}<span class="category-label" style="color:${c.category?.color || "#666"};border-color:${c.category?.color || "#aaa"}">${escapeHtml(categoryLabel(c.category))}</span><span class="status-label">${escapeHtml(statusLabel(c.status))}</span>${c.assignedUser ? `<span class="assignee-label">${escapeHtml(c.assignedUser.name)}</span>` : ""}${priorityBadge(c.priority)}${slaBadge(c.slaMinutesRemaining)}</span></span>
     <span class="card-side"><span>${time(c.lastMessageAt)}</span><span class="card-elapsed">${escapeHtml(elapsedShort(c.lastMessageAt))}</span>${c.unreadCount ? `<span class="unread">${c.unreadCount}</span>` : ""}</span>
@@ -861,13 +861,13 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
     priority: c.priority,
     isPinned: c.isPinned,
     canViewHistory: c.canViewHistory,
-    contact: [c.contact.id, c.contact.customName, c.contact.name, c.contact.phone],
+    contact: [c.contact.id, c.contact.customName, c.contact.name, c.contact.email, c.contact.phone],
     messageHistoryLimited: c.messageHistoryLimited,
     customerServiceWindow: c.customerServiceWindow,
   });
   const displayMessages = messagesWithReactions(c.messages);
   state.selectedMessages = displayMessages;
-  state.selectedContactName = c.contact.customName || c.contact.name || c.contact.phone;
+  state.selectedContactName = c.contact.customName || c.contact.name || c.contact.email || c.contact.phone;
   const hasReactionEvents = displayMessages.length !== c.messages.length;
   const messageItems = displayMessages.map((message) => JSON.stringify([message.id, message.externalId, message.direction, message.type, message.text, message.occurredAt, message.mediaStorageKey, message.mediaMimeType, message.mediaFileName, message.mediaSize, message.reactionEmoji, message.sentByUser?.id, message.sentByUser?.name]));
   const messagesSignature = JSON.stringify([c.messageHistoryLimited, messageItems]);
@@ -879,8 +879,8 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
   $("#empty-state").hidden = true; $("#chat-content").hidden = false; $("#chat-panel").classList.add("open");
   if (headerSignature !== state.selectedHeaderSignature) {
     state.selectedHeaderSignature = headerSignature;
-    const name = c.contact.customName || c.contact.name || c.contact.phone;
-    $("#contact-avatar").textContent = initials(name); $("#contact-name").textContent = name; $("#contact-phone").textContent = `+${c.contact.phone}`;
+    const name = c.contact.customName || c.contact.name || c.contact.email || c.contact.phone;
+    $("#contact-avatar").textContent = initials(name); $("#contact-name").textContent = name; $("#contact-phone").textContent = c.contact.email || (c.contact.phone ? `+${c.contact.phone}` : "");
     const primaryCategory = c.category?.parent || (c.category && !c.category.parentId ? c.category : null);
     const primaryId = primaryCategory?.id || "";
     if (primaryId && ![...$("#category-select").options].some((option) => option.value === primaryId)) {

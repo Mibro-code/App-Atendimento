@@ -16,11 +16,33 @@ const OVERLAP_MS = 2 * 60 * 1000;
 const MAX_PAGES = 20;
 
 function cursorDate(account) {
-  const configured = account.config?.gmailSyncCursorAt;
+  const configured = account.config?.gmailAttachmentSyncVersion === 1 ? account.config?.gmailSyncCursorAt : null;
   const parsed = configured ? new Date(configured) : new Date(account.createdAt);
   return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
 }
 
+function collectAttachmentParts(payload, result = []) {
+  if (!payload) return result;
+  if (payload.filename && (payload.body?.attachmentId || payload.body?.data)) {
+    result.push({ id: payload.body.attachmentId || payload.partId || String(result.length), filename: payload.filename, mimeType: payload.mimeType || "application/octet-stream", body: payload.body });
+  }
+  for (const part of payload.parts || []) collectAttachmentParts(part, result);
+  return result;
+}
+
+async function downloadGmailAttachments(message, headers, http) {
+  const attachments = [];
+  for (const part of collectAttachmentParts(message.payload)) {
+    let data = part.body.data;
+    if (!data && part.body.attachmentId) {
+      const response = await http.get(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(message.id)}/attachments/${encodeURIComponent(part.body.attachmentId)}`, { headers, timeout: 15000 });
+      data = response.data?.data;
+    }
+    if (!data) continue;
+    attachments.push({ id: part.id, filename: part.filename, mimeType: part.mimeType, buffer: Buffer.from(data, "base64url") });
+  }
+  return attachments;
+}
 async function fetchGmailInbox({ accessToken, since, http = axios }) {
   const headers = { Authorization: `Bearer ${accessToken}` };
   const after = Math.max(0, Math.floor((since.getTime() - OVERLAP_MS) / 1000));
@@ -39,7 +61,10 @@ async function fetchGmailInbox({ accessToken, since, http = axios }) {
     const response = await http.get(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(id)}`, {
       headers, params: { format: "full" }, timeout: 10000,
     });
-    if (response.data) full.push(response.data);
+    if (response.data) {
+      response.data.gmailAttachments = await downloadGmailAttachments(response.data, headers, http);
+      full.push(response.data);
+    }
   }
   return full.sort((a, b) => Number(a.internalDate || 0) - Number(b.internalDate || 0));
 }
@@ -91,7 +116,7 @@ async function syncGmailAccount(account, { http = axios } = {}) {
   await prisma.channelAccount.update({
     where: { id: current.id },
     data: {
-      config: { ...(current.config || {}), gmailSyncCursorAt: cycleStartedAt.toISOString() },
+      config: { ...(current.config || {}), gmailSyncCursorAt: cycleStartedAt.toISOString(), gmailAttachmentSyncVersion: 1 },
       lastSyncAt: cycleStartedAt, lastErrorAt: null, lastErrorCode: null, lastErrorMessage: null,
     },
   });

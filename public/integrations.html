@@ -52,6 +52,18 @@
   </dialog>
 
 
+  <dialog id="account-access-dialog" class="account-dialog">
+    <form id="account-access-form" method="dialog">
+      <h2>Usuários com acesso</h2>
+      <p id="account-access-name" class="account-dialog-channel"></p>
+      <p class="account-hint">Somente os usuários selecionados poderão visualizar esta conta e seus arquivos. Contas Master sempre mantêm acesso.</p>
+      <div id="account-access-users" class="account-access-users"></div>
+      <menu class="account-dialog-actions">
+        <button id="account-access-cancel" type="button">Cancelar</button>
+        <button type="submit">Salvar acesso</button>
+      </menu>
+    </form>
+  </dialog>
   <dialog id="oauth-selection-dialog" class="account-dialog oauth-selection-dialog">
     <form method="dialog">
       <h2>Escolha a conta</h2>

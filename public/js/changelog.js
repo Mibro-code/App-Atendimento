@@ -1,9 +1,19 @@
 (() => {
-  const APP_VERSION = "0.27.1";
+  const APP_VERSION = "0.27.2";
 
 
 
   const CHANGELOG = [
+    {
+      version: "0.27.2",
+      date: "01/09/2026",
+      title: "Anexos e acesso restrito no Gmail",
+      changes: [
+        "Exibe imagens e arquivos recebidos pelo Gmail diretamente na conversa.",
+        "Mostra o endereço de e-mail real do remetente nos cards e no cabeçalho.",
+        "Permite ao Master escolher quais usuários podem acessar cada conta de e-mail."
+      ]
+    },
     {
       version: "0.27.1",
       date: "01/09/2026",

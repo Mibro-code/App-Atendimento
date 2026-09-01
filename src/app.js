@@ -324,9 +324,9 @@ app.post(
         include: { conversation: { include: { contact: true } } }, orderBy: { occurredAt: "asc" }, take: 500,
       });
       return res.json(rows.map((item) => ({
-        id: item.externalId || item.id, from: item.conversation.contact.phone,
-        to: item.direction === "ENVIADA" ? item.conversation.contact.phone : undefined,
-        name: item.conversation.contact.customName || item.conversation.contact.name || item.conversation.contact.phone,
+        id: item.externalId || item.id, from: item.conversation.contact.email || item.conversation.contact.phone,
+        to: item.direction === "ENVIADA" ? (item.conversation.contact.email || item.conversation.contact.phone) : undefined,
+        name: item.conversation.contact.customName || item.conversation.contact.name || item.conversation.contact.email || item.conversation.contact.phone,
         type: item.type, text: item.text, timestamp: item.occurredAt.getTime(),
         direction: item.direction === "ENVIADA" ? "sent" : "received",
       })));
@@ -510,6 +510,7 @@ app.post(
   app.get("/api/integrations/accounts/:accountId", integrationsController.detail);
   app.patch("/api/integrations/accounts/:accountId", integrationsController.update);
   app.patch("/api/integrations/accounts/:accountId/enabled", integrationsController.setEnabled);
+  app.patch("/api/integrations/accounts/:accountId/access", integrationsController.setAccess);
   app.delete("/api/integrations/accounts/:accountId", integrationsController.remove);
   app.post("/api/integrations/accounts/:accountId/test-connection", integrationsController.testConnection);
   app.post("/api/integrations/oauth/start", integrationsController.oauthStart);

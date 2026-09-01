@@ -1,5 +1,5 @@
 const $ = (selector) => document.querySelector(selector);
-const state = { overview: [], settings: null, editingChannel: null, editingAccountId: null };
+const state = { overview: [], settings: null, users: [], editingChannel: null, editingAccountId: null, accessAccountId: null };
 
 const CHANNEL_LABELS = {
   META: "WhatsApp (Meta)",
@@ -172,10 +172,11 @@ function renderCards() {
           <span class="enabled-pill ${account.enabled ? "on" : "off"}">${account.enabled ? "Ativado" : "Desativado"}</span>
         </div>
         <div class="account-row-meta">
-          ${account.oauthProvider ? `<span>Provider: ${escapeHtml(account.oauthProvider)}</span>` : ""}${account.providerMetadata?.username ? `<span>Conta: ${escapeHtml(account.providerMetadata.username)}</span>` : ""}${account.externalAccountId ? `<span>ID externo: ${escapeHtml(account.externalAccountId)}</span>` : ""}${account.lastSyncAt ? `<span>Última sincronização: ${escapeHtml(new Date(account.lastSyncAt).toLocaleString("pt-BR"))}</span>` : ""}
+          ${account.oauthProvider ? `<span>Provider: ${escapeHtml(account.oauthProvider)}</span>` : ""}${account.providerMetadata?.username ? `<span>Conta: ${escapeHtml(account.providerMetadata.username)}</span>` : ""}${account.externalAccountId ? `<span>ID externo: ${escapeHtml(account.externalAccountId)}</span>` : ""}${account.lastSyncAt ? `<span>Última sincronização: ${escapeHtml(new Date(account.lastSyncAt).toLocaleString("pt-BR"))}</span>` : ""}${entry.channel === "EMAIL" ? `<span>Acesso: ${account.allowedUsers?.length ? escapeHtml(account.allowedUsers.map((item) => item.user?.name).filter(Boolean).join(", ")) : "somente Master"}</span>` : ""}
           ${account.lastErrorMessage ? `<span class="error-text">Erro: ${escapeHtml(account.lastErrorMessage)}</span>` : ""}
         </div>
         <div class="account-row-actions">
+          ${entry.channel === "EMAIL" ? `<button type="button" data-action="access" data-id="${escapeHtml(account.id)}">Gerenciar acesso</button>` : ""}
           <button type="button" data-action="test" data-id="${escapeHtml(account.id)}">Testar conexão</button>
           <button type="button" data-action="reconnect" data-id="${escapeHtml(account.id)}" data-channel="${escapeHtml(entry.channel)}">Reconectar</button>
           <button type="button" data-action="toggle" data-id="${escapeHtml(account.id)}" data-enabled="${account.enabled}">${account.enabled ? "Desativar" : "Ativar"}</button>
@@ -207,6 +208,9 @@ function renderCards() {
   ));
   container.querySelectorAll(".add-account").forEach((button) => (
     button.addEventListener("click", () => openAccountDialog(button.dataset.channel))
+  ));
+  container.querySelectorAll('[data-action="access"]').forEach((button) => (
+    button.addEventListener("click", () => openAccessDialog(button.dataset.id))
   ));
   container.querySelectorAll('[data-action="test"]').forEach((button) => (
     button.addEventListener("click", () => testConnection(button.dataset.id))
@@ -319,6 +323,33 @@ async function selectOAuthCandidate(candidateId) {
   } catch (error) { toast(error.message, true); }
 }
 
+function openAccessDialog(accountId) {
+  const account = state.overview.flatMap((entry) => entry.accounts || []).find((item) => item.id === accountId);
+  if (!account) return;
+  state.accessAccountId = accountId;
+  const selected = new Set((account.allowedUsers || []).map((item) => item.userId));
+  $("#account-access-name").textContent = account.name;
+  $("#account-access-users").innerHTML = state.users.filter((user) => user.role !== "ADMIN").map((user) => `
+    <label class="access-user-option"><input type="checkbox" value="${escapeHtml(user.id)}" ${selected.has(user.id) ? "checked" : ""}>
+      <span><strong>${escapeHtml(user.name)}</strong><small>${escapeHtml(user.email)}</small></span>
+    </label>`).join("") || '<p class="no-accounts">Nenhum usuário ativo disponível.</p>';
+  $("#account-access-dialog").showModal();
+}
+
+async function saveAccountAccess(event) {
+  event.preventDefault();
+  const userIds = [...document.querySelectorAll("#account-access-users input:checked")].map((input) => input.value);
+  try {
+    await api(`/api/integrations/accounts/${state.accessAccountId}/access`, { method: "PATCH", body: JSON.stringify({ userIds }) });
+    $("#account-access-dialog").close();
+    toast("Acesso da conta de e-mail atualizado.");
+    await loadOverview();
+  } catch (error) { toast(error.message, true); }
+}
+
+async function loadUsers() {
+  state.users = await api("/api/users");
+}
 async function testConnection(accountId) {
   try {
     const result = await api(`/api/integrations/accounts/${accountId}/test-connection`, { method: "POST" });
@@ -355,6 +386,8 @@ async function loadSettings() {
 }
 
 $("#account-form").addEventListener("submit", saveAccount);
+$("#account-access-form").addEventListener("submit", saveAccountAccess);
+$("#account-access-cancel").addEventListener("click", () => $("#account-access-dialog").close());
 $("#account-cancel").addEventListener("click", () => $("#account-dialog").close());
 $("#oauth-selection-cancel").addEventListener("click", () => $("#oauth-selection-dialog").close());
 $("#oauth-selection-options").addEventListener("click", (event) => {
@@ -387,7 +420,7 @@ $("#logout").addEventListener("click", async () => {
     const status = await api("/api/auth/status");
     if (!status.authenticated || !status.user.isMaster) return location.replace("/");
     $("#current-user").textContent = status.user.name;
-    await Promise.all([loadOverview(), loadSettings()]);
+    await Promise.all([loadOverview(), loadSettings(), loadUsers()]);
   } catch (error) {
     if ($("#channel-cards").querySelector(".skeleton-list")) $("#channel-cards").innerHTML = `<div class="empty-list">Não foi possível carregar as integrações.</div>`;
     toast(error.message, true);

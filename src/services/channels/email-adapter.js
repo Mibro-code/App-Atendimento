@@ -278,24 +278,37 @@ class EmailAdapter extends ChannelAdapter {
       const headers = rawPayload.payload?.headers || [];
       const from = parseEmailAddressHeader(gmailHeader(headers, "From"));
       const subject = gmailHeader(headers, "Subject");
+      const occurredAt = rawPayload.internalDate ? new Date(Number(rawPayload.internalDate)) : new Date();
       const bodyPart = findGmailBodyPart(rawPayload.payload);
       let text = null;
       if (bodyPart) {
         const decoded = decodeGmailBase64Url(bodyPart.data);
         text = bodyPart.mimeType === "text/html" ? stripHtml(decoded) : decoded;
       }
-      return [{
-        channel: "EMAIL",
-        externalConversationId: rawPayload.threadId || null,
-        externalMessageId: rawPayload.id || null,
-        senderExternalId: from.address,
-        senderName: from.name || from.address,
-        direction: "RECEBIDA",
-        type: text ? "text" : "unknown",
-        text,
-        occurredAt: rawPayload.internalDate ? new Date(Number(rawPayload.internalDate)) : new Date(),
+      const attachments = Array.isArray(rawPayload.gmailAttachments) ? rawPayload.gmailAttachments : [];
+      if (attachments.length && /^\[(?:image|document|file|audio|video):[^\]]+\]$/i.test(String(text || "").trim())) text = null;
+      const common = {
+        channel: "EMAIL", externalConversationId: rawPayload.threadId || null,
+        senderExternalId: from.address, senderName: from.name || from.address,
+        direction: "RECEBIDA", occurredAt,
+      };
+      const events = [];
+      if (text || !attachments.length) events.push({
+        ...common, externalMessageId: rawPayload.id || null,
+        type: text ? "text" : "unknown", text,
         metadata: { subject, id: rawPayload.id, threadId: rawPayload.threadId },
-      }];
+      });
+      attachments.forEach((attachment, index) => {
+        const mimeType = String(attachment.mimeType || "application/octet-stream").toLowerCase();
+        const type = mimeType.startsWith("image/") ? "image" : mimeType.startsWith("audio/") ? "audio" : mimeType.startsWith("video/") ? "video" : "document";
+        events.push({
+          ...common, externalMessageId: `${rawPayload.id}:attachment:${attachment.id || index}`,
+          type, text: null,
+          media: { buffer: attachment.buffer, mimeType, fileName: attachment.filename || "arquivo" },
+          metadata: { subject, id: rawPayload.id, threadId: rawPayload.threadId, attachment: true },
+        });
+      });
+      return events;
     }
 
     // Formato Microsoft Graph: subject/from/conversationId/body plano.

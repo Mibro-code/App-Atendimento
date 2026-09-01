@@ -1,6 +1,9 @@
 require("dotenv").config();
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs/promises");
+const os = require("node:os");
+const path = require("node:path");
 const prisma = require("../src/database/prisma");
 const { encryptSecrets } = require("../src/services/channels/integration-secret-service");
 const { fetchGmailInbox, syncGmailAccount } = require("../src/services/channels/gmail-sync-service");
@@ -8,6 +11,8 @@ const { fetchGmailInbox, syncGmailAccount } = require("../src/services/channels/
 const accountName = "Gmail Sync Test";
 let account;
 const sender = "cliente.gmail.sync@example.com";
+const mediaDir = path.join(os.tmpdir(), `gmail-sync-media-${process.pid}`);
+process.env.MEDIA_STORAGE_DIR = mediaDir;
 
 function gmailMessage(id, internalDate, text) {
   return {
@@ -38,6 +43,7 @@ test.after(async () => {
   await prisma.conversation.deleteMany({ where: { channelAccountId: account.id } });
   await prisma.contact.deleteMany({ where: { channel: "EMAIL", externalId: { startsWith: `${account.id}:` } } });
   await prisma.channelAccount.delete({ where: { id: account.id } });
+  await fs.rm(mediaDir, { recursive: true, force: true });
   await prisma.$disconnect();
 });
 
@@ -67,4 +73,30 @@ test("sincronização importa e-mail recebido uma única vez e avança o cursor"
   assert.ok(refreshed.config.gmailSyncCursorAt);
   assert.equal(await syncGmailAccount(refreshed, { http }), 0);
   assert.equal(await prisma.message.count({ where: { channelAccountId: account.id, externalId: `${account.id}:${raw.id}` } }), 1);
+});
+
+test("sincronização baixa anexo, remove placeholder e grava o e-mail do remetente", async () => {
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
+  const raw = gmailMessage("gmail-msg-attachment", Date.now(), "[image:foto.png]");
+  raw.payload = {
+    mimeType: "multipart/mixed", headers: raw.payload.headers,
+    parts: [
+      { mimeType: "text/plain", body: { data: Buffer.from("[image:foto.png]").toString("base64url") } },
+      { partId: "1", filename: "foto.png", mimeType: "image/png", body: { attachmentId: "attachment-1" } },
+    ],
+  };
+  const http = { get: async (url) => {
+    if (url.endsWith("/messages")) return { data: { messages: [{ id: raw.id }] } };
+    if (url.includes("/attachments/")) return { data: { data: png.toString("base64url") } };
+    return { data: raw };
+  } };
+  const current = await prisma.channelAccount.findUnique({ where: { id: account.id } });
+  assert.equal(await syncGmailAccount(current, { http }), 1);
+  const message = await prisma.message.findUnique({ where: { externalId: `${account.id}:${raw.id}:attachment:attachment-1` } });
+  assert.equal(message.type, "image");
+  assert.equal(message.mediaFileName, "foto.png");
+  assert.ok(message.mediaStorageKey);
+  assert.equal(message.text, null);
+  const contact = await prisma.contact.findFirst({ where: { channel: "EMAIL", externalId: `${account.id}:${sender}` } });
+  assert.equal(contact.email, sender);
 });

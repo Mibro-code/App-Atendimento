@@ -37,7 +37,7 @@ function publicAccount(account) {
 
 async function listAccounts(viewer) {
   assertIntegrationManager(viewer);
-  const accounts = await prisma.channelAccount.findMany({ orderBy: [{ channel: "asc" }, { name: "asc" }] });
+  const accounts = await prisma.channelAccount.findMany({ include: { accessUsers: { include: { user: { select: { id: true, name: true, email: true } } } } }, orderBy: [{ channel: "asc" }, { name: "asc" }] });
   return accounts.map(publicAccount);
 }
 
@@ -49,7 +49,8 @@ async function ensureAccount(id) {
 
 async function getAccount(id, viewer) {
   assertIntegrationManager(viewer);
-  return publicAccount(await ensureAccount(id));
+  await ensureAccount(id);
+  return publicAccount(await prisma.channelAccount.findUnique({ where: { id }, include: { accessUsers: { include: { user: { select: { id: true, name: true, email: true } } } } } }));
 }
 
 const FORBIDDEN_CONFIG_SECRET_KEYS = new Set([
@@ -289,6 +290,29 @@ async function deleteAccount(id, actor) {
   return { deleted: true };
 }
 
+async function setAccountAccess(id, userIds, actor) {
+  assertIntegrationManager(actor);
+  const account = await ensureAccount(id);
+  if (account.channel !== "EMAIL") throw fail("O controle individual de acesso está disponível para contas de e-mail.");
+  if (!Array.isArray(userIds) || userIds.some((value) => typeof value !== "string" || !value)) {
+    throw fail("userIds deve ser uma lista de usuários.");
+  }
+  const uniqueIds = [...new Set(userIds)];
+  const validUsers = uniqueIds.length ? await prisma.user.findMany({ where: { id: { in: uniqueIds }, active: true }, select: { id: true, name: true } }) : [];
+  if (validUsers.length !== uniqueIds.length) throw fail("Um ou mais usuários selecionados são inválidos ou estão inativos.");
+  await prisma.$transaction(async (transaction) => {
+    await transaction.channelAccountUserAccess.deleteMany({ where: { channelAccountId: id } });
+    if (uniqueIds.length) await transaction.channelAccountUserAccess.createMany({ data: uniqueIds.map((userId) => ({ channelAccountId: id, userId })) });
+  });
+  await audit.recordAudit({
+    actor, action: "CHANNEL_ACCOUNT_ACCESS_UPDATED", entityType: "CHANNEL_ACCOUNT", entityId: id,
+    summary: `Atualizou os usuários com acesso à conta de e-mail "${account.name}"`,
+    details: { userIds: uniqueIds },
+  });
+  return publicAccount(await prisma.channelAccount.findUnique({
+    where: { id }, include: { accessUsers: { include: { user: { select: { id: true, name: true, email: true } } } } },
+  }));
+}
 // Só verifica credenciais/escopo — nunca envia nada real (item 12).
 async function testConnection(id, actor) {
   assertIntegrationManager(actor);
@@ -351,7 +375,7 @@ async function testConnection(id, actor) {
 // canais sem nenhuma conta ainda cadastrada.
 async function listChannelOverview(viewer) {
   assertIntegrationManager(viewer);
-  const accounts = await prisma.channelAccount.findMany({ orderBy: { createdAt: "asc" } });
+  const accounts = await prisma.channelAccount.findMany({ include: { accessUsers: { include: { user: { select: { id: true, name: true, email: true } } } } }, orderBy: { createdAt: "asc" } });
   const byChannel = new Map();
   for (const account of accounts) {
     if (!byChannel.has(account.channel)) byChannel.set(account.channel, []);
@@ -367,5 +391,5 @@ async function listChannelOverview(viewer) {
 
 module.exports = {
   assertIntegrationManager, createAccount, deleteAccount, getAccount, listAccounts,
-  listChannelOverview, saveOAuthConnection, selectOAuthCandidate, setEnabled, testConnection, updateAccount,
+  listChannelOverview, saveOAuthConnection, selectOAuthCandidate, setAccountAccess, setEnabled, testConnection, updateAccount,
 };
