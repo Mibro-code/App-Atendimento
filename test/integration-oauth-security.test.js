@@ -3,6 +3,25 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const prisma = require("../src/database/prisma");
 const oauth = require("../src/services/channels/integration-oauth-service");
+const { getOAuthProvider, getOAuthScopes } = require("../src/services/channels/oauth-providers");
+
+
+test("Google OAuth separa os scopes minimos de Gmail e Google Reviews por canal", () => {
+  assert.deepEqual(getOAuthScopes("GOOGLE", "EMAIL"), [
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/gmail.send",
+  ]);
+  assert.deepEqual(getOAuthScopes("GOOGLE", "GOOGLE_REVIEWS"), [
+    "https://www.googleapis.com/auth/business.manage",
+  ]);
+  assert.equal(getOAuthScopes("GOOGLE", "EMAIL").includes("https://www.googleapis.com/auth/business.manage"), false);
+});
+
+test("Google OAuth solicita refresh token sem expor segredo no frontend", () => {
+  const google = getOAuthProvider("GOOGLE");
+  assert.deepEqual(google.extraAuthParams, { access_type: "offline", prompt: "consent" });
+  assert.equal(Object.hasOwn(google, "clientSecret"), false);
+});
 
 let account;
 

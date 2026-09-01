@@ -1,9 +1,19 @@
 (() => {
-  const APP_VERSION = "0.26.2";
+  const APP_VERSION = "0.26.3";
 
 
 
   const CHANGELOG = [
+    {
+      version: "0.26.3",
+      date: "01/09/2026",
+      title: "OAuth correto para Gmail e Google Reviews",
+      changes: [
+        "Separa as permissões do Gmail e do Google Reviews no fluxo OAuth compartilhado.",
+        "Solicita no Gmail somente leitura de mensagens e envio de respostas, mantendo acesso offline.",
+        "Mantém a permissão de gestão de avaliações exclusivamente no canal Google Reviews."
+      ]
+    },
     {
       version: "0.26.2",
       date: "01/09/2026",
