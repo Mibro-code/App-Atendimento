@@ -21,7 +21,7 @@
     <div class="app-version-actions">
   <button id="changelog-button" class="changelog-button" type="button" title="Ver novidades e histórico de versões">
     <span class="changelog-icon" aria-hidden="true">▤</span>
-    <span id="app-version-label">v0.26.0</span>
+    <span id="app-version-label">v0.26.1</span>
     <span id="changelog-unread-dot" class="changelog-unread-dot" hidden></span>
   </button>
 
@@ -66,7 +66,7 @@
   </header>
 
   <main class="workspace">
-    <aside class="filters-panel">
+    <aside id="filters-panel" class="filters-panel">
       <label class="search"><span>⌕</span><input id="search" type="search" placeholder="Buscar nome ou telefone"></label>
       <select id="channel-filter" class="channel-filter" aria-label="Filtrar por canal">
         <option value="">Todos os canais</option>
@@ -109,7 +109,7 @@
     </aside>
 
     <section class="conversation-list-panel">
-      <div class="list-heading"><div><h1>Conversas</h1><p id="list-summary">Carregando...</p></div><div class="list-heading-actions"><button id="new-conversation" class="new-conversation" type="button" title="Iniciar nova conversa">+ Nova</button><button id="clear-team-filter" title="Remover filtro de atendente" hidden>×</button><button id="refresh" title="Atualizar">↻</button></div></div>
+      <div class="list-heading"><div><h1>Conversas</h1><p id="list-summary">Carregando...</p></div><div class="list-heading-actions"><button id="toggle-filters-panel" type="button" title="Recolher filtros e categorias" aria-label="Recolher filtros e categorias" aria-controls="filters-panel" aria-expanded="true">&lsaquo;</button><button id="new-conversation" class="new-conversation" type="button" title="Iniciar nova conversa">+ Nova</button><button id="clear-team-filter" title="Remover filtro de atendente" hidden>×</button><button id="refresh" title="Atualizar">↻</button></div></div>
       <div id="conversation-list" class="conversation-list"><div class="skeleton-list"><div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div></div></div>
     </section>
 
@@ -331,7 +331,7 @@
   <div class="changelog-current">
     <div>
       <small>VERSÃO ATUAL</small>
-      <strong id="changelog-current-version">v0.26.0</strong>
+      <strong id="changelog-current-version">v0.26.1</strong>
     </div>
     <span id="changelog-current-date"></span>
   </div>

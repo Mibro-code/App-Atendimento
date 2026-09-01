@@ -47,7 +47,7 @@ async function createConversation(externalId, phone, data = {}) {
   return conversation;
 }
 
-test("fila por prioridade: SLA estourado > aguardando equipe há mais tempo > NOVO > prioridade manual > resto", async () => {
+test("fila ordena conversas pela mensagem mais recente, independentemente de status, SLA ou prioridade", async () => {
   const now = new Date("2026-08-25T12:00:00.000Z");
   const overdue = await createConversation(testContacts[0], "5511900001001", {
     status: "AGUARDANDO_EQUIPE", responseSlaBreached: true, lastMessageAt: new Date(now.getTime() - 5 * 60 * 1000),
@@ -72,16 +72,11 @@ test("fila por prioridade: SLA estourado > aguardando equipe há mais tempo > NO
   const list = (await inbox.listConversations({}, masterViewer)).filter((c) => ids.has(c.id));
   const order = list.map((c) => c.id);
 
-  // Bucket 0 (estourada) sempre antes de tudo.
-  assert.equal(order[0], overdue.id);
-  // Bucket 1 (aguardando equipe): quem espera há mais tempo primeiro.
-  assert.ok(order.indexOf(waitingOld.id) < order.indexOf(waitingNew.id));
-  // Bucket 1 inteiro antes do bucket 2 (NOVO).
-  assert.ok(order.indexOf(waitingNew.id) < order.indexOf(brandNew.id));
-  // Bucket 2 (NOVO) antes do bucket 3 (URGENTE manual).
-  assert.ok(order.indexOf(brandNew.id) < order.indexOf(urgent.id));
-  // URGENTE antes de NORMAL (resto).
-  assert.ok(order.indexOf(urgent.id) < order.indexOf(normal.id));
+  assert.ok(order.indexOf(brandNew.id) < order.indexOf(overdue.id));
+  assert.ok(order.indexOf(urgent.id) < order.indexOf(overdue.id));
+  assert.ok(order.indexOf(normal.id) < order.indexOf(overdue.id));
+  assert.ok(order.indexOf(waitingNew.id) < order.indexOf(overdue.id));
+  assert.ok(order.indexOf(overdue.id) < order.indexOf(waitingOld.id));
 });
 
 test("prioridade manual: Admin e Supervisor podem alterar, Atendente sem permissão é bloqueado, Atendente autorizado pode", async () => {
