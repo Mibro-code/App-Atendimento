@@ -113,7 +113,7 @@ class EmailAdapter extends ChannelAdapter {
   // account.config.provider: "GMAIL" | "MICROSOFT_365"
   capabilities() {
     return {
-      canReceiveMessages: false,
+      canReceiveMessages: true,
       canSendMessages: true,
       canReceiveMedia: false,
       canSendMedia: true,
@@ -121,8 +121,7 @@ class EmailAdapter extends ChannelAdapter {
       supportsPublicQuestions: false,
       supportsReviews: false,
       supportsOAuth: true,
-      // Push (Gmail Pub/Sub watch / Graph subscriptions) fica para uma fase
-      // futura — nesta fase o recebimento é por consulta, não webhook.
+      // Gmail é recebido por polling incremental; push/webhook continua opcional.
       supportsWebhook: false,
     };
   }
@@ -268,10 +267,7 @@ class EmailAdapter extends ChannelAdapter {
     throw channelError("INVALID_PAYLOAD", "Provider de e-mail deve ser GMAIL ou MICROSOFT_365.");
   }
 
-  // Normaliza uma mensagem já buscada via messages.get (Gmail) ou GET
-  // /me/messages/{id} (Graph). Ainda NÃO existe um loop de polling/fetch
-  // real chamando isto — é plumbing para uma fase futura (webhook/polling
-  // ainda não implementado, ver capabilities().supportsWebhook = false).
+  // Normaliza mensagens buscadas pelo worker Gmail ou recebidas do Graph.
   normalizeInboundEvent(rawPayload) {
     if (!rawPayload || typeof rawPayload !== "object") {
       throw channelError("INVALID_PAYLOAD", "Payload de e-mail não reconhecido.");
