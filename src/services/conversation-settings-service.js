@@ -56,6 +56,8 @@ const BOOLEAN_FIELDS = [
   "responseSlaEnabled",
   "unansweredConversationAlertEnabled",
   "stalledConversationAlertEnabled",
+  "slaNearBreachAlertEnabled",
+  "unassignedConversationAlertEnabled",
   "botResumeAfterHumanEnabled",
   "reopenConversationOnCustomerMessage",
   "slaBusinessHoursOnly",
@@ -67,10 +69,20 @@ const MINUTES_FIELDS = {
   responseSlaMinutes: { min: 1, max: 1440 },
   unansweredConversationAlertMinutes: { min: 1, max: 1440 },
   stalledConversationAlertMinutes: { min: 1, max: 1440 },
+  unassignedConversationAlertMinutes: { min: 1, max: 1440 },
   botContextTtlMinutes: { min: 1, max: 1440 },
   botResumeAfterHumanMinutes: { min: 1, max: 1440 },
   autoFinalizationMinutes: { min: 1, max: 1440 },
 };
+
+// Percentual (não minutos) — validação própria, mesma régua de erro claro.
+function validateSlaNearBreachPercent(value, update) {
+  const numeric = Number(value);
+  if (!Number.isInteger(numeric) || numeric < 1 || numeric > 99) {
+    throw fail('"slaNearBreachPercent" deve ser um inteiro entre 1 e 99.');
+  }
+  update.slaNearBreachPercent = numeric;
+}
 
 // Único campo minutos que é opcional/nulo (item 8 — janela de reabertura).
 function validateReopenWindowMinutes(value, update) {
@@ -107,6 +119,10 @@ async function updateConversationSettings(data, actor) {
 
   if (data.reopenWindowMinutes !== undefined) {
     validateReopenWindowMinutes(data.reopenWindowMinutes, update);
+  }
+
+  if (data.slaNearBreachPercent !== undefined) {
+    validateSlaNearBreachPercent(data.slaNearBreachPercent, update);
   }
 
   if (!Object.keys(update).length) throw fail("Informe ao menos um campo para atualizar.");

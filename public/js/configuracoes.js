@@ -29,10 +29,14 @@ function fillForm(settings) {
   $("#cs-response-enabled").checked = settings.responseSlaEnabled;
   $("#cs-response-minutes").value = settings.responseSlaMinutes;
   $("#cs-business-hours-only").checked = settings.slaBusinessHoursOnly;
+  $("#cs-sla-near-breach-enabled").checked = settings.slaNearBreachAlertEnabled;
+  $("#cs-sla-near-breach-percent").value = settings.slaNearBreachPercent;
   $("#cs-unanswered-enabled").checked = settings.unansweredConversationAlertEnabled;
   $("#cs-unanswered-minutes").value = settings.unansweredConversationAlertMinutes;
   $("#cs-stalled-enabled").checked = settings.stalledConversationAlertEnabled;
   $("#cs-stalled-minutes").value = settings.stalledConversationAlertMinutes;
+  $("#cs-unassigned-enabled").checked = settings.unassignedConversationAlertEnabled;
+  $("#cs-unassigned-minutes").value = settings.unassignedConversationAlertMinutes;
   $("#cs-bot-resume-enabled").checked = settings.botResumeAfterHumanEnabled;
   $("#cs-bot-resume-minutes").value = settings.botResumeAfterHumanMinutes;
 }
@@ -50,10 +54,14 @@ function collectPayload() {
     responseSlaEnabled: $("#cs-response-enabled").checked,
     responseSlaMinutes: Number($("#cs-response-minutes").value),
     slaBusinessHoursOnly: $("#cs-business-hours-only").checked,
+    slaNearBreachAlertEnabled: $("#cs-sla-near-breach-enabled").checked,
+    slaNearBreachPercent: Number($("#cs-sla-near-breach-percent").value),
     unansweredConversationAlertEnabled: $("#cs-unanswered-enabled").checked,
     unansweredConversationAlertMinutes: Number($("#cs-unanswered-minutes").value),
     stalledConversationAlertEnabled: $("#cs-stalled-enabled").checked,
     stalledConversationAlertMinutes: Number($("#cs-stalled-minutes").value),
+    unassignedConversationAlertEnabled: $("#cs-unassigned-enabled").checked,
+    unassignedConversationAlertMinutes: Number($("#cs-unassigned-minutes").value),
   };
 }
 

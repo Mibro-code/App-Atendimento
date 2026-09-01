@@ -3,12 +3,17 @@
 
 // META continua sendo o nome interno do WhatsApp (Meta Cloud API) — ver
 // docs/integrations/architecture.md. Não renomeado nesta fase para não
-// arriscar regressão na integração já produtiva.
-const META_CHANNELS = Object.freeze([
-  "META", "INSTAGRAM_DIRECT", "INSTAGRAM_COMMENTS", "FACEBOOK_MESSENGER", "FACEBOOK_COMMENTS",
-]);
+// arriscar regressão na integração já produtiva. É o ÚNICO canal que fica
+// fora do master switch/gating de "novos canais" (item 17): Instagram
+// Direct/Comentários e Facebook Messenger/Comentários reaproveitam o mesmo
+// app Meta/webhook genérico, mas são contas novas, com conta própria por
+// página/perfil, e por isso entram em NEW_CHANNELS — precisam do master
+// switch ligado e de uma ChannelAccount própria antes de enviar/receber
+// qualquer coisa, exatamente como qualquer outro canal novo.
+const META_CHANNELS = Object.freeze(["META"]);
 
 const NEW_CHANNELS = Object.freeze([
+  "INSTAGRAM_DIRECT", "INSTAGRAM_COMMENTS", "FACEBOOK_MESSENGER", "FACEBOOK_COMMENTS",
   "EMAIL", "MERCADO_LIVRE", "TIKTOK_SHOP", "AMAZON_MARKETPLACE", "SHOPEE", "GOOGLE_REVIEWS", "RECLAME_AQUI",
 ]);
 
@@ -33,15 +38,20 @@ const CHANNEL_LABELS = Object.freeze({
 
 // Tipos internos de conteúdo (item 18) — Message.type continua sendo String
 // livre no banco; esta lista é só o vocabulário controlado usado pelo app.
+// "comment" cobre comentários públicos de Instagram/Facebook (distinto de
+// "question", que é o Q&A do Mercado Livre) — ambos viram ConversationKind
+// PUBLIC_QUESTION em omnichannel-message-service.js.
 const MESSAGE_TYPES = Object.freeze([
-  "text", "image", "video", "audio", "document", "product", "order", "question", "review", "system", "unknown",
+  "text", "image", "video", "audio", "document", "product", "order", "question", "comment", "review", "system", "unknown",
 ]);
 
 // Erros normalizados (item 40) — todo adapter deve lançar um destes em vez
-// de deixar vazar o erro cru do provider.
+// de deixar vazar o erro cru do provider. NEEDS_APPROVAL/NEEDS_CONTRACT
+// espelham os status homônimos de ChannelAccountStatus (item 14) para uso
+// dentro de channelError() quando uma ação falha por esse motivo específico.
 const CHANNEL_ERROR_CODES = Object.freeze([
   "AUTH_ERROR", "TOKEN_EXPIRED", "RATE_LIMIT", "PERMISSION_DENIED", "INVALID_PAYLOAD",
-  "NOT_SUPPORTED", "TEMPORARY_ERROR", "PROVIDER_ERROR",
+  "NOT_SUPPORTED", "TEMPORARY_ERROR", "PROVIDER_ERROR", "NEEDS_APPROVAL", "NEEDS_CONTRACT",
 ]);
 
 function channelError(code, message, extra = {}) {

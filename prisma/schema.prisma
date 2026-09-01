@@ -51,6 +51,12 @@ enum ChannelAccountStatus {
   DEGRADED
   ERROR
   NOT_SUPPORTED
+  // API existe mas o acesso/escopo ainda não foi aprovado pela plataforma
+  // (ex.: TikTok Shop Customer Service antes da aprovação do app).
+  NEEDS_APPROVAL
+  // Exige contrato/credencial comercial que ainda não existe (ex.: Reclame
+  // Aqui sem contrato oficial de API).
+  NEEDS_CONTRACT
 }
 
 enum ExternalEventStatus {
@@ -60,12 +66,29 @@ enum ExternalEventStatus {
   ERROR
 }
 
+// Status operacionais claros (gestão de SLA/prioridade, item 6/7). Renomeado
+// de AGUARDANDO_RESPOSTA (nome ambíguo, não dizia de quem era a vez) para
+// AGUARDANDO_EQUIPE — mesmo significado exato de antes (última mensagem
+// válida foi do cliente), nenhum dado histórico muda de sentido. Dois
+// valores novos: AGUARDANDO_CLIENTE (última mensagem válida foi da
+// empresa/Bot — antes ficava misturado em EM_ATENDIMENTO) e HANDOFF_BOT
+// (Bot decidiu transferir para humano e aguarda a equipe assumir).
 enum ConversationStatus {
   NOVO
   EM_ATENDIMENTO
-  AGUARDANDO_RESPOSTA
+  AGUARDANDO_EQUIPE
+  AGUARDANDO_CLIENTE
+  HANDOFF_BOT
   BOT
   FINALIZADO
+}
+
+// Prioridade manual opcional (item 5) — nunca calculada automaticamente,
+// só o atendente/supervisor/admin autorizado altera. Default NORMAL.
+enum ConversationPriority {
+  NORMAL
+  ALTA
+  URGENTE
 }
 
 enum MessageDirection {
@@ -256,6 +279,13 @@ model Conversation {
   // enquanto o cliente aguarda a primeira resposta da empresa além do prazo
   // configurado. Não afeta `status`/máquina de estados — é só um indicador.
   firstResponseSlaBreached Boolean                    @default(false)
+  // SLA de resposta durante atendimento (item 2): true enquanto a última
+  // mensagem válida é do cliente (status AGUARDANDO_EQUIPE/HANDOFF_BOT) além
+  // do prazo configurado. Também não afeta status — resetado assim que a
+  // empresa/Bot responde (updateConversationAfterSending).
+  responseSlaBreached      Boolean                    @default(false)
+  // Prioridade manual (item 5) — nunca calculada automaticamente.
+  priority                 ConversationPriority       @default(NORMAL)
   // Campanhas (item 15): quando a conversa nasceu de uma resposta a uma
   // campanha de envio em massa — `originSource = "OUTBOUND_CAMPAIGN"` é o
   // vocabulário controlado citado no pedido; nunca preenchido para conversas
@@ -288,6 +318,9 @@ model Conversation {
 
   @@unique([contactId, channel, channelScope])
   @@index([status, lastMessageAt])
+  @@index([priority])
+  @@index([firstResponseSlaBreached])
+  @@index([responseSlaBreached])
   @@index([originCampaignId])
   @@index([categoryId, lastMessageAt])
   @@index([assignedUserId])
@@ -341,6 +374,10 @@ model User {
   // ganha por padrão (auth-service.js concede a quem é ADMIN/SUPERVISOR);
   // este flag permite liberar um Atendente específico sem mudar o cargo.
   canManageCampaigns           Boolean                  @default(false)
+  // Prioridade manual de conversa (item 16): Admin/Supervisor sempre podem;
+  // este flag libera um Atendente específico sem mudar o cargo (mesmo
+  // padrão de canManageCampaigns/canTransferConversations).
+  canSetConversationPriority   Boolean                  @default(false)
   createdAt                    DateTime                 @default(now())
   updatedAt                    DateTime                 @updatedAt
   assignedConversations        Conversation[]           @relation("AssignedConversations")
@@ -1461,6 +1498,17 @@ model ConversationSettings {
   // Alerta de conversa parada (item 4)
   stalledConversationAlertEnabled Boolean @default(false)
   stalledConversationAlertMinutes Int     @default(360)
+
+  // Alerta de SLA próximo do limite (item 3 — gestão de SLA/prioridade):
+  // dispara quando já se passou este percentual do prazo configurado
+  // (firstResponseSlaMinutes/responseSlaMinutes) sem estourar ainda.
+  slaNearBreachAlertEnabled Boolean @default(false)
+  slaNearBreachPercent      Int     @default(80)
+
+  // Alerta de conversa sem responsável (item 3 — gestão de SLA/prioridade):
+  // conversa ativa (não FINALIZADO/BOT) sem assignedUserId há X minutos.
+  unassignedConversationAlertEnabled Boolean @default(false)
+  unassignedConversationAlertMinutes Int     @default(30)
 
   // Contexto do Bot (item 5) — default global; flag por Bot continua existindo
   // e tem prioridade quando definido (ver bot-orchestrator-service.js).

@@ -71,7 +71,9 @@ test("registra mensagem enviada e o atendente autor", async () => {
   assert.equal(result.message.sentByUserId, user.id);
   assert.equal(await prisma.message.count(), 2);
   const updatedConversation = await prisma.conversation.findUnique({ where: { id: conversation.id } });
-  assert.equal(updatedConversation.status, "EM_ATENDIMENTO");
+  // Empresa acabou de responder: AGUARDANDO_CLIENTE (não mais o mesmo
+  // EM_ATENDIMENTO usado só para "assumiu, ainda não respondeu").
+  assert.equal(updatedConversation.status, "AGUARDANDO_CLIENTE");
   assert.equal(updatedConversation.assignedUserId, user.id);
   assert.equal(await prisma.conversationActivity.count({
     where: { conversationId: conversation.id, action: "CONVERSATION_CLAIMED", actorUserId: user.id },
@@ -166,7 +168,9 @@ test("cria uma nova conversa pelo painel com nome, telefone e template inicial",
     createdContactId = conversation.contactId;
     assert.equal(conversation.contact.customName, "Cliente Novo");
     assert.equal(conversation.assignedUserId, user.id);
-    assert.equal(conversation.status, "EM_ATENDIMENTO");
+    // O template inicial já foi enviado (updateConversationAfterSending) —
+    // AGUARDANDO_CLIENTE, não mais o EM_ATENDIMENTO inicial da criação.
+    assert.equal(conversation.status, "AGUARDANDO_CLIENTE");
     assert.equal(conversation.messages[0].type, "template");
     assert.equal(await prisma.conversationActivity.count({
       where: { conversationId: conversation.id, action: "CONVERSATION_CREATED" },
@@ -235,6 +239,11 @@ test("lista, pesquisa, classifica, lê, finaliza e reabre a conversa", async () 
   const category = await prisma.category.findUnique({ where: { code: "SUPORTE" } });
   const user = await prisma.user.findUnique({ where: { email: "teste@mibro.local" } });
   let conversation = await prisma.conversation.findFirst();
+  // Garante o estado inicial NOVO independente do que outro teste no mesmo
+  // arquivo tenha deixado na "primeira conversa" — "assumir" só reseta para
+  // EM_ATENDIMENTO quando parte de NOVO/AGUARDANDO_EQUIPE/HANDOFF_BOT/BOT
+  // (nunca de AGUARDANDO_CLIENTE, onde a empresa já respondeu).
+  await prisma.conversation.update({ where: { id: conversation.id }, data: { status: "NOVO", assignedUserId: null } });
   conversation = await inbox.updateConversation(conversation.id, {
     categoryId: category.id, assignedUserId: user.id,
   }, masterViewer);
@@ -251,7 +260,7 @@ test("lista, pesquisa, classifica, lê, finaliza e reabre a conversa", async () 
     phone: "5511999999999", contactName: "Cliente Teste", type: "text", text: "É o modelo X1",
     occurredAt: new Date(Date.now() + 1000), rawPayload: { id: "wamid.test.customer.reply" },
   });
-  assert.equal((await inbox.getConversation(conversation.id, masterViewer)).status, "AGUARDANDO_RESPOSTA");
+  assert.equal((await inbox.getConversation(conversation.id, masterViewer)).status, "AGUARDANDO_EQUIPE");
 
   let readMessageId;
   const readResult = await inbox.markAsRead(conversation.id, { channel: { markAsRead: async (messageId) => { readMessageId = messageId; } } });
@@ -344,7 +353,7 @@ test("categorias ocultas são preferências individuais e não alteram acesso ne
 
   try {
     await inbox.updateConversation(conversation.id, {
-      categoryId: support.id, status: "AGUARDANDO_RESPOSTA", assignedUserId: null,
+      categoryId: support.id, status: "AGUARDANDO_EQUIPE", assignedUserId: null,
     }, masterViewer);
     message = await prisma.message.create({ data: {
       conversationId: conversation.id, externalId: "wamid.hidden-category-alert",
@@ -480,7 +489,7 @@ test("fixa conversas por conta, restringe exclusão de notas e registra o histó
 
   await prisma.conversation.update({
     where: { id: conversation.id },
-    data: { status: "AGUARDANDO_RESPOSTA", assignedUserId: otherMaster.id },
+    data: { status: "AGUARDANDO_EQUIPE", assignedUserId: otherMaster.id },
   });
   const assignedAlertStart = new Date(Date.now() - 1000).toISOString();
   const assignedMessage = await prisma.message.create({ data: {
@@ -497,7 +506,7 @@ test("fixa conversas por conta, restringe exclusão de notas e registra o histó
 
   await inbox.markAsRead(conversation.id, { viewer: { id: otherMaster.id, role: "ADMIN" } });
   assert.equal((await inbox.getConversationSummary({ id: otherMaster.id, role: "ADMIN" })).attentionWaiting, 0);
-  assert.equal((await inbox.getConversation(conversation.id, { id: otherMaster.id, role: "ADMIN" })).status, "AGUARDANDO_RESPOSTA");
+  assert.equal((await inbox.getConversation(conversation.id, { id: otherMaster.id, role: "ADMIN" })).status, "AGUARDANDO_EQUIPE");
 
   await prisma.conversation.update({ where: { id: conversation.id }, data: { assignedUserId: null } });
   await prisma.conversationMasterRead.update({

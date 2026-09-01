@@ -3,10 +3,15 @@ const authorization = require("./authorization-service");
 const { removeImage } = require("./media-storage-service");
 const audit = require("./audit-service");
 const internalChat = require("./internal-chat-service");
+const { getConversationSettings } = require("./conversation-settings-service");
 
 const conversationStatuses = new Set([
-  "NOVO", "EM_ATENDIMENTO", "AGUARDANDO_RESPOSTA", "BOT", "FINALIZADO",
+  "NOVO", "EM_ATENDIMENTO", "AGUARDANDO_EQUIPE", "AGUARDANDO_CLIENTE", "HANDOFF_BOT", "BOT", "FINALIZADO",
 ]);
+const conversationPriorities = new Set(["NORMAL", "ALTA", "URGENTE"]);
+// Status "ativos" para os efeitos de fila/alerta de gestão (exclui BOT —
+// fluxo de triagem automatizada — e FINALIZADO).
+const activeManagedStatuses = ["NOVO", "EM_ATENDIMENTO", "AGUARDANDO_EQUIPE", "AGUARDANDO_CLIENTE", "HANDOFF_BOT"];
 const categoryColorPattern = /^#[0-9a-f]{6}$/i;
 
 function validateCategoryName(value) {
@@ -56,15 +61,93 @@ function contactAuditSnapshot(conversation) {
   };
 }
 
+// Fila por prioridade (item 4 do pedido de SLA/prioridade): "aparece
+// primeiro" nunca reordena mensagens dentro da conversa — só a ordem da
+// lista de conversas. Critério hierárquico, do mais urgente para o menos:
+// 0. SLA já estourado (primeira resposta OU resposta durante atendimento);
+// 1. cliente aguardando resposta da equipe (AGUARDANDO_EQUIPE/HANDOFF_BOT);
+// 2. conversa NOVA (ainda não assumida);
+// 3/4. prioridade manual (URGENTE antes de ALTA);
+// 5. resto (EM_ATENDIMENTO/AGUARDANDO_CLIENTE em dia, sem SLA/prioridade).
+// FINALIZADO sempre no fim — não é "fila operacional".
+function queueBucket(conversation) {
+  if (conversation.status === "FINALIZADO") return 9;
+  if (conversation.firstResponseSlaBreached || conversation.responseSlaBreached) return 0;
+  if (conversation.status === "AGUARDANDO_EQUIPE" || conversation.status === "HANDOFF_BOT") return 1;
+  if (conversation.status === "NOVO") return 2;
+  if (conversation.priority === "URGENTE") return 3;
+  if (conversation.priority === "ALTA") return 4;
+  return 5;
+}
+
+// Dentro do mesmo "balde" (mesmo nível de urgência), quem espera há mais
+// tempo aparece primeiro — usa lastMessageAt (ou createdAt como
+// fallback para conversas sem nenhuma mensagem ainda).
+function queueWaitingSince(conversation) {
+  return (conversation.lastMessageAt || conversation.createdAt).getTime();
+}
+
+function compareByQueue(left, right) {
+  const bucketDiff = queueBucket(left) - queueBucket(right);
+  if (bucketDiff !== 0) return bucketDiff;
+  return queueWaitingSince(left) - queueWaitingSince(right);
+}
+
+// SLA restante (item 10 — UI): minutos até estourar (negativo = já
+// estourado). Só se aplica quando o SLA correspondente está ligado e o
+// status da conversa é o que aquele SLA de fato mede — fora disso (ex.:
+// AGUARDANDO_CLIENTE, EM_ATENDIMENTO em dia, FINALIZADO) não há "restante"
+// a mostrar, retorna null (o front trata como "sem SLA aplicável agora").
+function computeSlaMinutesRemaining(conversation, settings, now) {
+  const waitingSince = conversation.lastMessageAt || conversation.createdAt;
+  if (conversation.status === "NOVO" && settings.firstResponseSlaEnabled) {
+    const deadline = waitingSince.getTime() + settings.firstResponseSlaMinutes * 60 * 1000;
+    return Math.round((deadline - now.getTime()) / 60000);
+  }
+  if (["AGUARDANDO_EQUIPE", "HANDOFF_BOT"].includes(conversation.status) && settings.responseSlaEnabled) {
+    const deadline = waitingSince.getTime() + settings.responseSlaMinutes * 60 * 1000;
+    return Math.round((deadline - now.getTime()) / 60000);
+  }
+  return null;
+}
+
 function contactDisplayName(contact) {
   return contact?.customName || contact?.name || contact?.phone || "Contato";
 }
 
-async function listConversations({ search, category, status, assignedUser, activeOnly }, viewer) {
-  const where = {};
+async function listConversations({
+  search, category, status, assignedUser, activeOnly, priority, slaBreached, unassigned, channel,
+}, viewer) {  const where = {};
 
-  if (status) where.status = status;
-  else if (activeOnly === "true") where.status = { not: "FINALIZADO" };
+  // Filtros combináveis (item 11): status aceita lista separada por vírgula
+  // (ex.: "AGUARDANDO_EQUIPE,HANDOFF_BOT") sem deixar de aceitar um único
+  // valor, mesmo padrão já usado para `channel` (ver channel-filter no
+  // frontend). Cada filtro abaixo é independente — todos entram no mesmo
+  // `AND` implícito do objeto `where`, então combinam livremente.
+  if (status) {
+    const statuses = String(status).split(",").map((value) => value.trim()).filter(Boolean);
+    where.status = statuses.length > 1 ? { in: statuses } : statuses[0];
+  } else if (activeOnly === "true") {
+    where.status = { not: "FINALIZADO" };
+  }
+
+  if (priority) {
+    const priorities = String(priority).split(",").map((value) => value.trim()).filter(Boolean);
+    where.priority = priorities.length > 1 ? { in: priorities } : priorities[0];
+  }
+
+  // "SLA atrasado" (item 11): primeira resposta OU resposta durante
+  // atendimento, qualquer um dos dois já é suficiente.
+  if (slaBreached === "true") {
+    where.OR = [{ firstResponseSlaBreached: true }, { responseSlaBreached: true }];
+  }
+
+  if (unassigned === "true") where.assignedUserId = null;
+
+  if (channel) {
+    const channels = String(channel).split(",").filter(Boolean);
+    where.channel = channels.length > 1 ? { in: channels } : channels[0];
+  }
 
   if (category === "UNCATEGORIZED") {
     where.categoryId = null;
@@ -219,6 +302,9 @@ async function listConversations({ search, category, status, assignedUser, activ
     masterUnreadCounts = new Map(counts);
   }
 
+  const now = new Date();
+  const slaSettings = await getConversationSettings();
+
   return conversations
     .map((conversation) => {
       const {
@@ -235,12 +321,17 @@ async function listConversations({ search, category, status, assignedUser, activ
           : conversation.unreadCount,
 
         isPinned: pins.length > 0,
+        slaMinutesRemaining: computeSlaMinutesRemaining(conversation, slaSettings, now),
       };
     })
-    .sort(
-      (left, right) =>
-        Number(right.isPinned) - Number(left.isPinned)
-    );
+    // Fila por prioridade (item 4): fixadas manualmente sempre no topo
+    // (decisão explícita do atendente), depois a fila automática decide a
+    // ordem entre o resto — nunca reordena mensagens dentro da conversa.
+    .sort((left, right) => {
+      const pinDiff = Number(right.isPinned) - Number(left.isPinned);
+      if (pinDiff !== 0) return pinDiff;
+      return compareByQueue(left, right);
+    });
 }
 
 function alertSince(value) {
@@ -256,7 +347,7 @@ async function getUserAlerts({ since }, viewer) {
   const scope = await authorization.conversationScope(viewer);
   const master = authorization.isMaster(viewer);
   const waitingForViewer = {
-    AND: [scope, { status: "AGUARDANDO_RESPOSTA" }, {
+    AND: [scope, { status: "AGUARDANDO_EQUIPE" }, {
       OR: [{ assignedUserId: null }, { assignedUserId: viewer.id }],
     }],
   };
@@ -408,10 +499,17 @@ async function getConversation(id, viewer) {
 async function getConversationSummary(viewer) {
   const scope = await authorization.conversationScope(viewer);
   const master = authorization.isMaster(viewer);
-  const attentionScope = { AND: [scope, { status: "AGUARDANDO_RESPOSTA" }, {
+  const attentionScope = { AND: [scope, { status: "AGUARDANDO_EQUIPE" }, {
     OR: [{ assignedUserId: null }, { assignedUserId: viewer.id }],
   }] };
-  const [total, statuses, categories, waitingConversations] = await Promise.all([
+  // Contadores novos (item 12): Atrasadas/Urgentes/Sem responsável — sempre
+  // dentro do escopo do usuário (mesma regra de visibilidade das demais
+  // contagens) e só entre conversas ativas (nunca FINALIZADO/BOT).
+  const overdueScope = { AND: [scope, { status: { in: activeManagedStatuses } },
+    { OR: [{ firstResponseSlaBreached: true }, { responseSlaBreached: true }] }] };
+  const urgentScope = { AND: [scope, { status: { in: activeManagedStatuses } }, { priority: "URGENTE" }] };
+  const unassignedScope = { AND: [scope, { status: { in: activeManagedStatuses } }, { assignedUserId: null }] };
+  const [total, statuses, categories, waitingConversations, overdue, urgent, unassignedCount] = await Promise.all([
     prisma.conversation.count({ where: scope }),
     prisma.conversation.groupBy({ by: ["status"], where: scope, _count: { _all: true } }),
     prisma.conversation.groupBy({
@@ -429,6 +527,9 @@ async function getConversationSummary(viewer) {
         } } : {}),
       },
     }),
+    prisma.conversation.count({ where: overdueScope }),
+    prisma.conversation.count({ where: urgentScope }),
+    prisma.conversation.count({ where: unassignedScope }),
   ]);
   const unreadWaiting = master
     ? await Promise.all(waitingConversations.map(async (conversation) => {
@@ -445,6 +546,9 @@ async function getConversationSummary(viewer) {
   return {
     total,
     attentionWaiting: unreadWaiting.filter(Boolean).length,
+    overdue,
+    urgent,
+    unassigned: unassignedCount,
     statuses: Object.fromEntries(statuses.map((item) => [item.status, item._count._all])),
     categories: Object.fromEntries(categories.map((item) => [item.categoryId, item._count._all])),
   };
@@ -576,7 +680,7 @@ async function setContactNotePinned(contactId, noteId, { pinned, conversationId 
   });
 }
 
-async function updateConversation(id, { categoryId, status, assignedUserId, limitHistory }, viewer) {
+async function updateConversation(id, { categoryId, status, assignedUserId, priority, limitHistory }, viewer) {
   const currentAccess = await authorization.assertCanViewConversation(viewer, id);
   const currentSnapshot = await prisma.conversation.findUnique({
     where: { id },
@@ -588,6 +692,12 @@ async function updateConversation(id, { categoryId, status, assignedUserId, limi
   if (!currentSnapshot) throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
   if (status && !conversationStatuses.has(status)) {
     throw Object.assign(new Error("Status inválido."), { statusCode: 400 });
+  }
+  if (priority !== undefined) {
+    if (!conversationPriorities.has(priority)) {
+      throw Object.assign(new Error("Prioridade inválida."), { statusCode: 400 });
+    }
+    authorization.assertCanSetPriority(viewer);
   }
   let targetCategory = currentSnapshot.category;
   if (categoryId) {
@@ -618,6 +728,7 @@ async function updateConversation(id, { categoryId, status, assignedUserId, limi
   const data = {};
   if (categoryId !== undefined) data.categoryId = categoryId || null;
   if (assignedUserId !== undefined) data.assignedUserId = assignedUserId || null;
+  if (priority !== undefined) data.priority = priority;
   const sectorChanged = categoryId !== undefined
     && categorySectorId(currentSnapshot.category) !== categorySectorId(targetCategory);
   if (sectorChanged && assignedUserId === undefined) data.assignedUserId = null;
@@ -628,7 +739,7 @@ async function updateConversation(id, { categoryId, status, assignedUserId, limi
   if (assignedUserId && !status) {
     const current = await prisma.conversation.findUnique({ where: { id }, select: { status: true } });
     if (!current) throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
-    if (["NOVO", "AGUARDANDO_RESPOSTA", "BOT"].includes(current.status)) data.status = "EM_ATENDIMENTO";
+    if (["NOVO", "AGUARDANDO_EQUIPE", "HANDOFF_BOT", "BOT"].includes(current.status)) data.status = "EM_ATENDIMENTO";
   }
   try {
     const result = await prisma.$transaction(async (transaction) => {
@@ -659,6 +770,9 @@ async function updateConversation(id, { categoryId, status, assignedUserId, limi
       if (status && currentSnapshot.status !== updated.status) {
         activities.push(activityRecord(id, viewer.id, "STATUS_CHANGED", { from: currentSnapshot.status, to: updated.status }));
       }
+      if (priority !== undefined && currentSnapshot.priority !== updated.priority) {
+        activities.push(activityRecord(id, viewer.id, "PRIORITY_CHANGED", { from: currentSnapshot.priority, to: updated.priority }));
+      }
       if (activities.length) await transaction.conversationActivity.createMany({ data: activities });
       const contact = contactAuditSnapshot(updated);
       const audits = [];
@@ -688,6 +802,13 @@ async function updateConversation(id, { categoryId, status, assignedUserId, limi
           action: "CONVERSATION_STATUS_CHANGED",
           summary: `Alterou o status da conversa de ${contactDisplayName(updated.contact)}: ${currentSnapshot.status} → ${updated.status}`,
           details: { ...contact, from: currentSnapshot.status, to: updated.status },
+        });
+      }
+      if (priority !== undefined && currentSnapshot.priority !== updated.priority) {
+        audits.push({
+          action: "CONVERSATION_PRIORITY_CHANGED",
+          summary: `Alterou a prioridade da conversa de ${contactDisplayName(updated.contact)}: ${currentSnapshot.priority} → ${updated.priority}`,
+          details: { ...contact, from: currentSnapshot.priority, to: updated.priority },
         });
       }
       for (const entry of audits) {
@@ -1034,7 +1155,8 @@ async function listUsers(viewer) {
 }
 
 module.exports = {
-  addContactNote, conversationStatuses, createCategory, deleteContactNote, deleteConversation, getConversation, getConversationSummary, getUserAlerts, listCategories,
+  addContactNote, conversationPriorities, conversationStatuses, createCategory, deleteContactNote, deleteConversation,
+  getConversation, getConversationSummary, getUserAlerts, listCategories,
   listConversations, listUsers, markAsRead, recordConversationActivity, setContactNotePinned, setConversationPinned,
   getCategoryVisibility, setCategoryVisibility, updateCategory, updateContactCustomName, updateConversation,
 };

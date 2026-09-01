@@ -1,6 +1,9 @@
 // Fábrica de adapters — único lugar que sabe mapear Channel -> classe
 // concreta. A Central/Bot nunca instanciam um adapter específico direto.
 const { MetaAdapter } = require("./meta-adapter");
+const {
+  FacebookMessengerAdapter, InstagramDirectAdapter, FacebookCommentsAdapter, InstagramCommentsAdapter,
+} = require("./meta-messaging-adapter");
 const { EmailAdapter } = require("./email-adapter");
 const { MercadoLivreAdapter } = require("./mercado-livre-adapter");
 const { TikTokShopAdapter } = require("./tiktok-shop-adapter");
@@ -11,10 +14,13 @@ const { ReclameAquiAdapter } = require("./reclame-aqui-adapter");
 
 const ADAPTER_CLASSES = Object.freeze({
   META: MetaAdapter,
-  INSTAGRAM_DIRECT: MetaAdapter,
-  INSTAGRAM_COMMENTS: MetaAdapter,
-  FACEBOOK_MESSENGER: MetaAdapter,
-  FACEBOOK_COMMENTS: MetaAdapter,
+  // Cada sub-canal Meta "novo" tem sua própria classe (item 19) — antes
+  // todas as 4 caíam na mesma MetaAdapter do WhatsApp, que declarava
+  // capabilities completas sem nenhuma chamada real por trás.
+  INSTAGRAM_DIRECT: InstagramDirectAdapter,
+  INSTAGRAM_COMMENTS: InstagramCommentsAdapter,
+  FACEBOOK_MESSENGER: FacebookMessengerAdapter,
+  FACEBOOK_COMMENTS: FacebookCommentsAdapter,
   EMAIL: EmailAdapter,
   MERCADO_LIVRE: MercadoLivreAdapter,
   TIKTOK_SHOP: TikTokShopAdapter,

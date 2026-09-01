@@ -1,7 +1,21 @@
 (() => {
-  const APP_VERSION = "0.25.2";
+  const APP_VERSION = "0.26.0";
 
   const CHANGELOG = [
+    {
+      version: "0.26.0",
+      date: "01/09/2026",
+      title: "Atendimento omnichannel e prioridade de conversas",
+      changes: [
+        "Adiciona mensageria real para Instagram Direct, Facebook Messenger e respostas a comentários do Instagram e Facebook usando a Graph API da Meta.",
+        "Adiciona integração funcional de e-mail para Gmail e Microsoft 365, com OAuth e encadeamento por conversa, além de perguntas e respostas do Mercado Livre.",
+        "Permite múltiplas contas por canal, valida assinatura dos webhooks Meta e mantém credenciais protegidas no cofre de integrações.",
+        "Exibe canal, status de conexão e filtros na Central, com reconexão por OAuth ou token manual conforme o provedor.",
+        "Adiciona prioridade manual, estados operacionais mais claros e indicadores de SLA para organizar a fila de atendimento.",
+        "Remove da triagem o aviso de finalização automática que não corresponde mais ao prazo configurado.",
+        "Mantém TikTok Shop, Amazon, Shopee, Google Reviews e Reclame Aqui com status limitado e transparente enquanto dependem de aprovação, contrato ou endpoints externos."
+      ]
+    },
     {
       version: "0.25.2",
       date: "31/08/2026",

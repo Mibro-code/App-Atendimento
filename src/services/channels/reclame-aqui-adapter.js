@@ -20,10 +20,21 @@ class ReclameAquiAdapter extends ChannelAdapter {
     };
   }
 
+  // Sem API pública confirmada nesta fase — nunca chamamos endpoint nenhum.
+  // Diferenciamos só o status: NOT_CONFIGURED quando nada foi preenchido
+  // ainda, NEEDS_CONTRACT quando já há uma tentativa de configuração
+  // (companyId) mas o acesso depende de contrato comercial oficial que não
+  // temos.
   async testConnection() {
+    if (!this.account?.config?.companyId) {
+      return {
+        status: "NOT_CONFIGURED",
+        message: "Nenhuma configuração do Reclame Aqui foi preenchida ainda.",
+      };
+    }
     return {
-      status: "NOT_SUPPORTED",
-      message: "Adapter do Reclame Aqui aguardando confirmação de documentação/contrato oficial de API.",
+      status: "NEEDS_CONTRACT",
+      message: "Reclame Aqui exige contrato comercial oficial para acesso à API — nenhum endpoint é chamado sem esse contrato confirmado.",
     };
   }
 }

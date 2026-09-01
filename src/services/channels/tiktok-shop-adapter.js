@@ -32,7 +32,7 @@ class TikTokShopAdapter extends ChannelAdapter {
       return { status: "AUTH_PENDING", message: "Credenciais configuradas, mas autorização (OAuth) ainda não concluída." };
     }
     return {
-      status: "NOT_SUPPORTED",
+      status: "NEEDS_APPROVAL",
       message: "Acesso ao Customer Service ainda não aprovado/verificado para esta conta.",
     };
   }

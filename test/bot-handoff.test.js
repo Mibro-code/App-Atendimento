@@ -64,6 +64,11 @@ test("HANDOFF_HUMAN captura contexto estruturado completo (bot, intenção, conf
   const result = await orchestrate({ conversationId: conversation.id, messageId: message.id, message: message.text });
   assert.equal(result.action, "HANDOFF_HUMAN");
 
+  // Status operacional (item 8 do pedido de SLA/status/prioridade): handoff
+  // real (execução LIVE, conversa ainda sem humano ativo) marca HANDOFF_BOT.
+  const afterHandoff = await prisma.conversation.findUnique({ where: { id: conversation.id } });
+  assert.equal(afterHandoff.status, "HANDOFF_BOT");
+
   const contexts = await handoff.listHandoffContexts(conversation.id, master);
   assert.equal(contexts.length, 1);
   const context = contexts[0];

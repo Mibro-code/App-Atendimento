@@ -60,6 +60,17 @@ function canTransfer(user) {
   return isMaster(user) || Boolean(user?.canTransferConversations);
 }
 
+// Prioridade manual de conversa (item 16 — RBAC do pedido de SLA/
+// prioridade): Admin/Supervisor sempre podem; Atendente só com o flag
+// explícito, mesmo padrão de canManageCampaigns/canTransfer acima.
+function canSetPriority(user) {
+  return isMaster(user) || user?.role === "SUPERVISOR" || Boolean(user?.canSetConversationPriority);
+}
+
+function assertCanSetPriority(user) {
+  if (!canSetPriority(user)) throw forbidden("Você não pode alterar a prioridade desta conversa.");
+}
+
 // Campanhas/prospecção (item 27): Admin e Supervisor por padrão; Atendente
 // só com o flag explícito canManageCampaigns.
 function canManageCampaigns(user) {
@@ -85,6 +96,7 @@ function assertCanViewConversationSettings(user) {
 
 module.exports = {
   allowedCategoryIds, assertCanAccessContact, assertCanManageCampaigns, assertCanManageCategories,
-  assertCanViewConversation, assertCanViewConversationSettings, assertMaster, canAccessCategory,
-  canManageCampaigns, canTransfer, canViewConversationSettings, conversationScope, forbidden, isMaster,
+  assertCanSetPriority, assertCanViewConversation, assertCanViewConversationSettings, assertMaster,
+  canAccessCategory, canManageCampaigns, canSetPriority, canTransfer, canViewConversationSettings,
+  conversationScope, forbidden, isMaster,
 };

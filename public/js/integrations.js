@@ -1,5 +1,5 @@
 const $ = (selector) => document.querySelector(selector);
-const state = { overview: [], settings: null, editingChannel: null };
+const state = { overview: [], settings: null, editingChannel: null, editingAccountId: null };
 
 const CHANNEL_LABELS = {
   META: "WhatsApp (Meta)",
@@ -20,6 +20,16 @@ const STATUS_LABELS = {
   DISABLED: "Desativado", NOT_CONFIGURED: "Não configurado", CONFIGURED: "Configurado, aguardando teste",
   AUTH_PENDING: "Autorização pendente", CONNECTED: "Conectado", DEGRADED: "Degradado",
   ERROR: "Erro", NOT_SUPPORTED: "Ainda não suportado",
+  NEEDS_APPROVAL: "Aguardando aprovação da plataforma", NEEDS_CONTRACT: "Exige contrato comercial",
+};
+
+// Providers OAuth permitidos por canal (espelha OAUTH_PROVIDERS_BY_CHANNEL
+// do integrations-controller.js — front só decide QUAL botão mostrar, o
+// backend valida de novo antes de aceitar).
+const OAUTH_PROVIDERS_BY_CHANNEL = {
+  EMAIL: { GMAIL: "GOOGLE", MICROSOFT_365: "MICROSOFT" },
+  GOOGLE_REVIEWS: { DEFAULT: "GOOGLE" },
+  MERCADO_LIVRE: { DEFAULT: "MERCADO_LIVRE" },
 };
 
 // Campos por canal (item 6/9) — nenhum canal aqui aceita um endpoint
@@ -60,6 +70,26 @@ const CHANNEL_FIELDS = {
   RECLAME_AQUI: [
     { key: "config.companyId", label: "ID da empresa no Reclame Aqui", optional: true },
   ],
+  // Instagram/Facebook (contas novas, item 6/19) reaproveitam o app Meta do
+  // WhatsApp — só pedem o id da página/perfil e o token de acesso dela,
+  // obtidos manualmente no Meta Business Suite/Graph API Explorer. Sem
+  // OAuth automatizado nesta fase (supportsOAuth: false nesses 4 canais).
+  FACEBOOK_MESSENGER: [
+    { key: "config.pageId", label: "ID da Página do Facebook" },
+    { key: "secrets.pageAccessToken", label: "Page Access Token", secret: true },
+  ],
+  FACEBOOK_COMMENTS: [
+    { key: "config.pageId", label: "ID da Página do Facebook" },
+    { key: "secrets.pageAccessToken", label: "Page Access Token", secret: true },
+  ],
+  INSTAGRAM_DIRECT: [
+    { key: "config.igUserId", label: "ID da conta comercial do Instagram" },
+    { key: "secrets.igAccessToken", label: "Access token do Instagram", secret: true },
+  ],
+  INSTAGRAM_COMMENTS: [
+    { key: "config.igUserId", label: "ID da conta comercial do Instagram" },
+    { key: "secrets.igAccessToken", label: "Access token do Instagram", secret: true },
+  ],
 };
 
 async function api(url, options = {}) {
@@ -83,6 +113,7 @@ function statusBadgeClass(status) {
   if (status === "CONNECTED") return "status-ok";
   if (["ERROR", "DEGRADED"].includes(status)) return "status-error";
   if (["AUTH_PENDING", "CONFIGURED"].includes(status)) return "status-pending";
+  if (["NEEDS_APPROVAL", "NEEDS_CONTRACT"].includes(status)) return "status-approval";
   return "status-idle";
 }
 
@@ -119,6 +150,7 @@ function renderCards() {
         </div>
         <div class="account-row-actions">
           <button type="button" data-action="test" data-id="${escapeHtml(account.id)}">Testar conexão</button>
+          <button type="button" data-action="reconnect" data-id="${escapeHtml(account.id)}" data-channel="${escapeHtml(entry.channel)}">Reconectar</button>
           <button type="button" data-action="toggle" data-id="${escapeHtml(account.id)}" data-enabled="${account.enabled}">${account.enabled ? "Desativar" : "Ativar"}</button>
           <button type="button" data-action="delete" data-id="${escapeHtml(account.id)}" class="danger">Remover</button>
         </div>
@@ -147,6 +179,9 @@ function renderCards() {
   container.querySelectorAll('[data-action="test"]').forEach((button) => (
     button.addEventListener("click", () => testConnection(button.dataset.id))
   ));
+  container.querySelectorAll('[data-action="reconnect"]').forEach((button) => (
+    button.addEventListener("click", () => reconnectAccount(button.dataset.id, button.dataset.channel))
+  ));
   container.querySelectorAll('[data-action="toggle"]').forEach((button) => (
     button.addEventListener("click", () => toggleAccount(button.dataset.id, button.dataset.enabled !== "true"))
   ));
@@ -155,23 +190,34 @@ function renderCards() {
   ));
 }
 
-function openAccountDialog(channel) {
+// account = null => criar conta nova. account preenchido => "Reconectar":
+// reabre o mesmo formulário para atualizar nome/config/segredos (campos de
+// segredo ficam opcionais — em branco mantém o valor cifrado já salvo).
+function openAccountDialog(channel, account = null) {
   state.editingChannel = channel;
-  $("#account-dialog-title").textContent = "Nova conta";
+  state.editingAccountId = account?.id || null;
+  $("#account-dialog-title").textContent = account ? "Reconectar conta" : "Nova conta";
   $("#account-dialog-channel").textContent = CHANNEL_LABELS[channel] || channel;
-  $("#account-name").value = "";
+  $("#account-name").value = account?.name || "";
   const fields = CHANNEL_FIELDS[channel] || [];
-  $("#account-secret-fields").innerHTML = fields.map((field) => `
-    <label>${field.label}${field.optional ? " (opcional)" : ""}
-      <input type="${field.secret ? "password" : "text"}" data-field-key="${field.key}" ${field.optional ? "" : "required"}>
-    </label>
-  `).join("");
+  $("#account-secret-fields").innerHTML = fields.map((field) => {
+    const [group, key] = field.key.split(".");
+    const currentValue = group === "config" ? (account?.config?.[key] ?? "") : "";
+    const placeholder = account && field.secret ? "Deixe em branco para manter o valor salvo" : "";
+    return `
+    <label>${field.label}${field.optional || account ? " (opcional)" : ""}
+      <input type="${field.secret ? "password" : "text"}" data-field-key="${field.key}"
+        value="${escapeHtml(currentValue)}" placeholder="${escapeHtml(placeholder)}"
+        ${field.optional || account ? "" : "required"}>
+    </label>`;
+  }).join("");
   $("#account-dialog").showModal();
 }
 
 async function saveAccount(event) {
   event.preventDefault();
   const channel = state.editingChannel;
+  const accountId = state.editingAccountId;
   const name = $("#account-name").value.trim();
   if (!name) return toast("Informe um nome para a conta.", true);
 
@@ -186,10 +232,45 @@ async function saveAccount(event) {
   });
 
   try {
-    await api("/api/integrations/accounts", { method: "POST", body: JSON.stringify({ channel, name, config, secrets }) });
-    toast("Conta criada. Use \"Testar conexão\" para validar as credenciais.");
+    if (accountId) {
+      await api(`/api/integrations/accounts/${accountId}`, { method: "PATCH", body: JSON.stringify({ name, config, secrets }) });
+      toast("Conta atualizada. Use \"Testar conexão\" para validar.");
+    } else {
+      await api("/api/integrations/accounts", { method: "POST", body: JSON.stringify({ channel, name, config, secrets }) });
+      toast("Conta criada. Use \"Testar conexão\" para validar as credenciais.");
+    }
     $("#account-dialog").close();
     await loadOverview();
+  } catch (error) { toast(error.message, true); }
+}
+
+// "Reconectar": canais com OAuth reabrem o fluxo de autorização (popup);
+// os demais reabrem o formulário para colar um novo token/segredo.
+async function reconnectAccount(accountId, channel) {
+  const entry = state.overview.find((item) => item.channel === channel);
+  if (entry?.capabilities?.supportsOAuth) return startOAuth(accountId, channel);
+  const account = entry?.accounts?.find((item) => item.id === accountId);
+  openAccountDialog(channel, account || { id: accountId, name: "", config: {} });
+}
+
+async function startOAuth(accountId, channel) {
+  const account = state.overview.find((item) => item.channel === channel)?.accounts?.find((item) => item.id === accountId);
+  const providerMap = OAUTH_PROVIDERS_BY_CHANNEL[channel];
+  const provider = providerMap?.[account?.config?.provider] || providerMap?.DEFAULT;
+  if (!provider) return toast("Este canal não tem OAuth disponível — use \"Reconectar\" para colar um novo token.", true);
+  try {
+    const result = await api("/api/integrations/oauth/start", {
+      method: "POST", body: JSON.stringify({ channel, channelAccountId: accountId, provider }),
+    });
+    const popup = window.open(result.url, "mibro-oauth", "width=520,height=680");
+    if (!popup) return toast("O navegador bloqueou a janela de autorização. Permita pop-ups para este site.", true);
+    const onMessage = async (event) => {
+      if (event.origin !== location.origin || event.data?.source !== "mibro-oauth-callback") return;
+      window.removeEventListener("message", onMessage);
+      if (event.data.ok) { toast("Conta conectada via OAuth."); await loadOverview(); }
+      else toast(event.data.error || "Falha ao concluir a autorização OAuth.", true);
+    };
+    window.addEventListener("message", onMessage);
   } catch (error) { toast(error.message, true); }
 }
 
