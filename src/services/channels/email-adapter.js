@@ -208,7 +208,7 @@ class EmailAdapter extends ChannelAdapter {
     throw channelError("INVALID_PAYLOAD", "Provider de e-mail deve ser GMAIL ou MICROSOFT_365.");
   }
 
-  async sendMedia({ to, subject, text, html, attachments, inReplyTo, references } = {}) {
+  async sendMedia({ to, subject, text, html, attachments, inReplyTo, references, threadId } = {}) {
     if (!to) throw channelError("INVALID_PAYLOAD", "Destinatário (to) é obrigatório para envio de e-mail.");
     if (!Array.isArray(attachments) || attachments.length === 0) {
       throw channelError("INVALID_PAYLOAD", "Envio de mídia por e-mail exige ao menos um anexo.");
@@ -226,7 +226,7 @@ class EmailAdapter extends ChannelAdapter {
       try {
         const response = await axios.post(
           "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
-          { raw },
+          { raw, ...(threadId ? { threadId } : {}) },
           { headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" }, timeout: 20000 },
         );
         return { externalId: response.data?.id, data: response.data };
@@ -278,6 +278,8 @@ class EmailAdapter extends ChannelAdapter {
       const headers = rawPayload.payload?.headers || [];
       const from = parseEmailAddressHeader(gmailHeader(headers, "From"));
       const subject = gmailHeader(headers, "Subject");
+      const messageId = gmailHeader(headers, "Message-ID");
+      const references = gmailHeader(headers, "References");
       const occurredAt = rawPayload.internalDate ? new Date(Number(rawPayload.internalDate)) : new Date();
       const bodyPart = findGmailBodyPart(rawPayload.payload);
       let text = null;
@@ -296,7 +298,7 @@ class EmailAdapter extends ChannelAdapter {
       if (text || !attachments.length) events.push({
         ...common, externalMessageId: rawPayload.id || null,
         type: text ? "text" : "unknown", text,
-        metadata: { subject, id: rawPayload.id, threadId: rawPayload.threadId },
+        metadata: { subject, id: rawPayload.id, threadId: rawPayload.threadId, messageId, references },
       });
       attachments.forEach((attachment, index) => {
         const mimeType = String(attachment.mimeType || "application/octet-stream").toLowerCase();
@@ -305,7 +307,7 @@ class EmailAdapter extends ChannelAdapter {
           ...common, externalMessageId: `${rawPayload.id}:attachment:${attachment.id || index}`,
           type, text: null,
           media: { buffer: attachment.buffer, mimeType, fileName: attachment.filename || "arquivo" },
-          metadata: { subject, id: rawPayload.id, threadId: rawPayload.threadId, attachment: true },
+          metadata: { subject, id: rawPayload.id, threadId: rawPayload.threadId, messageId, references, attachment: true },
         });
       });
       return events;

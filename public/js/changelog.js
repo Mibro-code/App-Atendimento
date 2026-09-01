@@ -1,9 +1,19 @@
 (() => {
-  const APP_VERSION = "0.27.2";
+  const APP_VERSION = "0.27.3";
 
 
 
   const CHANGELOG = [
+    {
+      version: "0.27.3",
+      date: "01/09/2026",
+      title: "Envio e respostas pelo Gmail",
+      changes: [
+        "Respostas de conversas de e-mail agora saem pela conta Gmail e permanecem na mesma thread.",
+        "O botão Nova permite enviar e-mail apenas por contas conectadas; Meta e demais canais ficam indisponíveis.",
+        "O Master pode liberar individualmente, na Equipe, quem pode iniciar conversas."
+      ]
+    },
     {
       version: "0.27.2",
       date: "01/09/2026",

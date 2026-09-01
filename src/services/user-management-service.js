@@ -12,6 +12,7 @@ const booleanPermissions = [
   // Admin/Supervisor sempre podem (authorization.canSetPriority), este flag
   // libera um Atendente específico sem mudar o cargo.
   "canSetConversationPriority",
+  "canStartConversations",
 ];
 
 function validateName(value) {
@@ -59,6 +60,7 @@ const publicSelection = {
   canViewConversationHistory: true,
   canViewPreviousMessages: true,
   canSetConversationPriority: true,
+  canStartConversations: true,
   categoryAccess: { include: { category: { select: { id: true, name: true, parentId: true, color: true } } } },
   _count: { select: { assignedConversations: true, sentMessages: true } },
 };

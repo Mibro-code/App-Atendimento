@@ -381,6 +381,7 @@ model User {
   // este flag libera um Atendente específico sem mudar o cargo (mesmo
   // padrão de canManageCampaigns/canTransferConversations).
   canSetConversationPriority   Boolean                  @default(false)
+  canStartConversations        Boolean                  @default(false)
   createdAt                    DateTime                 @default(now())
   updatedAt                    DateTime                 @updatedAt
   assignedConversations        Conversation[]           @relation("AssignedConversations")

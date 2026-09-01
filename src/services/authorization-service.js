@@ -80,6 +80,14 @@ function assertCanSetPriority(user) {
 
 // Campanhas/prospecção (item 27): Admin e Supervisor por padrão; Atendente
 // só com o flag explícito canManageCampaigns.
+function canStartConversations(user) {
+  return isMaster(user) || Boolean(user?.canStartConversations);
+}
+
+function assertCanStartConversations(user) {
+  if (!canStartConversations(user)) throw forbidden("Você não tem permissão para iniciar conversas.");
+}
+
 function canManageCampaigns(user) {
   return isMaster(user) || user?.role === "SUPERVISOR" || Boolean(user?.canManageCampaigns);
 }
@@ -102,8 +110,8 @@ function assertCanViewConversationSettings(user) {
 }
 
 module.exports = {
-  allowedCategoryIds, assertCanAccessContact, assertCanManageCampaigns, assertCanManageCategories,
+  allowedCategoryIds, assertCanAccessContact, assertCanManageCampaigns, assertCanManageCategories, assertCanStartConversations,
   assertCanSetPriority, assertCanViewConversation, assertCanViewConversationSettings, assertMaster,
-  canAccessCategory, canManageCampaigns, canSetPriority, canTransfer, canViewConversationSettings,
+  canAccessCategory, canManageCampaigns, canSetPriority, canStartConversations, canTransfer, canViewConversationSettings,
   conversationScope, forbidden, isMaster,
 };
