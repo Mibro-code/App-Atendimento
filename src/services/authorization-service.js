@@ -21,7 +21,14 @@ async function conversationScope(user) {
   const visible = [{ assignedUserId: user.id }];
   if (categoryIds.length) visible.push({ categoryId: { in: categoryIds } });
   if (user.canViewUncategorized) visible.push({ categoryId: null });
-  return visible.length ? { OR: visible } : { id: { in: [] } };
+  const operationalScope = visible.length ? { OR: visible } : { id: { in: [] } };
+  const emailAccountScope = {
+    OR: [
+      { channel: { not: "EMAIL" } },
+      { channelAccount: { is: { accessUsers: { some: { userId: user.id } } } } },
+    ],
+  };
+  return { AND: [operationalScope, emailAccountScope] };
 }
 
 async function canAccessCategory(user, categoryId) {

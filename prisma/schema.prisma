@@ -231,6 +231,7 @@ model Contact {
   // Opcional: nem todo canal tem telefone (Mercado Livre = buyerId, e-mail =
   // endereço, Google Review = reviewer). WhatsApp continua sempre populando.
   phone            String?
+  email            String?
   name             String?
   customName       String?
   createdAt        DateTime          @default(now())
@@ -241,6 +242,7 @@ model Contact {
 
   @@unique([channel, externalId])
   @@index([phone])
+  @@index([email])
 }
 
 model ContactNote {
@@ -403,6 +405,7 @@ model User {
   suggestionFeedbackGiven      BotSuggestionFeedback[]  @relation("SuggestionFeedbackUser")
   pushSubscriptions            PushSubscription[]       @relation("UserPushSubscriptions")
   campaignsCreated             Campaign[]               @relation("CampaignCreatedBy")
+  channelAccountAccess         ChannelAccountUserAccess[]
   campaignsResponsible         Campaign[]               @relation("CampaignResponsible")
   campaignImports              CampaignImport[]         @relation("CampaignImportedBy")
   optOutsRemoved               OptOut[]                 @relation("OptOutRemovedBy")
@@ -1194,12 +1197,23 @@ model ChannelAccount {
   oauthStates   ChannelOAuthState[]
   events        ExternalChannelEvent[]
   campaigns     Campaign[]
+  accessUsers   ChannelAccountUserAccess[]
 
   @@unique([channel, name])
   @@index([channel, enabled])
   @@index([status])
 }
 
+model ChannelAccountUserAccess {
+  channelAccountId String
+  userId           String
+  createdAt        DateTime       @default(now())
+  channelAccount   ChannelAccount @relation(fields: [channelAccountId], references: [id], onDelete: Cascade)
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([channelAccountId, userId])
+  @@index([userId])
+}
 // Estado de fluxo OAuth (item 13) — protege contra CSRF/state replay: cada
 // state é de uso único (`consumedAt`) e expira.
 model ChannelOAuthState {

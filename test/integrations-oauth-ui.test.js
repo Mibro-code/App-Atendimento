@@ -24,3 +24,10 @@ test("callback trata cancelamento e seleção múltipla sem receber client secre
   assert.equal((html + js + callback).includes("GOOGLE_OAUTH_CLIENT_SECRET"), false);
   assert.equal(callback.includes("access_token"), false);
 });
+
+test("conta de e-mail permite selecionar usuários sem expor o conteúdo", () => {
+  assert.ok(html.includes("account-access-dialog"));
+  assert.ok(js.includes("Gerenciar acesso"));
+  assert.ok(js.includes("/access"));
+  assert.ok(js.includes("somente Master"));
+});

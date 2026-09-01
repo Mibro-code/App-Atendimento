@@ -47,7 +47,10 @@ module.exports = {
     try { return res.json(await accounts.setEnabled(req.params.accountId, req.body.enabled, req.user)); }
     catch (error) { return next(error); }
   },
-  async remove(req, res, next) {
+  async setAccess(req, res, next) {
+    try { return res.json(await accounts.setAccountAccess(req.params.accountId, req.body.userIds, req.user)); }
+    catch (error) { return next(error); }
+  },  async remove(req, res, next) {
     try { return res.json(await accounts.deleteAccount(req.params.accountId, req.user)); }
     catch (error) { return next(error); }
   },
