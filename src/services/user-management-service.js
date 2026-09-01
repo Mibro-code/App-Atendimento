@@ -13,6 +13,7 @@ const booleanPermissions = [
   // libera um Atendente específico sem mudar o cargo.
   "canSetConversationPriority",
   "canStartConversations",
+  "canMergeContacts",
 ];
 
 function validateName(value) {
@@ -61,6 +62,7 @@ const publicSelection = {
   canViewPreviousMessages: true,
   canSetConversationPriority: true,
   canStartConversations: true,
+  canMergeContacts: true,
   categoryAccess: { include: { category: { select: { id: true, name: true, parentId: true, color: true } } } },
   _count: { select: { assignedConversations: true, sentMessages: true } },
 };

@@ -88,6 +88,14 @@ function assertCanStartConversations(user) {
   if (!canStartConversations(user)) throw forbidden("Você não tem permissão para iniciar conversas.");
 }
 
+function canMergeContacts(user) {
+  return isMaster(user) || Boolean(user?.canMergeContacts);
+}
+
+function assertCanMergeContacts(user) {
+  if (!canMergeContacts(user)) throw forbidden("Você não tem permissão para fundir contatos.");
+}
+
 function canManageCampaigns(user) {
   return isMaster(user) || user?.role === "SUPERVISOR" || Boolean(user?.canManageCampaigns);
 }
@@ -110,8 +118,8 @@ function assertCanViewConversationSettings(user) {
 }
 
 module.exports = {
-  allowedCategoryIds, assertCanAccessContact, assertCanManageCampaigns, assertCanManageCategories, assertCanStartConversations,
+  allowedCategoryIds, assertCanAccessContact, assertCanManageCampaigns, assertCanManageCategories, assertCanMergeContacts, assertCanStartConversations,
   assertCanSetPriority, assertCanViewConversation, assertCanViewConversationSettings, assertMaster,
-  canAccessCategory, canManageCampaigns, canSetPriority, canStartConversations, canTransfer, canViewConversationSettings,
+  canAccessCategory, canManageCampaigns, canMergeContacts, canSetPriority, canStartConversations, canTransfer, canViewConversationSettings,
   conversationScope, forbidden, isMaster,
 };

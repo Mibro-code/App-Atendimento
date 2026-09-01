@@ -1503,3 +1503,26 @@ html[data-theme="dark"] .quick-reply-list { color:#e4e7eb; background:#181b20; }
 html[data-theme="dark"] .quick-reply-card { border-color:#3b424b; color:#e9ecf0; background:#22262c; }
 html[data-theme="dark"] .quick-reply-card p,html[data-theme="dark"] .quick-reply-empty,html[data-theme="dark"] .quick-reply-list-heading { color:#aeb5bf; }
 @media (max-width:700px) { .panel-collapse-button { display:none; }.workspace.conversation-list-collapsed { grid-template-columns:1fr; } }
+
+
+/* Contato único: fusão controlada e troca explícita do canal de resposta. */
+.contact-merge-button{height:30px;padding:0 11px;border:1px solid var(--line);border-radius:15px;color:#555;background:#fff;font-size:10px;font-weight:800}
+.contact-merge-button:hover{border-color:var(--orange);color:#fff;background:var(--orange)}
+.merged-channel-control{display:flex;align-items:center;gap:7px;margin-left:auto;padding:4px 7px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.merged-channel-control span{color:#777;font-size:9px;font-weight:800;text-transform:uppercase}
+.merged-channel-control select{max-width:300px;border:0;background:transparent;font-size:11px;font-weight:700;outline:0}
+.merge-contact-dialog{width:min(620px,calc(100vw - 28px));max-height:78vh;padding:0;border:1px solid var(--line);border-radius:18px;background:#fff;box-shadow:0 24px 80px #0006}
+.merge-contact-search{display:grid;gap:6px;padding:18px 20px 10px;color:#777;font-size:10px;font-weight:800;text-transform:uppercase}
+.merge-contact-search input{height:42px;padding:0 13px;border:1px solid var(--line);border-radius:10px;background:#fff;outline:0}
+.merge-contact-search input:focus{border-color:var(--orange)}
+.merge-contact-results{display:grid;gap:8px;max-height:440px;padding:8px 20px 20px;overflow:auto}
+.merge-contact-result{display:flex;align-items:center;justify-content:space-between;gap:14px;width:100%;padding:13px;border:1px solid var(--line);border-radius:11px;color:#222;background:#fff;text-align:left}
+.merge-contact-result:hover{border-color:var(--orange);background:var(--orange-soft)}
+.merge-contact-result span{display:grid;gap:3px}.merge-contact-result small{color:#777}.merge-contact-result em{color:var(--orange);font-size:10px;font-style:normal;font-weight:800}
+.merge-contact-empty{padding:28px;color:#777;text-align:center}.merge-contact-empty.error{color:#b3261e}
+html[data-theme="dark"] .contact-merge-button,html[data-theme="dark"] .merged-channel-control{border-color:#414750;color:#e9ebee;background:#24282e}
+html[data-theme="dark"] .merged-channel-control select{color:#eef0f3;background:#24282e}
+html[data-theme="dark"] .merge-contact-dialog{border-color:#3b414a;color:#eef0f3;background:#181b20}
+html[data-theme="dark"] .merge-contact-search input,html[data-theme="dark"] .merge-contact-result{border-color:#3d444d;color:#eef0f3;background:#22262c}
+html[data-theme="dark"] .merge-contact-result:hover{border-color:var(--orange);background:#34251f}
+@media(max-width:700px){.merged-channel-control{order:20;width:100%;margin-left:0}.merged-channel-control select{flex:1;max-width:none}.contact-merge-button{font-size:0}.contact-merge-button::after{content:"Fundir";font-size:10px}}

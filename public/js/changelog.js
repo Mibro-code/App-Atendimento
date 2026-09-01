@@ -1,9 +1,19 @@
 (() => {
-  const APP_VERSION = "0.27.3";
+  const APP_VERSION = "0.27.4";
 
 
 
   const CHANGELOG = [
+    {
+      version: "0.27.4",
+      date: "01/09/2026",
+      title: "Contato único em vários canais",
+      changes: [
+        "Permite fundir telefone, e-mail e outros canais da mesma pessoa sem apagar históricos.",
+        "A conversa fundida oferece um seletor para responder pelo canal correto.",
+        "O Master escolhe individualmente, na Equipe, quem pode fundir contatos."
+      ]
+    },
     {
       version: "0.27.3",
       date: "01/09/2026",

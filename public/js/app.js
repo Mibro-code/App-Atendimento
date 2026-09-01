@@ -15,6 +15,7 @@ const state = {
   outboundChannels: [], categoryVisibility: { hideUncategorized:false, hiddenCategoryIds:[] }, visibilityMode:false,
   quickReplies: [], quickReplyCategoryFilter: "", quickReplySearch: "",
   botSuggestion: null, pendingBotSuggestion: null,
+  mergedDestinations: [],
 };
 const $ = (selector) => document.querySelector(selector);
 const defaultDocumentTitle = document.title;
@@ -102,6 +103,9 @@ function closeConversationView() {
   state.selectedMessageItems = [];
   state.selectedMessages = [];
   state.selectedContactName = "";
+  state.mergedDestinations = [];
+  $("#merge-contact").hidden = true;
+  $("#merged-channel-control").hidden = true;
   state.botSuggestion = null;
   state.pendingBotSuggestion = null;
   $("#bot-suggestion-card").hidden = true;
@@ -811,6 +815,21 @@ $("#dislike-bot-suggestion").addEventListener("click", async () => {
   catch (error) { toast(error.message, true); }
 });
 
+const mergedChannelLabels = { META:"WhatsApp", EMAIL:"E-mail", INSTAGRAM_DIRECT:"Instagram", FACEBOOK_MESSENGER:"Facebook", MERCADO_LIVRE:"Mercado Livre", TIKTOK_SHOP:"TikTok Shop", AMAZON_MARKETPLACE:"Amazon", SHOPEE:"Shopee", GOOGLE_REVIEWS:"Google Reviews" };
+function renderMergedDestinations(destinations, selectedId) {
+  state.mergedDestinations = destinations || [];
+  const control = $("#merged-channel-control");
+  const select = $("#merged-channel-select");
+  control.hidden = state.mergedDestinations.length < 2;
+  select.innerHTML = state.mergedDestinations.map((item) => {
+    const channel = mergedChannelLabels[item.channel] || item.channel;
+    const address = item.contact?.email || (item.contact?.phone ? `+${item.contact.phone}` : item.contactName);
+    const account = item.channelAccount?.name ? ` · ${item.channelAccount.name}` : "";
+    return `<option value="${escapeHtml(item.id)}">${escapeHtml(`${channel} — ${address}${account}`)}</option>`;
+  }).join("");
+  if (state.mergedDestinations.some((item) => item.id === selectedId)) select.value = selectedId;
+}
+
 const chatSkeletonMarkup = () => `<div class="skeleton-list">${[1, 2, 3].map((index) => `<div class="skeleton-row"><div class="skeleton skeleton-avatar"></div><div class="skeleton-lines"><div class="skeleton skeleton-line ${index % 2 ? "long" : "medium"}"></div><div class="skeleton skeleton-line short"></div></div></div>`).join("")}</div>`;
 
 async function openConversation(id, { refreshList = true, markRead = true } = {}) {
@@ -848,6 +867,7 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
     contact: [c.contact.id, c.contact.customName, c.contact.name, c.contact.email, c.contact.phone],
     messageHistoryLimited: c.messageHistoryLimited,
     customerServiceWindow: c.customerServiceWindow,
+    mergedDestinations: (c.mergedDestinations || []).map((item) => [item.id, item.channel, item.contact?.email, item.contact?.phone, item.channelAccount?.name]),
   });
   const displayMessages = messagesWithReactions(c.messages);
   state.selectedMessages = displayMessages;
@@ -865,6 +885,8 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
     state.selectedHeaderSignature = headerSignature;
     const name = c.contact.customName || c.contact.name || c.contact.email || c.contact.phone;
     $("#contact-avatar").textContent = initials(name); $("#contact-name").textContent = name; $("#contact-phone").textContent = c.contact.email || (c.contact.phone ? `+${c.contact.phone}` : "");
+    $("#merge-contact").hidden = !state.currentUser?.canMergeContacts;
+    renderMergedDestinations(c.mergedDestinations, c.id);
     const primaryCategory = c.category?.parent || (c.category && !c.category.parentId ? c.category : null);
     const primaryId = primaryCategory?.id || "";
     if (primaryId && ![...$("#category-select").options].some((option) => option.value === primaryId)) {
@@ -1060,6 +1082,7 @@ function editTeamUser(userId) {
   $("#permission-previous-messages").checked = user.canViewPreviousMessages;
   $("#permission-priority").checked = user.canSetConversationPriority;
   $("#permission-start-conversations").checked = user.canStartConversations;
+  $("#permission-merge-contacts").checked = user.canMergeContacts;
   $("#team-form-eyebrow").textContent = "EDITAR CONTA";
   $("#team-form-title").textContent = user.name;
   renderTeamCategoryAccess(user.categoryAccess.map((access) => access.categoryId), user.canViewUncategorized);
@@ -1072,7 +1095,7 @@ function renderAdminUsers() {
 }
 
 const auditActionLabel = (action) => ({
-  USER_CREATED:"Conta criada", USER_UPDATED:"Conta alterada",
+  USER_CREATED:"Conta criada", USER_UPDATED:"Conta alterada", CONTACTS_MERGED:"Contatos fundidos",
   CONVERSATION_DELETED:"Conversa apagada", CONVERSATION_PINNED:"Conversa fixada",
   CONVERSATION_UNPINNED:"Conversa desafixada", CONVERSATION_CATEGORY_CHANGED:"Categoria da conversa",
   CONVERSATION_ASSIGNEE_CHANGED:"Responsável da conversa", CONVERSATION_STATUS_CHANGED:"Status da conversa",
@@ -1248,6 +1271,51 @@ $("#signal-transfer").addEventListener("click", async () => {
     toast(error.message, true);
   }
 });
+let mergeContactSearchTimer = null;
+async function loadMergeCandidates() {
+  const results = $("#merge-contact-results");
+  results.innerHTML = '<p class="merge-contact-empty">Buscando...</p>';
+  try {
+    const query = encodeURIComponent($("#merge-contact-search").value.trim());
+    const contacts = await api(`/api/contacts/${state.selectedContactId}/merge-candidates?search=${query}`);
+    results.innerHTML = contacts.length ? contacts.map((contact) => {
+      const channels = [...new Set((contact.conversations || []).map((item) => mergedChannelLabels[item.channel] || item.channel))].join(" + ");
+      const address = contact.email || (contact.phone ? `+${contact.phone}` : "Sem endereço");
+      return `<button class="merge-contact-result" type="button" data-merge-contact-id="${escapeHtml(contact.id)}" data-merge-contact-name="${escapeHtml(contact.displayName)}"><span><b>${escapeHtml(contact.displayName)}</b><small>${escapeHtml(address)}</small></span><em>${escapeHtml(channels)}</em></button>`;
+    }).join("") : '<p class="merge-contact-empty">Nenhum outro contato acessível encontrado.</p>';
+  } catch (error) { results.innerHTML = `<p class="merge-contact-empty error">${escapeHtml(error.message)}</p>`; }
+}
+
+$("#merge-contact").addEventListener("click", async () => {
+  if (!state.selectedContactId || !state.currentUser?.canMergeContacts) return;
+  $("#merge-contact-search").value = "";
+  $("#merge-contact-dialog").showModal();
+  await loadMergeCandidates();
+  $("#merge-contact-search").focus();
+});
+$("#close-merge-contact").addEventListener("click", () => $("#merge-contact-dialog").close());
+$("#merge-contact-dialog").addEventListener("click", (event) => { if (event.target === $("#merge-contact-dialog")) $("#merge-contact-dialog").close(); });
+$("#merge-contact-search").addEventListener("input", () => {
+  clearTimeout(mergeContactSearchTimer);
+  mergeContactSearchTimer = setTimeout(loadMergeCandidates, 250);
+});
+$("#merge-contact-results").addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-merge-contact-id]");
+  if (!button || !confirm(`Fundir este contato com ${button.dataset.mergeContactName}?\n\nOs históricos serão preservados.`)) return;
+  button.disabled = true;
+  try {
+    await api(`/api/contacts/${state.selectedContactId}/merge`, { method:"POST", body:JSON.stringify({ targetContactId:button.dataset.mergeContactId }) });
+    $("#merge-contact-dialog").close();
+    state.selectedHeaderSignature = "";
+    await openConversation(state.selectedId, { markRead:false });
+    toast("Contatos fundidos. Agora você pode escolher o canal de envio.");
+  } catch (error) { button.disabled = false; toast(error.message, true); }
+});
+$("#merged-channel-select").addEventListener("change", async (event) => {
+  const conversationId = event.target.value;
+  if (conversationId && conversationId !== state.selectedId) await openConversation(conversationId);
+});
+
 $("#edit-contact-name").addEventListener("click", async () => {
   if (!state.selectedContactId || !state.selectedId) return;
 
@@ -1362,6 +1430,7 @@ $("#team-form").addEventListener("submit", async (event) => {
     canViewPreviousMessages: $("#permission-previous-messages").checked,
     canSetConversationPriority: $("#permission-priority").checked,
     canStartConversations: $("#permission-start-conversations").checked,
+    canMergeContacts: $("#permission-merge-contacts").checked,
     categoryIds: [...document.querySelectorAll("#team-category-access .team-category-access-input:checked")].map((input) => input.value),
   };
   if (password) body.password = password;

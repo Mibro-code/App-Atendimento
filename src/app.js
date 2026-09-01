@@ -369,6 +369,8 @@ app.post(
   app.post("/api/categories", inbox.createCategory);
   app.patch("/api/categories/:id", inbox.updateCategory);
   app.get("/api/users", inbox.users);
+  app.get("/api/contacts/:contactId/merge-candidates", inbox.mergeCandidates);
+  app.post("/api/contacts/:contactId/merge", inbox.mergeContacts);
   app.patch(
     "/api/contacts/:contactId/name",
     inbox.updateContactName
