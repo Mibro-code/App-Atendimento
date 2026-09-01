@@ -14,7 +14,7 @@ class TikTokShopAdapter extends ChannelAdapter {
       canMarkRead: false,
       supportsPublicQuestions: false,
       supportsReviews: false,
-      supportsOAuth: true,
+      supportsOAuth: false,
       supportsWebhook: false,
     };
   }

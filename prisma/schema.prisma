@@ -57,6 +57,7 @@ enum ChannelAccountStatus {
   // Exige contrato/credencial comercial que ainda não existe (ex.: Reclame
   // Aqui sem contrato oficial de API).
   NEEDS_CONTRACT
+  RECONNECT_REQUIRED
 }
 
 enum ExternalEventStatus {
@@ -1173,6 +1174,10 @@ model ChannelAccount {
   status            ChannelAccountStatus @default(NOT_CONFIGURED)
   enabled           Boolean              @default(false)
   externalAccountId String?
+  oauthProvider     String?
+  oauthScopes       String[]             @default([])
+  tokenExpiresAt    DateTime?
+  providerMetadata Json                  @default("{}")
   config            Json                 @default("{}")
   secretKeys        String[]             @default([])
   encryptedSecrets  Bytes?

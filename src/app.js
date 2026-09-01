@@ -514,6 +514,7 @@ app.post(
   app.post("/api/integrations/accounts/:accountId/test-connection", integrationsController.testConnection);
   app.post("/api/integrations/oauth/start", integrationsController.oauthStart);
   app.post("/api/integrations/oauth/callback", integrationsController.oauthCallback);
+  app.post("/api/integrations/oauth/accounts/:accountId/select", integrationsController.oauthSelect);
 
   app.get("/api/quick-replies/composer", quickReplyController.listForComposer);
   app.get("/api/quick-replies/suggestions", quickReplyController.suggestions);

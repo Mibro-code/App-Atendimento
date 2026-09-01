@@ -1,9 +1,21 @@
 (() => {
-  const APP_VERSION = "0.26.3";
+  const APP_VERSION = "0.27.0";
 
 
 
   const CHANGELOG = [
+    {
+      version: "0.27.0",
+      date: "01/09/2026",
+      title: "Conexão simplificada dos canais",
+      changes: [
+        "Substitui credenciais técnicas por botões OAuth para Google, Microsoft, Meta, Mercado Livre e Amazon.",
+        "Descobre automaticamente e-mail, conta, página e perfil, com seleção quando a Meta retorna mais de uma opção.",
+        "Renova tokens compatíveis automaticamente e sinaliza quando uma reconexão é necessária.",
+        "Mantém credenciais manuais somente na configuração avançada dos canais ainda sem OAuth habilitado."
+      ]
+    },
+
     {
       version: "0.26.3",
       date: "01/09/2026",
