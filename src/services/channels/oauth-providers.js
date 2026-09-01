@@ -10,7 +10,15 @@ const OAUTH_PROVIDERS = Object.freeze({
     clientIdEnv: "GOOGLE_OAUTH_CLIENT_ID",
     clientSecretEnv: "GOOGLE_OAUTH_CLIENT_SECRET",
     redirectUriEnv: "GOOGLE_OAUTH_REDIRECT_URI",
-    defaultScopes: ["https://www.googleapis.com/auth/business.manage"],
+    scopesByChannel: Object.freeze({
+      EMAIL: Object.freeze([
+        "https://www.googleapis.com/auth/gmail.readonly",
+        "https://www.googleapis.com/auth/gmail.send",
+      ]),
+      GOOGLE_REVIEWS: Object.freeze([
+        "https://www.googleapis.com/auth/business.manage",
+      ]),
+    }),
   },
   MICROSOFT: {
     authorizationUrl: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
@@ -38,4 +46,9 @@ function getOAuthProvider(name) {
   return provider;
 }
 
-module.exports = { OAUTH_PROVIDERS, getOAuthProvider };
+function getOAuthScopes(name, channel) {
+  const provider = getOAuthProvider(name);
+  return [...(provider.scopesByChannel?.[channel] || provider.defaultScopes || [])];
+}
+
+module.exports = { OAUTH_PROVIDERS, getOAuthProvider, getOAuthScopes };

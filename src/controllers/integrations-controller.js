@@ -3,7 +3,7 @@
 const accounts = require("../services/channels/channel-account-service");
 const globalSettings = require("../services/channels/integration-global-settings-service");
 const oauth = require("../services/channels/integration-oauth-service");
-const { getOAuthProvider } = require("../services/channels/oauth-providers");
+const { getOAuthProvider, getOAuthScopes } = require("../services/channels/oauth-providers");
 const OAUTH_PROVIDERS_BY_CHANNEL = Object.freeze({
   EMAIL: ["GOOGLE", "MICROSOFT"],
   GOOGLE_REVIEWS: ["GOOGLE"],
@@ -81,7 +81,7 @@ module.exports = {
       }
       const result = await oauth.createAuthorizationRequest({
         channel, channelAccountId: channelAccountId || null, provider, clientId, redirectUri,
-        scopes: config.defaultScopes || [], actorUserId: req.user.id,
+        scopes: getOAuthScopes(provider, channel), actorUserId: req.user.id,
       });
       return res.json(result);
     } catch (error) { return next(error); }
