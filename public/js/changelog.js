@@ -1,8 +1,20 @@
 (() => {
-  const APP_VERSION = "0.26.1";
+  const APP_VERSION = "0.26.2";
+
 
 
   const CHANGELOG = [
+    {
+      version: "0.26.2",
+      date: "01/09/2026",
+      title: "Refinamento visual da Central de Atendimento",
+      changes: [
+        "Move a nota para uma linha pr\u00f3pria do card, sem depender do tamanho do nome e sem ultrapassar seus limites.",
+        "Adiciona a op\u00e7\u00e3o de recolher filtros e a lista, deixando somente a conversa atual aberta.",
+        "Faz o seletor de Respostas R\u00e1pidas acompanhar corretamente os temas claro e escuro, com contraste leg\u00edvel.",
+        "Troca o bot\u00e3o de Respostas R\u00e1pidas para o laranja Mibro, com raio em degrad\u00ea cinza e contorno preto."
+      ]
+    },
     {
       version: "0.26.1",
       date: "01/09/2026",
