@@ -20,12 +20,13 @@
     (async () => {
       const statusEl = document.getElementById("status");
       const params = new URLSearchParams(location.search);
-      const code = params.get("code");
+      const code = params.get("code") || params.get("spapi_oauth_code");
+      const sellingPartnerId = params.get("selling_partner_id");
       const state = params.get("state");
       const providerError = params.get("error_description") || params.get("error");
-      function finish(ok, error) {
+      function finish(ok, error, result = null) {
         try {
-          window.opener?.postMessage({ source: "mibro-oauth-callback", ok, error: error || null }, location.origin);
+          window.opener?.postMessage({ source: "mibro-oauth-callback", ok, error: error || null, result }, location.origin);
         } catch { /* opener pode já ter fechado */ }
         statusEl.textContent = ok ? "Conectado! Pode fechar esta janela." : (error || "Falha ao conectar.");
         setTimeout(() => window.close(), ok ? 1200 : 4000);
@@ -34,11 +35,11 @@
       if (!code || !state) return finish(false, "Resposta de autorização incompleta.");
       try {
         const response = await fetch("/api/integrations/oauth/callback", {
-          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code, state }),
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code, state, sellingPartnerId }),
         });
         const body = await response.json().catch(() => ({}));
         if (!response.ok) return finish(false, body?.error || "Falha ao concluir a autorização.");
-        finish(true);
+        finish(true, null, body);
       } catch {
         finish(false, "Erro de rede ao concluir a autorização.");
       }

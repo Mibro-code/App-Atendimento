@@ -30,7 +30,7 @@ class FacebookMessengerAdapter extends ChannelAdapter {
     return {
       canReceiveMessages: true, canSendMessages: true, canReceiveMedia: true, canSendMedia: true,
       canMarkRead: true, supportsPublicQuestions: false, supportsReviews: false,
-      supportsOAuth: false, supportsWebhook: true,
+      supportsOAuth: true, supportsWebhook: true,
     };
   }
 
@@ -99,7 +99,7 @@ class InstagramDirectAdapter extends ChannelAdapter {
     return {
       canReceiveMessages: true, canSendMessages: true, canReceiveMedia: true, canSendMedia: true,
       canMarkRead: true, supportsPublicQuestions: false, supportsReviews: false,
-      supportsOAuth: false, supportsWebhook: true,
+      supportsOAuth: true, supportsWebhook: true,
     };
   }
 
@@ -166,7 +166,7 @@ class FacebookCommentsAdapter extends ChannelAdapter {
     return {
       canReceiveMessages: true, canSendMessages: true, canReceiveMedia: false, canSendMedia: false,
       canMarkRead: false, supportsPublicQuestions: true, supportsReviews: false,
-      supportsOAuth: false, supportsWebhook: true,
+      supportsOAuth: true, supportsWebhook: true,
     };
   }
 
@@ -224,7 +224,7 @@ class InstagramCommentsAdapter extends ChannelAdapter {
     return {
       canReceiveMessages: true, canSendMessages: true, canReceiveMedia: false, canSendMedia: false,
       canMarkRead: false, supportsPublicQuestions: true, supportsReviews: false,
-      supportsOAuth: false, supportsWebhook: true,
+      supportsOAuth: true, supportsWebhook: true,
     };
   }
 

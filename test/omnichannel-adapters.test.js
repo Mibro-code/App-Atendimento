@@ -44,7 +44,8 @@ test("Reclame Aqui é tratado como caso/reclamação, sem chat automático", asy
 test("Amazon restringe capabilities de verdade (nunca finge suportar chat livre)", () => {
   const adapter = createAdapter("AMAZON_MARKETPLACE");
   const capabilities = adapter.capabilities();
-  for (const key of Object.keys(capabilities)) assert.equal(capabilities[key], false, `esperava ${key}=false na Amazon`);
+  for (const key of Object.keys(capabilities).filter((key) => key !== "supportsOAuth")) assert.equal(capabilities[key], false, `esperava ${key}=false na Amazon`);
+  assert.equal(capabilities.supportsOAuth, true);
 });
 
 test("Amazon testConnection exige lwaClientId/lwaClientSecret/refreshToken antes de qualquer chamada externa", async () => {
@@ -177,7 +178,7 @@ test("Instagram Direct e Facebook Messenger declaram capabilities de mensageria 
     assert.equal(capabilities.canReceiveMessages, true, channel);
     assert.equal(capabilities.canMarkRead, true, channel);
     assert.equal(capabilities.supportsWebhook, true, channel);
-    assert.equal(capabilities.supportsOAuth, false, channel);
+    assert.equal(capabilities.supportsOAuth, true, channel);
     assert.equal(capabilities.supportsPublicQuestions, false, channel);
   }
 });

@@ -52,3 +52,13 @@
 .account-dialog-actions button{padding:9px 14px;border:0;border-radius:16px;font-size:9px;font-weight:900}
 .account-dialog-actions button[value=cancel]{color:var(--button-secondary-ink);background:var(--button-secondary)}
 .account-dialog-actions button[value=save]{color:var(--button-primary-ink);background:var(--button-primary)}
+
+.oauth-actions{display:grid;gap:7px;margin-top:10px}
+.oauth-connect{width:100%;padding:10px 12px;border:1px solid #d94c20;border-radius:11px;color:#fff;background:var(--orange);font-size:9px;font-weight:900}
+.oauth-connect:hover{filter:brightness(.95)}
+.advanced-config{margin-top:8px;border-top:1px solid var(--line);padding-top:8px}
+.advanced-config summary{cursor:pointer;color:var(--muted);font-size:8px;font-weight:800}
+.advanced-config .add-account{margin-top:8px}
+.oauth-selection-options{display:grid;gap:8px;max-height:360px;overflow:auto}
+.oauth-selection-options button{display:grid;gap:3px;padding:11px;text-align:left;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink)}
+.oauth-selection-options button span{color:var(--muted);font-size:9px}

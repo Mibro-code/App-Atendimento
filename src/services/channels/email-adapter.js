@@ -133,17 +133,19 @@ class EmailAdapter extends ChannelAdapter {
     if (!accessToken) throw channelError("AUTH_ERROR", "Conta de e-mail sem accessToken configurado.");
     try {
       if (provider === "GMAIL") {
-        await axios.get("https://gmail.googleapis.com/gmail/v1/users/me/profile", {
+        const response = await axios.get("https://gmail.googleapis.com/gmail/v1/users/me/profile", {
           headers: { Authorization: `Bearer ${accessToken}` }, timeout: 8000,
         });
+        return { status: "CONNECTED", externalAccountId: response.data?.emailAddress || null, providerMetadata: { displayName: response.data?.emailAddress || null, username: response.data?.emailAddress || null } };
       } else if (provider === "MICROSOFT_365") {
-        await axios.get("https://graph.microsoft.com/v1.0/me", {
+        const response = await axios.get("https://graph.microsoft.com/v1.0/me", {
           headers: { Authorization: `Bearer ${accessToken}` }, timeout: 8000,
         });
+        const email = response.data?.mail || response.data?.userPrincipalName || null;
+        return { status: "CONNECTED", externalAccountId: response.data?.id || email, providerMetadata: { displayName: response.data?.displayName || email, username: email } };
       } else {
         throw channelError("INVALID_PAYLOAD", "Provider de e-mail deve ser GMAIL ou MICROSOFT_365.");
       }
-      return { status: "CONNECTED" };
     } catch (error) {
       if (error.channelErrorCode) throw error;
       if (error.response?.status === 401) throw channelError("TOKEN_EXPIRED", "Token de e-mail expirado ou inválido.");
