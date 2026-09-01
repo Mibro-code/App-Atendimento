@@ -144,6 +144,17 @@ function syncThemeToggle() {
   $("#theme-toggle").setAttribute("aria-label", dark ? "Usar tema claro" : "Usar tema escuro");
   $("#theme-toggle").title = dark ? "Usar tema claro" : "Usar tema escuro";
 }
+
+function setFiltersPanelCollapsed(collapsed, persist = true) {
+  const workspace = $(".workspace");
+  const button = $("#toggle-filters-panel");
+  workspace.classList.toggle("filters-collapsed", collapsed);
+  button.textContent = collapsed ? "\u203a" : "\u2039";
+  button.setAttribute("aria-expanded", String(!collapsed));
+  button.setAttribute("aria-label", collapsed ? "Mostrar filtros e categorias" : "Recolher filtros e categorias");
+  button.title = collapsed ? "Mostrar filtros e categorias" : "Recolher filtros e categorias";
+  if (persist) try { localStorage.setItem("mibro-filters-collapsed", collapsed ? "1" : "0"); } catch {}
+}
 const messagePreview = (message) => {
   if (!message) return "Conversa sem mensagens";
   if (message.type === "image") return message.text && message.text !== "[image]" ? `📷 ${message.text}` : "📷 Imagem";
@@ -1194,6 +1205,10 @@ $("#theme-toggle").addEventListener("click", () => {
   try { localStorage.setItem("mibro-theme", theme); } catch {}
   syncThemeToggle();
 });
+
+$("#toggle-filters-panel").addEventListener("click", () => {
+  setFiltersPanelCollapsed(!$(".workspace").classList.contains("filters-collapsed"));
+});
 $("#bots-button").addEventListener("click", () => { location.href = "/bots"; });
 $("#quick-replies-admin-button").addEventListener("click", () => { location.href = "/quick-replies"; });
 $("#knowledge-base-button").addEventListener("click", () => { location.href = "/knowledge-base"; });
@@ -1898,6 +1913,7 @@ $("#message-input").addEventListener("keydown", (event) => {
 $(".chat-header").addEventListener("click", (event) => { if (innerWidth <= 700 && event.offsetX < 45) $("#chat-panel").classList.remove("open"); });
 
 syncThemeToggle();
+try { setFiltersPanelCollapsed(localStorage.getItem("mibro-filters-collapsed") === "1", false); } catch { setFiltersPanelCollapsed(false, false); }
 loadCurrentUser()
   .then(() => Promise.all([loadUsers(), loadCategories(), loadMetaStatus()]))
   .then(loadAdminUsers)
