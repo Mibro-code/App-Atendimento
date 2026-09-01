@@ -1,7 +1,19 @@
 (() => {
-  const APP_VERSION = "0.26.0";
+  const APP_VERSION = "0.26.1";
+
 
   const CHANGELOG = [
+    {
+      version: "0.26.1",
+      date: "01/09/2026",
+      title: "Fila cronol\u00f3gica e mais espa\u00e7o no atendimento",
+      changes: [
+        "Ordena as conversas pela \u00faltima mensagem, mostrando no topo quem falou mais recentemente; conversas fixadas continuam respeitando a escolha do usu\u00e1rio.",
+        "Permite recolher filtros e categorias para ampliar a lista de conversas e a \u00e1rea do atendimento, mantendo a prefer\u00eancia salva.",
+        "Aumenta os cards e mant\u00e9m as notas dentro de seus limites, com leitura em at\u00e9 duas linhas.",
+        "Centraliza os bot\u00f5es de anexo e respostas r\u00e1pidas e melhora o destaque do raio no tema escuro sem aumentar a altura do composer."
+      ]
+    },
     {
       version: "0.26.0",
       date: "01/09/2026",
