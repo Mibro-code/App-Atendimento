@@ -31,6 +31,7 @@
 .status-ok{color:#067647;background:#dcfae6}
 .status-error{color:var(--danger);background:#fdecea}
 .status-pending{color:#b54708;background:#fef0c7}
+.status-approval{color:#5925dc;background:#ede9fe}
 .status-idle{color:#5e6872;background:#e9ecef}
 .enabled-pill{padding:4px 8px;border-radius:9px;font-size:7px;font-weight:900}
 .enabled-pill.on{color:#067647;background:#dcfae6}

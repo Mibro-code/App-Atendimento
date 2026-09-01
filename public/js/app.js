@@ -1,6 +1,6 @@
 const state = {
   conversations: [], categories: [], users: [], currentUser: null,
-  selectedId: null, selectedContactId: null, selectedCategoryId: "", status: "", category: "", search: "",
+  selectedId: null, selectedContactId: null, selectedCategoryId: "", status: "", category: "", search: "", channel: "",
   // Filtros combináveis adicionais (item 11): multi-select, somam-se ao filtro
   // de status principal (single-select, inalterado) em vez de substituí-lo —
   // o backend já aceita status/priority como CSV, então cada Set aqui só
@@ -47,6 +47,16 @@ function slaBadge(minutesRemaining) {
   if (minutesRemaining < 0) return `<span class="sla-label sla-overdue">SLA estourado</span>`;
   return `<span class="sla-label">SLA: ${minutesRemaining}min restantes</span>`;
 }
+const channelBadgeLabels = {
+  INSTAGRAM_DIRECT: "IG", INSTAGRAM_COMMENTS: "IG",
+  FACEBOOK_MESSENGER: "FB", FACEBOOK_COMMENTS: "FB",
+  EMAIL: "Email", MERCADO_LIVRE: "ML", TIKTOK_SHOP: "TikTok",
+  AMAZON_MARKETPLACE: "Amazon", SHOPEE: "Shopee", SHEIN_MARKETPLACE: "Shein",
+  GOOGLE_REVIEWS: "Google", RECLAME_AQUI: "RA", ZENVIA: "Zenvia",
+};
+// WhatsApp (META) é o canal padrão/legado: não recebe badge para não competir
+// visualmente com os demais rótulos do card nem sinalizar "novidade".
+const channelBadge = (channelValue) => channelBadgeLabels[channelValue] || "";
 const documentTypeLabels = new Map([
   ["application/pdf", "PDF"], ["text/plain", "TXT"], ["application/msword", "DOC"],
   ["application/vnd.openxmlformats-officedocument.wordprocessingml.document", "DOCX"],
@@ -161,7 +171,7 @@ function conversationSignature(conversation) {
   const lastMessage = conversation.messages?.[0];
   const note = conversation.contact.notes?.[0];
   return JSON.stringify([
-    conversation.id, conversation.id === state.selectedId, conversation.status, conversation.unreadCount, conversation.lastMessageAt,
+    conversation.id, conversation.id === state.selectedId, conversation.status, conversation.channel, conversation.unreadCount, conversation.lastMessageAt,
     conversation.categoryId, conversation.category?.name, conversation.category?.color, conversation.category?.parent?.name,
     conversation.assignedUserId, conversation.assignedUser?.name,
     conversation.priority, conversation.firstResponseSlaBreached, conversation.responseSlaBreached, conversation.slaMinutesRemaining,
@@ -178,8 +188,7 @@ function conversationCardMarkup(c) {
     <span class="card-grip" aria-hidden="true"></span><span class="avatar">${escapeHtml(initials(name))}</span><span class="card-main">
     <span class="card-title"><strong>${c.isPinned ? `<i class="conversation-pin" title="Conversa fixada">★</i>` : ""}${escapeHtml(name)}</strong><small>${escapeHtml(c.contact.phone)}</small></span>
     <span class="preview">${escapeHtml(messagePreview(last))}</span>
-    <span class="card-labels"><span class="category-label" style="color:${c.category?.color || "#666"};border-color:${c.category?.color || "#aaa"}">${escapeHtml(categoryLabel(c.category))}</span><span class="status-label">${escapeHtml(statusLabel(c.status))}</span>${c.assignedUser ? `<span class="assignee-label">${escapeHtml(c.assignedUser.name)}</span>` : ""}${priorityBadge(c.priority)}${slaBadge(c.slaMinutesRemaining)}</span>
-    <span class="note-preview"><b>NOTA</b> ${escapeHtml(note?.content || "Sem notas para este contato")}${c.contact._count?.notes ? `<i>${c.contact._count.notes}</i>` : ""}</span></span>
+    <span class="card-labels">${channelBadge(c.channel) ? `<span class="channel-label">${escapeHtml(channelBadge(c.channel))}</span>` : ""}<span class="category-label" style="color:${c.category?.color || "#666"};border-color:${c.category?.color || "#aaa"}">${escapeHtml(categoryLabel(c.category))}</span><span class="status-label">${escapeHtml(statusLabel(c.status))}</span>${c.assignedUser ? `<span class="assignee-label">${escapeHtml(c.assignedUser.name)}</span>` : ""}${priorityBadge(c.priority)}${slaBadge(c.slaMinutesRemaining)}</span>    <span class="note-preview"><b>NOTA</b> ${escapeHtml(note?.content || "Sem notas para este contato")}${c.contact._count?.notes ? `<i>${c.contact._count.notes}</i>` : ""}</span></span>
     <span class="card-side"><span>${time(c.lastMessageAt)}</span><span class="card-elapsed">${escapeHtml(elapsedShort(c.lastMessageAt))}</span>${c.unreadCount ? `<span class="unread">${c.unreadCount}</span>` : ""}</span></button>`;
 }
 
@@ -687,6 +696,7 @@ async function loadConversations() {
   const params = new URLSearchParams();
   if (state.search) params.set("search", state.search);
   if (state.category) params.set("category", state.category);
+  if (state.channel) params.set("channel", state.channel);
   if (state.assignedUser) params.set("assignedUser", state.assignedUser);
   if (state.assignedUserActiveOnly) params.set("activeOnly", "true");
   const statusValues = [...(state.status ? [state.status] : []), ...state.statusToggle];
@@ -1118,6 +1128,7 @@ document.querySelectorAll("[data-toggle-filter]").forEach((button) => button.add
   loadConversations();
 }));
 let searchTimer; $("#search").addEventListener("input", (event) => { clearTimeout(searchTimer); state.search = event.target.value.trim(); searchTimer = setTimeout(loadConversations, 250); });
+$("#channel-filter").addEventListener("change", (event) => { state.channel = event.target.value; loadConversations(); });
 $("#refresh").addEventListener("click", loadConversations);
 $("#new-conversation").addEventListener("click", openOutboundConversation);
 $("#close-outbound").addEventListener("click", () => $("#outbound-dialog").close());

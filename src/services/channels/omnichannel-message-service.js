@@ -8,6 +8,10 @@ const { NEW_CHANNELS, channelError } = require("./channel-constants");
 const { assertNewChannelEnabled } = require("./integration-global-settings-service");
 
 const kindByChannel = {
+  INSTAGRAM_DIRECT: "PRIVATE_CONVERSATION",
+  FACEBOOK_MESSENGER: "PRIVATE_CONVERSATION",
+  INSTAGRAM_COMMENTS: "PUBLIC_QUESTION",
+  FACEBOOK_COMMENTS: "PUBLIC_QUESTION",
   MERCADO_LIVRE: "PRIVATE_CONVERSATION",
   TIKTOK_SHOP: "PRIVATE_CONVERSATION",
   AMAZON_MARKETPLACE: "PRIVATE_CONVERSATION",
@@ -19,7 +23,7 @@ const kindByChannel = {
 
 function conversationKindFor(channel, normalized) {
   if (normalized.type === "review") return "REVIEW";
-  if (normalized.type === "question") return "PUBLIC_QUESTION";
+  if (normalized.type === "question" || normalized.type === "comment") return "PUBLIC_QUESTION";
   return kindByChannel[channel] || "PRIVATE_CONVERSATION";
 }
 

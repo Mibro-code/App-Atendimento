@@ -51,6 +51,12 @@ enum ChannelAccountStatus {
   DEGRADED
   ERROR
   NOT_SUPPORTED
+  // API existe mas o acesso/escopo ainda não foi aprovado pela plataforma
+  // (ex.: TikTok Shop Customer Service antes da aprovação do app).
+  NEEDS_APPROVAL
+  // Exige contrato/credencial comercial que ainda não existe (ex.: Reclame
+  // Aqui sem contrato oficial de API).
+  NEEDS_CONTRACT
 }
 
 enum ExternalEventStatus {

@@ -100,7 +100,12 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
   app.use(express.json({
     limit: "1mb",
     verify(req, _res, buffer) {
-      if (req.originalUrl === "/webhook/whatsapp") req.rawBody = Buffer.from(buffer);
+      // Também captura o corpo bruto para o webhook genérico de canais
+      // novos — necessário para validação HMAC (ex.: Instagram/Facebook
+      // reaproveitando a mesma assinatura X-Hub-Signature-256 da Meta).
+      if (req.originalUrl === "/webhook/whatsapp" || req.originalUrl.startsWith("/webhooks/channels/")) {
+        req.rawBody = Buffer.from(buffer);
+      }
     },
   }));
   app.use(cookieParser());
@@ -172,10 +177,22 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
     try {
       const settings = await getGlobalSettings();
       if (!settings.newChannelsEnabled) return res.sendStatus(404);
-      const account = await prisma.channelAccount.findFirst({ where: { channel, enabled: true }, orderBy: { createdAt: "asc" } });
-      if (!account) return res.sendStatus(404);
-      const adapterAccount = { ...account, secrets: decryptAccountSecretsSafe(account) };
-      const adapter = createAdapter(channel, adapterAccount);
+      const candidates = await prisma.channelAccount.findMany({ where: { channel, enabled: true }, orderBy: { createdAt: "asc" } });
+      if (!candidates.length) return res.sendStatus(404);
+      // Com mais de uma conta ativa no mesmo canal (ex.: duas Páginas do
+      // Facebook), pergunta a cada adapter se o payload pertence à conta
+      // dele (matchesWebhookPayload) em vez de assumir cegamente a
+      // primeira — com só uma conta, mantém o caminho de sempre.
+      let account = candidates[0];
+      let adapter = createAdapter(channel, { ...account, secrets: decryptAccountSecretsSafe(account) });
+      if (candidates.length > 1) {
+        account = null;
+        for (const candidate of candidates) {
+          const candidateAdapter = createAdapter(channel, { ...candidate, secrets: decryptAccountSecretsSafe(candidate) });
+          if (candidateAdapter?.matchesWebhookPayload(req.body)) { account = candidate; adapter = candidateAdapter; break; }
+        }
+        if (!account) return res.sendStatus(404);
+      }
       if (!adapter || !adapter.capabilities().supportsWebhook) return res.sendStatus(404);
       if (!adapter.validateWebhook(req)) return res.sendStatus(401);
 

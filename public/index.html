@@ -68,6 +68,16 @@
   <main class="workspace">
     <aside class="filters-panel">
       <label class="search"><span>⌕</span><input id="search" type="search" placeholder="Buscar nome ou telefone"></label>
+      <select id="channel-filter" class="channel-filter" aria-label="Filtrar por canal">
+        <option value="">Todos os canais</option>
+        <option value="META">WhatsApp</option>
+        <option value="INSTAGRAM_DIRECT,INSTAGRAM_COMMENTS">Instagram</option>
+        <option value="FACEBOOK_MESSENGER,FACEBOOK_COMMENTS">Facebook</option>
+        <option value="EMAIL">Email</option>
+        <option value="MERCADO_LIVRE">Mercado Livre</option>
+        <option value="TIKTOK_SHOP">TikTok</option>
+        <option value="AMAZON_MARKETPLACE">Amazon</option>
+      </select>
       <nav>
         <p class="nav-title">ATENDIMENTO</p>
         <button class="filter active" data-status=""><span>Todos</span><strong id="count-all">0</strong></button>

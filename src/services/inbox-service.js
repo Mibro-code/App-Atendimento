@@ -116,9 +116,8 @@ function contactDisplayName(contact) {
 }
 
 async function listConversations({
-  search, category, status, assignedUser, activeOnly, priority, slaBreached, unassigned,
-}, viewer) {
-  const where = {};
+  search, category, status, assignedUser, activeOnly, priority, slaBreached, unassigned, channel,
+}, viewer) {  const where = {};
 
   // Filtros combináveis (item 11): status aceita lista separada por vírgula
   // (ex.: "AGUARDANDO_EQUIPE,HANDOFF_BOT") sem deixar de aceitar um único
@@ -144,6 +143,11 @@ async function listConversations({
   }
 
   if (unassigned === "true") where.assignedUserId = null;
+
+  if (channel) {
+    const channels = String(channel).split(",").filter(Boolean);
+    where.channel = channels.length > 1 ? { in: channels } : channels[0];
+  }
 
   if (category === "UNCATEGORIZED") {
     where.categoryId = null;
