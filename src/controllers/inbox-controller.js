@@ -10,6 +10,7 @@ const { createOutboundConversation, createOutboundEmail, listOutboundChannels } 
 const { analyzeConversation } = require("../services/bot-learning-service");
 const { submitAgentFeedback } = require("../services/bot-agent-feedback-service");
 const { Channel: ChannelEnum } = require("@prisma/client");
+const contactMerge = require("../services/contact-merge-service");
 
 const knownChannels = new Set(Object.values(ChannelEnum));
 
@@ -37,7 +38,19 @@ function createInboxController(channel) {
         const customerServiceWindow = conversation.channel === "META"
           ? await getCustomerServiceWindow(conversation.id)
           : customerServiceWindowFrom(null, new Date(), false);
-        return res.json({ ...conversation, customerServiceWindow });
+        const mergedDestinations = await contactMerge.getMergedDestinations(conversation.contact.id, req.user);
+        return res.json({ ...conversation, customerServiceWindow, mergedDestinations });
+      } catch (error) { return next(error); }
+    },
+    async mergeCandidates(req, res, next) {
+      try { return res.json(await contactMerge.listMergeCandidates(req.params.contactId, req.query.search, req.user)); }
+      catch (error) { return next(error); }
+    },
+    async mergeContacts(req, res, next) {
+      try {
+        const result = await contactMerge.mergeContacts(req.params.contactId, req.body.targetContactId, req.user);
+        inboxEvents.publish();
+        return res.json(result);
       } catch (error) { return next(error); }
     },
     async templates(req, res, next) {

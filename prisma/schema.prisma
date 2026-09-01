@@ -234,15 +234,26 @@ model Contact {
   email            String?
   name             String?
   customName       String?
+  identityId       String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
   conversations    Conversation[]
   notes            ContactNote[]
   campaignContacts CampaignContact[]
+  identity         ContactIdentity?  @relation(fields: [identityId], references: [id], onDelete: SetNull)
 
   @@unique([channel, externalId])
   @@index([phone])
   @@index([email])
+  @@index([identityId])
+}
+
+model ContactIdentity {
+  id          String    @id @default(cuid())
+  displayName String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  contacts    Contact[]
 }
 
 model ContactNote {
@@ -382,6 +393,7 @@ model User {
   // padrão de canManageCampaigns/canTransferConversations).
   canSetConversationPriority   Boolean                  @default(false)
   canStartConversations        Boolean                  @default(false)
+  canMergeContacts             Boolean                  @default(false)
   createdAt                    DateTime                 @default(now())
   updatedAt                    DateTime                 @updatedAt
   assignedConversations        Conversation[]           @relation("AssignedConversations")
