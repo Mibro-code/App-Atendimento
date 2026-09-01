@@ -196,28 +196,21 @@
     <div id="quick-reply-categories" class="quick-reply-categories"></div>
     <div id="quick-reply-list" class="quick-reply-list"></div>
   </dialog>
-  <dialog id="outbound-dialog" class="template-dialog outbound-dialog">
-    <div class="dialog-header"><div><span>WHATSAPP • NOVO CONTATO</span><h2>Iniciar conversa</h2><p>Informe o contato e escolha a mensagem aprovada que será enviada pela Meta.</p></div><button id="close-outbound" type="button" aria-label="Fechar">×</button></div>
-    <div class="template-billing-warning"><b>Atenção à cobrança</b><span>O envio inicial usa um template aprovado e pode gerar cobrança pela Meta.</span></div>
-    <form id="outbound-form" class="outbound-layout">
-      <section class="outbound-contact-fields">
-        <label><span>Nome do contato</span><input id="outbound-name" maxlength="160" autocomplete="off" placeholder="Ex.: João Silva" required></label>
-        <label><span>Telefone com DDD</span><input id="outbound-phone" type="tel" maxlength="24" autocomplete="tel" placeholder="Ex.: (11) 99999-9999" required><small>Números do Brasil recebem automaticamente o código 55.</small></label>
-        <div class="outbound-template-heading"><b>Template inicial</b><small>Selecione uma mensagem aprovada.</small></div>
-        <div id="outbound-template-list" class="template-list"></div>
-      </section>
-      <section class="outbound-template-editor">
-        <div id="outbound-template-empty" class="template-empty">Selecione um template para visualizar e preencher.</div>
-        <div id="outbound-template-content" hidden>
-          <div class="template-selected-meta"><strong id="outbound-template-name"></strong><span id="outbound-template-details"></span></div>
-          <pre id="outbound-template-preview" class="template-preview"></pre>
-          <div id="outbound-template-variables" class="template-variables"></div>
-          <button id="send-outbound" type="submit">Criar conversa e enviar</button>
-        </div>
-      </section>
-    </form>
+  <dialog id="outbound-channel-dialog" class="template-dialog outbound-channel-dialog">
+    <div class="dialog-header"><div><span>NOVA CONVERSA</span><h2>Escolher canal</h2><p>Somente integrações conectadas e liberadas podem iniciar conversas.</p></div><button id="close-outbound-channels" type="button" aria-label="Fechar">×</button></div>
+    <div id="outbound-channel-list" class="outbound-channel-list"></div>
   </dialog>
-  <dialog id="template-dialog" class="template-dialog">
+  <dialog id="outbound-dialog" class="template-dialog email-outbound-dialog">
+    <div class="dialog-header"><div><span>E-MAIL • NOVA MENSAGEM</span><h2>Enviar e-mail</h2><p>A mensagem será enviada pela conta Gmail selecionada.</p></div><button id="close-outbound" type="button" aria-label="Fechar">×</button></div>
+    <form id="outbound-form" class="email-outbound-form">
+      <label><span>Conta remetente</span><select id="outbound-account" required></select></label>
+      <label><span>Nome do contato</span><input id="outbound-name" maxlength="160" autocomplete="off" placeholder="Ex.: João Silva" required></label>
+      <label><span>E-mail do destinatário</span><input id="outbound-email" type="email" maxlength="254" autocomplete="email" placeholder="cliente@empresa.com" required></label>
+      <label><span>Assunto</span><input id="outbound-subject" maxlength="240" placeholder="Assunto do e-mail" required></label>
+      <label class="email-outbound-message"><span>Mensagem</span><textarea id="outbound-message" maxlength="20000" placeholder="Digite a mensagem" required></textarea></label>
+      <button id="send-outbound" type="submit">Enviar e-mail</button>
+    </form>
+  </dialog>  <dialog id="template-dialog" class="template-dialog">
     <div class="dialog-header"><div><span>WHATSAPP • META</span><h2>Templates aprovados</h2><p>Use uma mensagem previamente aprovada para iniciar ou retomar o atendimento.</p></div><button id="close-templates" type="button" aria-label="Fechar">×</button></div>
     <div class="template-billing-warning"><b>Atenção à cobrança</b><span>O envio de um template pode gerar cobrança pela Meta, conforme a categoria e as regras vigentes da conta.</span></div>
     <div class="template-layout">
@@ -286,6 +279,7 @@
           <label class="team-check"><input id="permission-history" type="checkbox"><span><b>Visualizar histórico</b><small>Consultar as ações registradas nas conversas permitidas.</small></span></label>
           <label class="team-check"><input id="permission-previous-messages" type="checkbox"><span><b>Ver mensagens anteriores</b><small>Ao receber um encaminhamento, visualizar também as mensagens anteriores.</small></span></label>
           <label class="team-check"><input id="permission-priority" type="checkbox"><span><b>Definir prioridade da conversa</b><small>Marcar atendimentos como Alta ou Urgente. Admin e Supervisor sempre podem, independente deste campo.</small></span></label>
+          <label class="team-check"><input id="permission-start-conversations" type="checkbox"><span><b>Iniciar conversas</b><small>Exibe o botão Nova e permite iniciar e-mails pelas contas liberadas.</small></span></label>
         </fieldset>
         <fieldset class="team-categories"><legend>Categorias liberadas</legend><p>“Sem categoria”, cada categoria e cada subcategoria devem ser liberadas separadamente.</p><div id="team-category-access"></div></fieldset>
         <div class="team-form-actions"><button id="cancel-team-edit" type="button">Limpar</button><button type="submit">Salvar conta</button></div>

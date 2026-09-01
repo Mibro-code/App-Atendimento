@@ -1,5 +1,8 @@
 const prisma = require("../database/prisma");
 const authorization = require("./authorization-service");
+const channelMessageService = require("./channels/channel-message-service");
+const { ALL_MANAGED_CHANNELS, CHANNEL_LABELS } = require("./channels/channel-constants");
+const { updateConversationAfterSending } = require("./message-service");
 const {
   listApprovedTemplates,
   sendApprovedTemplate,
@@ -105,4 +108,103 @@ async function createOutboundConversation({ phone, customName, template, user, c
   return { conversationId: conversation.id, created, message: result.message };
 }
 
-module.exports = { createOutboundConversation, normalizeOutboundPhone };
+function normalizeEmail(value) {
+  const email = String(value || "").trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
+    throw Object.assign(new Error("Informe um endereço de e-mail válido."), { statusCode: 400 });
+  }
+  return email;
+}
+
+function cleanRequiredText(value, field, maxLength) {
+  const text = String(value || "").trim();
+  if (!text) throw Object.assign(new Error(`${field} é obrigatório.`), { statusCode: 400 });
+  if (text.length > maxLength) throw Object.assign(new Error(`${field} deve ter no máximo ${maxLength} caracteres.`), { statusCode: 400 });
+  return text;
+}
+
+function emailAccountScope(user) {
+  return authorization.isMaster(user) ? {} : { accessUsers: { some: { userId: user.id } } };
+}
+
+async function availableEmailAccounts(user) {
+  return prisma.channelAccount.findMany({
+    where: { channel: "EMAIL", enabled: true, status: "CONNECTED", ...emailAccountScope(user) },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, externalAccountId: true, providerMetadata: true },
+  });
+}
+
+async function listOutboundChannels(user) {
+  if (!authorization.canStartConversations(user)) return [];
+  const accounts = await availableEmailAccounts(user);
+  return ALL_MANAGED_CHANNELS.map((channelName) => {
+    if (channelName === "EMAIL") return {
+      channel: channelName, label: CHANNEL_LABELS[channelName], enabled: accounts.length > 0,
+      reason: accounts.length ? null : "Nenhuma conta de e-mail conectada e liberada para você.",
+      accounts: accounts.map((account) => ({
+        id: account.id, name: account.name,
+        address: account.providerMetadata?.username || account.externalAccountId || null,
+      })),
+    };
+    return {
+      channel: channelName, label: CHANNEL_LABELS[channelName], enabled: false, accounts: [],
+      reason: channelName === "META"
+        ? "Início de conversa pela Meta desativado temporariamente."
+        : "Integração ainda não liberada para iniciar conversas.",
+    };
+  });
+}
+
+async function createOutboundEmail({ accountId, to, customName, subject, text, user }) {
+  authorization.assertCanStartConversations(user);
+  const email = normalizeEmail(to);
+  const name = cleanCustomName(customName || email);
+  const cleanSubject = cleanRequiredText(subject, "Assunto", 240);
+  const cleanBody = cleanRequiredText(text, "Mensagem", 20000);
+  const account = await prisma.channelAccount.findFirst({
+    where: { id: String(accountId || ""), channel: "EMAIL", enabled: true, status: "CONNECTED", ...emailAccountScope(user) },
+    select: { id: true },
+  });
+  if (!account) throw authorization.forbidden("Esta conta de e-mail não está conectada ou não foi liberada para você.");
+
+  const externalContactId = `${account.id}:${email}`;
+  const existing = await prisma.conversation.findFirst({
+    where: { channel: "EMAIL", channelAccountId: account.id, contact: { is: { externalId: externalContactId } } },
+    select: { id: true },
+  });
+  if (existing) await authorization.assertCanViewConversation(user, existing.id);
+
+  const providerResult = await channelMessageService.send({
+    channel: "EMAIL", channelAccountId: account.id, kind: "text",
+    to: email, subject: cleanSubject, text: cleanBody,
+  });
+  const occurredAt = new Date();
+  const stored = await prisma.$transaction(async (transaction) => {
+    const contact = await transaction.contact.upsert({
+      where: { channel_externalId: { channel: "EMAIL", externalId: externalContactId } },
+      update: { email, customName: name },
+      create: { channel: "EMAIL", externalId: externalContactId, email, name, customName: name },
+    });
+    const conversation = await transaction.conversation.upsert({
+      where: { contactId_channel_channelScope: { contactId: contact.id, channel: "EMAIL", channelScope: account.id } },
+      update: { channelAccountId: account.id, externalConversationId: providerResult.data?.threadId || undefined },
+      create: {
+        contactId: contact.id, channel: "EMAIL", channelScope: account.id, channelAccountId: account.id,
+        externalConversationId: providerResult.data?.threadId || null, kind: "EMAIL_THREAD",
+        status: "EM_ATENDIMENTO", assignedUserId: user.id,
+      },
+    });
+    const message = await transaction.message.create({ data: {
+      conversationId: conversation.id,
+      externalId: providerResult.externalId ? `${account.id}:${providerResult.externalId}` : null,
+      channel: "EMAIL", channelAccountId: account.id, direction: "ENVIADA", status: "ENVIADA",
+      type: "text", text: cleanBody, occurredAt, sentByUserId: user.id,
+      rawPayload: { providerMessage: providerResult.data || null, subject: cleanSubject, threadId: providerResult.data?.threadId || null },
+    } });
+    return { conversation, message };
+  });
+  await updateConversationAfterSending({ conversationId: stored.conversation.id, sentByUserId: user.id, occurredAt });
+  return { conversationId: stored.conversation.id, created: !existing, message: stored.message };
+}
+module.exports = { createOutboundConversation, createOutboundEmail, listOutboundChannels, normalizeOutboundPhone };

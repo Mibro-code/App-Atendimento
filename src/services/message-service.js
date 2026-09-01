@@ -3,6 +3,7 @@ const { findOrCreateMetaConversation } = require("./conversation-service");
 const { removeImage, storeAudio, storeDocument, storeImage, storeSticker, storeVideo } = require("./media-storage-service");
 const { formatTeamMessage } = require("./team-message-formatter");
 const { getConversationSettings } = require("./conversation-settings-service");
+const channelMessageService = require("./channels/channel-message-service");
 const statuses = { sent: "ENVIADA", delivered: "ENTREGUE", read: "LIDA", failed: "FALHOU" };
 const closingMessage = "Agradecemos pelo seu contato. Se precisar de qualquer ajuda, estamos à disposição. Você pode voltar a falar conosco quando quiser.";
 
@@ -143,27 +144,107 @@ async function updateConversationAfterSending({ conversationId, sentByUserId, oc
   });
 }
 
+function replySubject(value) {
+  const subject = String(value || "Atendimento Mibro").trim();
+  return /^re:/i.test(subject) ? subject : `Re: ${subject}`;
+}
+
+async function emailReplyContext(conversation) {
+  if (!conversation.channelAccountId || !conversation.contact?.email) {
+    throw Object.assign(new Error("A conversa não possui conta ou destinatário de e-mail válido."), { statusCode: 400 });
+  }
+  const latest = await prisma.message.findFirst({
+    where: { conversationId: conversation.id, direction: "RECEBIDA" },
+    orderBy: { occurredAt: "desc" },
+    select: { rawPayload: true },
+  });
+  const metadata = latest?.rawPayload && typeof latest.rawPayload === "object" ? latest.rawPayload : {};
+  const inReplyTo = metadata.messageId || null;
+  return {
+    to: conversation.contact.email,
+    subject: replySubject(metadata.subject),
+    inReplyTo,
+    references: [metadata.references, inReplyTo].filter(Boolean).join(" ") || null,
+    threadId: conversation.externalConversationId || metadata.threadId || null,
+  };
+}
+
 async function sendText({ conversationId, text, sentByUserId, channel }) {
   const conversation = await prisma.conversation.findUnique({ where: { id: conversationId }, include: { contact: true, category: { include: { parent: true } } } });
   if (!conversation) throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
-  await require("./meta-template-service").assertFreeFormAllowed(conversationId);
-  const providerText = formatTeamMessage(conversation.category, text);
-  if (providerText.length > 4096) {
-    throw Object.assign(new Error("A mensagem ficou acima do limite após adicionar o nome da equipe."), { statusCode: 400 });
+  let result;
+  let providerText = text;
+  let emailContext = null;
+  if (conversation.channel === "EMAIL") {
+    emailContext = await emailReplyContext(conversation);
+    result = await channelMessageService.send({
+      channel: "EMAIL", channelAccountId: conversation.channelAccountId, kind: "text",
+      ...emailContext, text,
+    });
+  } else if (conversation.channel === "META") {
+    await require("./meta-template-service").assertFreeFormAllowed(conversationId);
+    providerText = formatTeamMessage(conversation.category, text);
+    if (providerText.length > 4096) {
+      throw Object.assign(new Error("A mensagem ficou acima do limite após adicionar o nome da equipe."), { statusCode: 400 });
+    }
+    result = await channel.sendText(conversation.contact.phone, providerText);
+  } else {
+    throw Object.assign(new Error("Este canal ainda não está liberado para respostas pela Central."), { statusCode: 409 });
   }
-  const result = await channel.sendText(conversation.contact.phone, providerText);
   const occurredAt = new Date();
+  const providerExternalId = result.externalId
+    ? (conversation.channelAccountId ? `${conversation.channelAccountId}:${result.externalId}` : result.externalId)
+    : null;
   const message = await prisma.message.create({ data: {
-    conversationId, externalId: result.externalId, channel: conversation.channel, direction: "ENVIADA",
-    status: "ENVIADA", type: "text", text, occurredAt, sentByUserId: sentByUserId || null, rawPayload: result.data,
+    conversationId, externalId: providerExternalId, channel: conversation.channel,
+    channelAccountId: conversation.channelAccountId || null, direction: "ENVIADA",
+    status: "ENVIADA", type: "text", text, occurredAt, sentByUserId: sentByUserId || null,
+    rawPayload: conversation.channel === "EMAIL"
+      ? { providerMessage: result.data || null, subject: emailContext.subject, threadId: result.data?.threadId || emailContext.threadId }
+      : result.data,
   } });
+  if (conversation.channel === "EMAIL" && result.data?.threadId && result.data.threadId !== conversation.externalConversationId) {
+    await prisma.conversation.update({ where: { id: conversationId }, data: { externalConversationId: result.data.threadId } });
+  }
   await updateConversationAfterSending({ conversationId, sentByUserId, occurredAt });
   return { message, providerData: result.data };
 }
-
+async function sendEmailMedia({ conversation, buffer, mimeType, fileName, caption, sentByUserId, type, store }) {
+  const cleanCaption = caption?.trim() || null;
+  const media = await store({ buffer, mimeType, fileName });
+  const emailContext = await emailReplyContext(conversation);
+  let result;
+  try {
+    result = await channelMessageService.send({
+      channel: "EMAIL", channelAccountId: conversation.channelAccountId, kind: "media",
+      ...emailContext, text: cleanCaption || "", attachments: [{ buffer, mimeType: media.mimeType, filename: media.fileName }],
+    });
+  } catch (error) {
+    await removeImage(media.storageKey);
+    throw error;
+  }
+  const occurredAt = new Date();
+  const externalId = result.externalId ? `${conversation.channelAccountId}:${result.externalId}` : null;
+  const message = await prisma.message.create({ data: {
+    conversationId: conversation.id, externalId, channel: "EMAIL", channelAccountId: conversation.channelAccountId,
+    direction: "ENVIADA", status: "ENVIADA", type, text: cleanCaption,
+    mediaStorageKey: media.storageKey, mediaMimeType: media.mimeType, mediaFileName: media.fileName, mediaSize: media.size,
+    occurredAt, sentByUserId: sentByUserId || null,
+    rawPayload: { providerMessage: result.data || null, subject: emailContext.subject, threadId: result.data?.threadId || emailContext.threadId },
+  } });
+  if (result.data?.threadId && result.data.threadId !== conversation.externalConversationId) {
+    await prisma.conversation.update({ where: { id: conversation.id }, data: { externalConversationId: result.data.threadId } });
+  }
+  await updateConversationAfterSending({ conversationId: conversation.id, sentByUserId, occurredAt });
+  return { message, providerData: result.data };
+}
 async function sendImage({ conversationId, buffer, mimeType, fileName, caption, sentByUserId, channel }) {
   const conversation = await prisma.conversation.findUnique({ where: { id: conversationId }, include: { contact: true, category: { include: { parent: true } } } });
   if (!conversation) throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
+  if (conversation.channel === "EMAIL") {
+    return sendEmailMedia({ conversation, buffer, mimeType, fileName, caption, sentByUserId, type: "image", store: storeImage });
+  }
+  if (conversation.channel !== "META") throw Object.assign(new Error("Este canal ainda não está liberado para anexos pela Central."), { statusCode: 409 });
   await require("./meta-template-service").assertFreeFormAllowed(conversationId);
   const cleanCaption = caption?.trim() || null;
   const providerCaption = formatTeamMessage(conversation.category, cleanCaption || "");
@@ -196,6 +277,10 @@ async function sendImage({ conversationId, buffer, mimeType, fileName, caption, 
 async function sendVideo({ conversationId, buffer, mimeType, fileName, caption, sentByUserId, channel }) {
   const conversation = await prisma.conversation.findUnique({ where: { id: conversationId }, include: { contact: true, category: { include: { parent: true } } } });
   if (!conversation) throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
+  if (conversation.channel === "EMAIL") {
+    return sendEmailMedia({ conversation, buffer, mimeType, fileName, caption, sentByUserId, type: "video", store: storeVideo });
+  }
+  if (conversation.channel !== "META") throw Object.assign(new Error("Este canal ainda não está liberado para anexos pela Central."), { statusCode: 409 });
   await require("./meta-template-service").assertFreeFormAllowed(conversationId);
   const cleanCaption = caption?.trim() || null;
   const providerCaption = formatTeamMessage(conversation.category, cleanCaption || "");
@@ -228,6 +313,10 @@ async function sendVideo({ conversationId, buffer, mimeType, fileName, caption, 
 async function sendDocument({ conversationId, buffer, mimeType, fileName, caption, sentByUserId, channel }) {
   const conversation = await prisma.conversation.findUnique({ where: { id: conversationId }, include: { contact: true, category: { include: { parent: true } } } });
   if (!conversation) throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
+  if (conversation.channel === "EMAIL") {
+    return sendEmailMedia({ conversation, buffer, mimeType, fileName, caption, sentByUserId, type: "document", store: storeDocument });
+  }
+  if (conversation.channel !== "META") throw Object.assign(new Error("Este canal ainda não está liberado para anexos pela Central."), { statusCode: 409 });
   await require("./meta-template-service").assertFreeFormAllowed(conversationId);
   const cleanCaption = caption?.trim() || null;
   const providerCaption = formatTeamMessage(conversation.category, cleanCaption || "");

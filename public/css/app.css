@@ -1317,7 +1317,25 @@ html[data-theme="dark"] .changelog-release-heading b {
 .outbound-contact-fields .template-list { margin:0 -8px -8px; min-height:140px; }
 .outbound-template-editor { padding:18px; }
 .outbound-template-editor #send-outbound { width:100%; min-height:44px; border:0; border-radius:12px; color:#fff; background:var(--orange); font-weight:800; }
-.template-dialog::backdrop { background: rgba(8, 10, 13, .72); backdrop-filter: blur(4px); }
+.outbound-channel-dialog { width:min(560px,94vw); height:auto; max-height:86vh; }
+.outbound-channel-list { padding:18px 20px 22px; display:grid; gap:9px; max-height:65vh; overflow:auto; }
+.outbound-channel-card { width:100%; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:14px; border:1px solid var(--line); border-radius:12px; color:inherit; background:#f6f7f8; text-align:left; }
+.outbound-channel-card span { display:grid; gap:4px; }
+.outbound-channel-card small { color:var(--muted); }
+.outbound-channel-card em { font-style:normal; font-size:11px; font-weight:800; }
+.outbound-channel-card.available { cursor:pointer; border-color:#e68a68; }
+.outbound-channel-card.available em { color:var(--orange); }
+.outbound-channel-card.unavailable { opacity:.48; cursor:not-allowed; }
+.email-outbound-dialog { width:min(680px,94vw); height:auto; max-height:90vh; }
+.email-outbound-form { padding:18px 20px 22px; display:grid; grid-template-columns:1fr 1fr; gap:14px; overflow:auto; }
+.email-outbound-form label { display:grid; gap:6px; color:var(--muted); font-size:11px; font-weight:700; }
+.email-outbound-form input,.email-outbound-form select,.email-outbound-form textarea { width:100%; padding:0 12px; border:1px solid var(--line); border-radius:10px; color:var(--text); background:transparent; font:inherit; }
+.email-outbound-form input,.email-outbound-form select { height:42px; }
+.email-outbound-message { grid-column:1 / -1; }
+.email-outbound-form textarea { min-height:180px; padding:12px; resize:vertical; }
+.email-outbound-form #send-outbound { grid-column:1 / -1; min-height:44px; border:0; border-radius:12px; color:#fff; background:var(--orange); font-weight:800; cursor:pointer; }
+html[data-theme="dark"] .outbound-channel-card { background:#22262c; }
+@media (max-width:600px) { .email-outbound-form { grid-template-columns:1fr; } .email-outbound-message,.email-outbound-form #send-outbound { grid-column:auto; } }.template-dialog::backdrop { background: rgba(8, 10, 13, .72); backdrop-filter: blur(4px); }
 .template-billing-warning { margin: 16px 20px 0; padding: 12px 14px; display: flex; gap: 10px; border: 1px solid #f0bda9; border-radius: 12px; background: #fff5f0; color: #71311d; font-size: 13px; }
 .template-layout { min-height: 0; height: calc(100% - 150px); padding: 16px 20px 20px; display: grid; grid-template-columns: minmax(280px, 38%) minmax(0, 1fr); gap: 16px; }
 .template-picker,.template-form { min-height: 0; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
