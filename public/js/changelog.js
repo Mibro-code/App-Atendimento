@@ -1,9 +1,19 @@
 (() => {
-  const APP_VERSION = "0.27.0";
+  const APP_VERSION = "0.27.1";
 
 
 
   const CHANGELOG = [
+    {
+      version: "0.27.1",
+      date: "01/09/2026",
+      title: "Recebimento de e-mails pelo Gmail",
+      changes: [
+        "Sincroniza automaticamente novos e-mails da caixa de entrada a cada 30 segundos.",
+        "Importa remetente, assunto, conteúdo e thread sem duplicar mensagens.",
+        "Renova o acesso OAuth automaticamente e solicita reconexão quando necessário."
+      ]
+    },
     {
       version: "0.27.0",
       date: "01/09/2026",

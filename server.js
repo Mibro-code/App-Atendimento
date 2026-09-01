@@ -7,6 +7,7 @@ const MetaCloudChannel = require("./src/channels/meta-cloud-channel");
 const { startInactivityMonitor } = require("./src/services/conversation-inactivity-service");
 const { startSlaMonitor } = require("./src/services/conversation-sla-service");
 const { startCampaignWorker } = require("./src/services/campaign-worker-service");
+const { startGmailSyncWorker } = require("./src/services/channels/gmail-sync-service");
 const inboxEvents = require("./src/realtime/inbox-events");
 
 const PORT = process.env.PORT || 3000;
@@ -23,12 +24,14 @@ const stopSlaMonitor = startSlaMonitor({ onChange: () => inboxEvents.publish() }
 // master switch (CampaignGlobalSettings.massMessagingEnabled) é reconferido
 // a cada tick dentro do próprio worker.
 const stopCampaignWorker = startCampaignWorker({ channel, onChange: () => inboxEvents.publish() });
+const stopGmailSyncWorker = startGmailSyncWorker();
 
 async function shutdown(signal) {
   console.log(`${signal} recebido. Encerrando servidor...`);
   stopInactivityMonitor();
   stopSlaMonitor();
   stopCampaignWorker();
+  stopGmailSyncWorker();
   server.close(async () => {
     await prisma.$disconnect();
     process.exit(0);
