@@ -1,9 +1,19 @@
 (() => {
-  const APP_VERSION = "0.28.2";
+  const APP_VERSION = "0.28.3";
 
 
 
   const CHANGELOG = [
+    {
+      version: "0.28.3",
+      date: "02/09/2026",
+      title: "Ajustes rápidos da Central",
+      changes: [
+        "Menu recolhido volta a exibir somente os ícones.",
+        "Aviso de atendimento pisca apenas enquanto houver conversa não lida.",
+        "Botões de anexo e respostas rápidas ficam alinhados no campo de mensagem."
+      ]
+    },
     {
       version: "0.28.2",
       date: "02/09/2026",
