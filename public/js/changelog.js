@@ -1,10 +1,19 @@
 (() => {
-  const APP_VERSION = "0.28.0";
+  const APP_VERSION = "0.28.1";
 
 
 
   const CHANGELOG = [
     {
+      version: "0.28.1",
+      date: "02/09/2026",
+      title: "E-mail premium e filtros organizados",
+      changes: [
+        "Painel de e-mail refinado com caixas Geral, Promoções e Spam baseadas nos marcadores do Gmail.",
+        "Filtros rápidos agora podem ser recolhidos e mantêm a preferência do usuário.",
+        "Sidebar compacta corrigida para não cortar os textos dos atalhos."
+      ]
+    },    {
       version: "0.28.0",
       date: "02/09/2026",
       title: "Central multicanal premium",
