@@ -752,9 +752,10 @@ async function loadConversations() {
   if (state.priorityToggle.size) params.set("priority", [...state.priorityToggle].join(","));
   if (state.slaBreached) params.set("slaBreached", "true");
   if (state.unassigned) params.set("unassigned", "true");
-  const [conversations, summary] = await Promise.all([
+  const [conversations, summary, unfilteredConversations] = await Promise.all([
     api(`/api/conversations?${params}`),
     api("/api/conversations/summary"),
+    MARKETPLACE_UI_ENABLED ? Promise.resolve(null) : api("/api/conversations"),
   ]);
   const availableConversations = MARKETPLACE_UI_ENABLED
     ? conversations
@@ -763,7 +764,8 @@ async function loadConversations() {
     ? availableConversations.filter((conversation) => (conversation.emailMailbox || "GENERAL") === state.emailMailbox)
     : availableConversations;
   state.conversations = state.category ? visibleConversations : visibleConversations.filter((c) => c.id === state.selectedId || c.unreadCount > 0 || !isConversationCategoryHidden(c));
-  const displaySummary = MARKETPLACE_UI_ENABLED ? summary : availableConversations.reduce((result, conversation) => {
+  const summaryConversations = (unfilteredConversations || []).filter((conversation) => !isMarketplaceChannel(conversation.channel));
+  const displaySummary = MARKETPLACE_UI_ENABLED ? summary : summaryConversations.reduce((result, conversation) => {
     result.total += 1;
     result.statuses[conversation.status] = (result.statuses[conversation.status] || 0) + 1;
     if (conversation.priority === "URGENTE") result.urgent += 1;

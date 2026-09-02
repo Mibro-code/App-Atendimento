@@ -11,7 +11,8 @@
       changes: [
         "Menu recolhido volta a exibir somente os ícones.",
         "Aviso de atendimento pisca apenas enquanto houver conversa não lida.",
-        "Botões de anexo e respostas rápidas ficam alinhados no campo de mensagem."
+        "Botões de anexo e respostas rápidas ficam alinhados no campo de mensagem.",
+        "Contadores de atendimento e categorias permanecem globais ao trocar filtros."
       ]
     },
     {
