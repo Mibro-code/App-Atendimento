@@ -1,9 +1,19 @@
 (() => {
-  const APP_VERSION = "0.27.4";
+  const APP_VERSION = "0.28.0";
 
 
 
   const CHANGELOG = [
+    {
+      version: "0.28.0",
+      date: "02/09/2026",
+      title: "Central multicanal premium",
+      changes: [
+        "Nova sidebar sofisticada, superfícies em camadas e painel de contexto em formato de workspace.",
+        "WhatsApp, E-mail, Instagram + Facebook e plataformas de venda agora abrem em áreas dedicadas.",
+        "Layout responsivo otimizado para 1080p e notebooks, com densidade ajustável e microinterações."
+      ]
+    },
     {
       version: "0.27.4",
       date: "01/09/2026",

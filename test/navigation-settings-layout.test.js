@@ -23,23 +23,24 @@ test("textos de ajuda ficam abaixo dos campos sem margem negativa", () => {
   assert.match(rule, /line-height:1\.55/);
 });
 
-test("atalhos são agrupados nas quatro áreas e preservam IDs únicos", () => {
-  for (const label of ["Atendimento", "Automação", "Canais", "Administração"]) {
-    assert.match(html, new RegExp("<summary>" + label + "</summary>"));
+test("atalhos ficam agrupados na sidebar e preservam IDs únicos", () => {
+  for (const label of ["Atendimento", "Automação", "Canais", "Campanhas", "Gestão"]) {
+    assert.match(html, new RegExp("sidebar-group-label[^>]*>" + label + "<"));
+  }
+  for (const channel of ["WhatsApp", "E-mail", "Instagram + Facebook", "Plataformas de venda"]) {
+    assert.ok(html.includes(`sidebar-item-label">${channel}<`));
   }
   for (const id of [
     "enable-notifications", "manage-devices", "bots-button", "integrations-button",
     "quick-replies-admin-button", "knowledge-base-button", "campaigns-button",
     "conversation-settings-button", "team-button",
-  ]) {
-    assert.equal((html.match(new RegExp('id="' + id + '"', "g")) || []).length, 1);
-  }
+  ]) assert.equal((html.match(new RegExp('id="' + id + '"', "g")) || []).length, 1);
 });
 
-test("menus fecham ao trocar de área, escolher opção ou clicar fora", () => {
-  assert.match(appJs, /topbar-menu\[open\]/);
-  assert.match(appJs, /other !== menu/);
-  assert.match(appJs, /closest\("\.topbar-menu-item"\)/);
-  assert.match(appCss, /topbar-menu-panel/);
-  assert.match(appCss, /max-width:820px/);
+test("sidebar recolhe, abre como drawer no mobile e troca o workspace por canal", () => {
+  assert.match(appJs, /setSidebarExpanded/);
+  assert.match(appJs, /mobile-open/);
+  assert.match(appJs, /setChannelWorkspace/);
+  assert.match(appCss, /channel-workspace-item\.active/);
+  assert.match(appCss, /max-width:700px/);
 });
