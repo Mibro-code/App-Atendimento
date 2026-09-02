@@ -1,9 +1,19 @@
 (() => {
-  const APP_VERSION = "0.28.3";
+  const APP_VERSION = "0.28.4";
 
 
 
   const CHANGELOG = [
+    {
+      version: "0.28.4",
+      date: "02/09/2026",
+      title: "Triagem configurável na área de Bots",
+      changes: [
+        "O Bot de Triagem Inicial agora aparece na área de Bots como Bot do sistema.",
+        "Mensagens, horário, ativação e quatro opções de encaminhamento podem ser configurados pelo Admin.",
+        "O executor real, os textos padrão e o comportamento atual da triagem foram preservados."
+      ]
+    },
     {
       version: "0.28.3",
       date: "02/09/2026",
