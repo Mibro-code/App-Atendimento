@@ -14,6 +14,7 @@ const STATIC_ASSETS = [
   "/css/campaigns.css",
   "/css/configuracoes.css",
 
+  "/js/feature-flags.js",
   "/js/app.js",
   "/js/bots.js",
   "/js/login.js",

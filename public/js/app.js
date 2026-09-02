@@ -1,3 +1,7 @@
+const MARKETPLACE_UI_ENABLED = window.MIBRO_FEATURES?.marketplaces !== false;
+const isMarketplaceChannel = (channel) => window.isMarketplaceFeatureChannel?.(channel) === true;
+if (MARKETPLACE_UI_ENABLED) document.querySelectorAll("[data-marketplace-feature]").forEach((element) => { element.hidden = false; });
+
 const state = {
   conversations: [], categories: [], users: [], currentUser: null,
   selectedId: null, selectedContactId: null, selectedCategoryId: "", status: "", category: "", search: "", channel: "", emailMailbox: "GENERAL",
@@ -749,33 +753,45 @@ async function loadConversations() {
     api(`/api/conversations?${params}`),
     api("/api/conversations/summary"),
   ]);
+  const availableConversations = MARKETPLACE_UI_ENABLED
+    ? conversations
+    : conversations.filter((conversation) => !isMarketplaceChannel(conversation.channel));
   const visibleConversations = state.channel === "EMAIL"
-    ? conversations.filter((conversation) => {
-        return (conversation.emailMailbox || "GENERAL") === state.emailMailbox;
-      })
-    : conversations;
+    ? availableConversations.filter((conversation) => (conversation.emailMailbox || "GENERAL") === state.emailMailbox)
+    : availableConversations;
   state.conversations = state.category ? visibleConversations : visibleConversations.filter((c) => c.id === state.selectedId || c.unreadCount > 0 || !isConversationCategoryHidden(c));
+  const displaySummary = MARKETPLACE_UI_ENABLED ? summary : availableConversations.reduce((result, conversation) => {
+    result.total += 1;
+    result.statuses[conversation.status] = (result.statuses[conversation.status] || 0) + 1;
+    if (conversation.priority === "URGENTE") result.urgent += 1;
+    if (!conversation.assignedUserId && conversation.status !== "FINALIZADO") result.unassigned += 1;
+    if (conversation.slaMinutesRemaining < 0) result.overdue += 1;
+    const categoryId = conversation.categoryId || "null";
+    result.categories[categoryId] = (result.categories[categoryId] || 0) + 1;
+    if (conversation.status === "AGUARDANDO_EQUIPE") result.attentionWaiting = true;
+    return result;
+  }, { total: 0, statuses: {}, categories: {}, overdue: 0, urgent: 0, unassigned: 0, attentionWaiting: false });
   const filteredUser = state.adminUsers.find((user) => user.id === state.assignedUser);
   $("#list-summary").textContent = `${state.conversations.length} atendimento${state.conversations.length === 1 ? "" : "s"}${filteredUser ? ` ativo${state.conversations.length === 1 ? "" : "s"} • ${filteredUser.name}` : ""}`;
   $("#clear-team-filter").hidden = !state.assignedUser;
-  $("#count-all").textContent = summary.total || 0;
-  $("#count-new").textContent = summary.statuses.NOVO || 0;
-  $("#count-in-progress").textContent = summary.statuses.EM_ATENDIMENTO || 0;
-  $("#count-waiting").textContent = summary.statuses.AGUARDANDO_EQUIPE || 0;
-  document.querySelector('[data-status="AGUARDANDO_EQUIPE"]').classList.toggle("attention", Boolean(summary.attentionWaiting));
-  syncWaitingAttention(summary.attentionWaiting);
-  $("#count-bot").textContent = summary.statuses.BOT || 0;
-  $("#count-finalized").textContent = summary.statuses.FINALIZADO || 0;
-  $("#count-overdue").textContent = summary.overdue || 0;
-  $("#count-urgent").textContent = summary.urgent || 0;
-  $("#count-unassigned").textContent = summary.unassigned || 0;
+  $("#count-all").textContent = displaySummary.total || 0;
+  $("#count-new").textContent = displaySummary.statuses.NOVO || 0;
+  $("#count-in-progress").textContent = displaySummary.statuses.EM_ATENDIMENTO || 0;
+  $("#count-waiting").textContent = displaySummary.statuses.AGUARDANDO_EQUIPE || 0;
+  document.querySelector('[data-status="AGUARDANDO_EQUIPE"]').classList.toggle("attention", Boolean(displaySummary.attentionWaiting));
+  syncWaitingAttention(displaySummary.attentionWaiting);
+  $("#count-bot").textContent = displaySummary.statuses.BOT || 0;
+  $("#count-finalized").textContent = displaySummary.statuses.FINALIZADO || 0;
+  $("#count-overdue").textContent = displaySummary.overdue || 0;
+  $("#count-urgent").textContent = displaySummary.urgent || 0;
+  $("#count-unassigned").textContent = displaySummary.unassigned || 0;
   document.querySelectorAll("[data-category-count]").forEach((counter) => {
     const categoryId = counter.dataset.categoryCount;
     const category = state.categories.find((item) => item.id === categoryId);
     const childIds = category?.parentId ? [] : state.categories.filter((item) => item.parentId === categoryId).map((item) => item.id);
-    counter.textContent = [categoryId, ...childIds].reduce((total, id) => total + (summary.categories[id] || 0), 0);
+    counter.textContent = [categoryId, ...childIds].reduce((total, id) => total + (displaySummary.categories[id] || 0), 0);
   });
-  document.querySelector("[data-uncategorized-count]")?.replaceChildren(String(summary.categories.null || 0));
+  document.querySelector("[data-uncategorized-count]")?.replaceChildren(String(displaySummary.categories.null || 0));
   const signature = JSON.stringify({
     selectedId: state.selectedId,
     conversations: state.conversations.map(conversationSignature),
@@ -1272,7 +1288,8 @@ const channelWorkspaceMeta = {
   "MERCADO_LIVRE,TIKTOK_SHOP,AMAZON_MARKETPLACE,SHOPEE,SHEIN_MARKETPLACE": { key:"stores", title:"Plataformas de venda", eyebrow:"MARKETPLACES" },
 };
 function setChannelWorkspace(value, { load = true, persist = true } = {}) {
-  const next = String(value || "");
+  const requested = String(value || "");
+  const next = !MARKETPLACE_UI_ENABLED && requested.split(",").some(isMarketplaceChannel) ? "" : requested;
   const meta = channelWorkspaceMeta[next] || { key:"custom", title:"Conversas", eyebrow:"CANAL SELECIONADO" };
   state.channel = next;
   $("#channel-filter").value = next;

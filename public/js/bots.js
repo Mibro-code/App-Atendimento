@@ -1,3 +1,7 @@
+const MARKETPLACE_UI_ENABLED = window.MIBRO_FEATURES?.marketplaces !== false;
+const isMarketplaceChannel = (channel) => window.isMarketplaceFeatureChannel?.(channel) === true;
+if (MARKETPLACE_UI_ENABLED) document.querySelectorAll("[data-marketplace-feature]").forEach((element) => { element.hidden = false; });
+
 const state = {
   bots: [], categories: [], selected: null,
   simulatorHistory: [], simulatorState: null,
@@ -124,7 +128,7 @@ const defaultExternalAiProvider = "GEMINI";
 function renderChannelsChecklist(selectedChannels = []) {
   const primary = $("#bot-channel").value;
   $("#bot-channels-checklist").innerHTML = Object.entries(channelLabels)
-    .filter(([value]) => value !== primary)
+    .filter(([value]) => value !== primary && (MARKETPLACE_UI_ENABLED || !isMarketplaceChannel(value)))
     .map(([value, label]) => `
       <label class="checkbox"><input type="checkbox" value="${value}" ${selectedChannels.includes(value) ? "checked" : ""}><span>${label}</span></label>
     `).join("");
@@ -315,7 +319,8 @@ async function loadAiKeys() {
 }
 
 async function loadBots(selectId = state.selected?.id) {
-  state.bots = await api("/api/bots");
+  const bots = await api("/api/bots");
+  state.bots = MARKETPLACE_UI_ENABLED ? bots : bots.filter((bot) => !isMarketplaceChannel(bot.channel));
   renderBotList();
   if (selectId && state.bots.some((bot) => bot.id === selectId)) await selectBot(selectId);
   else if (!state.bots.length) {

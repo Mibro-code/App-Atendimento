@@ -15,6 +15,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/skeleton.css">
   <link rel="stylesheet" href="/css/app.css">
+  <script src="/js/feature-flags.js"></script>
 </head>
 <body>
   <header class="topbar">
@@ -60,7 +61,7 @@
           <button class="sidebar-item channel-workspace-item" type="button" data-channel-view="META"><span class="sidebar-item-icon channel-icon whatsapp" aria-hidden="true">W</span><span class="sidebar-item-label">WhatsApp</span></button>
           <button class="sidebar-item channel-workspace-item" type="button" data-channel-view="EMAIL"><span class="sidebar-item-icon channel-icon email" aria-hidden="true">E</span><span class="sidebar-item-label">E-mail</span></button>
           <button class="sidebar-item channel-workspace-item" type="button" data-channel-view="INSTAGRAM_DIRECT,INSTAGRAM_COMMENTS,FACEBOOK_MESSENGER,FACEBOOK_COMMENTS"><span class="sidebar-item-icon channel-icon meta" aria-hidden="true">M</span><span class="sidebar-item-label">Instagram + Facebook</span></button>
-          <button class="sidebar-item channel-workspace-item" type="button" data-channel-view="MERCADO_LIVRE,TIKTOK_SHOP,AMAZON_MARKETPLACE,SHOPEE,SHEIN_MARKETPLACE"><span class="sidebar-item-icon channel-icon stores" aria-hidden="true">L</span><span class="sidebar-item-label">Plataformas de venda</span></button>
+          <button class="sidebar-item channel-workspace-item" type="button" data-marketplace-feature hidden data-channel-view="MERCADO_LIVRE,TIKTOK_SHOP,AMAZON_MARKETPLACE,SHOPEE,SHEIN_MARKETPLACE"><span class="sidebar-item-icon channel-icon stores" aria-hidden="true">L</span><span class="sidebar-item-label">Plataformas de venda</span></button>
           <button id="integrations-button" class="sidebar-item" type="button" hidden><span class="sidebar-item-icon" aria-hidden="true">🔌</span><span class="sidebar-item-label">Integrações</span></button>
         </div>
         <div class="sidebar-group">
@@ -83,10 +84,10 @@
         <option value="FACEBOOK_MESSENGER,FACEBOOK_COMMENTS">Facebook</option>
         <option value="INSTAGRAM_DIRECT,INSTAGRAM_COMMENTS,FACEBOOK_MESSENGER,FACEBOOK_COMMENTS">Instagram + Facebook</option>
         <option value="EMAIL">Email</option>
-        <option value="MERCADO_LIVRE">Mercado Livre</option>
-        <option value="TIKTOK_SHOP">TikTok</option>
-        <option value="AMAZON_MARKETPLACE">Amazon</option>
-        <option value="MERCADO_LIVRE,TIKTOK_SHOP,AMAZON_MARKETPLACE,SHOPEE,SHEIN_MARKETPLACE">Plataformas de venda</option>
+        <option data-marketplace-feature hidden value="MERCADO_LIVRE">Mercado Livre</option>
+        <option data-marketplace-feature hidden value="TIKTOK_SHOP">TikTok</option>
+        <option data-marketplace-feature hidden value="AMAZON_MARKETPLACE">Amazon</option>
+        <option data-marketplace-feature hidden value="MERCADO_LIVRE,TIKTOK_SHOP,AMAZON_MARKETPLACE,SHOPEE,SHEIN_MARKETPLACE">Plataformas de venda</option>
       </select>
       <nav id="email-mailboxes" class="email-mailboxes" aria-label="Pastas do e-mail" hidden>
         <p class="email-mailboxes-title"><span>CAIXA DE E-MAIL</span><small>Gmail</small></p>

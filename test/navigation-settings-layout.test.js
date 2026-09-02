@@ -9,6 +9,7 @@ const html = read("index.html");
 const appCss = read("css/app.css");
 const settingsCss = read("css/configuracoes.css");
 const appJs = read("js/app.js");
+const featureFlagsJs = read("js/feature-flags.js");
 
 test("Configurações permite rolagem vertical e crescimento natural das seções", () => {
   assert.match(settingsCss, /body\{[^}]*height:auto[^}]*overflow-y:auto/);
@@ -46,4 +47,14 @@ test("sidebar recolhe, abre como drawer no mobile e troca o workspace por canal"
   assert.match(appJs, /emailMailbox/);
   assert.match(appCss, /channel-workspace-item\.active/);
   assert.match(appCss, /max-width:700px/);
+});
+
+test("marketplaces ficam ocultos por uma única flag reversível sem remover a implementação", () => {
+  assert.match(featureFlagsJs, /marketplaces:\s*false/);
+  for (const channel of ["MERCADO_LIVRE", "TIKTOK_SHOP", "AMAZON_MARKETPLACE", "SHOPEE", "SHEIN_MARKETPLACE"]) {
+    assert.ok(featureFlagsJs.includes(channel));
+  }
+  assert.match(html, /data-marketplace-feature hidden/);
+  assert.match(appJs, /availableConversations/);
+  assert.match(appJs, /isMarketplaceChannel/);
 });

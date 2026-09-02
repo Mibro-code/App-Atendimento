@@ -9,6 +9,7 @@
   <script>try{const saved=localStorage.getItem("mibro-theme");document.documentElement.dataset.theme=saved||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch{}</script>
   <link rel="stylesheet" href="/css/skeleton.css">
   <link rel="stylesheet" href="/css/bots.css">
+  <script src="/js/feature-flags.js"></script>
 </head>
 <body>
   <header class="topbar">
@@ -83,11 +84,11 @@
                 <option value="FACEBOOK_MESSENGER">Facebook Messenger</option>
                 <option value="FACEBOOK_COMMENTS">Facebook Comentários</option>
                 <option value="EMAIL">E-mail</option>
-                <option value="MERCADO_LIVRE">Mercado Livre</option>
-                <option value="TIKTOK_SHOP">TikTok Shop</option>
-                <option value="AMAZON_MARKETPLACE">Amazon Marketplace</option>
-                <option value="SHOPEE">Shopee</option>
-                <option value="SHEIN_MARKETPLACE">SHEIN Marketplace</option>
+                <option data-marketplace-feature hidden value="MERCADO_LIVRE">Mercado Livre</option>
+                <option data-marketplace-feature hidden value="TIKTOK_SHOP">TikTok Shop</option>
+                <option data-marketplace-feature hidden value="AMAZON_MARKETPLACE">Amazon Marketplace</option>
+                <option data-marketplace-feature hidden value="SHOPEE">Shopee</option>
+                <option data-marketplace-feature hidden value="SHEIN_MARKETPLACE">SHEIN Marketplace</option>
                 <option value="GOOGLE_REVIEWS">Google Reviews / Perfil da Empresa</option>
                 <option value="RECLAME_AQUI">Reclame Aqui</option>
               </select></label>

@@ -1,4 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
+const MARKETPLACE_UI_ENABLED = window.MIBRO_FEATURES?.marketplaces !== false;
+const isMarketplaceChannel = (channel) => window.isMarketplaceFeatureChannel?.(channel) === true;
+const visibleChannelEntries = () => Object.entries(CHANNEL_LABELS).filter(([channel]) => MARKETPLACE_UI_ENABLED || !isMarketplaceChannel(channel));
 const escapeHtml = (value = "") => String(value).replace(/[&<>'"]/g, (char) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" })[char]);
 const state = { quickReplies: [], categories: [], intents: [], selected: null };
 
@@ -46,7 +49,7 @@ function renderFilterOptions() {
   $("#qr-filter-category").innerHTML = `<option value="">Todas as categorias</option>${state.categories.map((category) => (
     `<option value="${escapeHtml(category.id)}">${escapeHtml(category.parentId ? `- ${category.name}` : category.name)}</option>`
   )).join("")}`;
-  $("#qr-filter-channel").innerHTML = `<option value="">Todos os canais</option>${Object.entries(CHANNEL_LABELS).map(([value, label]) => (
+  $("#qr-filter-channel").innerHTML = `<option value="">Todos os canais</option>${visibleChannelEntries().map(([value, label]) => (
     `<option value="${value}">${escapeHtml(label)}</option>`
   )).join("")}`;
 }
@@ -69,7 +72,7 @@ async function loadList() {
 }
 
 function renderChannelsChecklist(selected = []) {
-  $("#qr-channels-checklist").innerHTML = Object.entries(CHANNEL_LABELS).map(([value, label]) => `
+  $("#qr-channels-checklist").innerHTML = visibleChannelEntries().map(([value, label]) => `
     <label class="checkbox"><input type="checkbox" value="${value}" ${selected.includes(value) ? "checked" : ""}><span>${label}</span></label>
   `).join("");
 }

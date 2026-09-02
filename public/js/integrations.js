@@ -1,4 +1,6 @@
 const $ = (selector) => document.querySelector(selector);
+const MARKETPLACE_UI_ENABLED = window.MIBRO_FEATURES?.marketplaces !== false;
+const isMarketplaceChannel = (channel) => window.isMarketplaceFeatureChannel?.(channel) === true;
 const state = { overview: [], settings: null, users: [], editingChannel: null, editingAccountId: null, accessAccountId: null };
 
 const CHANNEL_LABELS = {
@@ -376,7 +378,8 @@ async function deleteAccount(accountId) {
 }
 
 async function loadOverview() {
-  state.overview = await api("/api/integrations/overview");
+  const overview = await api("/api/integrations/overview");
+  state.overview = MARKETPLACE_UI_ENABLED ? overview : overview.filter((entry) => !isMarketplaceChannel(entry.channel));
   renderCards();
 }
 
