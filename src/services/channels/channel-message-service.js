@@ -5,6 +5,7 @@ const { createAdapter } = require("./channel-adapter-registry");
 const { decryptSecrets } = require("./integration-secret-service");
 const { NEW_CHANNELS, channelError } = require("./channel-constants");
 const { assertNewChannelEnabled } = require("./integration-global-settings-service");
+const { refreshAccountIfNeeded } = require("./integration-oauth-service");
 
 function decryptSecretsSafe(account) {
   try {
@@ -42,7 +43,8 @@ async function send({ channel, channelAccountId, kind = "text", ...params }) {
   if (NEW_CHANNELS.includes(channel) && !channelAccountId) {
     throw channelError("INVALID_PAYLOAD", "Conta de canal é obrigatória para novos canais.");
   }
-  const account = await loadAccount(channelAccountId, channel);
+  const account = await refreshAccountIfNeeded(await loadAccount(channelAccountId, channel));
+  if (account?.status === "RECONNECT_REQUIRED") throw channelError("TOKEN_EXPIRED", "Reconecte a conta antes de continuar.");
   if (channelAccountId && account && !account.enabled) {
     throw channelError("NOT_SUPPORTED", "Conta de canal está desativada.");
   }
@@ -62,7 +64,8 @@ async function markAsRead({ channel, channelAccountId, ...params }) {
   if (NEW_CHANNELS.includes(channel) && !channelAccountId) {
     throw channelError("INVALID_PAYLOAD", "Conta de canal é obrigatória para novos canais.");
   }
-  const account = await loadAccount(channelAccountId, channel);
+  const account = await refreshAccountIfNeeded(await loadAccount(channelAccountId, channel));
+  if (account?.status === "RECONNECT_REQUIRED") throw channelError("TOKEN_EXPIRED", "Reconecte a conta antes de continuar.");
   if (account && !account.enabled) throw channelError("NOT_SUPPORTED", "Conta de canal está desativada.");
   const adapter = buildAdapter(channel, account);
   if (!adapter.capabilities().canMarkRead) throw channelError("NOT_SUPPORTED", `Canal ${channel} não suporta marcar como lido.`);

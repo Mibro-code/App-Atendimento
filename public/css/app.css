@@ -1317,7 +1317,25 @@ html[data-theme="dark"] .changelog-release-heading b {
 .outbound-contact-fields .template-list { margin:0 -8px -8px; min-height:140px; }
 .outbound-template-editor { padding:18px; }
 .outbound-template-editor #send-outbound { width:100%; min-height:44px; border:0; border-radius:12px; color:#fff; background:var(--orange); font-weight:800; }
-.template-dialog::backdrop { background: rgba(8, 10, 13, .72); backdrop-filter: blur(4px); }
+.outbound-channel-dialog { width:min(560px,94vw); height:auto; max-height:86vh; }
+.outbound-channel-list { padding:18px 20px 22px; display:grid; gap:9px; max-height:65vh; overflow:auto; }
+.outbound-channel-card { width:100%; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:14px; border:1px solid var(--line); border-radius:12px; color:inherit; background:#f6f7f8; text-align:left; }
+.outbound-channel-card span { display:grid; gap:4px; }
+.outbound-channel-card small { color:var(--muted); }
+.outbound-channel-card em { font-style:normal; font-size:11px; font-weight:800; }
+.outbound-channel-card.available { cursor:pointer; border-color:#e68a68; }
+.outbound-channel-card.available em { color:var(--orange); }
+.outbound-channel-card.unavailable { opacity:.48; cursor:not-allowed; }
+.email-outbound-dialog { width:min(680px,94vw); height:auto; max-height:90vh; }
+.email-outbound-form { padding:18px 20px 22px; display:grid; grid-template-columns:1fr 1fr; gap:14px; overflow:auto; }
+.email-outbound-form label { display:grid; gap:6px; color:var(--muted); font-size:11px; font-weight:700; }
+.email-outbound-form input,.email-outbound-form select,.email-outbound-form textarea { width:100%; padding:0 12px; border:1px solid var(--line); border-radius:10px; color:var(--text); background:transparent; font:inherit; }
+.email-outbound-form input,.email-outbound-form select { height:42px; }
+.email-outbound-message { grid-column:1 / -1; }
+.email-outbound-form textarea { min-height:180px; padding:12px; resize:vertical; }
+.email-outbound-form #send-outbound { grid-column:1 / -1; min-height:44px; border:0; border-radius:12px; color:#fff; background:var(--orange); font-weight:800; cursor:pointer; }
+html[data-theme="dark"] .outbound-channel-card { background:#22262c; }
+@media (max-width:600px) { .email-outbound-form { grid-template-columns:1fr; } .email-outbound-message,.email-outbound-form #send-outbound { grid-column:auto; } }.template-dialog::backdrop { background: rgba(8, 10, 13, .72); backdrop-filter: blur(4px); }
 .template-billing-warning { margin: 16px 20px 0; padding: 12px 14px; display: flex; gap: 10px; border: 1px solid #f0bda9; border-radius: 12px; background: #fff5f0; color: #71311d; font-size: 13px; }
 .template-layout { min-height: 0; height: calc(100% - 150px); padding: 16px 20px 20px; display: grid; grid-template-columns: minmax(280px, 38%) minmax(0, 1fr); gap: 16px; }
 .template-picker,.template-form { min-height: 0; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
@@ -1700,3 +1718,81 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 html[data-theme="dark"] .context-pane .notes-panel,html[data-theme="dark"] .context-pane .history-panel { background:transparent; }
 
 
+
+/* Refinamento da fila, recolhimento da lista e tema das respostas rapidas. */
+.conversation-card > .note-preview { grid-column:3/-1; grid-row:2; align-self:start; width:auto; max-width:none; margin:0; }
+.workspace.conversation-list-collapsed { grid-template-columns:0 0 minmax(0,1fr); }
+.workspace.conversation-list-collapsed .filters-panel,.workspace.conversation-list-collapsed .conversation-list-panel { width:0; min-width:0; padding:0; overflow:hidden; border:0; opacity:0; visibility:hidden; pointer-events:none; }
+.conversation-list-panel { transition:opacity .16s ease; }
+.panel-collapse-button { width:36px; height:36px; flex:0 0 36px; display:grid; place-items:center; padding:0; border:1px solid var(--line); border-radius:50%; color:#555; background:#fff; font-size:23px; line-height:1; }
+.panel-collapse-button:hover { border-color:var(--orange); color:#fff; background:var(--orange); }
+.quick-reply-shortcut,.composer > .quick-reply-shortcut { border:2px solid #0d0f12; color:#111; background:var(--orange); box-shadow:0 2px 0 #0d0f12; }
+.quick-reply-shortcut svg { width:26px; height:26px; display:block; overflow:visible; }
+.quick-reply-shortcut path { fill:url(#quick-bolt-gradient); stroke:#0a0b0d; stroke-width:1.7; stroke-linejoin:round; }
+.quick-reply-shortcut:hover,.composer > .quick-reply-shortcut:hover { border-color:#000; color:#111; background:#ff6b38; filter:brightness(1.04); }
+html[data-theme="dark"] .panel-collapse-button { border-color:#424851; color:#eef0f3; background:#24282e; }
+html[data-theme="dark"] .panel-collapse-button:hover { border-color:var(--orange); color:#fff; background:var(--orange); }
+html[data-theme="dark"] .composer > .quick-reply-shortcut { border:2px solid #050607; color:#111; background:var(--orange); box-shadow:0 0 0 1px #f7a183,0 2px 0 #050607; }
+html[data-theme="dark"] .composer > .quick-reply-shortcut:hover { border-color:#000; color:#111; background:#ff6b38; }
+html[data-theme="dark"] .quick-reply-dialog { border:1px solid #363c44; color:#eef0f3; background:#181b20; box-shadow:0 25px 90px #000b; }
+html[data-theme="dark"] .quick-reply-dialog .dialog-header { border-color:#343a42; background:#1d2026; }
+html[data-theme="dark"] .quick-reply-dialog .dialog-header h2 { color:#f2f4f7; }
+html[data-theme="dark"] .quick-reply-search { border-color:#464d57; background:#22262c; }
+html[data-theme="dark"] .quick-reply-search input { color:#eef0f3; }
+html[data-theme="dark"] .quick-reply-search input::placeholder { color:#929aa5; opacity:1; }
+html[data-theme="dark"] .quick-reply-categories button { border-color:#454c56; color:#d7dbe1; background:#24282e; }
+html[data-theme="dark"] .quick-reply-categories button.active { border-color:var(--orange); color:#fff; background:var(--orange); }
+html[data-theme="dark"] .quick-reply-list { color:#e4e7eb; background:#181b20; }
+html[data-theme="dark"] .quick-reply-card { border-color:#3b424b; color:#e9ecf0; background:#22262c; }
+html[data-theme="dark"] .quick-reply-card p,html[data-theme="dark"] .quick-reply-empty,html[data-theme="dark"] .quick-reply-list-heading { color:#aeb5bf; }
+@media (max-width:700px) { .panel-collapse-button { display:none; }.workspace.conversation-list-collapsed { grid-template-columns:1fr; } }
+
+
+/* Contato único: fusão controlada e troca explícita do canal de resposta. */
+.contact-merge-button{height:30px;padding:0 11px;border:1px solid var(--line);border-radius:15px;color:#555;background:#fff;font-size:10px;font-weight:800}
+.contact-merge-button:hover{border-color:var(--orange);color:#fff;background:var(--orange)}
+.merged-channel-control{display:flex;align-items:center;gap:7px;margin-left:auto;padding:4px 7px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.merged-channel-control span{color:#777;font-size:9px;font-weight:800;text-transform:uppercase}
+.merged-channel-control select{max-width:300px;border:0;background:transparent;font-size:11px;font-weight:700;outline:0}
+.merge-contact-dialog{width:min(620px,calc(100vw - 28px));max-height:78vh;padding:0;border:1px solid var(--line);border-radius:18px;background:#fff;box-shadow:0 24px 80px #0006}
+.merge-contact-search{display:grid;gap:6px;padding:18px 20px 10px;color:#777;font-size:10px;font-weight:800;text-transform:uppercase}
+.merge-contact-search input{height:42px;padding:0 13px;border:1px solid var(--line);border-radius:10px;background:#fff;outline:0}
+.merge-contact-search input:focus{border-color:var(--orange)}
+.merge-contact-results{display:grid;gap:8px;max-height:440px;padding:8px 20px 20px;overflow:auto}
+.merge-contact-result{display:flex;align-items:center;justify-content:space-between;gap:14px;width:100%;padding:13px;border:1px solid var(--line);border-radius:11px;color:#222;background:#fff;text-align:left}
+.merge-contact-result:hover{border-color:var(--orange);background:var(--orange-soft)}
+.merge-contact-result span{display:grid;gap:3px}.merge-contact-result small{color:#777}.merge-contact-result em{color:var(--orange);font-size:10px;font-style:normal;font-weight:800}
+.merge-contact-empty{padding:28px;color:#777;text-align:center}.merge-contact-empty.error{color:#b3261e}
+html[data-theme="dark"] .contact-merge-button,html[data-theme="dark"] .merged-channel-control{border-color:#414750;color:#e9ebee;background:#24282e}
+html[data-theme="dark"] .merged-channel-control select{color:#eef0f3;background:#24282e}
+html[data-theme="dark"] .merge-contact-dialog{border-color:#3b414a;color:#eef0f3;background:#181b20}
+html[data-theme="dark"] .merge-contact-search input,html[data-theme="dark"] .merge-contact-result{border-color:#3d444d;color:#eef0f3;background:#22262c}
+html[data-theme="dark"] .merge-contact-result:hover{border-color:var(--orange);background:#34251f}
+@media(max-width:700px){.merged-channel-control{order:20;width:100%;margin-left:0}.merged-channel-control select{flex:1;max-width:none}.contact-merge-button{font-size:0}.contact-merge-button::after{content:"Fundir";font-size:10px}}
+
+
+/* Workspaces dedicados por canal — mesma operação, identidade visual própria. */
+.workspace{--channel-accent:var(--orange);--channel-accent-soft:rgba(239,91,42,.11)}
+.workspace[data-channel-view="whatsapp"]{--channel-accent:#26c76f;--channel-accent-soft:rgba(38,199,111,.11)}
+.workspace[data-channel-view="email"]{--channel-accent:#6f8cff;--channel-accent-soft:rgba(111,140,255,.12)}
+.workspace[data-channel-view="social"]{--channel-accent:#df4ed8;--channel-accent-soft:rgba(223,78,216,.11)}
+.workspace[data-channel-view="stores"]{--channel-accent:#ff8a32;--channel-accent-soft:rgba(255,138,50,.12)}
+.workspace.conversation-list-collapsed{grid-template-columns:var(--sidebar-w) 0 0 minmax(0,1fr) var(--context-w-collapsed)}
+.workspace.conversation-list-collapsed .filters-panel,.workspace.conversation-list-collapsed .conversation-list-panel{width:0;min-width:0;padding:0;overflow:hidden;border:0;opacity:0;visibility:hidden;pointer-events:none}
+.workspace-channel-eyebrow{display:block;margin-bottom:4px;color:var(--channel-accent);font-size:9px;font-weight:900;letter-spacing:.14em}
+.list-heading{position:relative;overflow:hidden;background:color-mix(in srgb,var(--surface-1) 96%,var(--channel-accent-soft));transition:background var(--dur-base) var(--ease)}
+.list-heading::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:linear-gradient(90deg,var(--channel-accent),transparent 72%);opacity:.65}
+.channel-icon{width:24px;height:24px;border-radius:8px;color:#fff;font-size:10px;font-weight:900;box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 4px 10px rgba(0,0,0,.18)}
+.channel-icon.whatsapp{background:linear-gradient(145deg,#38da82,#169c53)}
+.channel-icon.email{background:linear-gradient(145deg,#879cff,#526cdb)}
+.channel-icon.meta{background:linear-gradient(145deg,#f05adf,#7167ff)}
+.channel-icon.stores{background:linear-gradient(145deg,#ff9f45,#e65c22)}
+.channel-workspace-item.active{color:var(--channel-accent);background:var(--channel-accent-soft);box-shadow:inset 2px 0 0 var(--channel-accent),0 0 0 1px color-mix(in srgb,var(--channel-accent) 20%,transparent)}
+.workspace .conversation-card.active{border-color:color-mix(in srgb,var(--channel-accent) 62%,var(--border-strong));background:var(--channel-accent-soft);box-shadow:0 0 0 1px color-mix(in srgb,var(--channel-accent) 26%,transparent),0 12px 28px rgba(0,0,0,.16)}
+.workspace .conversation-card.active::before{background:var(--channel-accent)}
+.workspace .conversation-card.active .avatar{background:linear-gradient(145deg,var(--channel-accent),color-mix(in srgb,var(--channel-accent) 68%,#111));color:#fff}
+.workspace .messages{box-shadow:inset 0 18px 32px -30px var(--channel-accent)}
+.context-panel{background:linear-gradient(180deg,color-mix(in srgb,var(--surface-1) 97%,var(--channel-accent-soft)),var(--surface-1) 190px)}
+.context-tab.active{color:var(--channel-accent)}
+.context-tab.active::after{background:var(--channel-accent)}
+@media(max-width:700px){.workspace.conversation-list-collapsed{grid-template-columns:0 1fr}.workspace-channel-eyebrow{font-size:8px}}

@@ -21,7 +21,14 @@ async function conversationScope(user) {
   const visible = [{ assignedUserId: user.id }];
   if (categoryIds.length) visible.push({ categoryId: { in: categoryIds } });
   if (user.canViewUncategorized) visible.push({ categoryId: null });
-  return visible.length ? { OR: visible } : { id: { in: [] } };
+  const operationalScope = visible.length ? { OR: visible } : { id: { in: [] } };
+  const emailAccountScope = {
+    OR: [
+      { channel: { not: "EMAIL" } },
+      { channelAccount: { is: { accessUsers: { some: { userId: user.id } } } } },
+    ],
+  };
+  return { AND: [operationalScope, emailAccountScope] };
 }
 
 async function canAccessCategory(user, categoryId) {
@@ -73,6 +80,22 @@ function assertCanSetPriority(user) {
 
 // Campanhas/prospecção (item 27): Admin e Supervisor por padrão; Atendente
 // só com o flag explícito canManageCampaigns.
+function canStartConversations(user) {
+  return isMaster(user) || Boolean(user?.canStartConversations);
+}
+
+function assertCanStartConversations(user) {
+  if (!canStartConversations(user)) throw forbidden("Você não tem permissão para iniciar conversas.");
+}
+
+function canMergeContacts(user) {
+  return isMaster(user) || Boolean(user?.canMergeContacts);
+}
+
+function assertCanMergeContacts(user) {
+  if (!canMergeContacts(user)) throw forbidden("Você não tem permissão para fundir contatos.");
+}
+
 function canManageCampaigns(user) {
   return isMaster(user) || user?.role === "SUPERVISOR" || Boolean(user?.canManageCampaigns);
 }
@@ -95,8 +118,8 @@ function assertCanViewConversationSettings(user) {
 }
 
 module.exports = {
-  allowedCategoryIds, assertCanAccessContact, assertCanManageCampaigns, assertCanManageCategories,
+  allowedCategoryIds, assertCanAccessContact, assertCanManageCampaigns, assertCanManageCategories, assertCanMergeContacts, assertCanStartConversations,
   assertCanSetPriority, assertCanViewConversation, assertCanViewConversationSettings, assertMaster,
-  canAccessCategory, canManageCampaigns, canSetPriority, canTransfer, canViewConversationSettings,
+  canAccessCategory, canManageCampaigns, canMergeContacts, canSetPriority, canStartConversations, canTransfer, canViewConversationSettings,
   conversationScope, forbidden, isMaster,
 };

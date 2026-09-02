@@ -57,6 +57,7 @@ enum ChannelAccountStatus {
   // Exige contrato/credencial comercial que ainda não existe (ex.: Reclame
   // Aqui sem contrato oficial de API).
   NEEDS_CONTRACT
+  RECONNECT_REQUIRED
 }
 
 enum ExternalEventStatus {
@@ -230,16 +231,29 @@ model Contact {
   // Opcional: nem todo canal tem telefone (Mercado Livre = buyerId, e-mail =
   // endereço, Google Review = reviewer). WhatsApp continua sempre populando.
   phone            String?
+  email            String?
   name             String?
   customName       String?
+  identityId       String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
   conversations    Conversation[]
   notes            ContactNote[]
   campaignContacts CampaignContact[]
+  identity         ContactIdentity?  @relation(fields: [identityId], references: [id], onDelete: SetNull)
 
   @@unique([channel, externalId])
   @@index([phone])
+  @@index([email])
+  @@index([identityId])
+}
+
+model ContactIdentity {
+  id          String    @id @default(cuid())
+  displayName String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  contacts    Contact[]
 }
 
 model ContactNote {
@@ -378,6 +392,8 @@ model User {
   // este flag libera um Atendente específico sem mudar o cargo (mesmo
   // padrão de canManageCampaigns/canTransferConversations).
   canSetConversationPriority   Boolean                  @default(false)
+  canStartConversations        Boolean                  @default(false)
+  canMergeContacts             Boolean                  @default(false)
   createdAt                    DateTime                 @default(now())
   updatedAt                    DateTime                 @updatedAt
   assignedConversations        Conversation[]           @relation("AssignedConversations")
@@ -402,6 +418,7 @@ model User {
   suggestionFeedbackGiven      BotSuggestionFeedback[]  @relation("SuggestionFeedbackUser")
   pushSubscriptions            PushSubscription[]       @relation("UserPushSubscriptions")
   campaignsCreated             Campaign[]               @relation("CampaignCreatedBy")
+  channelAccountAccess         ChannelAccountUserAccess[]
   campaignsResponsible         Campaign[]               @relation("CampaignResponsible")
   campaignImports              CampaignImport[]         @relation("CampaignImportedBy")
   optOutsRemoved               OptOut[]                 @relation("OptOutRemovedBy")
@@ -1173,6 +1190,10 @@ model ChannelAccount {
   status            ChannelAccountStatus @default(NOT_CONFIGURED)
   enabled           Boolean              @default(false)
   externalAccountId String?
+  oauthProvider     String?
+  oauthScopes       String[]             @default([])
+  tokenExpiresAt    DateTime?
+  providerMetadata Json                  @default("{}")
   config            Json                 @default("{}")
   secretKeys        String[]             @default([])
   encryptedSecrets  Bytes?
@@ -1189,12 +1210,23 @@ model ChannelAccount {
   oauthStates   ChannelOAuthState[]
   events        ExternalChannelEvent[]
   campaigns     Campaign[]
+  accessUsers   ChannelAccountUserAccess[]
 
   @@unique([channel, name])
   @@index([channel, enabled])
   @@index([status])
 }
 
+model ChannelAccountUserAccess {
+  channelAccountId String
+  userId           String
+  createdAt        DateTime       @default(now())
+  channelAccount   ChannelAccount @relation(fields: [channelAccountId], references: [id], onDelete: Cascade)
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([channelAccountId, userId])
+  @@index([userId])
+}
 // Estado de fluxo OAuth (item 13) — protege contra CSRF/state replay: cada
 // state é de uso único (`consumedAt`) e expira.
 model ChannelOAuthState {

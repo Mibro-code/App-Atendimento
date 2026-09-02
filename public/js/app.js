@@ -12,9 +12,10 @@ const state = {
   expandedCategories: new Set(), adminUsers: [], auditLogs: [], editingUserId: null, assignedUser: "",
   assignedUserActiveOnly: false, alertCursor: null, checkingAlerts: false,
   customerServiceWindow: null, templates: [], selectedTemplate: null,
-  metaStatus: { templatesConfigured:false }, outboundTemplate: null, categoryVisibility: { hideUncategorized:false, hiddenCategoryIds:[] }, visibilityMode:false,
+  outboundChannels: [], categoryVisibility: { hideUncategorized:false, hiddenCategoryIds:[] }, visibilityMode:false,
   quickReplies: [], quickReplyCategoryFilter: "", quickReplySearch: "",
   botSuggestion: null, pendingBotSuggestion: null,
+  mergedDestinations: [],
 };
 const $ = (selector) => document.querySelector(selector);
 const defaultDocumentTitle = document.title;
@@ -102,6 +103,9 @@ function closeConversationView() {
   state.selectedMessageItems = [];
   state.selectedMessages = [];
   state.selectedContactName = "";
+  state.mergedDestinations = [];
+  $("#merge-contact").hidden = true;
+  $("#merged-channel-control").hidden = true;
   state.botSuggestion = null;
   state.pendingBotSuggestion = null;
   hideBotSuggestion();
@@ -153,6 +157,16 @@ function setFiltersPanelCollapsed(collapsed, persist = true) {
   button.setAttribute("aria-label", collapsed ? "Mostrar filtros e categorias" : "Recolher filtros e categorias");
   button.title = collapsed ? "Mostrar filtros e categorias" : "Recolher filtros e categorias";
   if (persist) try { localStorage.setItem("mibro-filters-collapsed", collapsed ? "1" : "0"); } catch {}
+}
+
+function setConversationListCollapsed(collapsed) {
+  if (collapsed && !state.selectedId) return;
+  const workspace = $(".workspace");
+  const button = $("#toggle-conversation-list");
+  workspace.classList.toggle("conversation-list-collapsed", collapsed);
+  button.textContent = collapsed ? "\u203a" : "\u2039";
+  button.setAttribute("aria-expanded", String(!collapsed));
+  button.title = collapsed ? "Mostrar lista de conversas" : "Recolher lista de conversas";
 }
 
 // Painel lateral direito (item 7 do redesign): abas Detalhes/Notas/Histórico/
@@ -219,22 +233,22 @@ function conversationSignature(conversation) {
     conversation.assignedUserId, conversation.assignedUser?.name,
     conversation.priority, conversation.firstResponseSlaBreached, conversation.responseSlaBreached, conversation.slaMinutesRemaining,
     conversation.isPinned,
-    conversation.contact.customName, conversation.contact.name, conversation.contact.phone, conversation.contact._count?.notes,
+    conversation.contact.customName, conversation.contact.name, conversation.contact.email, conversation.contact.phone, conversation.contact._count?.notes,
     note?.id, note?.content,
     lastMessage?.id, lastMessage?.text, lastMessage?.type,
   ]);
 }
 
 function conversationCardMarkup(c) {
-  const last = c.messages[0]; const name = c.contact.customName || c.contact.name || c.contact.phone; const note = c.contact.notes?.[0];
+  const last = c.messages[0]; const name = c.contact.customName || c.contact.name || c.contact.email || c.contact.phone; const note = c.contact.notes?.[0];
   return `<button class="conversation-card ${c.id === state.selectedId ? "active" : ""}" data-id="${escapeHtml(c.id)}">
     <span class="card-grip" aria-hidden="true"></span><span class="avatar">${escapeHtml(initials(name))}</span><span class="card-main">
-    <span class="card-title"><strong>${c.isPinned ? `<i class="conversation-pin" title="Conversa fixada">★</i>` : ""}${escapeHtml(name)}</strong><small>${escapeHtml(c.contact.phone)}</small></span>
+    <span class="card-title"><strong>${c.isPinned ? `<i class="conversation-pin" title="Conversa fixada">★</i>` : ""}${escapeHtml(name)}</strong><small>${escapeHtml(c.contact.email || c.contact.phone || "")}</small></span>
     <span class="preview">${escapeHtml(messagePreview(last))}</span>
-    <span class="card-labels">${channelBadge(c.channel) ? `<span class="channel-label">${escapeHtml(channelBadge(c.channel))}</span>` : ""}<span class="category-label" style="color:${c.category?.color || "#666"};border-color:${c.category?.color || "#aaa"}">${escapeHtml(categoryLabel(c.category))}</span><span class="status-label">${escapeHtml(statusLabel(c.status))}</span>${c.assignedUser ? `<span class="assignee-label">${escapeHtml(c.assignedUser.name)}</span>` : ""}${priorityBadge(c.priority)}${slaBadge(c.slaMinutesRemaining)}</span>    <span class="note-preview"><b>NOTA</b> ${escapeHtml(note?.content || "Sem notas para este contato")}${c.contact._count?.notes ? `<i>${c.contact._count.notes}</i>` : ""}</span></span>
-    <span class="card-side"><span>${time(c.lastMessageAt)}</span><span class="card-elapsed">${escapeHtml(elapsedShort(c.lastMessageAt))}</span>${c.unreadCount ? `<span class="unread">${c.unreadCount}</span>` : ""}</span></button>`;
+    <span class="card-labels">${channelBadge(c.channel) ? `<span class="channel-label">${escapeHtml(channelBadge(c.channel))}</span>` : ""}<span class="category-label" style="color:${c.category?.color || "#666"};border-color:${c.category?.color || "#aaa"}">${escapeHtml(categoryLabel(c.category))}</span><span class="status-label">${escapeHtml(statusLabel(c.status))}</span>${c.assignedUser ? `<span class="assignee-label">${escapeHtml(c.assignedUser.name)}</span>` : ""}${priorityBadge(c.priority)}${slaBadge(c.slaMinutesRemaining)}</span></span>
+    <span class="card-side"><span>${time(c.lastMessageAt)}</span><span class="card-elapsed">${escapeHtml(elapsedShort(c.lastMessageAt))}</span>${c.unreadCount ? `<span class="unread">${c.unreadCount}</span>` : ""}</span>
+    <span class="note-preview"><b>NOTA</b> ${escapeHtml(note?.content || "Sem notas para este contato")}${c.contact._count?.notes ? `<i>${c.contact._count.notes}</i>` : ""}</span></button>`;
 }
-
 function renderConversationCards(conversations) {
   const list = $("#conversation-list");
   list.querySelector(".skeleton-list")?.remove();
@@ -441,6 +455,7 @@ async function loadCurrentUser() {
   $("#knowledge-base-button").hidden = !status.user.isMaster;
   $("#integrations-button").hidden = !status.user.isMaster;
   $("#campaigns-button").hidden = !status.user.canManageCampaigns;
+  $("#new-conversation").hidden = !status.user.canStartConversations;
   $("#conversation-settings-button").hidden = !status.user.isMaster && status.user.role !== "SUPERVISOR";
   $("#team-button").hidden = !status.user.isMaster && !status.user.canViewTeamActivity;
   $("#open-audit").hidden = !status.user.isMaster;
@@ -546,64 +561,47 @@ async function openTemplates() {
   }
 }
 
-function outboundTemplatePreview(template) {
-  let preview = template.previewTemplate || template.preview || "";
-  for (const variable of template.variables || []) {
-    if (!["BODY", "HEADER"].includes(variable.component)) continue;
-    const input = [...document.querySelectorAll("[data-outbound-template-variable]")]
-      .find((item) => item.dataset.outboundTemplateVariable === variable.key);
-    preview = preview.replaceAll(`{{${variable.placeholder}}}`, input?.value.trim() || variable.example || `{{${variable.placeholder}}}`);
-  }
-  return preview;
-}
-
-function renderOutboundTemplateEditor() {
-  const template = state.outboundTemplate;
-  $("#outbound-template-empty").hidden = Boolean(template);
-  $("#outbound-template-content").hidden = !template;
-  if (!template) return;
-  $("#outbound-template-name").textContent = template.name;
-  $("#outbound-template-details").textContent = `${template.language} • ${template.category}`;
-  $("#outbound-template-variables").innerHTML = (template.variables || []).map((variable) => `<label><span>${escapeHtml(variable.label)}</span><input data-outbound-template-variable="${escapeHtml(variable.key)}" value="${escapeHtml(variable.example || "")}" placeholder="Digite o valor" required></label>`).join("");
-  $("#outbound-template-preview").textContent = outboundTemplatePreview(template);
-  document.querySelectorAll("[data-outbound-template-variable]").forEach((input) => input.addEventListener("input", () => {
-    $("#outbound-template-preview").textContent = outboundTemplatePreview(template);
+function renderOutboundChannels() {
+  const container = $("#outbound-channel-list");
+  container.innerHTML = state.outboundChannels.map((item) => `
+    <button type="button" class="outbound-channel-card ${item.enabled ? "available" : "unavailable"}"
+      data-outbound-channel="${escapeHtml(item.channel)}" ${item.enabled ? "" : "disabled"}>
+      <span><b>${escapeHtml(item.label)}</b><small>${escapeHtml(item.enabled ? `${item.accounts.length} conta(s) disponível(is)` : item.reason)}</small></span>
+      <em>${item.enabled ? "Selecionar" : "Indisponível"}</em>
+    </button>`).join("");
+  container.querySelectorAll("[data-outbound-channel]:not(:disabled)").forEach((button) => button.addEventListener("click", () => {
+    if (button.dataset.outboundChannel !== "EMAIL") return;
+    const emailChannel = state.outboundChannels.find((item) => item.channel === "EMAIL");
+    $("#outbound-channel-dialog").close();
+    $("#outbound-form").reset();
+    $("#outbound-account").innerHTML = emailChannel.accounts.map((account) =>
+      `<option value="${escapeHtml(account.id)}">${escapeHtml(account.name)}${account.address ? ` — ${escapeHtml(account.address)}` : ""}</option>`
+    ).join("");
+    $("#outbound-dialog").showModal();
   }));
 }
 
-function renderOutboundTemplateList() {
-  $("#outbound-template-list").innerHTML = state.templates.length ? state.templates.map((template) => `<button class="template-card ${state.outboundTemplate?.id === template.id ? "selected" : ""}" type="button" data-outbound-template-id="${escapeHtml(template.id)}" ${template.supported ? "" : "disabled"} title="${escapeHtml(template.unsupportedReason || "Selecionar template")}"><strong>${escapeHtml(template.name)}</strong><span><b>${escapeHtml(template.language)}</b><b>${escapeHtml(template.category)}</b></span><small>${escapeHtml(template.unsupportedReason || template.preview || "Sem prévia")}</small></button>`).join("") : `<div class="template-empty">Nenhum template aprovado encontrado.</div>`;
-  document.querySelectorAll("[data-outbound-template-id]").forEach((button) => button.addEventListener("click", () => {
-    state.outboundTemplate = state.templates.find((template) => template.id === button.dataset.outboundTemplateId) || null;
-    renderOutboundTemplateList();
-    renderOutboundTemplateEditor();
-  }));
-}
-
-async function loadMetaStatus() {
-  state.metaStatus = await api("/api/meta/status");
+async function loadOutboundChannels() {
   const button = $("#new-conversation");
-  button.dataset.unavailable = String(!state.metaStatus.templatesConfigured);
-  button.title = state.metaStatus.templatesConfigured
-    ? "Iniciar nova conversa pelo WhatsApp"
-    : "Disponível após configurar os templates da Meta";
+  if (!state.currentUser?.canStartConversations) {
+    state.outboundChannels = [];
+    button.hidden = true;
+    return;
+  }
+  button.hidden = false;
+  state.outboundChannels = await api("/api/outbound/channels");
+  const hasEmail = state.outboundChannels.some((item) => item.channel === "EMAIL" && item.enabled);
+  button.dataset.unavailable = String(!hasEmail);
+  button.title = hasEmail ? "Iniciar nova conversa por e-mail" : "Nenhuma conta de e-mail disponível";
 }
 
 async function openOutboundConversation() {
-  if (!state.metaStatus.templatesConfigured) return toast("A criação de conversas ficará disponível após configurar os templates da Meta.", true);
-  state.outboundTemplate = null;
-  $("#outbound-form").reset();
-  $("#outbound-template-list").innerHTML = `<div class="template-empty">Consultando templates aprovados na Meta...</div>`;
-  renderOutboundTemplateEditor();
-  $("#outbound-dialog").showModal();
   try {
-    state.templates = await api("/api/meta/templates");
-    renderOutboundTemplateList();
-  } catch (error) {
-    $("#outbound-template-list").innerHTML = `<div class="template-empty">${escapeHtml(error.message)}</div>`;
-  }
+    await loadOutboundChannels();
+    renderOutboundChannels();
+    $("#outbound-channel-dialog").showModal();
+  } catch (error) { toast(error.message, true); }
 }
-
 function configureNotificationButton() {
   const button = $("#enable-notifications");
   if (!("Notification" in window)) return;
@@ -855,6 +853,21 @@ $("#dislike-bot-suggestion").addEventListener("click", async () => {
   catch (error) { toast(error.message, true); }
 });
 
+const mergedChannelLabels = { META:"WhatsApp", EMAIL:"E-mail", INSTAGRAM_DIRECT:"Instagram", FACEBOOK_MESSENGER:"Facebook", MERCADO_LIVRE:"Mercado Livre", TIKTOK_SHOP:"TikTok Shop", AMAZON_MARKETPLACE:"Amazon", SHOPEE:"Shopee", GOOGLE_REVIEWS:"Google Reviews" };
+function renderMergedDestinations(destinations, selectedId) {
+  state.mergedDestinations = destinations || [];
+  const control = $("#merged-channel-control");
+  const select = $("#merged-channel-select");
+  control.hidden = state.mergedDestinations.length < 2;
+  select.innerHTML = state.mergedDestinations.map((item) => {
+    const channel = mergedChannelLabels[item.channel] || item.channel;
+    const address = item.contact?.email || (item.contact?.phone ? `+${item.contact.phone}` : item.contactName);
+    const account = item.channelAccount?.name ? ` · ${item.channelAccount.name}` : "";
+    return `<option value="${escapeHtml(item.id)}">${escapeHtml(`${channel} — ${address}${account}`)}</option>`;
+  }).join("");
+  if (state.mergedDestinations.some((item) => item.id === selectedId)) select.value = selectedId;
+}
+
 const chatSkeletonMarkup = () => `<div class="skeleton-list">${[1, 2, 3].map((index) => `<div class="skeleton-row"><div class="skeleton skeleton-avatar"></div><div class="skeleton-lines"><div class="skeleton skeleton-line ${index % 2 ? "long" : "medium"}"></div><div class="skeleton skeleton-line short"></div></div></div>`).join("")}</div>`;
 
 async function openConversation(id, { refreshList = true, markRead = true } = {}) {
@@ -889,13 +902,14 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
     priority: c.priority,
     isPinned: c.isPinned,
     canViewHistory: c.canViewHistory,
-    contact: [c.contact.id, c.contact.customName, c.contact.name, c.contact.phone],
+    contact: [c.contact.id, c.contact.customName, c.contact.name, c.contact.email, c.contact.phone],
     messageHistoryLimited: c.messageHistoryLimited,
     customerServiceWindow: c.customerServiceWindow,
+    mergedDestinations: (c.mergedDestinations || []).map((item) => [item.id, item.channel, item.contact?.email, item.contact?.phone, item.channelAccount?.name]),
   });
   const displayMessages = messagesWithReactions(c.messages);
   state.selectedMessages = displayMessages;
-  state.selectedContactName = c.contact.customName || c.contact.name || c.contact.phone;
+  state.selectedContactName = c.contact.customName || c.contact.name || c.contact.email || c.contact.phone;
   const hasReactionEvents = displayMessages.length !== c.messages.length;
   const messageItems = displayMessages.map((message) => JSON.stringify([message.id, message.externalId, message.direction, message.type, message.text, message.occurredAt, message.mediaStorageKey, message.mediaMimeType, message.mediaFileName, message.mediaSize, message.reactionEmoji, message.sentByUser?.id, message.sentByUser?.name]));
   const messagesSignature = JSON.stringify([c.messageHistoryLimited, messageItems]);
@@ -909,8 +923,10 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
   $("#empty-state").hidden = true; $("#chat-content").hidden = false; $("#chat-panel").classList.add("open");
   if (headerSignature !== state.selectedHeaderSignature) {
     state.selectedHeaderSignature = headerSignature;
-    const name = c.contact.customName || c.contact.name || c.contact.phone;
-    $("#contact-avatar").textContent = initials(name); $("#contact-name").textContent = name; $("#contact-phone").textContent = `+${c.contact.phone}`;
+    const name = c.contact.customName || c.contact.name || c.contact.email || c.contact.phone;
+    $("#contact-avatar").textContent = initials(name); $("#contact-name").textContent = name; $("#contact-phone").textContent = c.contact.email || (c.contact.phone ? `+${c.contact.phone}` : "");
+    $("#merge-contact").hidden = !state.currentUser?.canMergeContacts;
+    renderMergedDestinations(c.mergedDestinations, c.id);
     const primaryCategory = c.category?.parent || (c.category && !c.category.parentId ? c.category : null);
     const primaryId = primaryCategory?.id || "";
     if (primaryId && ![...$("#category-select").options].some((option) => option.value === primaryId)) {
@@ -1156,6 +1172,8 @@ function editTeamUser(userId) {
   $("#permission-history").checked = user.canViewConversationHistory;
   $("#permission-previous-messages").checked = user.canViewPreviousMessages;
   $("#permission-priority").checked = user.canSetConversationPriority;
+  $("#permission-start-conversations").checked = user.canStartConversations;
+  $("#permission-merge-contacts").checked = user.canMergeContacts;
   $("#team-form-eyebrow").textContent = "EDITAR CONTA";
   $("#team-form-title").textContent = user.name;
   renderTeamCategoryAccess(user.categoryAccess.map((access) => access.categoryId), user.canViewUncategorized);
@@ -1168,7 +1186,7 @@ function renderAdminUsers() {
 }
 
 const auditActionLabel = (action) => ({
-  USER_CREATED:"Conta criada", USER_UPDATED:"Conta alterada",
+  USER_CREATED:"Conta criada", USER_UPDATED:"Conta alterada", CONTACTS_MERGED:"Contatos fundidos",
   CONVERSATION_DELETED:"Conversa apagada", CONVERSATION_PINNED:"Conversa fixada",
   CONVERSATION_UNPINNED:"Conversa desafixada", CONVERSATION_CATEGORY_CHANGED:"Categoria da conversa",
   CONVERSATION_ASSIGNEE_CHANGED:"Responsável da conversa", CONVERSATION_STATUS_CHANGED:"Status da conversa",
@@ -1231,27 +1249,56 @@ document.querySelectorAll("[data-toggle-filter]").forEach((button) => button.add
   loadConversations();
 }));
 let searchTimer; $("#search").addEventListener("input", (event) => { clearTimeout(searchTimer); state.search = event.target.value.trim(); searchTimer = setTimeout(loadConversations, 250); });
-$("#channel-filter").addEventListener("change", (event) => { state.channel = event.target.value; loadConversations(); });
+const channelWorkspaceMeta = {
+  "": { key:"all", title:"Conversas", eyebrow:"TODOS OS CANAIS" },
+  META: { key:"whatsapp", title:"WhatsApp", eyebrow:"ATENDIMENTO EM TEMPO REAL" },
+  EMAIL: { key:"email", title:"E-mail", eyebrow:"CAIXA DE ENTRADA" },
+  "INSTAGRAM_DIRECT,INSTAGRAM_COMMENTS,FACEBOOK_MESSENGER,FACEBOOK_COMMENTS": { key:"social", title:"Instagram + Facebook", eyebrow:"SOCIAL E MENSAGENS" },
+  "MERCADO_LIVRE,TIKTOK_SHOP,AMAZON_MARKETPLACE,SHOPEE,SHEIN_MARKETPLACE": { key:"stores", title:"Plataformas de venda", eyebrow:"MARKETPLACES" },
+};
+function setChannelWorkspace(value, { load = true, persist = true } = {}) {
+  const next = String(value || "");
+  const meta = channelWorkspaceMeta[next] || { key:"custom", title:"Conversas", eyebrow:"CANAL SELECIONADO" };
+  state.channel = next;
+  $("#channel-filter").value = next;
+  $(".workspace").dataset.channelView = meta.key;
+  $("#workspace-channel-title").textContent = meta.title;
+  $("#workspace-channel-eyebrow").textContent = meta.eyebrow;
+  document.querySelectorAll(".channel-workspace-item").forEach((item) => {
+    const active = item.dataset.channelView === next;
+    item.classList.toggle("active", active);
+    if (active) item.setAttribute("aria-current", "page"); else item.removeAttribute("aria-current");
+  });
+  if (persist) try { localStorage.setItem("mibro-channel-workspace", next); } catch {}
+  if (load) { closeConversationView(); loadConversations(); }
+}
+$("#channel-filter").addEventListener("change", (event) => setChannelWorkspace(event.target.value));
+document.querySelectorAll(".channel-workspace-item").forEach((item) => item.addEventListener("click", () => {
+  setChannelWorkspace(item.dataset.channelView);
+  $("#app-sidebar").classList.remove("mobile-open");
+}));
 $("#refresh").addEventListener("click", loadConversations);
 $("#new-conversation").addEventListener("click", openOutboundConversation);
+$("#close-outbound-channels").addEventListener("click", () => $("#outbound-channel-dialog").close());
+$("#outbound-channel-dialog").addEventListener("click", (event) => { if (event.target === $("#outbound-channel-dialog")) $("#outbound-channel-dialog").close(); });
 $("#close-outbound").addEventListener("click", () => $("#outbound-dialog").close());
 $("#outbound-dialog").addEventListener("click", (event) => { if (event.target === $("#outbound-dialog")) $("#outbound-dialog").close(); });
 $("#outbound-form").addEventListener("submit", async (event) => {
   event.preventDefault();
-  if (!state.outboundTemplate) return toast("Selecione o template inicial.", true);
   const button = $("#send-outbound");
-  const values = Object.fromEntries([...document.querySelectorAll("[data-outbound-template-variable]")].map((input) => [input.dataset.outboundTemplateVariable, input.value.trim()]));
   button.disabled = true;
   try {
-    const result = await api("/api/conversations/outbound", { method:"POST", body:JSON.stringify({
-      phone:$("#outbound-phone").value,
+    const result = await api("/api/conversations/outbound/email", { method:"POST", body:JSON.stringify({
+      accountId:$("#outbound-account").value,
+      to:$("#outbound-email").value.trim(),
       customName:$("#outbound-name").value.trim(),
-      template:{ name:state.outboundTemplate.name, language:state.outboundTemplate.language, values },
+      subject:$("#outbound-subject").value.trim(),
+      text:$("#outbound-message").value.trim(),
     }) });
     $("#outbound-dialog").close();
     await loadConversations();
     await openConversation(result.conversationId);
-    toast(result.created ? "Conversa criada e template enviado." : "Conversa existente aberta e template enviado.");
+    toast(result.created ? "E-mail enviado e conversa criada." : "E-mail enviado na conversa existente.");
   } catch (error) { toast(error.message, true); }
   finally { button.disabled = false; }
 });
@@ -1300,6 +1347,9 @@ $("#theme-toggle").addEventListener("click", () => {
 
 $("#toggle-filters-panel").addEventListener("click", () => {
   setFiltersPanelCollapsed(!$(".workspace").classList.contains("filters-collapsed"));
+});
+$("#toggle-conversation-list").addEventListener("click", () => {
+  setConversationListCollapsed(!$(".workspace").classList.contains("conversation-list-collapsed"));
 });
 
 // Densidade da lista de conversas (item 4 do redesign): confortável (padrão)
@@ -1377,6 +1427,51 @@ $("#signal-transfer").addEventListener("click", async () => {
     toast(error.message, true);
   }
 });
+let mergeContactSearchTimer = null;
+async function loadMergeCandidates() {
+  const results = $("#merge-contact-results");
+  results.innerHTML = '<p class="merge-contact-empty">Buscando...</p>';
+  try {
+    const query = encodeURIComponent($("#merge-contact-search").value.trim());
+    const contacts = await api(`/api/contacts/${state.selectedContactId}/merge-candidates?search=${query}`);
+    results.innerHTML = contacts.length ? contacts.map((contact) => {
+      const channels = [...new Set((contact.conversations || []).map((item) => mergedChannelLabels[item.channel] || item.channel))].join(" + ");
+      const address = contact.email || (contact.phone ? `+${contact.phone}` : "Sem endereço");
+      return `<button class="merge-contact-result" type="button" data-merge-contact-id="${escapeHtml(contact.id)}" data-merge-contact-name="${escapeHtml(contact.displayName)}"><span><b>${escapeHtml(contact.displayName)}</b><small>${escapeHtml(address)}</small></span><em>${escapeHtml(channels)}</em></button>`;
+    }).join("") : '<p class="merge-contact-empty">Nenhum outro contato acessível encontrado.</p>';
+  } catch (error) { results.innerHTML = `<p class="merge-contact-empty error">${escapeHtml(error.message)}</p>`; }
+}
+
+$("#merge-contact").addEventListener("click", async () => {
+  if (!state.selectedContactId || !state.currentUser?.canMergeContacts) return;
+  $("#merge-contact-search").value = "";
+  $("#merge-contact-dialog").showModal();
+  await loadMergeCandidates();
+  $("#merge-contact-search").focus();
+});
+$("#close-merge-contact").addEventListener("click", () => $("#merge-contact-dialog").close());
+$("#merge-contact-dialog").addEventListener("click", (event) => { if (event.target === $("#merge-contact-dialog")) $("#merge-contact-dialog").close(); });
+$("#merge-contact-search").addEventListener("input", () => {
+  clearTimeout(mergeContactSearchTimer);
+  mergeContactSearchTimer = setTimeout(loadMergeCandidates, 250);
+});
+$("#merge-contact-results").addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-merge-contact-id]");
+  if (!button || !confirm(`Fundir este contato com ${button.dataset.mergeContactName}?\n\nOs históricos serão preservados.`)) return;
+  button.disabled = true;
+  try {
+    await api(`/api/contacts/${state.selectedContactId}/merge`, { method:"POST", body:JSON.stringify({ targetContactId:button.dataset.mergeContactId }) });
+    $("#merge-contact-dialog").close();
+    state.selectedHeaderSignature = "";
+    await openConversation(state.selectedId, { markRead:false });
+    toast("Contatos fundidos. Agora você pode escolher o canal de envio.");
+  } catch (error) { button.disabled = false; toast(error.message, true); }
+});
+$("#merged-channel-select").addEventListener("change", async (event) => {
+  const conversationId = event.target.value;
+  if (conversationId && conversationId !== state.selectedId) await openConversation(conversationId);
+});
+
 $("#edit-contact-name").addEventListener("click", async () => {
   if (!state.selectedContactId || !state.selectedId) return;
 
@@ -1490,6 +1585,8 @@ $("#team-form").addEventListener("submit", async (event) => {
     canViewConversationHistory: $("#permission-history").checked,
     canViewPreviousMessages: $("#permission-previous-messages").checked,
     canSetConversationPriority: $("#permission-priority").checked,
+    canStartConversations: $("#permission-start-conversations").checked,
+    canMergeContacts: $("#permission-merge-contacts").checked,
     categoryIds: [...document.querySelectorAll("#team-category-access .team-category-access-input:checked")].map((input) => input.value),
   };
   if (password) body.password = password;
@@ -2045,12 +2142,13 @@ $(".chat-header").addEventListener("click", (event) => { if (innerWidth <= 700 &
 
 syncThemeToggle();
 try { setFiltersPanelCollapsed(localStorage.getItem("mibro-filters-collapsed") === "1", false); } catch { setFiltersPanelCollapsed(false, false); }
+try { setChannelWorkspace(localStorage.getItem("mibro-channel-workspace") || "", { load:false, persist:false }); } catch { setChannelWorkspace("", { load:false, persist:false }); }
 try { setDensity(localStorage.getItem("mibro-density") === "1", false); } catch { setDensity(false, false); }
 try { setSidebarExpanded(localStorage.getItem("mibro-sidebar-expanded") === "1", false); } catch { setSidebarExpanded(false, false); }
 try { setContextTab(localStorage.getItem("mibro-context-tab") || "details", { open:false }); } catch { setContextTab("details", { open:false }); }
 try { setContextPanelOpen(localStorage.getItem("mibro-context-open") === "1", false); } catch { setContextPanelOpen(false, false); }
 loadCurrentUser()
-  .then(() => Promise.all([loadUsers(), loadCategories(), loadMetaStatus()]))
+  .then(() => Promise.all([loadUsers(), loadCategories(), loadOutboundChannels()]))
   .then(loadAdminUsers)
   .then(loadConversations)
   .then(async () => {

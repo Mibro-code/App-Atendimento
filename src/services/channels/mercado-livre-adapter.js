@@ -39,7 +39,7 @@ class MercadoLivreAdapter extends ChannelAdapter {
       const response = await axios.get("https://api.mercadolibre.com/users/me", {
         headers: { Authorization: `Bearer ${accessToken}` }, timeout: 8000,
       });
-      return { status: "CONNECTED", externalAccountId: String(response.data?.id || "") };
+      return { status: "CONNECTED", externalAccountId: String(response.data?.id || ""), providerMetadata: { displayName: response.data?.nickname || null, username: response.data?.nickname || null } };
     } catch (error) {
       if (error.response?.status === 401) throw channelError("TOKEN_EXPIRED", "Token do Mercado Livre expirado.");
       if (error.response?.status === 403) throw channelError("PERMISSION_DENIED", "Sem permissão para esta conta do Mercado Livre.");

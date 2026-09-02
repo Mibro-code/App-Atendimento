@@ -1,5 +1,5 @@
 const $ = (selector) => document.querySelector(selector);
-const state = { overview: [], settings: null, editingChannel: null, editingAccountId: null };
+const state = { overview: [], settings: null, users: [], editingChannel: null, editingAccountId: null, accessAccountId: null };
 
 const CHANNEL_LABELS = {
   META: "WhatsApp (Meta)",
@@ -19,17 +19,25 @@ const CHANNEL_LABELS = {
 const STATUS_LABELS = {
   DISABLED: "Desativado", NOT_CONFIGURED: "Não configurado", CONFIGURED: "Configurado, aguardando teste",
   AUTH_PENDING: "Autorização pendente", CONNECTED: "Conectado", DEGRADED: "Degradado",
-  ERROR: "Erro", NOT_SUPPORTED: "Ainda não suportado",
+  ERROR: "Erro", RECONNECT_REQUIRED: "Reconexão necessária", NOT_SUPPORTED: "Ainda não suportado",
   NEEDS_APPROVAL: "Aguardando aprovação da plataforma", NEEDS_CONTRACT: "Exige contrato comercial",
 };
 
 // Providers OAuth permitidos por canal (espelha OAUTH_PROVIDERS_BY_CHANNEL
 // do integrations-controller.js — front só decide QUAL botão mostrar, o
 // backend valida de novo antes de aceitar).
-const OAUTH_PROVIDERS_BY_CHANNEL = {
-  EMAIL: { GMAIL: "GOOGLE", MICROSOFT_365: "MICROSOFT" },
-  GOOGLE_REVIEWS: { DEFAULT: "GOOGLE" },
-  MERCADO_LIVRE: { DEFAULT: "MERCADO_LIVRE" },
+const OAUTH_OPTIONS_BY_CHANNEL = {
+  EMAIL: [
+    { provider: "GOOGLE", label: "Conectar com Google" },
+    { provider: "MICROSOFT", label: "Conectar com Microsoft" },
+  ],
+  GOOGLE_REVIEWS: [{ provider: "GOOGLE", label: "Conectar com Google" }],
+  MERCADO_LIVRE: [{ provider: "MERCADO_LIVRE", label: "Conectar com Mercado Livre" }],
+  AMAZON_MARKETPLACE: [{ provider: "AMAZON", label: "Conectar com Amazon" }],
+  INSTAGRAM_DIRECT: [{ provider: "META", label: "Conectar com Meta" }],
+  INSTAGRAM_COMMENTS: [{ provider: "META", label: "Conectar com Meta" }],
+  FACEBOOK_MESSENGER: [{ provider: "META", label: "Conectar com Meta" }],
+  FACEBOOK_COMMENTS: [{ provider: "META", label: "Conectar com Meta" }],
 };
 
 // Campos por canal (item 6/9) — nenhum canal aqui aceita um endpoint
@@ -73,7 +81,7 @@ const CHANNEL_FIELDS = {
   // Instagram/Facebook (contas novas, item 6/19) reaproveitam o app Meta do
   // WhatsApp — só pedem o id da página/perfil e o token de acesso dela,
   // obtidos manualmente no Meta Business Suite/Graph API Explorer. Sem
-  // OAuth automatizado nesta fase (supportsOAuth: false nesses 4 canais).
+  // Fallback manual só é renderizado quando o provider não está no registro OAuth oficial.
   FACEBOOK_MESSENGER: [
     { key: "config.pageId", label: "ID da Página do Facebook" },
     { key: "secrets.pageAccessToken", label: "Page Access Token", secret: true },
@@ -126,6 +134,25 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
+
+function oauthButtons(entry) {
+  return (OAUTH_OPTIONS_BY_CHANNEL[entry.channel] || []).map((option) => `
+    <button type="button" class="oauth-connect" data-channel="${escapeHtml(entry.channel)}" data-provider="${escapeHtml(option.provider)}">
+      ${escapeHtml(option.label)}
+    </button>`).join("");
+}
+
+function openOAuthSelection(result) {
+  const dialog = $("#oauth-selection-dialog");
+  $("#oauth-selection-options").innerHTML = (result.candidates || []).map((candidate) => `
+    <button type="button" data-candidate-id="${escapeHtml(candidate.id)}">
+      <strong>${escapeHtml(candidate.name)}</strong>
+      ${candidate.username ? `<span>${escapeHtml(candidate.username)}</span>` : ""}
+    </button>`).join("");
+  dialog.dataset.accountId = result.channelAccountId;
+  dialog.showModal();
+}
+
 function renderCards() {
   const container = $("#channel-cards");
   container.innerHTML = state.overview.map((entry) => {
@@ -145,10 +172,11 @@ function renderCards() {
           <span class="enabled-pill ${account.enabled ? "on" : "off"}">${account.enabled ? "Ativado" : "Desativado"}</span>
         </div>
         <div class="account-row-meta">
-          ${account.lastSyncAt ? `<span>Última sincronização: ${escapeHtml(new Date(account.lastSyncAt).toLocaleString("pt-BR"))}</span>` : ""}
+          ${account.oauthProvider ? `<span>Provider: ${escapeHtml(account.oauthProvider)}</span>` : ""}${account.providerMetadata?.username ? `<span>Conta: ${escapeHtml(account.providerMetadata.username)}</span>` : ""}${account.externalAccountId ? `<span>ID externo: ${escapeHtml(account.externalAccountId)}</span>` : ""}${account.lastSyncAt ? `<span>Última sincronização: ${escapeHtml(new Date(account.lastSyncAt).toLocaleString("pt-BR"))}</span>` : ""}${entry.channel === "EMAIL" ? `<span>Acesso: ${account.allowedUsers?.length ? escapeHtml(account.allowedUsers.map((item) => item.user?.name).filter(Boolean).join(", ")) : "somente Master"}</span>` : ""}
           ${account.lastErrorMessage ? `<span class="error-text">Erro: ${escapeHtml(account.lastErrorMessage)}</span>` : ""}
         </div>
         <div class="account-row-actions">
+          ${entry.channel === "EMAIL" ? `<button type="button" data-action="access" data-id="${escapeHtml(account.id)}">Gerenciar acesso</button>` : ""}
           <button type="button" data-action="test" data-id="${escapeHtml(account.id)}">Testar conexão</button>
           <button type="button" data-action="reconnect" data-id="${escapeHtml(account.id)}" data-channel="${escapeHtml(entry.channel)}">Reconectar</button>
           <button type="button" data-action="toggle" data-id="${escapeHtml(account.id)}" data-enabled="${account.enabled}">${account.enabled ? "Desativar" : "Ativar"}</button>
@@ -167,14 +195,22 @@ function renderCards() {
         ${isMeta
           ? '<p class="meta-note">Gerenciado pelas variáveis de ambiente originais do WhatsApp — este painel não altera essa integração.</p>'
           : `<div class="account-list">${accountsHtml}</div>
-             <button type="button" class="add-account" data-channel="${escapeHtml(entry.channel)}">+ Adicionar conta</button>`
+             ${oauthButtons(entry)
+               ? `<div class="oauth-actions">${oauthButtons(entry)}</div>`
+               : `<details class="advanced-config"><summary>Configuração avançada</summary><button type="button" class="add-account" data-channel="${escapeHtml(entry.channel)}">Adicionar manualmente</button></details>`}`
         }
       </section>
     `;
   }).join("");
 
+  container.querySelectorAll(".oauth-connect").forEach((button) => (
+    button.addEventListener("click", () => startOAuth(null, button.dataset.channel, button.dataset.provider))
+  ));
   container.querySelectorAll(".add-account").forEach((button) => (
     button.addEventListener("click", () => openAccountDialog(button.dataset.channel))
+  ));
+  container.querySelectorAll('[data-action="access"]').forEach((button) => (
+    button.addEventListener("click", () => openAccessDialog(button.dataset.id))
   ));
   container.querySelectorAll('[data-action="test"]').forEach((button) => (
     button.addEventListener("click", () => testConnection(button.dataset.id))
@@ -244,36 +280,76 @@ async function saveAccount(event) {
   } catch (error) { toast(error.message, true); }
 }
 
-// "Reconectar": canais com OAuth reabrem o fluxo de autorização (popup);
-// os demais reabrem o formulário para colar um novo token/segredo.
+// Reconectar usa o provider já salvo; sem OAuth cai no formulário avançado.
 async function reconnectAccount(accountId, channel) {
   const entry = state.overview.find((item) => item.channel === channel);
-  if (entry?.capabilities?.supportsOAuth) return startOAuth(accountId, channel);
   const account = entry?.accounts?.find((item) => item.id === accountId);
+  if (account?.oauthProvider) return startOAuth(accountId, channel, account.oauthProvider);
+  const provider = account?.config?.provider === "GMAIL" ? "GOOGLE"
+    : account?.config?.provider === "MICROSOFT_365" ? "MICROSOFT" : null;
+  if (provider) return startOAuth(accountId, channel, provider);
   openAccountDialog(channel, account || { id: accountId, name: "", config: {} });
 }
 
-async function startOAuth(accountId, channel) {
-  const account = state.overview.find((item) => item.channel === channel)?.accounts?.find((item) => item.id === accountId);
-  const providerMap = OAUTH_PROVIDERS_BY_CHANNEL[channel];
-  const provider = providerMap?.[account?.config?.provider] || providerMap?.DEFAULT;
-  if (!provider) return toast("Este canal não tem OAuth disponível — use \"Reconectar\" para colar um novo token.", true);
+async function startOAuth(accountId, channel, provider) {
+  if (!provider) return toast("OAuth ainda não está disponível para este canal. Use Configuração avançada.", true);
   try {
     const result = await api("/api/integrations/oauth/start", {
-      method: "POST", body: JSON.stringify({ channel, channelAccountId: accountId, provider }),
+      method: "POST", body: JSON.stringify({ channel, channelAccountId: accountId || null, provider }),
     });
-    const popup = window.open(result.url, "mibro-oauth", "width=520,height=680");
+    const popup = window.open(result.url, "mibro-oauth", "width=560,height=720");
     if (!popup) return toast("O navegador bloqueou a janela de autorização. Permita pop-ups para este site.", true);
     const onMessage = async (event) => {
       if (event.origin !== location.origin || event.data?.source !== "mibro-oauth-callback") return;
       window.removeEventListener("message", onMessage);
-      if (event.data.ok) { toast("Conta conectada via OAuth."); await loadOverview(); }
-      else toast(event.data.error || "Falha ao concluir a autorização OAuth.", true);
+      if (!event.data.ok) return toast(event.data.error || "Falha ao concluir a autorização OAuth.", true);
+      if (event.data.result?.selectionRequired) openOAuthSelection(event.data.result);
+      else toast("Conta conectada via OAuth.");
+      await loadOverview();
     };
     window.addEventListener("message", onMessage);
   } catch (error) { toast(error.message, true); }
 }
 
+async function selectOAuthCandidate(candidateId) {
+  const dialog = $("#oauth-selection-dialog");
+  try {
+    await api(`/api/integrations/oauth/accounts/${dialog.dataset.accountId}/select`, {
+      method: "POST", body: JSON.stringify({ candidateId }),
+    });
+    dialog.close();
+    toast("Conta conectada via OAuth.");
+    await loadOverview();
+  } catch (error) { toast(error.message, true); }
+}
+
+function openAccessDialog(accountId) {
+  const account = state.overview.flatMap((entry) => entry.accounts || []).find((item) => item.id === accountId);
+  if (!account) return;
+  state.accessAccountId = accountId;
+  const selected = new Set((account.allowedUsers || []).map((item) => item.userId));
+  $("#account-access-name").textContent = account.name;
+  $("#account-access-users").innerHTML = state.users.filter((user) => user.role !== "ADMIN").map((user) => `
+    <label class="access-user-option"><input type="checkbox" value="${escapeHtml(user.id)}" ${selected.has(user.id) ? "checked" : ""}>
+      <span><strong>${escapeHtml(user.name)}</strong><small>${escapeHtml(user.email)}</small></span>
+    </label>`).join("") || '<p class="no-accounts">Nenhum usuário ativo disponível.</p>';
+  $("#account-access-dialog").showModal();
+}
+
+async function saveAccountAccess(event) {
+  event.preventDefault();
+  const userIds = [...document.querySelectorAll("#account-access-users input:checked")].map((input) => input.value);
+  try {
+    await api(`/api/integrations/accounts/${state.accessAccountId}/access`, { method: "PATCH", body: JSON.stringify({ userIds }) });
+    $("#account-access-dialog").close();
+    toast("Acesso da conta de e-mail atualizado.");
+    await loadOverview();
+  } catch (error) { toast(error.message, true); }
+}
+
+async function loadUsers() {
+  state.users = await api("/api/users");
+}
 async function testConnection(accountId) {
   try {
     const result = await api(`/api/integrations/accounts/${accountId}/test-connection`, { method: "POST" });
@@ -310,7 +386,14 @@ async function loadSettings() {
 }
 
 $("#account-form").addEventListener("submit", saveAccount);
+$("#account-access-form").addEventListener("submit", saveAccountAccess);
+$("#account-access-cancel").addEventListener("click", () => $("#account-access-dialog").close());
 $("#account-cancel").addEventListener("click", () => $("#account-dialog").close());
+$("#oauth-selection-cancel").addEventListener("click", () => $("#oauth-selection-dialog").close());
+$("#oauth-selection-options").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-candidate-id]");
+  if (button) selectOAuthCandidate(button.dataset.candidateId);
+});
 $("#new-channels-toggle").addEventListener("change", async (event) => {
   try {
     await api("/api/integrations/settings", { method: "PATCH", body: JSON.stringify({ newChannelsEnabled: event.target.checked }) });
@@ -337,7 +420,7 @@ $("#logout").addEventListener("click", async () => {
     const status = await api("/api/auth/status");
     if (!status.authenticated || !status.user.isMaster) return location.replace("/");
     $("#current-user").textContent = status.user.name;
-    await Promise.all([loadOverview(), loadSettings()]);
+    await Promise.all([loadOverview(), loadSettings(), loadUsers()]);
   } catch (error) {
     if ($("#channel-cards").querySelector(".skeleton-list")) $("#channel-cards").innerHTML = `<div class="empty-list">Não foi possível carregar as integrações.</div>`;
     toast(error.message, true);

@@ -6,6 +6,7 @@
 const prisma = require("../../database/prisma");
 const { NEW_CHANNELS, channelError } = require("./channel-constants");
 const { assertNewChannelEnabled } = require("./integration-global-settings-service");
+const { storeInternalFile } = require("../media-storage-service");
 
 const kindByChannel = {
   INSTAGRAM_DIRECT: "PRIVATE_CONVERSATION",
@@ -52,8 +53,8 @@ async function findOrCreateChannelConversation(normalized, client = prisma) {
 
   const contact = await client.contact.upsert({
     where: { channel_externalId: { channel, externalId: contactExternalId } },
-    update: { ...(senderName ? { name: senderName } : {}) },
-    create: { channel, externalId: contactExternalId, name: senderName || senderExternalId, phone: null },
+    update: { ...(senderName ? { name: senderName } : {}), ...(channel === "EMAIL" ? { email: senderExternalId } : {}) },
+    create: { channel, externalId: contactExternalId, name: senderName || senderExternalId, phone: null, ...(channel === "EMAIL" ? { email: senderExternalId } : {}) },
   });
 
   const conversation = await client.conversation.upsert({
@@ -85,6 +86,10 @@ async function persistInboundMessage(normalized, client = prisma) {
   }
 
   const { contact, conversation } = await findOrCreateChannelConversation(normalized, client);
+  const storedMedia = normalized.media?.buffer ? await storeInternalFile({
+    buffer: normalized.media.buffer, mimeType: normalized.media.mimeType, fileName: normalized.media.fileName,
+    stableId: externalId || `${conversation.id}:${normalized.occurredAt.getTime()}`,
+  }) : null;
 
   const message = await client.message.create({
     data: {
@@ -96,6 +101,7 @@ async function persistInboundMessage(normalized, client = prisma) {
       status: normalized.direction === "RECEBIDA" ? "RECEBIDA" : "ENVIADA",
       type: normalized.type,
       text: normalized.text,
+      ...(storedMedia ? { mediaStorageKey: storedMedia.storageKey, mediaMimeType: storedMedia.mimeType, mediaFileName: storedMedia.fileName, mediaSize: storedMedia.size } : {}),
       occurredAt: normalized.occurredAt,
       rawPayload: normalized.externalMessageId || normalized.senderExternalId
         ? {

@@ -24,6 +24,8 @@ function publicUser(user) {
     // Campanhas/prospecção (item 27): Admin e Supervisor têm acesso por
     // padrão; um Atendente específico pode ganhar via canManageCampaigns.
     canManageCampaigns: user.role === "ADMIN" || user.role === "SUPERVISOR" || user.canManageCampaigns,
+    canStartConversations: user.role === "ADMIN" || user.canStartConversations,
+    canMergeContacts: user.role === "ADMIN" || user.canMergeContacts,
   };
 }
 

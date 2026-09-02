@@ -6,7 +6,8 @@ const authorization = require("../authorization-service");
 const audit = require("../audit-service");
 const { encryptSecrets, decryptSecrets, maskSecret } = require("./integration-secret-service");
 const { createAdapter, getAdapterClass } = require("./channel-adapter-registry");
-const { ALL_MANAGED_CHANNELS, NEW_CHANNELS } = require("./channel-constants");
+const { ALL_MANAGED_CHANNELS, CHANNEL_LABELS, NEW_CHANNELS } = require("./channel-constants");
+const oauth = require("./integration-oauth-service");
 const { getGlobalSettings } = require("./integration-global-settings-service");
 
 function fail(message, statusCode = 400) {
@@ -36,7 +37,7 @@ function publicAccount(account) {
 
 async function listAccounts(viewer) {
   assertIntegrationManager(viewer);
-  const accounts = await prisma.channelAccount.findMany({ orderBy: [{ channel: "asc" }, { name: "asc" }] });
+  const accounts = await prisma.channelAccount.findMany({ include: { accessUsers: { include: { user: { select: { id: true, name: true, email: true } } } } }, orderBy: [{ channel: "asc" }, { name: "asc" }] });
   return accounts.map(publicAccount);
 }
 
@@ -48,7 +49,8 @@ async function ensureAccount(id) {
 
 async function getAccount(id, viewer) {
   assertIntegrationManager(viewer);
-  return publicAccount(await ensureAccount(id));
+  await ensureAccount(id);
+  return publicAccount(await prisma.channelAccount.findUnique({ where: { id }, include: { accessUsers: { include: { user: { select: { id: true, name: true, email: true } } } } } }));
 }
 
 const FORBIDDEN_CONFIG_SECRET_KEYS = new Set([
@@ -169,6 +171,100 @@ function decryptSecretsSafe(account) {
   }
 }
 
+
+async function uniqueOAuthName(channel, preferredName) {
+  const base = String(preferredName || CHANNEL_LABELS[channel] || channel).trim().slice(0, 70);
+  let name = base;
+  for (let suffix = 2; await prisma.channelAccount.findFirst({ where: { channel, name } }); suffix += 1) {
+    name = `${base.slice(0, 65)} (${suffix})`;
+  }
+  return name;
+}
+
+function oauthSecrets(token, candidate, previous = {}) {
+  return {
+    ...previous,
+    accessToken: token.access_token,
+    ...(token.refresh_token ? { refreshToken: token.refresh_token } : {}),
+    ...(candidate?.secretPatch || {}),
+  };
+}
+
+function safeOAuthCandidate(candidate) {
+  return { id: candidate.id, name: candidate.name, username: candidate.username || null, config: candidate.config || {} };
+}
+
+async function saveOAuthConnection({ accountId = null, channel, provider, token, scopes = [], candidates = [], preferredName = null }, actor) {
+  assertIntegrationManager(actor);
+  if (!candidates.length) throw fail("Nenhuma conta compatível foi encontrada após a autorização.", 400);
+  const existing = accountId ? await ensureAccount(accountId) : null;
+  if (existing && existing.channel !== channel) throw fail("Conta OAuth não corresponde ao canal autorizado.");
+  const multiple = candidates.length > 1;
+  const selected = multiple ? null : candidates[0];
+  const previousSecrets = existing ? decryptSecretsSafe(existing) : {};
+  const secrets = oauthSecrets(token, selected, previousSecrets);
+  if (multiple) secrets.oauthCandidates = Object.fromEntries(candidates.map((item) => [item.id, item.secretPatch || {}]));
+  else delete secrets.oauthCandidates;
+  const secretData = encryptSecrets(secrets);
+  const currentConfig = existing?.config || {};
+  const config = {
+    ...currentConfig,
+    ...(selected?.config || {}),
+    ...(multiple ? { oauthCandidates: candidates.map(safeOAuthCandidate) } : {}),
+    _secretHints: currentConfig._secretHints || {},
+  };
+  if (!multiple) delete config.oauthCandidates;
+  const data = {
+    oauthProvider: provider,
+    oauthScopes: token.scope ? String(token.scope).split(/\s+/).filter(Boolean) : scopes,
+    tokenExpiresAt: oauth.tokenExpiresAt(token),
+    externalAccountId: selected?.id || null,
+    providerMetadata: selected ? { displayName: selected.name, username: selected.username || null } : {},
+    config,
+    status: multiple ? "AUTH_PENDING" : "CONNECTED",
+    lastErrorAt: null, lastErrorCode: null, lastErrorMessage: null,
+    ...secretData,
+  };
+  let account;
+  if (existing) account = await prisma.channelAccount.update({ where: { id: existing.id }, data });
+  else account = await prisma.channelAccount.create({ data: { channel, name: await uniqueOAuthName(channel, preferredName || selected?.name), ...data } });
+  await audit.recordAudit({
+    actor, action: multiple ? "CHANNEL_OAUTH_SELECTION_REQUIRED" : "CHANNEL_OAUTH_CONNECTED",
+    entityType: "CHANNEL_ACCOUNT", entityId: account.id,
+    summary: multiple ? `OAuth autorizado; seleção de conta necessária (${channel})` : `Conectou "${account.name}" via ${provider}`,
+    details: { channel, provider, candidateCount: candidates.length },
+  });
+  return { account: publicAccount(account), selectionRequired: multiple, candidates: multiple ? candidates.map(safeOAuthCandidate) : [] };
+}
+
+async function selectOAuthCandidate(id, candidateId, actor) {
+  assertIntegrationManager(actor);
+  const existing = await ensureAccount(id);
+  const candidates = Array.isArray(existing.config?.oauthCandidates) ? existing.config.oauthCandidates : [];
+  const selected = candidates.find((item) => item.id === candidateId);
+  if (!selected) throw fail("Conta externa selecionada não está disponível.", 400);
+  const secrets = decryptSecretsSafe(existing);
+  const secretPatch = secrets.oauthCandidates?.[candidateId];
+  if (!secretPatch) throw fail("Autorização pendente expirou; reconecte a integração.", 400);
+  delete secrets.oauthCandidates;
+  Object.assign(secrets, secretPatch);
+  const { oauthCandidates: _ignored, ...cleanConfig } = existing.config || {};
+  const account = await prisma.channelAccount.update({
+    where: { id },
+    data: {
+      ...encryptSecrets(secrets), config: { ...cleanConfig, ...(selected.config || {}) },
+      externalAccountId: selected.id, providerMetadata: { displayName: selected.name, username: selected.username || null },
+      status: "CONNECTED", lastErrorAt: null, lastErrorCode: null, lastErrorMessage: null,
+    },
+  });
+  await audit.recordAudit({
+    actor, action: "CHANNEL_OAUTH_ACCOUNT_SELECTED", entityType: "CHANNEL_ACCOUNT", entityId: id,
+    summary: `Selecionou "${selected.name}" para a integração ${existing.channel}`,
+    details: { channel: existing.channel, provider: existing.oauthProvider, externalAccountId: selected.id },
+  });
+  return publicAccount(account);
+}
+
 async function setEnabled(id, enabled, actor) {
   assertIntegrationManager(actor);
   const existing = await ensureAccount(id);
@@ -194,40 +290,79 @@ async function deleteAccount(id, actor) {
   return { deleted: true };
 }
 
+async function setAccountAccess(id, userIds, actor) {
+  assertIntegrationManager(actor);
+  const account = await ensureAccount(id);
+  if (account.channel !== "EMAIL") throw fail("O controle individual de acesso está disponível para contas de e-mail.");
+  if (!Array.isArray(userIds) || userIds.some((value) => typeof value !== "string" || !value)) {
+    throw fail("userIds deve ser uma lista de usuários.");
+  }
+  const uniqueIds = [...new Set(userIds)];
+  const validUsers = uniqueIds.length ? await prisma.user.findMany({ where: { id: { in: uniqueIds }, active: true }, select: { id: true, name: true } }) : [];
+  if (validUsers.length !== uniqueIds.length) throw fail("Um ou mais usuários selecionados são inválidos ou estão inativos.");
+  await prisma.$transaction(async (transaction) => {
+    await transaction.channelAccountUserAccess.deleteMany({ where: { channelAccountId: id } });
+    if (uniqueIds.length) await transaction.channelAccountUserAccess.createMany({ data: uniqueIds.map((userId) => ({ channelAccountId: id, userId })) });
+  });
+  await audit.recordAudit({
+    actor, action: "CHANNEL_ACCOUNT_ACCESS_UPDATED", entityType: "CHANNEL_ACCOUNT", entityId: id,
+    summary: `Atualizou os usuários com acesso à conta de e-mail "${account.name}"`,
+    details: { userIds: uniqueIds },
+  });
+  return publicAccount(await prisma.channelAccount.findUnique({
+    where: { id }, include: { accessUsers: { include: { user: { select: { id: true, name: true, email: true } } } } },
+  }));
+}
 // Só verifica credenciais/escopo — nunca envia nada real (item 12).
 async function testConnection(id, actor) {
   assertIntegrationManager(actor);
-  const account = await ensureAccount(id);
+  let account = await ensureAccount(id);
+  account = await oauth.refreshAccountIfNeeded(account);
   const globalSettings = await getGlobalSettings();
   if (NEW_CHANNELS.includes(account.channel) && !globalSettings.newChannelsEnabled) {
     throw fail("Integrações de novos canais estão desativadas globalmente.");
   }
-  const adapter = createAdapter(account.channel, {
-    ...account, secrets: decryptSecretsSafe(account),
-    config: Object.fromEntries(Object.entries(account.config || {}).filter(([key]) => key !== "_secretHints")),
+  const buildAccountAdapter = (stored) => createAdapter(stored.channel, {
+    ...stored, secrets: decryptSecretsSafe(stored),
+    config: Object.fromEntries(Object.entries(stored.config || {}).filter(([key]) => key !== "_secretHints")),
   });
+  let adapter = buildAccountAdapter(account);
   if (!adapter) throw fail("Canal sem adapter disponível.");
 
   let result;
   let status;
+  let connectionError = null;
   try {
     result = await adapter.testConnection();
-    status = result.status || "CONNECTED";
   } catch (error) {
-    status = "ERROR";
+    connectionError = error;
+    if (account.oauthProvider && error.channelErrorCode === "TOKEN_EXPIRED") {
+      account = await oauth.refreshAccountIfNeeded(account, { force: true });
+      if (account.status === "CONNECTED") {
+        adapter = buildAccountAdapter(account);
+        try {
+          result = await adapter.testConnection();
+          connectionError = null;
+        } catch (retryError) { connectionError = retryError; }
+      }
+    }
+  }
+  if (connectionError) {
+    status = account.oauthProvider && (account.status === "RECONNECT_REQUIRED" || ["TOKEN_EXPIRED", "AUTH_ERROR"].includes(connectionError.channelErrorCode)) ? "RECONNECT_REQUIRED" : "ERROR";
     await prisma.channelAccount.update({
-      where: { id }, data: { status, lastErrorAt: new Date(), lastErrorCode: error.channelErrorCode || "PROVIDER_ERROR", lastErrorMessage: error.message?.slice(0, 300) },
+      where: { id }, data: { status, lastErrorAt: new Date(), lastErrorCode: connectionError.channelErrorCode || "PROVIDER_ERROR", lastErrorMessage: connectionError.message?.slice(0, 300) },
     });
     await audit.recordAudit({
       actor, action: "CHANNEL_CONNECTION_TEST_FAILED", entityType: "CHANNEL_ACCOUNT", entityId: id,
       summary: `Teste de conexão falhou para "${account.name}" (${account.channel})`,
-      details: { errorCode: error.channelErrorCode || "PROVIDER_ERROR" },
+      details: { errorCode: connectionError.channelErrorCode || "PROVIDER_ERROR" },
     });
-    throw fail(error.message || "Falha ao testar conexão.", error.statusCode || 502);
+    throw fail(connectionError.message || "Falha ao testar conexão.", connectionError.statusCode || 502);
   }
+  status = result.status || "CONNECTED";
 
   await prisma.channelAccount.update({
-    where: { id }, data: { status, lastSyncAt: status === "CONNECTED" ? new Date() : undefined, lastErrorAt: null, lastErrorCode: null, lastErrorMessage: null },
+    where: { id }, data: { status, ...(result.externalAccountId ? { externalAccountId: result.externalAccountId } : {}), ...(result.providerMetadata ? { providerMetadata: result.providerMetadata } : {}), lastSyncAt: status === "CONNECTED" ? new Date() : undefined, lastErrorAt: null, lastErrorCode: null, lastErrorMessage: null },
   });
   await audit.recordAudit({
     actor, action: "CHANNEL_CONNECTION_TESTED", entityType: "CHANNEL_ACCOUNT", entityId: id,
@@ -240,7 +375,7 @@ async function testConnection(id, actor) {
 // canais sem nenhuma conta ainda cadastrada.
 async function listChannelOverview(viewer) {
   assertIntegrationManager(viewer);
-  const accounts = await prisma.channelAccount.findMany({ orderBy: { createdAt: "asc" } });
+  const accounts = await prisma.channelAccount.findMany({ include: { accessUsers: { include: { user: { select: { id: true, name: true, email: true } } } } }, orderBy: { createdAt: "asc" } });
   const byChannel = new Map();
   for (const account of accounts) {
     if (!byChannel.has(account.channel)) byChannel.set(account.channel, []);
@@ -256,5 +391,5 @@ async function listChannelOverview(viewer) {
 
 module.exports = {
   assertIntegrationManager, createAccount, deleteAccount, getAccount, listAccounts,
-  listChannelOverview, setEnabled, testConnection, updateAccount,
+  listChannelOverview, saveOAuthConnection, selectOAuthCandidate, setAccountAccess, setEnabled, testConnection, updateAccount,
 };

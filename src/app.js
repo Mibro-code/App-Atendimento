@@ -324,26 +324,17 @@ app.post(
         include: { conversation: { include: { contact: true } } }, orderBy: { occurredAt: "asc" }, take: 500,
       });
       return res.json(rows.map((item) => ({
-        id: item.externalId || item.id, from: item.conversation.contact.phone,
-        to: item.direction === "ENVIADA" ? item.conversation.contact.phone : undefined,
-        name: item.conversation.contact.customName || item.conversation.contact.name || item.conversation.contact.phone,
+        id: item.externalId || item.id, from: item.conversation.contact.email || item.conversation.contact.phone,
+        to: item.direction === "ENVIADA" ? (item.conversation.contact.email || item.conversation.contact.phone) : undefined,
+        name: item.conversation.contact.customName || item.conversation.contact.name || item.conversation.contact.email || item.conversation.contact.phone,
         type: item.type, text: item.text, timestamp: item.occurredAt.getTime(),
         direction: item.direction === "ENVIADA" ? "sent" : "received",
       })));
     } catch (error) { return next(error); }
   });
 
-  app.post("/api/send", async (req, res) => {
-    if (!authorization.isMaster(req.user)) return res.status(403).json({ error: "Somente uma conta Master pode iniciar conversas por número." });
-    const { to, message } = req.body;
-    if (!to || !message?.trim()) return res.status(400).json({ error: "Número e mensagem são obrigatórios." });
-    try {
-      const result = await sendTextToPhone({ phone: to, text: message.trim(), channel });
-      return res.json({ success: true, data: result.providerData });
-    } catch (error) {
-      console.error("Erro ao enviar mensagem:", error.response?.data || error.message);
-      return res.status(error.statusCode || 500).json({ error: "Não foi possível enviar a mensagem." });
-    }
+  app.post("/api/send", (_req, res) => {
+    return res.status(409).json({ error: "O início de conversas pela Meta está temporariamente desativado." });
   });
 
   app.get("/api/conversations", inbox.list);
@@ -351,6 +342,8 @@ app.post(
   app.get("/api/alerts", inbox.alerts);
   app.get("/api/meta/status", inbox.metaStatus);
   app.get("/api/meta/templates", inbox.templates);
+  app.get("/api/outbound/channels", inbox.outboundChannels);
+  app.post("/api/conversations/outbound/email", inbox.createOutboundEmail);
   app.post("/api/conversations/outbound", inbox.createOutbound);
   app.get("/api/conversations/:id", inbox.detail);
   app.patch("/api/conversations/:id", inbox.update);
@@ -376,6 +369,8 @@ app.post(
   app.post("/api/categories", inbox.createCategory);
   app.patch("/api/categories/:id", inbox.updateCategory);
   app.get("/api/users", inbox.users);
+  app.get("/api/contacts/:contactId/merge-candidates", inbox.mergeCandidates);
+  app.post("/api/contacts/:contactId/merge", inbox.mergeContacts);
   app.patch(
     "/api/contacts/:contactId/name",
     inbox.updateContactName
@@ -510,10 +505,12 @@ app.post(
   app.get("/api/integrations/accounts/:accountId", integrationsController.detail);
   app.patch("/api/integrations/accounts/:accountId", integrationsController.update);
   app.patch("/api/integrations/accounts/:accountId/enabled", integrationsController.setEnabled);
+  app.patch("/api/integrations/accounts/:accountId/access", integrationsController.setAccess);
   app.delete("/api/integrations/accounts/:accountId", integrationsController.remove);
   app.post("/api/integrations/accounts/:accountId/test-connection", integrationsController.testConnection);
   app.post("/api/integrations/oauth/start", integrationsController.oauthStart);
   app.post("/api/integrations/oauth/callback", integrationsController.oauthCallback);
+  app.post("/api/integrations/oauth/accounts/:accountId/select", integrationsController.oauthSelect);
 
   app.get("/api/quick-replies/composer", quickReplyController.listForComposer);
   app.get("/api/quick-replies/suggestions", quickReplyController.suggestions);

@@ -5,11 +5,12 @@ const { finalizeConversation, sendDocument, sendImage, sendText, sendVideo } = r
 const inboxEvents = require("../realtime/inbox-events");
 const authorization = require("../services/authorization-service");
 const internalChat = require("../services/internal-chat-service");
-const { getCustomerServiceWindow, listApprovedTemplates, sendApprovedTemplate, templatesConfigured } = require("../services/meta-template-service");
-const { createOutboundConversation } = require("../services/outbound-conversation-service");
+const { customerServiceWindowFrom, getCustomerServiceWindow, listApprovedTemplates, sendApprovedTemplate, templatesConfigured } = require("../services/meta-template-service");
+const { createOutboundConversation, createOutboundEmail, listOutboundChannels } = require("../services/outbound-conversation-service");
 const { analyzeConversation } = require("../services/bot-learning-service");
 const { submitAgentFeedback } = require("../services/bot-agent-feedback-service");
 const { Channel: ChannelEnum } = require("@prisma/client");
+const contactMerge = require("../services/contact-merge-service");
 
 const knownChannels = new Set(Object.values(ChannelEnum));
 
@@ -34,7 +35,22 @@ function createInboxController(channel) {
       try {
         const conversation = await inbox.getConversation(req.params.id, req.user);
         if (!conversation) return res.status(404).json({ error: "Conversa não encontrada." });
-        return res.json({ ...conversation, customerServiceWindow: await getCustomerServiceWindow(conversation.id) });
+        const customerServiceWindow = conversation.channel === "META"
+          ? await getCustomerServiceWindow(conversation.id)
+          : customerServiceWindowFrom(null, new Date(), false);
+        const mergedDestinations = await contactMerge.getMergedDestinations(conversation.contact.id, req.user);
+        return res.json({ ...conversation, customerServiceWindow, mergedDestinations });
+      } catch (error) { return next(error); }
+    },
+    async mergeCandidates(req, res, next) {
+      try { return res.json(await contactMerge.listMergeCandidates(req.params.contactId, req.query.search, req.user)); }
+      catch (error) { return next(error); }
+    },
+    async mergeContacts(req, res, next) {
+      try {
+        const result = await contactMerge.mergeContacts(req.params.contactId, req.body.targetContactId, req.user);
+        inboxEvents.publish();
+        return res.json(result);
       } catch (error) { return next(error); }
     },
     async templates(req, res, next) {
@@ -44,18 +60,18 @@ function createInboxController(channel) {
     async metaStatus(_req, res) {
       return res.json({ templatesConfigured: templatesConfigured() });
     },
-    async createOutbound(req, res, next) {
+    async outboundChannels(req, res, next) {
+      try { return res.json(await listOutboundChannels(req.user)); }
+      catch (error) { return next(error); }
+    },
+    async createOutboundEmail(req, res, next) {
       try {
-        const result = await createOutboundConversation({
-          phone: req.body.phone,
-          customName: req.body.customName,
-          template: req.body.template,
-          user: req.user,
-          channel,
-        });
+        const result = await createOutboundEmail({ ...req.body, user: req.user });
         inboxEvents.publish();
         return res.status(result.created ? 201 : 200).json(result);
       } catch (error) { return next(error); }
+    },    async createOutbound(_req, res) {
+      return res.status(409).json({ error: "O início de conversas pela Meta está temporariamente desativado." });
     },
     async replyTemplate(req, res, next) {
       try {

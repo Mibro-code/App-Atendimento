@@ -1,9 +1,7 @@
 // Amazon Marketplace (item 29): SP-API. NÃO é chat livre como WhatsApp —
 // capabilities refletem só o que a Messaging API da Amazon realmente
 // permite (contato limitado e regrado por política, ligado a pedidos).
-// Autorização é via Login With Amazon (LWA): o vendedor gera o refreshToken
-// pelo Seller Central ("Manage Your Apps"), não por um redirect OAuth
-// clássico — por isso supportsOAuth fica false aqui (fluxo é manual/externo).
+// Autorização pública usa OAuth oficial da SP-API/LWA; aplicações privadas ainda podem usar autoautorização pelo Seller Central.
 const axios = require("axios");
 const { ChannelAdapter } = require("./channel-adapter");
 const { channelError } = require("./channel-constants");
@@ -20,7 +18,7 @@ class AmazonAdapter extends ChannelAdapter {
       canMarkRead: false,
       supportsPublicQuestions: false,
       supportsReviews: false,
-      supportsOAuth: false,
+      supportsOAuth: true,
       supportsWebhook: false,
     };
   }
@@ -28,10 +26,11 @@ class AmazonAdapter extends ChannelAdapter {
   // Só valida o refreshToken junto à LWA — nunca chama a SP-API de negócio
   // (pedidos/mensagens) nesta fase.
   async testConnection() {
-    const { lwaClientId } = this.account?.config || {};
-    const { lwaClientSecret, refreshToken } = this.account?.secrets || {};
+    const lwaClientId = process.env.AMAZON_LWA_CLIENT_ID;
+    const lwaClientSecret = process.env.AMAZON_LWA_CLIENT_SECRET;
+    const { refreshToken } = this.account?.secrets || {};
     if (!lwaClientId || !lwaClientSecret || !refreshToken) {
-      throw channelError("INVALID_PAYLOAD", "Configure lwaClientId, lwaClientSecret e refreshToken (gerado no Seller Central).");
+      throw channelError("INVALID_PAYLOAD", "Configure AMAZON_LWA_CLIENT_ID/AMAZON_LWA_CLIENT_SECRET no servidor e conecte a conta pela Amazon.");
     }
     try {
       await axios.post(LWA_TOKEN_URL, new URLSearchParams({

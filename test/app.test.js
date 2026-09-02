@@ -108,7 +108,8 @@ test("entrega o painel e as APIs básicas da caixa de entrada", async () => {
     assert.match(pageHtml, /pode gerar cobrança pela Meta/);
     assert.match(pageHtml, /id="new-conversation"/);
     assert.match(pageHtml, /Iniciar conversa/);
-    assert.match(pageHtml, /Criar conversa e enviar/);
+    assert.match(pageHtml, /Enviar e-mail/);
+    assert.match(pageHtml, /Escolher canal/);
     assert.match(pageHtml, /id="open-templates"[^>]*hidden/);
     assert.doesNotMatch(pageHtml, /id="transfer-limit-history"[^>]*checked/);
     const metaStatus = await fetch(`${base}/api/meta/status`, { headers: { Cookie: cookie } });

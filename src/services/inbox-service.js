@@ -58,6 +58,7 @@ function contactAuditSnapshot(conversation) {
     contactCustomName: conversation.contact?.customName || null,
     contactName: conversation.contact?.name || null,
     contactPhone: conversation.contact?.phone || null,
+    contactEmail: conversation.contact?.email || null,
   };
 }
 
@@ -89,7 +90,7 @@ function computeSlaMinutesRemaining(conversation, settings, now) {
 }
 
 function contactDisplayName(contact) {
-  return contact?.customName || contact?.name || contact?.phone || "Contato";
+  return contact?.customName || contact?.name || contact?.email || contact?.phone || "Contato";
 }
 
 async function listConversations({
@@ -142,6 +143,7 @@ async function listConversations({
       OR: [
         { customName: { contains: search, mode: "insensitive" } },
         { name: { contains: search, mode: "insensitive" } },
+        { email: { contains: search, mode: "insensitive" } },
         { phone: { contains: search } },
       ],
     };
@@ -363,6 +365,7 @@ const incoming = messages.filter((message) => {
   const contactName =
     message.conversation.contact.customName ||
     message.conversation.contact.name ||
+    message.conversation.contact.email ||
     message.conversation.contact.phone;
 
   return {

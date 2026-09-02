@@ -113,7 +113,7 @@ class EmailAdapter extends ChannelAdapter {
   // account.config.provider: "GMAIL" | "MICROSOFT_365"
   capabilities() {
     return {
-      canReceiveMessages: false,
+      canReceiveMessages: true,
       canSendMessages: true,
       canReceiveMedia: false,
       canSendMedia: true,
@@ -121,8 +121,7 @@ class EmailAdapter extends ChannelAdapter {
       supportsPublicQuestions: false,
       supportsReviews: false,
       supportsOAuth: true,
-      // Push (Gmail Pub/Sub watch / Graph subscriptions) fica para uma fase
-      // futura — nesta fase o recebimento é por consulta, não webhook.
+      // Gmail é recebido por polling incremental; push/webhook continua opcional.
       supportsWebhook: false,
     };
   }
@@ -133,17 +132,19 @@ class EmailAdapter extends ChannelAdapter {
     if (!accessToken) throw channelError("AUTH_ERROR", "Conta de e-mail sem accessToken configurado.");
     try {
       if (provider === "GMAIL") {
-        await axios.get("https://gmail.googleapis.com/gmail/v1/users/me/profile", {
+        const response = await axios.get("https://gmail.googleapis.com/gmail/v1/users/me/profile", {
           headers: { Authorization: `Bearer ${accessToken}` }, timeout: 8000,
         });
+        return { status: "CONNECTED", externalAccountId: response.data?.emailAddress || null, providerMetadata: { displayName: response.data?.emailAddress || null, username: response.data?.emailAddress || null } };
       } else if (provider === "MICROSOFT_365") {
-        await axios.get("https://graph.microsoft.com/v1.0/me", {
+        const response = await axios.get("https://graph.microsoft.com/v1.0/me", {
           headers: { Authorization: `Bearer ${accessToken}` }, timeout: 8000,
         });
+        const email = response.data?.mail || response.data?.userPrincipalName || null;
+        return { status: "CONNECTED", externalAccountId: response.data?.id || email, providerMetadata: { displayName: response.data?.displayName || email, username: email } };
       } else {
         throw channelError("INVALID_PAYLOAD", "Provider de e-mail deve ser GMAIL ou MICROSOFT_365.");
       }
-      return { status: "CONNECTED" };
     } catch (error) {
       if (error.channelErrorCode) throw error;
       if (error.response?.status === 401) throw channelError("TOKEN_EXPIRED", "Token de e-mail expirado ou inválido.");
@@ -207,7 +208,7 @@ class EmailAdapter extends ChannelAdapter {
     throw channelError("INVALID_PAYLOAD", "Provider de e-mail deve ser GMAIL ou MICROSOFT_365.");
   }
 
-  async sendMedia({ to, subject, text, html, attachments, inReplyTo, references } = {}) {
+  async sendMedia({ to, subject, text, html, attachments, inReplyTo, references, threadId } = {}) {
     if (!to) throw channelError("INVALID_PAYLOAD", "Destinatário (to) é obrigatório para envio de e-mail.");
     if (!Array.isArray(attachments) || attachments.length === 0) {
       throw channelError("INVALID_PAYLOAD", "Envio de mídia por e-mail exige ao menos um anexo.");
@@ -225,7 +226,7 @@ class EmailAdapter extends ChannelAdapter {
       try {
         const response = await axios.post(
           "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
-          { raw },
+          { raw, ...(threadId ? { threadId } : {}) },
           { headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" }, timeout: 20000 },
         );
         return { externalId: response.data?.id, data: response.data };
@@ -266,10 +267,7 @@ class EmailAdapter extends ChannelAdapter {
     throw channelError("INVALID_PAYLOAD", "Provider de e-mail deve ser GMAIL ou MICROSOFT_365.");
   }
 
-  // Normaliza uma mensagem já buscada via messages.get (Gmail) ou GET
-  // /me/messages/{id} (Graph). Ainda NÃO existe um loop de polling/fetch
-  // real chamando isto — é plumbing para uma fase futura (webhook/polling
-  // ainda não implementado, ver capabilities().supportsWebhook = false).
+  // Normaliza mensagens buscadas pelo worker Gmail ou recebidas do Graph.
   normalizeInboundEvent(rawPayload) {
     if (!rawPayload || typeof rawPayload !== "object") {
       throw channelError("INVALID_PAYLOAD", "Payload de e-mail não reconhecido.");
@@ -280,24 +278,39 @@ class EmailAdapter extends ChannelAdapter {
       const headers = rawPayload.payload?.headers || [];
       const from = parseEmailAddressHeader(gmailHeader(headers, "From"));
       const subject = gmailHeader(headers, "Subject");
+      const messageId = gmailHeader(headers, "Message-ID");
+      const references = gmailHeader(headers, "References");
+      const occurredAt = rawPayload.internalDate ? new Date(Number(rawPayload.internalDate)) : new Date();
       const bodyPart = findGmailBodyPart(rawPayload.payload);
       let text = null;
       if (bodyPart) {
         const decoded = decodeGmailBase64Url(bodyPart.data);
         text = bodyPart.mimeType === "text/html" ? stripHtml(decoded) : decoded;
       }
-      return [{
-        channel: "EMAIL",
-        externalConversationId: rawPayload.threadId || null,
-        externalMessageId: rawPayload.id || null,
-        senderExternalId: from.address,
-        senderName: from.name || from.address,
-        direction: "RECEBIDA",
-        type: text ? "text" : "unknown",
-        text,
-        occurredAt: rawPayload.internalDate ? new Date(Number(rawPayload.internalDate)) : new Date(),
-        metadata: { subject, id: rawPayload.id, threadId: rawPayload.threadId },
-      }];
+      const attachments = Array.isArray(rawPayload.gmailAttachments) ? rawPayload.gmailAttachments : [];
+      if (attachments.length && /^\[(?:image|document|file|audio|video):[^\]]+\]$/i.test(String(text || "").trim())) text = null;
+      const common = {
+        channel: "EMAIL", externalConversationId: rawPayload.threadId || null,
+        senderExternalId: from.address, senderName: from.name || from.address,
+        direction: "RECEBIDA", occurredAt,
+      };
+      const events = [];
+      if (text || !attachments.length) events.push({
+        ...common, externalMessageId: rawPayload.id || null,
+        type: text ? "text" : "unknown", text,
+        metadata: { subject, id: rawPayload.id, threadId: rawPayload.threadId, messageId, references },
+      });
+      attachments.forEach((attachment, index) => {
+        const mimeType = String(attachment.mimeType || "application/octet-stream").toLowerCase();
+        const type = mimeType.startsWith("image/") ? "image" : mimeType.startsWith("audio/") ? "audio" : mimeType.startsWith("video/") ? "video" : "document";
+        events.push({
+          ...common, externalMessageId: `${rawPayload.id}:attachment:${attachment.id || index}`,
+          type, text: null,
+          media: { buffer: attachment.buffer, mimeType, fileName: attachment.filename || "arquivo" },
+          metadata: { subject, id: rawPayload.id, threadId: rawPayload.threadId, messageId, references, attachment: true },
+        });
+      });
+      return events;
     }
 
     // Formato Microsoft Graph: subject/from/conversationId/body plano.

@@ -1,7 +1,117 @@
 (() => {
-  const APP_VERSION = "0.25.2";
+  const APP_VERSION = "0.28.0";
+
+
 
   const CHANGELOG = [
+    {
+      version: "0.28.0",
+      date: "02/09/2026",
+      title: "Central multicanal premium",
+      changes: [
+        "Nova sidebar sofisticada, superfícies em camadas e painel de contexto em formato de workspace.",
+        "WhatsApp, E-mail, Instagram + Facebook e plataformas de venda agora abrem em áreas dedicadas.",
+        "Layout responsivo otimizado para 1080p e notebooks, com densidade ajustável e microinterações."
+      ]
+    },
+    {
+      version: "0.27.4",
+      date: "01/09/2026",
+      title: "Contato único em vários canais",
+      changes: [
+        "Permite fundir telefone, e-mail e outros canais da mesma pessoa sem apagar históricos.",
+        "A conversa fundida oferece um seletor para responder pelo canal correto.",
+        "O Master escolhe individualmente, na Equipe, quem pode fundir contatos."
+      ]
+    },
+    {
+      version: "0.27.3",
+      date: "01/09/2026",
+      title: "Envio e respostas pelo Gmail",
+      changes: [
+        "Respostas de conversas de e-mail agora saem pela conta Gmail e permanecem na mesma thread.",
+        "O botão Nova permite enviar e-mail apenas por contas conectadas; Meta e demais canais ficam indisponíveis.",
+        "O Master pode liberar individualmente, na Equipe, quem pode iniciar conversas."
+      ]
+    },
+    {
+      version: "0.27.2",
+      date: "01/09/2026",
+      title: "Anexos e acesso restrito no Gmail",
+      changes: [
+        "Exibe imagens e arquivos recebidos pelo Gmail diretamente na conversa.",
+        "Mostra o endereço de e-mail real do remetente nos cards e no cabeçalho.",
+        "Permite ao Master escolher quais usuários podem acessar cada conta de e-mail."
+      ]
+    },
+    {
+      version: "0.27.1",
+      date: "01/09/2026",
+      title: "Recebimento de e-mails pelo Gmail",
+      changes: [
+        "Sincroniza automaticamente novos e-mails da caixa de entrada a cada 30 segundos.",
+        "Importa remetente, assunto, conteúdo e thread sem duplicar mensagens.",
+        "Renova o acesso OAuth automaticamente e solicita reconexão quando necessário."
+      ]
+    },
+    {
+      version: "0.27.0",
+      date: "01/09/2026",
+      title: "Conexão simplificada dos canais",
+      changes: [
+        "Substitui credenciais técnicas por botões OAuth para Google, Microsoft, Meta, Mercado Livre e Amazon.",
+        "Descobre automaticamente e-mail, conta, página e perfil, com seleção quando a Meta retorna mais de uma opção.",
+        "Renova tokens compatíveis automaticamente e sinaliza quando uma reconexão é necessária.",
+        "Mantém credenciais manuais somente na configuração avançada dos canais ainda sem OAuth habilitado."
+      ]
+    },
+
+    {
+      version: "0.26.3",
+      date: "01/09/2026",
+      title: "OAuth correto para Gmail e Google Reviews",
+      changes: [
+        "Separa as permissões do Gmail e do Google Reviews no fluxo OAuth compartilhado.",
+        "Solicita no Gmail somente leitura de mensagens e envio de respostas, mantendo acesso offline.",
+        "Mantém a permissão de gestão de avaliações exclusivamente no canal Google Reviews."
+      ]
+    },
+    {
+      version: "0.26.2",
+      date: "01/09/2026",
+      title: "Refinamento visual da Central de Atendimento",
+      changes: [
+        "Move a nota para uma linha pr\u00f3pria do card, sem depender do tamanho do nome e sem ultrapassar seus limites.",
+        "Adiciona a op\u00e7\u00e3o de recolher filtros e a lista, deixando somente a conversa atual aberta.",
+        "Faz o seletor de Respostas R\u00e1pidas acompanhar corretamente os temas claro e escuro, com contraste leg\u00edvel.",
+        "Troca o bot\u00e3o de Respostas R\u00e1pidas para o laranja Mibro, com raio em degrad\u00ea cinza e contorno preto."
+      ]
+    },
+    {
+      version: "0.26.1",
+      date: "01/09/2026",
+      title: "Fila cronol\u00f3gica e mais espa\u00e7o no atendimento",
+      changes: [
+        "Ordena as conversas pela \u00faltima mensagem, mostrando no topo quem falou mais recentemente; conversas fixadas continuam respeitando a escolha do usu\u00e1rio.",
+        "Permite recolher filtros e categorias para ampliar a lista de conversas e a \u00e1rea do atendimento, mantendo a prefer\u00eancia salva.",
+        "Aumenta os cards e mant\u00e9m as notas dentro de seus limites, com leitura em at\u00e9 duas linhas.",
+        "Centraliza os bot\u00f5es de anexo e respostas r\u00e1pidas e melhora o destaque do raio no tema escuro sem aumentar a altura do composer."
+      ]
+    },
+    {
+      version: "0.26.0",
+      date: "01/09/2026",
+      title: "Atendimento omnichannel e prioridade de conversas",
+      changes: [
+        "Adiciona mensageria real para Instagram Direct, Facebook Messenger e respostas a comentários do Instagram e Facebook usando a Graph API da Meta.",
+        "Adiciona integração funcional de e-mail para Gmail e Microsoft 365, com OAuth e encadeamento por conversa, além de perguntas e respostas do Mercado Livre.",
+        "Permite múltiplas contas por canal, valida assinatura dos webhooks Meta e mantém credenciais protegidas no cofre de integrações.",
+        "Exibe canal, status de conexão e filtros na Central, com reconexão por OAuth ou token manual conforme o provedor.",
+        "Adiciona prioridade manual, estados operacionais mais claros e indicadores de SLA para organizar a fila de atendimento.",
+        "Remove da triagem o aviso de finalização automática que não corresponde mais ao prazo configurado.",
+        "Mantém TikTok Shop, Amazon, Shopee, Google Reviews e Reclame Aqui com status limitado e transparente enquanto dependem de aprovação, contrato ou endpoints externos."
+      ]
+    },
     {
       version: "0.25.2",
       date: "31/08/2026",
