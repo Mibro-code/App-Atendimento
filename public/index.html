@@ -10,12 +10,17 @@
   <link rel="apple-touch-icon" href="/assets/app-icon-192.png">
   <title>Central de Atendimento</title>
   <script>try{const saved=localStorage.getItem("mibro-theme");document.documentElement.dataset.theme=saved||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch{}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/skeleton.css">
   <link rel="stylesheet" href="/css/app.css">
 </head>
 <body>
   <header class="topbar">
+    <button id="sidebar-toggle" type="button" title="Abrir menu" aria-label="Abrir menu"><span aria-hidden="true">☰</span></button>
     <div class="brand"><img class="brand-logo" src="/assets/mibro-logo.png" alt="Mibro"><span class="brand-divider"></span><small>Central de Atendimento</small></div>
+    <button id="command-palette-trigger" class="cmdk-trigger" type="button" aria-haspopup="dialog"><span aria-hidden="true">⌕</span><span>Buscar conversas ou executar uma ação...</span><kbd>Ctrl K</kbd></button>
     <div id="connection-indicator" class="connection" data-state="online" role="status" aria-live="polite"><span class="connection-dot"></span><span id="connection-label">WhatsApp conectado</span></div>
     <button id="install-app" class="install-app" type="button" hidden>Instalar aplicativo</button>
     <div class="app-version-actions">
@@ -30,42 +35,41 @@
     <span class="check-update-text" hidden></span>
   </button>
 </div>
-    <nav class="topbar-navigation" aria-label="Áreas do sistema">
-      <details class="topbar-menu">
-        <summary>Atendimento</summary>
-        <div class="topbar-menu-panel">
-          <button id="enable-notifications" class="notification-button topbar-menu-item" type="button" hidden title="Ativar notificações do atendimento">🔔 Ativar alertas</button>
-          <button id="manage-devices" class="notification-button devices-button topbar-menu-item" type="button" hidden title="Dispositivos com notificações">📱 Dispositivos</button>
-        </div>
-      </details>
-      <details class="topbar-menu">
-        <summary>Automação</summary>
-        <div class="topbar-menu-panel">
-          <button id="bots-button" class="team-button topbar-menu-item" type="button" hidden>Bots</button>
-          <button id="quick-replies-admin-button" class="team-button topbar-menu-item" type="button" hidden>Respostas rápidas</button>
-          <button id="knowledge-base-button" class="team-button topbar-menu-item" type="button" hidden>Conhecimento</button>
-        </div>
-      </details>
-      <details class="topbar-menu">
-        <summary>Canais</summary>
-        <div class="topbar-menu-panel">
-          <button id="integrations-button" class="team-button topbar-menu-item" type="button" hidden>Integrações</button>
-          <button id="campaigns-button" class="team-button topbar-menu-item" type="button" hidden>Campanhas</button>
-        </div>
-      </details>
-      <details class="topbar-menu">
-        <summary>Administração</summary>
-        <div class="topbar-menu-panel">
-          <button id="conversation-settings-button" class="team-button topbar-menu-item" type="button" hidden>Configurações</button>
-          <button id="team-button" class="team-button topbar-menu-item" type="button" hidden>Equipe</button>
-        </div>
-      </details>
-    </nav>
     <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Usar tema escuro" title="Usar tema escuro"><span id="theme-icon" aria-hidden="true">☾</span></button>
     <button id="user-button" class="user-button" type="button"><span id="current-user">Usuário</span> • Sair</button>
   </header>
 
   <main class="workspace">
+    <nav id="app-sidebar" class="app-sidebar" aria-label="Navegação principal">
+      <button id="sidebar-collapse-toggle" class="sidebar-collapse-toggle" type="button" title="Expandir menu" aria-label="Expandir menu" aria-expanded="false"><span aria-hidden="true">»</span></button>
+      <div class="sidebar-scroll">
+        <div class="sidebar-group">
+          <p class="sidebar-group-label">Atendimento</p>
+          <a class="sidebar-item active" href="/" aria-current="page"><span class="sidebar-item-icon" aria-hidden="true">💬</span><span class="sidebar-item-label">Caixa de entrada</span></a>
+          <button id="enable-notifications" class="sidebar-item" type="button" hidden title="Ativar notificações do atendimento"><span class="sidebar-item-icon" aria-hidden="true">🔔</span><span class="sidebar-item-label">Ativar alertas</span></button>
+          <button id="manage-devices" class="sidebar-item" type="button" hidden title="Dispositivos com notificações"><span class="sidebar-item-icon" aria-hidden="true">📱</span><span class="sidebar-item-label">Dispositivos</span></button>
+        </div>
+        <div class="sidebar-group">
+          <p class="sidebar-group-label">Automação</p>
+          <button id="bots-button" class="sidebar-item" type="button" hidden><span class="sidebar-item-icon" aria-hidden="true">🤖</span><span class="sidebar-item-label">Bots</span></button>
+          <button id="quick-replies-admin-button" class="sidebar-item" type="button" hidden><span class="sidebar-item-icon" aria-hidden="true">⚡</span><span class="sidebar-item-label">Respostas rápidas</span></button>
+          <button id="knowledge-base-button" class="sidebar-item" type="button" hidden><span class="sidebar-item-icon" aria-hidden="true">📚</span><span class="sidebar-item-label">Conhecimento</span></button>
+        </div>
+        <div class="sidebar-group">
+          <p class="sidebar-group-label">Canais</p>
+          <button id="integrations-button" class="sidebar-item" type="button" hidden><span class="sidebar-item-icon" aria-hidden="true">🔌</span><span class="sidebar-item-label">Integrações</span></button>
+        </div>
+        <div class="sidebar-group">
+          <p class="sidebar-group-label">Campanhas</p>
+          <button id="campaigns-button" class="sidebar-item" type="button" hidden><span class="sidebar-item-icon" aria-hidden="true">📣</span><span class="sidebar-item-label">Campanhas</span></button>
+        </div>
+        <div class="sidebar-group">
+          <p class="sidebar-group-label">Gestão</p>
+          <button id="conversation-settings-button" class="sidebar-item" type="button" hidden><span class="sidebar-item-icon" aria-hidden="true">⚙</span><span class="sidebar-item-label">Configurações</span></button>
+          <button id="team-button" class="sidebar-item" type="button" hidden><span class="sidebar-item-icon" aria-hidden="true">👥</span><span class="sidebar-item-label">Equipe</span></button>
+        </div>
+      </div>
+    </nav>
     <aside id="filters-panel" class="filters-panel">
       <label class="search"><span>⌕</span><input id="search" type="search" placeholder="Buscar nome ou telefone"></label>
       <select id="channel-filter" class="channel-filter" aria-label="Filtrar por canal">
@@ -109,7 +113,7 @@
     </aside>
 
     <section class="conversation-list-panel">
-      <div class="list-heading"><div><h1>Conversas</h1><p id="list-summary">Carregando...</p></div><div class="list-heading-actions"><button id="toggle-filters-panel" type="button" title="Recolher filtros e categorias" aria-label="Recolher filtros e categorias" aria-controls="filters-panel" aria-expanded="true">&lsaquo;</button><button id="new-conversation" class="new-conversation" type="button" title="Iniciar nova conversa">+ Nova</button><button id="clear-team-filter" title="Remover filtro de atendente" hidden>×</button><button id="refresh" title="Atualizar">↻</button></div></div>
+      <div class="list-heading"><div><h1>Conversas</h1><p id="list-summary">Carregando...</p></div><div class="list-heading-actions"><button id="toggle-filters-panel" type="button" title="Recolher filtros e categorias" aria-label="Recolher filtros e categorias" aria-controls="filters-panel" aria-expanded="true">&lsaquo;</button><button id="density-toggle" type="button" title="Alternar densidade da lista" aria-label="Alternar densidade da lista" aria-pressed="false">≡</button><button id="new-conversation" class="new-conversation" type="button" title="Iniciar nova conversa">+ Nova</button><button id="clear-team-filter" title="Remover filtro de atendente" hidden>×</button><button id="refresh" title="Atualizar">↻</button></div></div>
       <div id="conversation-list" class="conversation-list"><div class="skeleton-list"><div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div></div></div>
     </section>
 
@@ -130,16 +134,20 @@
 </div>
           <div class="chat-actions">
             <button id="pin-conversation" class="secondary-action" type="button" title="Fixar esta conversa somente para minha conta">☆ Fixar</button>
+            <button id="context-panel-toggle" class="secondary-action" type="button" title="Detalhes da conversa">Detalhes</button>
             <button id="notes-toggle" class="secondary-action" type="button">Notas</button>
             <button id="history-toggle" class="secondary-action" type="button">Histórico</button>
             <select id="category-select" aria-label="Categoria principal"></select>
             <select id="subcategory-select" aria-label="Subcategoria" hidden></select>
             <button id="confirm-category" class="category-confirm" type="button" disabled>OK</button>
-            <button id="signal-transfer" class="secondary-action" type="button">
-              Sinalizar envio
-            </button>
-            <button id="toggle-finalized" class="secondary-action"></button>
-            <button id="delete-conversation" class="danger-action" type="button" hidden>Apagar</button>
+            <div class="chat-overflow">
+              <button id="chat-overflow-toggle" class="chat-overflow-toggle" type="button" title="Mais ações" aria-label="Mais ações" aria-haspopup="true">⋯</button>
+              <div class="chat-overflow-panel" role="menu">
+                <button id="signal-transfer" class="secondary-action" type="button" role="menuitem">Sinalizar envio</button>
+                <button id="toggle-finalized" class="secondary-action" role="menuitem"></button>
+                <button id="delete-conversation" class="danger-action" type="button" hidden role="menuitem">Apagar</button>
+              </div>
+            </div>
           </div>
         </header>
         <div class="conversation-meta">
@@ -149,37 +157,17 @@
           <button id="claim-conversation" class="claim-action" type="button">Assumir conversa</button>
         </div>
         <div id="messages" class="messages"></div>
-        <aside id="notes-panel" class="notes-panel" aria-label="Notas do contato">
-          <div class="notes-header"><div><span>CONTATO</span><h3>Notas internas</h3></div><button id="notes-close" type="button">×</button></div>
-          <p class="notes-help">Informações visíveis apenas para a equipe.</p>
-          <form id="note-form"><textarea id="note-input" maxlength="2000" placeholder="Ex.: Cliente prefere contato à tarde" required></textarea><button type="submit">Adicionar nota</button></form>
-          <div id="notes-list" class="notes-list"></div>
-        </aside>
-        <aside id="history-panel" class="history-panel" aria-label="Histórico de ações da conversa">
-          <div class="notes-header"><div><span>AUDITORIA</span><h3>Histórico de ações</h3></div><button id="history-close" type="button">×</button></div>
-          <p class="notes-help">Registro de alterações realizadas pela equipe nesta conversa.</p>
-          <div id="history-list" class="history-list"></div>
-        </aside>
         <div id="service-window-notice" class="service-window-notice" hidden>
           <span><b>Janela de 24 horas encerrada</b><small>A Meta permite retomar este contato somente com um template aprovado.</small></span>
           <button id="open-required-template" type="button">Usar template</button>
         </div>
-        <section id="bot-suggestion-card" class="bot-suggestion-card" hidden aria-live="polite">
-          <div class="bot-suggestion-head"><span>SUGESTÃO DO BOT</span><small id="bot-suggestion-meta"></small></div>
-          <p id="bot-suggestion-text"></p>
-          <div class="bot-suggestion-actions">
-            <button id="use-bot-suggestion" type="button">Usar</button>
-            <button id="edit-bot-suggestion" type="button">Editar</button>
-            <button id="ignore-bot-suggestion" type="button">Ignorar</button>
-            <button id="like-bot-suggestion" type="button" aria-label="Sugestão útil">👍</button>
-            <button id="dislike-bot-suggestion" type="button" aria-label="Sugestão não útil">👎</button>
-          </div>
-        </section>
         <form id="composer" class="composer">
-          <label class="attach-image" title="Anexar imagem, vídeo ou documento" aria-label="Anexar imagem, vídeo ou documento"><input id="attachment-input" type="file" accept="image/jpeg,image/png,video/mp4,video/3gpp,video/3gp,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"><span aria-hidden="true">+</span></label>
+          <div class="composer-tools">
+            <label class="attach-image" title="Anexar imagem, vídeo ou documento" aria-label="Anexar imagem, vídeo ou documento"><input id="attachment-input" type="file" accept="image/jpeg,image/png,video/mp4,video/3gpp,video/3gp,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"><span aria-hidden="true">+</span></label>
+            <button id="open-templates" class="template-shortcut" type="button" title="Enviar template aprovado pela Meta" hidden>Templates</button>
+            <button id="open-quick-replies" class="quick-reply-shortcut" type="button" title="Respostas rápidas" aria-label="Respostas rápidas">⚡</button>
+          </div>
           <div id="attachment-preview" class="attachment-preview" hidden><img id="attachment-thumb" alt="Prévia da imagem"><span id="attachment-type" class="attachment-type" hidden>DOC</span><span id="attachment-name"></span><button id="remove-attachment" type="button" aria-label="Remover anexo">×</button></div>
-          <button id="open-templates" class="template-shortcut" type="button" title="Enviar template aprovado pela Meta" hidden>Templates</button>
-          <button id="open-quick-replies" class="quick-reply-shortcut" type="button" title="Respostas rápidas" aria-label="Respostas rápidas">⚡</button>
           <div class="composer-input-wrap">
             <textarea id="message-input" rows="1" maxlength="4096" placeholder="Digite uma mensagem... (use / para respostas rápidas)"></textarea>
             <div id="slash-suggestions" class="slash-suggestions" hidden></div>
@@ -188,6 +176,67 @@
         </form>
       </div>
     </section>
+
+    <aside id="context-panel" class="context-panel" aria-label="Painel de contexto da conversa">
+      <div class="context-panel-header">
+        <nav class="context-panel-tabs" role="tablist" aria-label="Abas do painel de contexto">
+          <button type="button" class="context-tab active" data-context-tab="details" role="tab">Detalhes</button>
+          <button type="button" class="context-tab" data-context-tab="notes" role="tab">Notas</button>
+          <button type="button" id="history-tab-button" class="context-tab" data-context-tab="history" role="tab">Histórico</button>
+          <button type="button" class="context-tab" data-context-tab="bot" role="tab">Bot</button>
+          <button type="button" class="context-tab" data-context-tab="sla" role="tab">SLA</button>
+          <button type="button" class="context-tab" data-context-tab="files" role="tab">Arquivos</button>
+        </nav>
+        <button id="context-panel-close" class="context-panel-close" type="button" aria-label="Fechar painel">×</button>
+      </div>
+      <div class="context-panel-body">
+        <section data-context-panel="details" class="context-pane">
+          <div id="context-details-summary"></div>
+        </section>
+        <section data-context-panel="notes" class="context-pane" hidden>
+          <aside id="notes-panel" class="notes-panel" aria-label="Notas do contato">
+            <div class="notes-header"><div><span>CONTATO</span><h3>Notas internas</h3></div><button id="notes-close" type="button">×</button></div>
+            <p class="notes-help">Informações visíveis apenas para a equipe.</p>
+            <form id="note-form"><textarea id="note-input" maxlength="2000" placeholder="Ex.: Cliente prefere contato à tarde" required></textarea><button type="submit">Adicionar nota</button></form>
+            <div id="notes-list" class="notes-list"></div>
+          </aside>
+        </section>
+        <section data-context-panel="history" class="context-pane" hidden>
+          <aside id="history-panel" class="history-panel" aria-label="Histórico de ações da conversa">
+            <div class="notes-header"><div><span>AUDITORIA</span><h3>Histórico de ações</h3></div><button id="history-close" type="button">×</button></div>
+            <p class="notes-help">Registro de alterações realizadas pela equipe nesta conversa.</p>
+            <div id="history-list" class="history-list"></div>
+          </aside>
+        </section>
+        <section data-context-panel="bot" class="context-pane" hidden>
+          <p id="bot-tab-empty" class="context-empty">Nenhuma sugestão do bot no momento.</p>
+          <section id="bot-suggestion-card" class="bot-suggestion-card" hidden aria-live="polite">
+            <div class="bot-suggestion-head"><span>SUGESTÃO DO BOT</span><small id="bot-suggestion-meta"></small></div>
+            <p id="bot-suggestion-text"></p>
+            <div class="bot-suggestion-actions">
+              <button id="use-bot-suggestion" type="button">Usar</button>
+              <button id="edit-bot-suggestion" type="button">Editar</button>
+              <button id="ignore-bot-suggestion" type="button">Ignorar</button>
+              <button id="like-bot-suggestion" type="button" aria-label="Sugestão útil">👍</button>
+              <button id="dislike-bot-suggestion" type="button" aria-label="Sugestão não útil">👎</button>
+            </div>
+          </section>
+        </section>
+        <section data-context-panel="sla" class="context-pane" hidden>
+          <div id="context-tab-sla-body" class="context-info-list"></div>
+        </section>
+        <section data-context-panel="files" class="context-pane" hidden>
+          <div class="context-files-summary">
+            <div class="context-files-counts">
+              <span>Imagens e vídeos <strong id="context-files-media-count">0</strong></span>
+              <span>Documentos <strong id="context-files-doc-count">0</strong></span>
+              <span>Links <strong id="context-files-link-count">0</strong></span>
+            </div>
+            <button id="context-files-open-all" type="button" class="secondary-action">Ver tudo</button>
+          </div>
+        </section>
+      </div>
+    </aside>
   </main>
   <dialog id="quick-reply-dialog" class="quick-reply-dialog">
     <div class="dialog-header"><div><span>RESPOSTAS RÁPIDAS</span><h2>Selecionar resposta</h2><p>O texto é inserido no campo de mensagem — você revisa e envia manualmente.</p></div><button id="close-quick-replies" type="button" aria-label="Fechar">×</button></div>
@@ -410,5 +459,6 @@
   <script src="/js/changelog.js"></script>
   <script src="/js/internal-chat.js"></script>
   <script src="/js/pwa.js"></script>
+  <script src="/js/command-palette.js"></script>
 </body>
 </html>

@@ -104,12 +104,11 @@ function closeConversationView() {
   state.selectedContactName = "";
   state.botSuggestion = null;
   state.pendingBotSuggestion = null;
-  $("#bot-suggestion-card").hidden = true;
+  hideBotSuggestion();
   state.customerServiceWindow = null;
   syncCustomerServiceWindow();
   if ($("#contact-files-dialog")?.open) $("#contact-files-dialog").close();
-  $("#notes-panel").classList.remove("open");
-  $("#history-panel").classList.remove("open");
+  closeContextPanel();
   $("#chat-content").hidden = true;
   $("#empty-state").hidden = false;
   $("#chat-panel").classList.remove("open");
@@ -155,6 +154,39 @@ function setFiltersPanelCollapsed(collapsed, persist = true) {
   button.title = collapsed ? "Mostrar filtros e categorias" : "Recolher filtros e categorias";
   if (persist) try { localStorage.setItem("mibro-filters-collapsed", collapsed ? "1" : "0"); } catch {}
 }
+
+// Painel lateral direito (item 7 do redesign): abas Detalhes/Notas/Histórico/
+// Bot/SLA/Arquivos substituindo as antigas gavetas independentes de
+// notas/histórico. Os elementos #notes-panel/#history-panel/#bot-suggestion-card
+// mantêm os mesmos IDs e lógica de dados — só passam a viver dentro de uma
+// aba em vez de um painel deslizante próprio.
+const CONTEXT_TABS = ["details", "notes", "history", "bot", "sla", "files"];
+function setContextPanelOpen(open, persist = true) {
+  const workspace = $(".workspace");
+  workspace.classList.toggle("context-open", open);
+  $("#context-panel").setAttribute("aria-hidden", String(!open));
+  if (persist) try { localStorage.setItem("mibro-context-open", open ? "1" : "0"); } catch {}
+}
+function activeContextTab() {
+  return document.querySelector("[data-context-tab].active")?.dataset.contextTab || "details";
+}
+function setContextTab(tab, { open = true } = {}) {
+  if (!CONTEXT_TABS.includes(tab)) tab = "details";
+  document.querySelectorAll("[data-context-tab]").forEach((button) => button.classList.toggle("active", button.dataset.contextTab === tab));
+  document.querySelectorAll("[data-context-panel]").forEach((panel) => { panel.hidden = panel.dataset.contextPanel !== tab; });
+  if (tab === "bot") $("[data-context-tab='bot']")?.classList.remove("has-update");
+  try { localStorage.setItem("mibro-context-tab", tab); } catch {}
+  if (open) setContextPanelOpen(true);
+}
+function closeContextPanel() { setContextPanelOpen(false); }
+function toggleContextTab(tab) {
+  if ($(".workspace").classList.contains("context-open") && activeContextTab() === tab) closeContextPanel();
+  else setContextTab(tab);
+}
+document.querySelectorAll("[data-context-tab]").forEach((button) => button.addEventListener("click", () => setContextTab(button.dataset.contextTab)));
+$("#context-panel-close").addEventListener("click", closeContextPanel);
+$("#context-panel-toggle").addEventListener("click", () => toggleContextTab("details"));
+$("#context-files-open-all").addEventListener("click", openContactFiles);
 const messagePreview = (message) => {
   if (!message) return "Conversa sem mensagens";
   if (message.type === "image") return message.text && message.text !== "[image]" ? `📷 ${message.text}` : "📷 Imagem";
@@ -753,19 +785,26 @@ async function loadConversations() {
 function hideBotSuggestion() {
   state.botSuggestion = null;
   $("#bot-suggestion-card").hidden = true;
+  $("#bot-tab-empty").hidden = false;
+  $("[data-context-tab='bot']")?.classList.remove("has-update");
 }
 
 function renderBotSuggestion(suggestion) {
   state.botSuggestion = suggestion || null;
   const card = $("#bot-suggestion-card");
-  if (!suggestion?.suggestedResponseText) {
+  const hasSuggestion = Boolean(suggestion?.suggestedResponseText);
+  if (!hasSuggestion) {
     card.hidden = true;
+    $("#bot-tab-empty").hidden = false;
+    $("[data-context-tab='bot']")?.classList.remove("has-update");
     return;
   }
   $("#bot-suggestion-text").textContent = suggestion.suggestedResponseText;
   const confidence = typeof suggestion.confidence === "number" ? ` · ${Math.round(suggestion.confidence * 100)}%` : "";
   $("#bot-suggestion-meta").textContent = `${suggestion.intentName || "Resposta sugerida"}${confidence}`;
   card.hidden = false;
+  $("#bot-tab-empty").hidden = true;
+  if (activeContextTab() !== "bot") $("[data-context-tab='bot']")?.classList.add("has-update");
 }
 
 async function loadBotSuggestion(conversationId, loadSequence) {
@@ -865,6 +904,8 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
   state.selectedContactId = c.contact.id;
   state.customerServiceWindow = c.customerServiceWindow;
   syncCustomerServiceWindow();
+  renderContextDetails(c);
+  renderSlaTab(c);
   $("#empty-state").hidden = true; $("#chat-content").hidden = false; $("#chat-panel").classList.add("open");
   if (headerSignature !== state.selectedHeaderSignature) {
     state.selectedHeaderSignature = headerSignature;
@@ -896,7 +937,8 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
     $("#pin-conversation").textContent = c.isPinned ? "★ Fixada" : "☆ Fixar";
     $("#pin-conversation").dataset.pinned = String(Boolean(c.isPinned));
     $("#history-toggle").hidden = !c.canViewHistory;
-    if (!c.canViewHistory) $("#history-panel").classList.remove("open");
+    $("#history-tab-button").hidden = !c.canViewHistory;
+    if (!c.canViewHistory && activeContextTab() === "history") setContextTab("details", { open:false });
   }
   if (messagesSignature !== state.selectedMessagesSignature) {
     state.selectedMessagesSignature = messagesSignature;
@@ -912,6 +954,7 @@ async function openConversation(id, { refreshList = true, markRead = true } = {}
     $("#messages").scrollTop = $("#messages").scrollHeight;
   }
   syncMessageStatuses(displayMessages);
+  renderFilesTabSummary();
   if ($("#contact-files-dialog").open) renderContactFiles(state.contactFilesTab);
   if (notesSignature !== state.selectedNotesSignature) {
     state.selectedNotesSignature = notesSignature;
@@ -978,6 +1021,55 @@ function connectRealtime() {
     }, 1500);
   });
   window.addEventListener("beforeunload", () => events.close(), { once:true });
+}
+
+// Aba "Detalhes" do painel de contexto: recapitulação somente leitura dos
+// dados já carregados da conversa aberta — os controles interativos
+// (categoria, responsável, prioridade) continuam no cabeçalho/meta da
+// conversa, sem duplicar lógica de formulário/validação aqui.
+function renderContextDetails(c) {
+  const name = c.contact.customName || c.contact.name || c.contact.phone;
+  const channel = channelBadge(c.channel) || "WhatsApp";
+  $("#context-details-summary").innerHTML = `
+    <div class="context-detail-block">
+      <span class="context-detail-label">Contato</span>
+      <strong>${escapeHtml(name)}</strong>
+      <small>+${escapeHtml(c.contact.phone)}</small>
+    </div>
+    <div class="context-info-list">
+      <div class="context-info-row"><span>Canal</span><strong>${escapeHtml(channel)}</strong></div>
+      <div class="context-info-row"><span>Categoria</span><strong>${escapeHtml(categoryLabel(c.category))}</strong></div>
+      <div class="context-info-row"><span>Status</span><strong>${escapeHtml(statusLabel(c.status))}</strong></div>
+      <div class="context-info-row"><span>Responsável</span><strong>${escapeHtml(c.assignedUser?.name || "Sem responsável")}</strong></div>
+      ${c.priority && c.priority !== "NORMAL" ? `<div class="context-info-row"><span>Prioridade</span><strong>${escapeHtml(priorityLabel(c.priority))}</strong></div>` : ""}
+      <div class="context-info-row"><span>Fixada</span><strong>${c.isPinned ? "Sim" : "Não"}</strong></div>
+    </div>`;
+}
+
+// Aba "SLA": só formata campos que já vêm no objeto da conversa (nenhuma
+// chamada de rede nova) — mesmos campos usados no badge do card da lista.
+function renderSlaTab(c) {
+  const rows = [];
+  rows.push(`<div class="context-info-row"><span>Status</span><strong>${escapeHtml(statusLabel(c.status))}</strong></div>`);
+  const minutes = c.slaMinutesRemaining;
+  if (minutes !== null && minutes !== undefined) {
+    rows.push(minutes < 0
+      ? `<div class="context-info-row alert"><span>SLA de resposta</span><strong>Estourado</strong></div>`
+      : `<div class="context-info-row"><span>SLA de resposta</span><strong>${minutes} min restantes</strong></div>`);
+  }
+  if (c.firstResponseSlaBreached) rows.push(`<div class="context-info-row alert"><span>Primeira resposta</span><strong>Fora do prazo</strong></div>`);
+  if (c.responseSlaBreached) rows.push(`<div class="context-info-row alert"><span>Resposta durante atendimento</span><strong>Fora do prazo</strong></div>`);
+  $("#context-tab-sla-body").innerHTML = rows.join("");
+}
+
+// Aba "Arquivos": só a contagem (reaproveita externalLinks já usada pelo
+// diálogo de arquivos) — o grid completo continua no diálogo existente,
+// aberto pelo botão "Ver tudo" para não duplicar a renderização.
+function renderFilesTabSummary() {
+  const messages = state.selectedMessages || [];
+  $("#context-files-media-count").textContent = messages.filter((m) => ["image", "video"].includes(m.type) && m.mediaStorageKey).length;
+  $("#context-files-doc-count").textContent = messages.filter((m) => m.type === "document" && m.mediaStorageKey).length;
+  $("#context-files-link-count").textContent = externalLinks(messages).length;
 }
 
 function renderNotes(notes) {
@@ -1209,6 +1301,45 @@ $("#theme-toggle").addEventListener("click", () => {
 $("#toggle-filters-panel").addEventListener("click", () => {
   setFiltersPanelCollapsed(!$(".workspace").classList.contains("filters-collapsed"));
 });
+
+// Densidade da lista de conversas (item 4 do redesign): confortável (padrão)
+// ou compacta — puramente visual, não afeta os dados carregados.
+function setDensity(compact, persist = true) {
+  $("#conversation-list").classList.toggle("density-compact", compact);
+  const button = $("#density-toggle");
+  button.classList.toggle("active", compact);
+  button.setAttribute("aria-pressed", String(compact));
+  if (persist) try { localStorage.setItem("mibro-density", compact ? "1" : "0"); } catch {}
+}
+$("#density-toggle").addEventListener("click", () => setDensity(!$("#conversation-list").classList.contains("density-compact")));
+
+// Sidebar de navegação: modo compacto (padrão) / expandido, com persistência,
+// e modo gaveta (drawer) no mobile via #sidebar-toggle.
+function setSidebarExpanded(expanded, persist = true) {
+  $(".workspace").classList.toggle("sidebar-expanded", expanded);
+  $("#app-sidebar").classList.toggle("expanded", expanded);
+  $("#sidebar-collapse-toggle").setAttribute("aria-expanded", String(expanded));
+  if (persist) try { localStorage.setItem("mibro-sidebar-expanded", expanded ? "1" : "0"); } catch {}
+}
+$("#sidebar-collapse-toggle").addEventListener("click", () => setSidebarExpanded(!$("#app-sidebar").classList.contains("expanded")));
+$("#sidebar-toggle").addEventListener("click", () => $("#app-sidebar").classList.toggle("mobile-open"));
+document.addEventListener("click", (event) => {
+  if (innerWidth > 700) return;
+  if (!$("#app-sidebar").classList.contains("mobile-open")) return;
+  if (event.target.closest("#app-sidebar") || event.target.closest("#sidebar-toggle")) return;
+  $("#app-sidebar").classList.remove("mobile-open");
+});
+
+// Menu "mais ações" do cabeçalho da conversa (item 6 do redesign): agrupa
+// ações menos frequentes (sinalizar envio, finalizar, apagar) sem alterar
+// nenhum dos handlers já existentes desses botões.
+$("#chat-overflow-toggle").addEventListener("click", (event) => {
+  event.stopPropagation();
+  $(".chat-overflow").classList.toggle("open");
+});
+document.addEventListener("click", (event) => {
+  if (!event.target.closest(".chat-overflow")) $(".chat-overflow")?.classList.remove("open");
+});
 $("#bots-button").addEventListener("click", () => { location.href = "/bots"; });
 $("#quick-replies-admin-button").addEventListener("click", () => { location.href = "/quick-replies"; });
 $("#knowledge-base-button").addEventListener("click", () => { location.href = "/knowledge-base"; });
@@ -1373,11 +1504,11 @@ $("#team-form").addEventListener("submit", async (event) => {
   } catch (e) { toast(e.message, true); }
   finally { submit.disabled = false; }
 });
-$("#notes-toggle").addEventListener("click", () => { $("#history-panel").classList.remove("open"); $("#notes-panel").classList.toggle("open"); });
-$("#notes-close").addEventListener("click", () => $("#notes-panel").classList.remove("open"));
-$("#history-toggle").addEventListener("click", () => { $("#notes-panel").classList.remove("open"); $("#history-panel").classList.toggle("open"); });
-$("#history-close").addEventListener("click", () => $("#history-panel").classList.remove("open"));
-$("#note-form").addEventListener("submit", async (event) => { event.preventDefault(); const input = $("#note-input"); const content = input.value.trim(); if (!content) return; try { await api(`/api/contacts/${state.selectedContactId}/notes`, { method:"POST", body:JSON.stringify({ content, conversationId:state.selectedId }) }); input.value = ""; toast("Nota adicionada ao contato."); await openConversation(state.selectedId); $("#notes-panel").classList.add("open"); } catch (e) { toast(e.message, true); } });
+$("#notes-toggle").addEventListener("click", () => toggleContextTab("notes"));
+$("#notes-close").addEventListener("click", closeContextPanel);
+$("#history-toggle").addEventListener("click", () => toggleContextTab("history"));
+$("#history-close").addEventListener("click", closeContextPanel);
+$("#note-form").addEventListener("submit", async (event) => { event.preventDefault(); const input = $("#note-input"); const content = input.value.trim(); if (!content) return; try { await api(`/api/contacts/${state.selectedContactId}/notes`, { method:"POST", body:JSON.stringify({ content, conversationId:state.selectedId }) }); input.value = ""; toast("Nota adicionada ao contato."); await openConversation(state.selectedId); setContextTab("notes"); } catch (e) { toast(e.message, true); } });
 $("#notes-list").addEventListener("click", async (event) => {
   const deleteButton = event.target.closest(".delete-note");
   if (deleteButton) {
@@ -1385,12 +1516,12 @@ $("#notes-list").addEventListener("click", async (event) => {
     deleteButton.disabled = true;
     try {
       await api(`/api/contacts/${state.selectedContactId}/notes/${deleteButton.dataset.noteId}`, { method:"DELETE", body:JSON.stringify({ conversationId:state.selectedId }) });
-      toast("Nota apagada."); await openConversation(state.selectedId); $("#notes-panel").classList.add("open");
+      toast("Nota apagada."); await openConversation(state.selectedId); setContextTab("notes");
     } catch (e) { deleteButton.disabled = false; toast(e.message, true); }
     return;
   }
   const button = event.target.closest(".pin-note"); if (!button) return; button.disabled = true; const pinned = button.dataset.pinned !== "true";
-  try { await api(`/api/contacts/${state.selectedContactId}/notes/${button.dataset.noteId}`, { method:"PATCH", body:JSON.stringify({ pinned, conversationId:state.selectedId }) }); toast(pinned ? "Nota fixada no topo." : "Nota desafixada."); await openConversation(state.selectedId); $("#notes-panel").classList.add("open"); } catch (e) { button.disabled = false; toast(e.message, true); }
+  try { await api(`/api/contacts/${state.selectedContactId}/notes/${button.dataset.noteId}`, { method:"PATCH", body:JSON.stringify({ pinned, conversationId:state.selectedId }) }); toast(pinned ? "Nota fixada no topo." : "Nota desafixada."); await openConversation(state.selectedId); setContextTab("notes"); } catch (e) { button.disabled = false; toast(e.message, true); }
 });
 $("#pin-conversation").addEventListener("click", async (event) => {
   const button = event.currentTarget;
@@ -1914,6 +2045,10 @@ $(".chat-header").addEventListener("click", (event) => { if (innerWidth <= 700 &
 
 syncThemeToggle();
 try { setFiltersPanelCollapsed(localStorage.getItem("mibro-filters-collapsed") === "1", false); } catch { setFiltersPanelCollapsed(false, false); }
+try { setDensity(localStorage.getItem("mibro-density") === "1", false); } catch { setDensity(false, false); }
+try { setSidebarExpanded(localStorage.getItem("mibro-sidebar-expanded") === "1", false); } catch { setSidebarExpanded(false, false); }
+try { setContextTab(localStorage.getItem("mibro-context-tab") || "details", { open:false }); } catch { setContextTab("details", { open:false }); }
+try { setContextPanelOpen(localStorage.getItem("mibro-context-open") === "1", false); } catch { setContextPanelOpen(false, false); }
 loadCurrentUser()
   .then(() => Promise.all([loadUsers(), loadCategories(), loadMetaStatus()]))
   .then(loadAdminUsers)
