@@ -55,6 +55,11 @@ test("alertas preservam o rótulo recolhível e piscam apenas com conversa não 
   assert.match(appJs, /conversation\.status === "AGUARDANDO_EQUIPE" && Number\(conversation\.unreadCount\) > 0/);
 });
 
+test("contadores da navegação usam a lista global sem acompanhar filtros ativos", () => {
+  assert.match(appJs, /MARKETPLACE_UI_ENABLED \? Promise\.resolve\(null\) : api\("\/api\/conversations"\)/);
+  assert.match(appJs, /summaryConversations\.reduce/);
+});
+
 test("marketplaces ficam ocultos por uma única flag reversível sem remover a implementação", () => {
   assert.match(featureFlagsJs, /marketplaces:\s*false/);
   for (const channel of ["MERCADO_LIVRE", "TIKTOK_SHOP", "AMAZON_MARKETPLACE", "SHOPEE", "SHEIN_MARKETPLACE"]) {

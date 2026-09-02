@@ -1,9 +1,19 @@
 const prisma = require("../database/prisma");
 const audit = require("./audit-service");
 const { businessHoursText, isBusinessHours } = require("./business-hours-service");
+const { scheduleState } = require("./bot-simulator-service");
 
+// Item "Integrar o Bot de Triagem Inicial ao sistema de Bots": este arquivo
+// continua sendo o único lugar que efetivamente ENVIA a triagem (o motor
+// genérico de IA em bot-orchestrator-service.js roda hoje só em modo sombra/
+// observação, nunca envia mensagem real — ver bot-observation-service.js).
+// A diferença é que toda configuração (mensagens, horário, opções/setores)
+// agora vem do Bot type=SYSTEM_TRIAGE persistido no banco, em vez de estar
+// hardcoded aqui. `isBusinessHours`/`businessHoursText` seguem exportados
+// por compatibilidade (usados por outros serviços e pelos testes), mas a
+// decisão real de horário passa a usar o Schedule do Bot (scheduleState),
+// para não duplicar sistema de horário.
 const categoryReplyPrefix = "triage_category:";
-const triageCategoryCodes = ["ATENDIMENTO", "SUPORTE", "COMERCIAL", "PARCERIAS"];
 
 function contactFirstName(contact) {
   const name = contact?.name?.trim();
@@ -11,23 +21,92 @@ function contactFirstName(contact) {
   return name.split(/\s+/)[0];
 }
 
-function welcomeText(contact) {
-  const greeting = contactFirstName(contact);
-  return `👋 ${greeting === "Olá" ? greeting : `Olá, ${greeting}`}! Seja bem-vindo(a) à Mibro Brasil!\n\nÉ um prazer receber você por aqui. Nosso atendimento funciona de ${businessHoursText}.\n\nPara encaminharmos você à equipe certa, escolha abaixo o setor com o qual deseja falar.`;
+// Placeholders disponíveis nas mensagens configuráveis do Bot de Triagem:
+// {{saudacao}} ("Olá" ou "Olá, Nome"), {{saudacao_virgula}} ("" ou ", Nome"),
+// {{horario}} (descrição do Schedule do Bot) e {{categoria}} (setor
+// escolhido, só disponível na mensagem de encaminhamento).
+function renderTemplate(template, vars) {
+  return String(template || "").replace(/\{\{\s*(\w+)\s*\}\}/g, (match, key) => (
+    Object.prototype.hasOwnProperty.call(vars, key) ? String(vars[key]) : match
+  ));
 }
 
-function routingText(contact, category) {
+function greetingVars(contact) {
   const greeting = contactFirstName(contact);
-  return `✅ Perfeito${greeting === "Olá" ? "" : `, ${greeting}`}! Encaminhamos seu atendimento para o setor ${category.name}. Em breve, nossa equipe continuará a conversa por aqui.`;
+  return {
+    saudacao: greeting === "Olá" ? greeting : `Olá, ${greeting}`,
+    saudacao_virgula: greeting === "Olá" ? "" : `, ${greeting}`,
+  };
 }
 
-function afterHoursText(contact) {
-  const greeting = contactFirstName(contact);
-  return `🌙 ${greeting === "Olá" ? greeting : `Olá, ${greeting}`}! Agradecemos por entrar em contato com a Mibro Brasil.\n\nNo momento, nossa equipe não está online. Nosso atendimento funciona de ${businessHoursText}.\n\nPor favor, envie uma nova mensagem dentro desse horário e teremos prazer em atender você. Até breve!`;
+const weekdayShortLabels = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+const weekdayFullLabels = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"];
+const weekdayShort = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+// Nomes populares de timezone (item Horário → Timezone): "America/Sao_Paulo"
+// é sempre chamado de "Brasília" na fala corrente — preserva o texto atual
+// do bot de triagem. Timezones não mapeadas caem para o nome da cidade.
+const timezoneFriendlyNames = { "America/Sao_Paulo": "Brasília" };
+
+// Descreve o Schedule do Bot em texto legível para o placeholder {{horario}}.
+// Quando todos os dias habilitados compartilham o mesmo horário (caso comum,
+// ex.: "segunda a sexta-feira, das 8h às 17h"), gera uma faixa compacta;
+// caso contrário, lista dia a dia. Sem Schedule configurado, cai para o
+// texto genérico de business-hours-service (mesma frase de sempre).
+function describeSchedule(bot) {
+  const enabledDays = (bot?.schedules || [])
+    .filter((item) => item.enabled)
+    .sort((left, right) => left.dayOfWeek - right.dayOfWeek);
+  if (!enabledDays.length) return businessHoursText;
+
+  const sameHours = enabledDays.every((item) => (
+    item.startTime === enabledDays[0].startTime && item.endTime === enabledDays[0].endTime
+  ));
+  const hourText = (start, end) => `das ${start.replace(/^0/, "").replace(":00", "h")} às ${end.replace(/^0/, "").replace(":00", "h")}`;
+
+  const isConsecutiveRun = enabledDays.length >= 2
+    && enabledDays.every((item, index) => index === 0 || item.dayOfWeek === enabledDays[index - 1].dayOfWeek + 1);
+
+  if (sameHours && isConsecutiveRun) {
+    const first = weekdayShortLabels[enabledDays[0].dayOfWeek];
+    const last = weekdayFullLabels[enabledDays[enabledDays.length - 1].dayOfWeek];
+    const tzName = timezoneFriendlyNames[bot.timezone] || bot.timezone.split("/").pop().replace(/_/g, " ");
+    return `${first} a ${last}, ${hourText(enabledDays[0].startTime, enabledDays[0].endTime)} (horário de ${tzName})`;
+  }
+  if (sameHours) {
+    const days = enabledDays.map((item) => weekdayShort[item.dayOfWeek]).join(", ");
+    return `${days}, ${hourText(enabledDays[0].startTime, enabledDays[0].endTime)}`;
+  }
+  return enabledDays.map((item) => `${weekdayShort[item.dayOfWeek]} ${hourText(item.startTime, item.endTime)}`).join("; ");
 }
 
 function categoryReplyId(categoryId) {
   return `${categoryReplyPrefix}${categoryId}`;
+}
+
+// Bot de Triagem: sempre um único Bot type=SYSTEM_TRIAGE (não arquivado).
+// Se houver mais de um por engano, usa o mais antigo (criação original) e
+// ignora os demais — nunca lança erro aqui, quem decide "estado seguro" em
+// caso de configuração ausente/quebrada é handleIncomingTriage.
+async function getTriageBot() {
+  const bots = await prisma.bot.findMany({
+    where: { type: "SYSTEM_TRIAGE", archivedAt: null },
+    include: {
+      schedules: { orderBy: { dayOfWeek: "asc" } },
+      triageOptions: {
+        where: { enabled: true },
+        orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+        include: { category: { select: { id: true, name: true, code: true, active: true } } },
+      },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+  return bots[0] || null;
+}
+
+function logMisconfiguration(botId, reason, details) {
+  // Nunca lança/derruba o webhook por causa de configuração inconsistente
+  // (item "Fallback se configuração falhar") — só registra para diagnóstico.
+  console.error(`[triage-bot] ${reason}`, { botId, ...details });
 }
 
 async function saveBotText(conversation, text, system, channel) {
@@ -46,16 +125,18 @@ async function saveBotText(conversation, text, system, channel) {
   return true;
 }
 
-async function sendCategoryMenu(conversation, channel) {
-  const categories = await prisma.category.findMany({
-    where: { active: true, parentId: null, code: { in: triageCategoryCodes } },
-  });
-  categories.sort((left, right) => triageCategoryCodes.indexOf(left.code) - triageCategoryCodes.indexOf(right.code));
-  if (!categories.length) return false;
-  const rows = categories.map((category) => ({
-    id: categoryReplyId(category.id), title: category.name.slice(0, 24),
+async function sendCategoryMenu(conversation, channel, bot) {
+  const options = (bot.triageOptions || []).filter((option) => option.category?.active);
+  if (!options.length) {
+    logMisconfiguration(bot.id, "Nenhuma opção de triagem ativa/válida configurada.", {});
+    return saveBotText(conversation, bot.fallbackMessage, "triage_fallback", channel);
+  }
+  const rows = options.map((option) => ({
+    id: categoryReplyId(option.categoryId), title: option.label.slice(0, 24),
   }));
-  const menuText = welcomeText(conversation.contact);
+  const menuText = renderTemplate(bot.initialMessage, {
+    ...greetingVars(conversation.contact), horario: describeSchedule(bot),
+  });
   const result = await channel.sendList(conversation.contact.phone, {
     body: menuText, button: "Escolher setor", rows,
   });
@@ -72,11 +153,10 @@ async function sendCategoryMenu(conversation, channel) {
   return true;
 }
 
-async function completeTriage(conversation, categoryId, channel) {
-  const category = await prisma.category.findFirst({
-    where: { id: categoryId, active: true, parentId: null, code: { in: triageCategoryCodes } },
-  });
-  if (!category) return sendCategoryMenu(conversation, channel);
+async function completeTriage(conversation, categoryId, channel, bot) {
+  const option = (bot.triageOptions || []).find((item) => item.categoryId === categoryId && item.category?.active);
+  if (!option) return sendCategoryMenu(conversation, channel, bot);
+  const category = option.category;
 
   const claimed = await prisma.conversation.updateMany({
     where: { id: conversation.id, categoryId: null, status: "BOT" },
@@ -85,7 +165,9 @@ async function completeTriage(conversation, categoryId, channel) {
   if (!claimed.count) return false;
 
   try {
-    const text = routingText(conversation.contact, category);
+    const text = renderTemplate(bot.handoffMessage, {
+      ...greetingVars(conversation.contact), categoria: category.name,
+    });
     const result = await channel.sendText(conversation.contact.phone, text);
     const occurredAt = new Date();
     await prisma.$transaction(async (transaction) => {
@@ -127,6 +209,18 @@ async function completeTriage(conversation, categoryId, channel) {
   }
 }
 
+// "Nova conversa" x "conversa reaberta" (itens 5/6): uma conversa é
+// considerada reaberta se já existir ao menos uma reabertura registrada
+// (REOPENED_BY_CUSTOMER_MESSAGE, gravada por message-service.js). Uma
+// conversa que nunca foi reaberta é sempre "nova", mesmo que não seja
+// literalmente a primeira mensagem (ex.: primeira tentativa falhou/retry).
+async function isReopenedConversation(conversationId) {
+  const count = await prisma.conversationActivity.count({
+    where: { conversationId, action: "REOPENED_BY_CUSTOMER_MESSAGE" },
+  });
+  return count > 0;
+}
+
 async function handleIncomingTriage(event, message, channel, { now = new Date() } = {}) {
   const conversation = await prisma.conversation.findUnique({
     where: { id: message.conversationId },
@@ -139,17 +233,34 @@ async function handleIncomingTriage(event, message, channel, { now = new Date() 
     },
   });
   if (!conversation) return false;
-  if (conversation.categoryId) return false;
+  if (conversation.categoryId) return false; // Human takeover / já triado.
+
+  const bot = await getTriageBot();
+  if (!bot) {
+    logMisconfiguration(null, "Nenhum Bot SYSTEM_TRIAGE configurado — mensagem entregue sem triagem automática.", {});
+    return false;
+  }
+  // Ativar/Desativar (item 3): desativado nunca impede a mensagem de entrar
+  // na Central (já foi salva por saveIncoming antes desta chamada) — só
+  // impede a automação de responder.
+  if (bot.status !== "ACTIVE") return false;
 
   if (event.interactiveReplyId?.startsWith(categoryReplyPrefix)) {
-    if (!isBusinessHours(now)) return false;
-    return completeTriage(conversation, event.interactiveReplyId.slice(categoryReplyPrefix.length), channel);
+    if (!scheduleState(bot, now).withinHours) return false;
+    return completeTriage(conversation, event.interactiveReplyId.slice(categoryReplyPrefix.length), channel, bot);
   }
-  const businessHours = isBusinessHours(now);
+
+  const businessHours = scheduleState(bot, now).withinHours;
   const lastAutomation = conversation.messages[0]?.rawPayload?.system;
-  const canStart = conversation.status === "NOVO"
-    || (conversation.status === "BOT" && businessHours && lastAutomation === "after_hours");
-  if (!canStart) return false;
+  const isRetryAfterHours = conversation.status === "BOT" && businessHours && lastAutomation === "after_hours";
+  if (conversation.status === "NOVO") {
+    const reopened = await isReopenedConversation(conversation.id);
+    if (reopened && !bot.runAfterReopen) return false;
+    if (!reopened && !bot.runOnNewConversation) return false;
+  } else if (!isRetryAfterHours) {
+    return false;
+  }
+
   const claimed = await prisma.conversation.updateMany({
     where: {
       id: conversation.id, categoryId: null,
@@ -160,9 +271,12 @@ async function handleIncomingTriage(event, message, channel, { now = new Date() 
   if (!claimed.count) return false;
   try {
     if (!businessHours) {
-      return await saveBotText(conversation, afterHoursText(conversation.contact), "after_hours", channel);
+      const text = renderTemplate(bot.outsideHoursMessage, {
+        ...greetingVars(conversation.contact), horario: describeSchedule(bot),
+      });
+      return await saveBotText(conversation, text, "after_hours", channel);
     }
-    return await sendCategoryMenu(conversation, channel);
+    return await sendCategoryMenu(conversation, channel, bot);
   } catch (error) {
     await prisma.conversation.updateMany({
       where: { id: conversation.id, categoryId: null, status: "BOT" }, data: { status: "NOVO" },
@@ -171,7 +285,58 @@ async function handleIncomingTriage(event, message, channel, { now = new Date() 
   }
 }
 
+// Simulador (item "Preview/Simulador"): mesma lógica de decisão de
+// handleIncomingTriage, mas sem tocar em Conversation/Message/canal real —
+// espelha o padrão puro de bot-simulator-service.simulateBot. `replyId` é o
+// id de categoria escolhido (equivalente a um clique no item da lista);
+// omitido, simula a primeira mensagem do cliente.
+function simulateTriage(bot, { message, replyId, now = new Date() } = {}) {
+  const contact = { name: "" };
+  const hours = scheduleState(bot, now);
+  const warning = "Simulação - nenhuma mensagem foi enviada";
+  if (bot.status !== "ACTIVE") {
+    return { simulation: true, sent: false, warning, active: false, response: null };
+  }
+  if (replyId) {
+    const option = (bot.triageOptions || []).find((item) => item.categoryId === replyId && item.enabled && item.category?.active);
+    if (!hours.withinHours) {
+      return { simulation: true, sent: false, warning, withinHours: false, response: null };
+    }
+    if (!option) {
+      return {
+        simulation: true, sent: false, warning, withinHours: true,
+        response: renderTemplate(bot.initialMessage, { ...greetingVars(contact), horario: describeSchedule(bot) }),
+        note: "Opção inválida — o menu seria reenviado.",
+      };
+    }
+    return {
+      simulation: true, sent: false, warning, withinHours: true,
+      response: renderTemplate(bot.handoffMessage, { ...greetingVars(contact), categoria: option.category.name }),
+      category: { id: option.category.id, name: option.category.name, code: option.category.code },
+    };
+  }
+  if (!hours.withinHours) {
+    return {
+      simulation: true, sent: false, warning, withinHours: false,
+      response: renderTemplate(bot.outsideHoursMessage, { ...greetingVars(contact), horario: describeSchedule(bot) }),
+    };
+  }
+  const options = (bot.triageOptions || []).filter((option) => option.enabled && option.category?.active);
+  if (!options.length) {
+    return {
+      simulation: true, sent: false, warning, withinHours: true,
+      response: bot.fallbackMessage,
+      note: "Nenhuma opção de triagem ativa — mensagem de fallback seria usada.",
+    };
+  }
+  return {
+    simulation: true, sent: false, warning, withinHours: true,
+    response: renderTemplate(bot.initialMessage, { ...greetingVars(contact), horario: describeSchedule(bot) }),
+    options: options.map((option) => ({ id: option.categoryId, label: option.label, categoryName: option.category.name })),
+  };
+}
+
 module.exports = {
-  afterHoursText, businessHoursText, categoryReplyId, handleIncomingTriage,
-  isBusinessHours, routingText, welcomeText,
+  businessHoursText, categoryReplyId, describeSchedule, getTriageBot,
+  handleIncomingTriage, isBusinessHours, renderTemplate, simulateTriage,
 };

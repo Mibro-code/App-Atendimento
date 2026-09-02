@@ -69,13 +69,32 @@ function categoryOptions(selected = "") {
   )).join("")}`;
 }
 
+// Sem "Sem categoria" — uma opção de triagem sempre precisa de destino
+// válido (item "não permitir destino inválido").
+function triageCategoryOptions(selected = "") {
+  return state.categories.filter((category) => category.active).map((category) => (
+    `<option value="${escapeHtml(category.id)}" ${category.id === selected ? "selected" : ""}>${escapeHtml(category.parentId ? `- ${category.name}` : category.name)}</option>`
+  )).join("");
+}
+
+function scheduleSummary(schedules = []) {
+  const enabled = schedules.filter((item) => item.enabled).sort((left, right) => left.dayOfWeek - right.dayOfWeek);
+  if (!enabled.length) return "Sem horário configurado";
+  const consecutive = enabled.length >= 2 && enabled.every((item, index) => index === 0 || item.dayOfWeek === enabled[index - 1].dayOfWeek + 1);
+  const sameHours = enabled.every((item) => item.startTime === enabled[0].startTime && item.endTime === enabled[0].endTime);
+  const dayLabel = (dayOfWeek) => dayNames[dayOfWeek].slice(0, 3);
+  const range = consecutive ? `${dayLabel(enabled[0].dayOfWeek)}–${dayLabel(enabled[enabled.length - 1].dayOfWeek)}` : enabled.map((item) => dayLabel(item.dayOfWeek)).join(",");
+  return sameHours ? `${range} ${enabled[0].startTime}–${enabled[0].endTime}` : range;
+}
+
 function renderBotList() {
   $("#bot-count").textContent = `${state.bots.length} Bot${state.bots.length === 1 ? "" : "s"} configurado${state.bots.length === 1 ? "" : "s"}`;
   $("#bot-list").innerHTML = state.bots.length ? state.bots.map((bot) => `
     <button class="bot-card ${state.selected?.id === bot.id ? "active" : ""}" type="button" data-bot-id="${escapeHtml(bot.id)}">
       <header><b>${escapeHtml(bot.name)}</b><span class="mini-status ${bot.status}">${statusLabels[bot.status]}</span></header>
+      ${bot.isSystem ? String.raw`<span class="mini-status SYSTEM">Bot do sistema</span>` : ""}
       <small>${escapeHtml(bot.description || "Sem descrição")}</small>
-      <div class="bot-meta"><span>${escapeHtml(channelLabels[bot.channel] || "Canal legado")}</span><span>\u2022</span><span>${bot._count.intents} intenção(ões)</span></div>
+      <div class="bot-meta"><span>${escapeHtml(channelLabels[bot.channel] || "Canal legado")}</span><span>\u2022</span>${bot.type === "SYSTEM_TRIAGE" ? `<span>${bot._count.triageOptions} opcao(oes)</span><span>\u2022</span><span>${escapeHtml(scheduleSummary(bot.schedules || []))}</span>` : `<span>${bot._count.intents} intenção(ões)</span>`}</div>
     </button>
   `).join("") : '<div class="intent-empty">Nenhum Bot criado.</div>';
   document.querySelectorAll("[data-bot-id]").forEach((button) => button.addEventListener("click", () => selectBot(button.dataset.botId)));
@@ -146,6 +165,9 @@ function fillBotForm(bot = null) {
   $("#bot-initial").value = bot?.initialMessage || "";
   $("#bot-outside").value = bot?.outsideHoursMessage || "";
   $("#bot-fallback").value = bot?.fallbackMessage || "";
+  $("#bot-handoff").value = bot?.handoffMessage || "";
+  $("#bot-run-new").checked = bot ? Boolean(bot.runOnNewConversation) : true;
+  $("#bot-run-reopen").checked = bot ? Boolean(bot.runAfterReopen) : true;
 
   $("#bot-introduce").checked = Boolean(bot?.introduceWithName);
   $("#bot-reintroduce").checked = bot ? Boolean(bot.reintroduceOnNewSession) : true;
@@ -184,10 +206,21 @@ function renderEditor() {
   $("#status-badge").textContent = statusLabels[bot.status];
   $("#status-badge").className = `status-badge ${bot.status}`;
   document.querySelectorAll(".requires-bot").forEach((element) => { element.hidden = false; });
+  // Bot de sistema (item "Bot de Sistema"): ativar/desativar continua
+  // liberado, só a exclusão/arquivamento fica bloqueada na UI (o backend
+  // também recusa em bot-service.archiveBot, essa é só a UX correspondente).
+  $("#system-bot-badge").hidden = !bot.isSystem;
+  $("#archive-bot").hidden = Boolean(bot.isSystem);
+  const isTriage = bot.type === "SYSTEM_TRIAGE";
+  $("#triage-only-fields").hidden = !isTriage;
+  $("#triage-only-config").hidden = !isTriage;
+  $("#triage-options-card").hidden = !isTriage;
   fillBotForm(bot);
   $("#intent-category").innerHTML = categoryOptions();
+  $("#triage-option-category").innerHTML = triageCategoryOptions();
   renderSchedules(bot.schedules);
   renderIntents();
+  if (isTriage) renderTriageOptions();
   renderBotList();
   renderAiProviderStatus();
 }
@@ -343,6 +376,7 @@ function resetSimulator() {
 async function selectBot(botId) {
   state.selected = await api(`/api/bots/${encodeURIComponent(botId)}`);
   closeIntentForm();
+  closeTriageOptionForm();
   resetSimulator();
   renderEditor();
 }
@@ -356,6 +390,9 @@ function startNewBot() {
   $("#editor-title").textContent = "Criar Bot";
   $("#editor-description").textContent = "O novo Bot começará como rascunho e permanecerá desconectado do webhook.";
   $("#status-actions").hidden = true;
+  $("#system-bot-badge").hidden = true;
+  $("#triage-only-fields").hidden = true;
+  $("#triage-only-config").hidden = true;
   document.querySelectorAll(".requires-bot").forEach((element) => { element.hidden = true; });
   fillBotForm();
   renderBotList();
@@ -379,6 +416,9 @@ function botPayload() {
     initialMessage: $("#bot-initial").value,
     outsideHoursMessage: $("#bot-outside").value,
     fallbackMessage: $("#bot-fallback").value,
+    handoffMessage: $("#bot-handoff").value || null,
+    runOnNewConversation: $("#bot-run-new").checked,
+    runAfterReopen: $("#bot-run-reopen").checked,
     introduceWithName: $("#bot-introduce").checked,
     reintroduceOnNewSession: $("#bot-reintroduce").checked,
     presentationMessage: $("#bot-presentation").value || null,
@@ -432,6 +472,88 @@ async function removeIntent(intentId) {
     toast("Intenção removida.");
     await selectBot(state.selected.id);
   } catch (error) { toast(error.message, true); }
+}
+
+// ===== Opções de triagem (Bot de Triagem) =====
+// PUT /triage-options substitui a lista inteira (mesmo padrão de
+// replaceSchedules) — toda mutação (adicionar/editar/excluir/reordenar/
+// habilitar) monta a lista completa em memória e envia de uma vez.
+
+function renderTriageOptions() {
+  const options = state.selected?.triageOptions || [];
+  $("#triage-option-list").innerHTML = options.length ? options.map((option, index) => `
+    <article class="intent-card ${option.enabled ? "" : "inactive"}">
+      <div><b>${option.order}. ${escapeHtml(option.label)}</b><small>${escapeHtml(option.category?.name || "Categoria removida")}${option.description ? ` • ${escapeHtml(option.description)}` : ""}${option.enabled ? "" : " • desabilitada"}</small></div>
+      <div>
+        <button type="button" data-move-triage-option="${escapeHtml(option.id)}" data-direction="up" ${index === 0 ? "disabled" : ""}>&uarr;</button>
+        <button type="button" data-move-triage-option="${escapeHtml(option.id)}" data-direction="down" ${index === options.length - 1 ? "disabled" : ""}>&darr;</button>
+        <button type="button" data-edit-triage-option="${escapeHtml(option.id)}">Editar</button>
+        <button type="button" data-delete-triage-option="${escapeHtml(option.id)}">Excluir</button>
+      </div>
+    </article>
+  `).join("") : '<div class="intent-empty">Nenhuma opção configurada — a triagem usará a mensagem de fallback.</div>';
+  document.querySelectorAll("[data-edit-triage-option]").forEach((button) => button.addEventListener("click", () => editTriageOption(button.dataset.editTriageOption)));
+  document.querySelectorAll("[data-delete-triage-option]").forEach((button) => button.addEventListener("click", () => removeTriageOption(button.dataset.deleteTriageOption)));
+  document.querySelectorAll("[data-move-triage-option]").forEach((button) => button.addEventListener("click", () => moveTriageOption(button.dataset.moveTriageOption, button.dataset.direction)));
+}
+
+function closeTriageOptionForm() {
+  $("#triage-option-form").hidden = true;
+  $("#triage-option-form").reset();
+  $("#triage-option-id").value = "";
+  $("#triage-option-order").value = String(((state.selected?.triageOptions || []).length + 1) * 10);
+  $("#triage-option-enabled").checked = true;
+}
+
+function editTriageOption(optionId) {
+  const option = state.selected.triageOptions.find((item) => item.id === optionId);
+  if (!option) return;
+  $("#triage-option-id").value = option.id;
+  $("#triage-option-label").value = option.label;
+  $("#triage-option-description").value = option.description || "";
+  $("#triage-option-order").value = option.order;
+  $("#triage-option-category").innerHTML = triageCategoryOptions(option.categoryId);
+  $("#triage-option-enabled").checked = option.enabled;
+  $("#triage-option-form").hidden = false;
+  $("#triage-option-label").focus();
+}
+
+// Envia sempre a lista completa (existentes + a alteração atual) para
+// PUT /triage-options — a resposta já vem com os ids reais, então
+// recarregamos o Bot inteiro para manter tudo (schedules/intents/opções)
+// sincronizado, igual ao padrão do resto da tela.
+async function saveTriageOptionsList(options) {
+  try {
+    await api(`/api/bots/${state.selected.id}/triage-options`, {
+      method: "PUT", body: JSON.stringify({ options }),
+    });
+    toast("Opções de triagem atualizadas.");
+    await selectBot(state.selected.id);
+  } catch (error) { toast(error.message, true); }
+}
+
+function triageOptionToPayload(option) {
+  return {
+    categoryId: option.categoryId, label: option.label, description: option.description || null,
+    enabled: option.enabled, order: option.order,
+  };
+}
+
+async function removeTriageOption(optionId) {
+  if (!confirm("Remover esta opção de triagem?")) return;
+  const remaining = state.selected.triageOptions.filter((item) => item.id !== optionId).map(triageOptionToPayload);
+  await saveTriageOptionsList(remaining);
+}
+
+async function moveTriageOption(optionId, direction) {
+  const options = [...state.selected.triageOptions].sort((left, right) => left.order - right.order);
+  const index = options.findIndex((item) => item.id === optionId);
+  const targetIndex = direction === "up" ? index - 1 : index + 1;
+  if (index < 0 || targetIndex < 0 || targetIndex >= options.length) return;
+  const orders = options.map((item) => item.order);
+  [orders[index], orders[targetIndex]] = [orders[targetIndex], orders[index]];
+  const payload = options.map((item, position) => ({ ...triageOptionToPayload(item), order: orders[position] }));
+  await saveTriageOptionsList(payload);
 }
 
 // ===== Fluxo de atendimento (Flow Engine) =====
@@ -645,6 +767,32 @@ $("#intent-form").addEventListener("submit", async (event) => {
     await selectBot(state.selected.id);
   } catch (error) { toast(error.message, true); }
 });
+
+$("#triage-option-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const optionId = $("#triage-option-id").value;
+  const draft = {
+    categoryId: $("#triage-option-category").value || null,
+    label: $("#triage-option-label").value,
+    description: $("#triage-option-description").value || null,
+    enabled: $("#triage-option-enabled").checked,
+    order: Number($("#triage-option-order").value) || 0,
+  };
+  const existing = (state.selected.triageOptions || []).map(triageOptionToPayload);
+  const options = optionId
+    ? existing.map((item, index) => (state.selected.triageOptions[index].id === optionId ? draft : item))
+    : [...existing, draft];
+  closeTriageOptionForm();
+  await saveTriageOptionsList(options);
+});
+
+$("#new-triage-option").addEventListener("click", () => {
+  closeTriageOptionForm();
+  $("#triage-option-category").innerHTML = triageCategoryOptions();
+  $("#triage-option-form").hidden = false;
+  $("#triage-option-label").focus();
+});
+$("#cancel-triage-option").addEventListener("click", closeTriageOptionForm);
 
 function renderSimulatorTranscript() {
   $("#simulator-transcript").innerHTML = state.simulatorHistory.map((entry) => (
