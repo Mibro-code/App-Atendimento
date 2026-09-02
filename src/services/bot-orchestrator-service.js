@@ -38,8 +38,13 @@ const botInclude = {
 // comportamento original intocado) OU pelo array aditivo `channels`
 // (multi-canal — item 21). Nunca duplicar intents por canal: o mesmo Bot
 // só passa a ser encontrado em mais buscas, sua lógica de decisão não muda.
+// `type: { not: "SYSTEM_TRIAGE" }` (item "Integrar Bot de Triagem ao sistema
+// de Bots"): o Bot de Triagem nunca deve ser resolvido por este motor de
+// IA/intenções — ele só é executado por triage-bot-service.js. Sem este
+// filtro, o Bot de Triagem (status ACTIVE, canal META) seria escolhido aqui
+// como um Bot comum, respondendo com o motor errado.
 function channelMatch(channel) {
-  return { OR: [{ channel }, { channels: { has: channel } }] };
+  return { OR: [{ channel }, { channels: { has: channel } }], type: { not: "SYSTEM_TRIAGE" } };
 }
 
 async function resolveBot(activeBotId, channel, client) {

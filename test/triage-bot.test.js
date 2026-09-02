@@ -2,6 +2,7 @@ require("dotenv").config();
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const prisma = require("../src/database/prisma");
+const { seedTriageBot } = require("../prisma/seed");
 const {
   businessHoursText, categoryReplyId, handleIncomingTriage, isBusinessHours,
 } = require("../src/services/triage-bot-service");
@@ -9,6 +10,13 @@ const {
 const externalId = "triage-bot-test-contact";
 const afterHoursExternalId = "triage-bot-after-hours-contact";
 const concurrentExternalId = "triage-bot-concurrent-contact";
+
+// Alguns outros arquivos de teste fazem `prisma.bot.deleteMany()` sem
+// filtro (ex.: bot-flow-simulator.test.js, bot-simulator-endpoint.test.js)
+// para isolar o próprio cenário — isso também apaga o Bot de sistema
+// SYSTEM_TRIAGE seedado por prisma/seed.js no início da suíte. Recria aqui
+// para este arquivo não depender da ordem em que os testes rodam.
+test.before(async () => { await seedTriageBot(prisma); });
 
 test.after(async () => {
   await prisma.auditLog.deleteMany({ where: { actorUserId: null } });

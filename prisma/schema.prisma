@@ -131,6 +131,16 @@ enum BotStatus {
   PAUSED
 }
 
+// STANDARD = Bot comum (IA/intenções). SYSTEM_TRIAGE = o Bot de Triagem
+// Inicial (item "Integrar Bot de Triagem ao sistema de Bots") — sempre no
+// máximo um Bot ativo com esse tipo (validado em bot-service.js), nunca
+// criado pela API (só via migration de seed), identificado na UI como
+// "Bot do sistema" e protegido contra exclusão (Bot.isSystem).
+enum BotType {
+  STANDARD
+  SYSTEM_TRIAGE
+}
+
 enum BotFallbackAction {
   USE_BOT_FALLBACK
   TRANSFER_TO_CATEGORY
@@ -517,6 +527,7 @@ model Category {
   botObservations BotObservation[]
   quickReplies    QuickReply[]
   campaigns       Campaign[]
+  triageOptions   BotTriageOption[]
 
   @@index([parentId, displayOrder])
 }
@@ -526,6 +537,11 @@ model Bot {
   name                    String
   description             String?
   status                  BotStatus @default(DRAFT)
+  // Ver enum BotType. `isSystem` bloqueia arquivamento/exclusão acidental
+  // (item "Bot de Sistema") — a ativação/desativação normal (status) continua
+  // liberada mesmo para um Bot de sistema, é o próprio controle pedido.
+  type                    BotType   @default(STANDARD)
+  isSystem                Boolean   @default(false)
   channel                 Channel
   // Multi-canal (item 22): lista adicional de canais compatíveis, aditiva ao
   // `channel` legado (nunca removido, para não quebrar Bots existentes nem o
@@ -534,10 +550,21 @@ model Bot {
   initialMessage          String    @db.Text
   outsideHoursMessage     String    @db.Text
   fallbackMessage         String    @db.Text
+  // Mensagem enviada após o encaminhamento (handoff) para o setor escolhido
+  // — usada hoje só pelo Bot de Triagem (routingText original de
+  // triage-bot-service.js). Nula em Bots comuns, que não têm esse conceito.
+  handoffMessage          String?   @db.Text
   timezone                String    @default("America/Sao_Paulo")
   defaultCategoryId       String?
   highConfidenceThreshold Float     @default(0.8)
   lowConfidenceThreshold  Float     @default(0.55)
+
+  // Item 5/6 (Nova conversa / Conversa finalizada) — só têm efeito prático
+  // hoje no Bot de Triagem (triage-bot-service.js), mas ficam no Bot em geral
+  // porque descrevem "quando este Bot deve iniciar sozinho", aplicável a
+  // qualquer Bot que venha a rodar no fluxo real de mensagens no futuro.
+  runOnNewConversation Boolean @default(true)
+  runAfterReopen       Boolean @default(true)
 
   // Identidade (fase de governança) — ver bot-governance-service.js.
   introduceWithName       Boolean @default(false)
@@ -577,9 +604,35 @@ model Bot {
   handoffContexts         BotHandoffContext[]
   suggestionFeedback      BotSuggestionFeedback[]
   campaigns               Campaign[]
+  triageOptions           BotTriageOption[]
 
   @@index([status, channel])
   @@index([defaultCategoryId])
+  @@index([type])
+}
+
+// Opções/setores da lista interativa do Bot de Triagem (item "Fluxo /
+// Opções"). Cada linha é um item do menu do WhatsApp: rótulo + setor de
+// destino. `categoryId` usa onDelete: Restrict de propósito — nunca deixa
+// uma opção apontar para uma categoria apagada ("não permitir destino
+// inválido"); a categoria só pode ser removida depois de desvincular a
+// opção. Hoje só o Bot SYSTEM_TRIAGE usa este modelo, mas nada aqui é
+// exclusivo dele.
+model BotTriageOption {
+  id          String   @id @default(cuid())
+  botId       String
+  categoryId  String
+  label       String
+  description String?
+  enabled     Boolean  @default(true)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  bot         Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+  category    Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@unique([botId, categoryId])
+  @@index([botId, order])
 }
 
 model BotSchedule {

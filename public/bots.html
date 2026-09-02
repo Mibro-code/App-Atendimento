@@ -62,7 +62,7 @@
 
       <div id="editor" hidden>
         <header class="editor-heading">
-          <div><span id="editor-eyebrow">BOT SELECIONADO</span><h2 id="editor-title">Novo Bot</h2><p id="editor-description">Configuração administrativa isolada do atendimento real.</p></div>
+          <div><span id="editor-eyebrow">BOT SELECIONADO</span><h2 id="editor-title">Novo Bot</h2><span id="system-bot-badge" class="mini-status SYSTEM" hidden>Bot do sistema</span><p id="editor-description">Configuração administrativa isolada do atendimento real.</p></div>
           <div id="status-actions" class="status-actions" hidden>
             <span id="status-badge" class="status-badge">RASCUNHO</span>
             <button type="button" data-status="DRAFT">Rascunho</button>
@@ -105,6 +105,14 @@
               <label class="full"><span>Mensagem inicial *</span><textarea id="bot-initial" maxlength="4000" required placeholder="Mensagem apresentada no início do fluxo"></textarea></label>
               <label class="full"><span>Mensagem fora do horário *</span><textarea id="bot-outside" maxlength="4000" required placeholder="Resposta usada fora do horário configurado"></textarea></label>
               <label class="full"><span>Mensagem de fallback *</span><textarea id="bot-fallback" maxlength="4000" required placeholder="Resposta usada quando nenhuma intenção corresponder"></textarea></label>
+            </div>
+
+            <div id="triage-only-fields" class="fields-heading" hidden>TRIAGEM</div>
+            <div id="triage-only-config" class="fields two-columns" hidden>
+              <label class="full"><span>Mensagem após encaminhamento</span><textarea id="bot-handoff" maxlength="4000" placeholder="Enviada ao cliente depois de escolher o setor. Use {{saudacao_virgula}} e {{categoria}}."></textarea></label>
+              <label class="checkbox"><input id="bot-run-new" type="checkbox" checked><span>Executar em nova conversa</span></label>
+              <label class="checkbox"><input id="bot-run-reopen" type="checkbox" checked><span>Executar quando conversa finalizada reabrir</span></label>
+              <p class="card-help full">Nas mensagens acima você pode usar: <code>{{saudacao}}</code>, <code>{{saudacao_virgula}}</code>, <code>{{horario}}</code> (calculado a partir da disponibilidade abaixo) e, só no encaminhamento, <code>{{categoria}}</code>.</p>
             </div>
 
             <div class="fields-heading">IDENTIDADE</div>
@@ -168,6 +176,23 @@
             <p class="card-help">Sem horários salvos, o simulador considera o Bot disponível.</p>
             <div id="schedule-list" class="schedule-list"></div>
           </form>
+
+          <section id="triage-options-card" class="card requires-bot" hidden>
+            <div class="card-heading"><div><span>TRIAGEM</span><h3>Opções de triagem</h3></div><button id="new-triage-option" type="button">+ Opção</button></div>
+            <p class="card-help">Setores mostrados na lista do WhatsApp, na ordem abaixo. Cada opção precisa de uma categoria de destino válida.</p>
+            <div id="triage-option-list" class="intent-list"></div>
+            <form id="triage-option-form" class="intent-form" hidden>
+              <input id="triage-option-id" type="hidden">
+              <div class="fields two-columns">
+                <label><span>Rótulo *</span><input id="triage-option-label" maxlength="24" required placeholder="Ex.: Suporte"></label>
+                <label><span>Ordem</span><input id="triage-option-order" type="number" step="10" value="0"></label>
+                <label class="full"><span>Descrição (opcional)</span><input id="triage-option-description" maxlength="200"></label>
+                <label class="full"><span>Categoria de destino *</span><select id="triage-option-category" required></select></label>
+                <label class="checkbox"><input id="triage-option-enabled" type="checkbox" checked><span>Opção habilitada</span></label>
+              </div>
+              <div class="form-actions"><button id="cancel-triage-option" type="button">Cancelar</button><button type="submit">Salvar opção</button></div>
+            </form>
+          </section>
 
           <section class="card requires-bot intentions-card">
             <div class="card-heading"><div><span>REGRAS</span><h3>Intenções</h3></div><button id="new-intent" type="button">+ Intenção</button></div>
