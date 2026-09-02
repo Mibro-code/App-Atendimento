@@ -1,9 +1,19 @@
 (() => {
-  const APP_VERSION = "0.28.1";
+  const APP_VERSION = "0.28.2";
 
 
 
   const CHANGELOG = [
+    {
+      version: "0.28.2",
+      date: "02/09/2026",
+      title: "Marketplaces temporariamente ocultos",
+      changes: [
+        "Oculta plataformas de venda da Central, Integrações, Bots e Respostas Rápidas.",
+        "Conversas e contadores de marketplace deixam de aparecer na operação diária.",
+        "Toda a implementação permanece preservada e pode ser reativada por uma única flag."
+      ]
+    },
     {
       version: "0.28.1",
       date: "02/09/2026",
