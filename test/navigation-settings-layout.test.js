@@ -49,6 +49,12 @@ test("sidebar recolhe, abre como drawer no mobile e troca o workspace por canal"
   assert.match(appCss, /max-width:700px/);
 });
 
+test("alertas preservam o rótulo recolhível e piscam apenas com conversa não lida", () => {
+  assert.match(appJs, /button\.querySelector\("\.sidebar-item-label"\)\.textContent = label/);
+  assert.doesNotMatch(appJs, /button\.textContent = granted/);
+  assert.match(appJs, /conversation\.status === "AGUARDANDO_EQUIPE" && Number\(conversation\.unreadCount\) > 0/);
+});
+
 test("marketplaces ficam ocultos por uma única flag reversível sem remover a implementação", () => {
   assert.match(featureFlagsJs, /marketplaces:\s*false/);
   for (const channel of ["MERCADO_LIVRE", "TIKTOK_SHOP", "AMAZON_MARKETPLACE", "SHOPEE", "SHEIN_MARKETPLACE"]) {

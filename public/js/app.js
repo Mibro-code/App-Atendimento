@@ -611,7 +611,10 @@ function configureNotificationButton() {
   if (!("Notification" in window)) return;
   button.hidden = false;
   const granted = Notification.permission === "granted";
-  button.textContent = granted ? "🔔 Alertas ativos" : "🔔 Ativar alertas";
+  const label = granted ? "Alertas ativos" : "Ativar alertas";
+  button.querySelector(".sidebar-item-label").textContent = label;
+  button.title = label;
+  button.setAttribute("aria-label", label);
   button.dataset.enabled = String(granted);
   $("#manage-devices").hidden = !("PushManager" in window);
 }
@@ -768,9 +771,9 @@ async function loadConversations() {
     if (conversation.slaMinutesRemaining < 0) result.overdue += 1;
     const categoryId = conversation.categoryId || "null";
     result.categories[categoryId] = (result.categories[categoryId] || 0) + 1;
-    if (conversation.status === "AGUARDANDO_EQUIPE") result.attentionWaiting = true;
+    if (conversation.status === "AGUARDANDO_EQUIPE" && Number(conversation.unreadCount) > 0) result.attentionWaiting += 1;
     return result;
-  }, { total: 0, statuses: {}, categories: {}, overdue: 0, urgent: 0, unassigned: 0, attentionWaiting: false });
+  }, { total: 0, statuses: {}, categories: {}, overdue: 0, urgent: 0, unassigned: 0, attentionWaiting: 0 });
   const filteredUser = state.adminUsers.find((user) => user.id === state.assignedUser);
   $("#list-summary").textContent = `${state.conversations.length} atendimento${state.conversations.length === 1 ? "" : "s"}${filteredUser ? ` ativo${state.conversations.length === 1 ? "" : "s"} • ${filteredUser.name}` : ""}`;
   $("#clear-team-filter").hidden = !state.assignedUser;

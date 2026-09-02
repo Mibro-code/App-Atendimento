@@ -1681,7 +1681,8 @@ html[data-theme="dark"] .context-info-row.alert strong { color:#ff9a90; }
 }
 
 /* ---- 9. Composer ---- */
-.composer-tools { display:flex; align-items:flex-end; gap:8px; }
+.composer-tools { height:44px; display:flex; align-items:center; gap:8px; }
+.composer-tools > .attach-image,.composer-tools > .quick-reply-shortcut { margin:0; align-self:center; }
 .composer textarea:focus { box-shadow:0 0 0 3px rgba(239,91,42,.14); }
 .composer > button[type="submit"] { box-shadow:var(--shadow-sm); }
 .composer > button[type="submit"]:hover { box-shadow:var(--shadow-glow); }
