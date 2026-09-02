@@ -3,6 +3,7 @@ const authorization = require("./authorization-service");
 const audit = require("./audit-service");
 const { normalizeText } = require("./bot-simulator-service");
 const { simulateOrchestration } = require("./bot-orchestrator-service");
+const { simulateTriage } = require("./triage-bot-service");
 const flowEngine = require("./bot-flow-service");
 const learning = require("./bot-learning-service");
 const governance = require("./bot-governance-service");
@@ -42,6 +43,10 @@ const botInclude = {
       examples: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
     },
     orderBy: [{ priority: "desc" }, { createdAt: "asc" }],
+  },
+  triageOptions: {
+    orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+    include: { category: { select: categorySelection } },
   },
 };
 
@@ -200,6 +205,8 @@ function botSnapshot(bot) {
     autoReplyEnabled: bot.autoReplyEnabled,
     toolsEnabled: bot.toolsEnabled,
     ratingEnabled: bot.ratingEnabled,
+    runOnNewConversation: bot.runOnNewConversation,
+    runAfterReopen: bot.runAfterReopen,
   };
 }
 
@@ -247,7 +254,8 @@ async function listBots(viewer) {
     where: { archivedAt: null },
     include: {
       defaultCategory: { select: categorySelection },
-      _count: { select: { schedules: true, intents: true } },
+      schedules: { orderBy: { dayOfWeek: "asc" } },
+      _count: { select: { schedules: true, intents: true, triageOptions: true } },
     },
     orderBy: [{ updatedAt: "desc" }, { name: "asc" }],
   });
@@ -273,6 +281,9 @@ async function getBot(botId, viewer) {
 
 async function createBot(data, actor) {
   assertBotManager(actor);
+  // `type`/`isSystem` nunca vêm da API: um Bot SYSTEM_TRIAGE só existe via
+  // migration de seed (item "não criar um segundo bot paralelo") — todo Bot
+  // criado pela tela nasce STANDARD, mesmo que o payload tente outra coisa.
   const create = {
     name: requiredText(data.name, "Nome", 100),
     description: optionalText(data.description, "Descrição", 500),
@@ -311,8 +322,15 @@ async function updateBot(botId, data, actor) {
   if (data.initialMessage !== undefined) update.initialMessage = requiredText(data.initialMessage, "Mensagem inicial");
   if (data.outsideHoursMessage !== undefined) update.outsideHoursMessage = requiredText(data.outsideHoursMessage, "Mensagem fora do horário");
   if (data.fallbackMessage !== undefined) update.fallbackMessage = requiredText(data.fallbackMessage, "Mensagem de fallback");
+  if (data.handoffMessage !== undefined) update.handoffMessage = optionalText(data.handoffMessage, "Mensagem após encaminhamento", 4000);
   if (data.timezone !== undefined) update.timezone = validateTimezone(data.timezone);
   if (data.defaultCategoryId !== undefined) update.defaultCategoryId = await validateCategoryId(data.defaultCategoryId);
+  for (const key of ["runOnNewConversation", "runAfterReopen"]) {
+    if (data[key] !== undefined) {
+      if (typeof data[key] !== "boolean") throw fail(`${key} deve ser verdadeiro ou falso.`);
+      update[key] = data[key];
+    }
+  }
   if (data.lowConfidenceThreshold !== undefined || data.highConfidenceThreshold !== undefined) {
     Object.assign(update, validateThresholds(
       data.lowConfidenceThreshold !== undefined ? data.lowConfidenceThreshold : existing.lowConfidenceThreshold,
@@ -385,6 +403,10 @@ async function updateBotStatus(botId, status, actor) {
 async function archiveBot(botId, actor) {
   assertBotManager(actor);
   const existing = await ensureBot(botId);
+  // Item "Bot de Sistema": não permitir exclusão acidental. Ativar/desativar
+  // (updateBotStatus) continua liberado — é o controle real pedido; só
+  // arquivar/excluir fica bloqueado para um Bot de sistema.
+  if (existing.isSystem) throw fail("Este é um Bot do sistema e não pode ser arquivado/excluído.");
   return prisma.$transaction(async (transaction) => {
     const bot = await transaction.bot.update({
       where: { id: botId },
@@ -421,6 +443,55 @@ async function replaceSchedules(botId, value, actor) {
       entityId: bot.id,
       summary: `Alterou os horários do Bot ${bot.name}`,
       details: { schedules },
+    }, transaction);
+    return transaction.bot.findUnique({ where: { id: botId }, include: botInclude });
+  });
+}
+
+// Opções/setores da triagem (item "Fluxo/Opções"). Mesmo padrão de
+// replaceSchedules: substitui a lista inteira numa transação, sempre
+// validando a categoria de destino (nunca aceita categoria inexistente ou
+// inativa — item "não permitir destino inválido").
+async function validateTriageOptions(value) {
+  if (!Array.isArray(value)) throw fail("As opções de triagem devem ser uma lista.");
+  if (!value.length) throw fail("Configure ao menos uma opção de triagem.");
+  if (value.length > 20) throw fail("O Bot de Triagem pode ter no máximo 20 opções.");
+  const usedCategories = new Set();
+  const options = [];
+  for (const [index, item] of value.entries()) {
+    const label = requiredText(item?.label, "Rótulo da opção", 24);
+    const description = optionalText(item?.description, "Descrição da opção", 200);
+    const categoryId = await validateCategoryId(item?.categoryId);
+    if (!categoryId) throw fail("Selecione a categoria de destino de cada opção.");
+    if (usedCategories.has(categoryId)) throw fail("Cada categoria só pode aparecer em uma opção de triagem.");
+    usedCategories.add(categoryId);
+    if (item?.enabled !== undefined && typeof item.enabled !== "boolean") throw fail("Informe se a opção está habilitada.");
+    options.push({
+      categoryId, label, description,
+      enabled: item?.enabled === undefined ? true : item.enabled,
+      order: Number.isInteger(item?.order) ? item.order : index * 10,
+    });
+  }
+  return options;
+}
+
+async function replaceTriageOptions(botId, value, actor) {
+  assertBotManager(actor);
+  const bot = await ensureBot(botId);
+  if (bot.type !== "SYSTEM_TRIAGE") throw fail("Apenas o Bot de Triagem tem opções de setor.");
+  const options = await validateTriageOptions(value);
+  return prisma.$transaction(async (transaction) => {
+    await transaction.botTriageOption.deleteMany({ where: { botId } });
+    await transaction.botTriageOption.createMany({
+      data: options.map((option) => ({ ...option, botId })),
+    });
+    await audit.recordAudit({
+      actor,
+      action: "BOT_TRIAGE_OPTIONS_UPDATED",
+      entityType: "BOT",
+      entityId: bot.id,
+      summary: `Alterou as opções de triagem do Bot ${bot.name}`,
+      details: { options },
     }, transaction);
     return transaction.bot.findUnique({ where: { id: botId }, include: botInclude });
   });
@@ -633,9 +704,15 @@ function normalizeSimulatorHistory(history) {
 // Simulador multi-turno: nunca usa o canal real da Meta nem toca em
 // Conversation/ConversationBotState. O "estado" e o "histórico" trafegam
 // inteiramente pelo cliente (tela de Bots), que os devolve a cada chamada.
-async function simulate(botId, message, viewer, { state, history } = {}) {
+async function simulate(botId, message, viewer, { state, history, replyId } = {}) {
   assertBotManager(viewer);
   const bot = await ensureBot(botId, prisma, botInclude);
+  // O Bot de Triagem não usa o motor de intenções/IA (é lista fixa de
+  // setores) — o simulador dele espelha handleIncomingTriage em vez de
+  // simulateOrchestration. Ver triage-bot-service.simulateTriage.
+  if (bot.type === "SYSTEM_TRIAGE") {
+    return simulateTriage(bot, { message, replyId });
+  }
   const simulatorMessage = requiredText(message, "Mensagem da simulação", 4000);
   const result = await simulateOrchestration({
     bot,
@@ -840,6 +917,7 @@ module.exports = {
   observationMetrics,
   recordObservationFeedback,
   replaceSchedules,
+  replaceTriageOptions,
   simulate,
   updateBot,
   updateBotStatus,

@@ -111,8 +111,15 @@ module.exports = {
   async simulate(req, res, next) {
     try {
       return res.json(await bots.simulate(req.params.botId, req.body.message, req.user, {
-        state: req.body.state, history: req.body.history,
+        state: req.body.state, history: req.body.history, replyId: req.body.replyId,
       }));
+    } catch (error) { return next(error); }
+  },
+
+  async triageOptions(req, res, next) {
+    try {
+      const options = Array.isArray(req.body) ? req.body : req.body.options;
+      return res.json(await bots.replaceTriageOptions(req.params.botId, options, req.user));
     } catch (error) { return next(error); }
   },
 
