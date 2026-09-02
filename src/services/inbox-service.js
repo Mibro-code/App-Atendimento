@@ -245,6 +245,21 @@ async function listConversations({
     ],
   });
 
+  const emailConversationIds = conversations.filter((conversation) => conversation.channel === "EMAIL").map((conversation) => conversation.id);
+  const emailMailboxByConversation = new Map();
+  if (emailConversationIds.length) {
+    const inboundEmailMessages = await prisma.message.findMany({
+      where: { conversationId: { in: emailConversationIds }, channel: "EMAIL", direction: "RECEBIDA", type: { not: "reaction" } },
+      select: { conversationId: true, rawPayload: true },
+      orderBy: { occurredAt: "desc" },
+    });
+    for (const message of inboundEmailMessages) {
+      if (!emailMailboxByConversation.has(message.conversationId)) {
+        emailMailboxByConversation.set(message.conversationId, message.rawPayload?.gmailMailbox || "GENERAL");
+      }
+    }
+  }
+
   let masterUnreadCounts = new Map();
 
   if (master && conversations.length) {
@@ -300,6 +315,7 @@ async function listConversations({
           : conversation.unreadCount,
 
         isPinned: pins.length > 0,
+        ...(conversation.channel === "EMAIL" ? { emailMailbox: emailMailboxByConversation.get(conversation.id) || "GENERAL" } : {}),
         slaMinutesRemaining: computeSlaMinutesRemaining(conversation, slaSettings, now),
       };
     })

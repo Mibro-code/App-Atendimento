@@ -47,7 +47,7 @@ test.after(async () => {
   await prisma.$disconnect();
 });
 
-test("fetch Gmail pagina, usa somente INBOX e devolve mensagens em ordem cronológica", async () => {
+test("fetch Gmail pagina INBOX e SPAM e devolve mensagens sem duplicar em ordem cronológica", async () => {
   const calls = [];
   const now = Date.now();
   const http = { get: async (url, options) => {
@@ -62,6 +62,7 @@ test("fetch Gmail pagina, usa somente INBOX e devolve mensagens em ordem cronol�
   const result = await fetchGmailInbox({ accessToken: "token", since: new Date(now - 5000), http });
   assert.deepEqual(result.map((item) => item.id), ["old", "new"]);
   assert.equal(calls[0].options.params.labelIds, "INBOX");
+  assert.ok(calls.some((call) => call.url.endsWith("/messages") && call.options.params.labelIds === "SPAM"));
   assert.match(calls[0].options.params.q, /^after:\d+$/);
 });
 

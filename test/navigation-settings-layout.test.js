@@ -41,6 +41,9 @@ test("sidebar recolhe, abre como drawer no mobile e troca o workspace por canal"
   assert.match(appJs, /setSidebarExpanded/);
   assert.match(appJs, /mobile-open/);
   assert.match(appJs, /setChannelWorkspace/);
+  assert.match(html, /id="quick-filters-tray"/);
+  assert.match(html, /id="email-mailboxes"/);
+  assert.match(appJs, /emailMailbox/);
   assert.match(appCss, /channel-workspace-item\.active/);
   assert.match(appCss, /max-width:700px/);
 });

@@ -88,6 +88,12 @@
         <option value="AMAZON_MARKETPLACE">Amazon</option>
         <option value="MERCADO_LIVRE,TIKTOK_SHOP,AMAZON_MARKETPLACE,SHOPEE,SHEIN_MARKETPLACE">Plataformas de venda</option>
       </select>
+      <nav id="email-mailboxes" class="email-mailboxes" aria-label="Pastas do e-mail" hidden>
+        <p class="email-mailboxes-title"><span>CAIXA DE E-MAIL</span><small>Gmail</small></p>
+        <button class="email-mailbox active" type="button" data-email-mailbox="GENERAL"><span class="email-mailbox-icon">▣</span><span>Caixa geral</span></button>
+        <button class="email-mailbox" type="button" data-email-mailbox="PROMOTIONS"><span class="email-mailbox-icon">◇</span><span>Promoções</span></button>
+        <button class="email-mailbox" type="button" data-email-mailbox="SPAM"><span class="email-mailbox-icon">!</span><span>Spam</span></button>
+      </nav>
       <nav>
         <p class="nav-title">ATENDIMENTO</p>
         <button class="filter active" data-status=""><span>Todos</span><strong id="count-all">0</strong></button>
@@ -96,15 +102,17 @@
         <button class="filter" data-status="AGUARDANDO_EQUIPE"><span>Aguardando equipe</span><strong id="count-waiting">0</strong></button>
         <button class="filter" data-status="BOT"><span>Bot</span><strong id="count-bot">0</strong></button>
         <button class="filter" data-status="FINALIZADO"><span>Finalizados</span><strong id="count-finalized">0</strong></button>
-        <p class="nav-title">FILTROS RÁPIDOS</p>
-        <div class="toggle-filters">
-          <button class="toggle-filter" type="button" data-toggle-filter="slaBreached:true"><span>SLA atrasado</span><strong id="count-overdue">0</strong></button>
-          <button class="toggle-filter" type="button" data-toggle-filter="unassigned:true"><span>Sem responsável</span><strong id="count-unassigned">0</strong></button>
-          <button class="toggle-filter" type="button" data-toggle-filter="priority:URGENTE"><span>Urgente</span><strong id="count-urgent">0</strong></button>
-          <button class="toggle-filter" type="button" data-toggle-filter="priority:ALTA"><span>Alta prioridade</span></button>
-          <button class="toggle-filter" type="button" data-toggle-filter="status:AGUARDANDO_CLIENTE"><span>Aguardando cliente</span></button>
-          <button class="toggle-filter" type="button" data-toggle-filter="status:HANDOFF_BOT"><span>Bot transferiu</span></button>
-        </div>
+        <details id="quick-filters-tray" class="filter-tray" open>
+          <summary>FILTROS RÁPIDOS <span aria-hidden="true">⌄</span></summary>
+          <div class="toggle-filters">
+            <button class="toggle-filter" type="button" data-toggle-filter="slaBreached:true"><span>SLA atrasado</span><strong id="count-overdue">0</strong></button>
+            <button class="toggle-filter" type="button" data-toggle-filter="unassigned:true"><span>Sem responsável</span><strong id="count-unassigned">0</strong></button>
+            <button class="toggle-filter" type="button" data-toggle-filter="priority:URGENTE"><span>Urgente</span><strong id="count-urgent">0</strong></button>
+            <button class="toggle-filter" type="button" data-toggle-filter="priority:ALTA"><span>Alta prioridade</span></button>
+            <button class="toggle-filter" type="button" data-toggle-filter="status:AGUARDANDO_CLIENTE"><span>Aguardando cliente</span></button>
+            <button class="toggle-filter" type="button" data-toggle-filter="status:HANDOFF_BOT"><span>Bot transferiu</span></button>
+          </div>
+        </details>
         <div class="categories-heading"><p class="nav-title categories-title">CATEGORIAS</p><span><button id="toggle-hidden-categories" type="button" title="Mostrar categorias ocultas" aria-label="Mostrar categorias ocultas">◉</button><button id="manage-categories" type="button" title="Criar e editar categorias" aria-label="Gerenciar categorias">+</button></span></div>
         <div id="category-filters"></div>
 <div class="internal-chat-nav">

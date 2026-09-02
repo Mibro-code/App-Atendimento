@@ -45,6 +45,7 @@ test("EmailAdapter.normalizeInboundEvent reconhece payload Gmail", () => {
     id: "msg1",
     threadId: "thread1",
     internalDate: "1700000000000",
+    labelIds: ["INBOX", "CATEGORY_PROMOTIONS"],
     payload: {
       headers: [
         { name: "From", value: "Fulano <fulano@example.com>" },
@@ -62,6 +63,7 @@ test("EmailAdapter.normalizeInboundEvent reconhece payload Gmail", () => {
   assert.equal(normalized.direction, "RECEBIDA");
   assert.equal(normalized.type, "text");
   assert.equal(normalized.text, "Olá");
+  assert.equal(normalized.metadata.gmailMailbox, "PROMOTIONS");
   assert.ok(normalized.occurredAt instanceof Date);
 });
 

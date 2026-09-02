@@ -1,6 +1,6 @@
 const state = {
   conversations: [], categories: [], users: [], currentUser: null,
-  selectedId: null, selectedContactId: null, selectedCategoryId: "", status: "", category: "", search: "", channel: "",
+  selectedId: null, selectedContactId: null, selectedCategoryId: "", status: "", category: "", search: "", channel: "", emailMailbox: "GENERAL",
   // Filtros combináveis adicionais (item 11): multi-select, somam-se ao filtro
   // de status principal (single-select, inalterado) em vez de substituí-lo —
   // o backend já aceita status/priority como CSV, então cada Set aqui só
@@ -749,7 +749,12 @@ async function loadConversations() {
     api(`/api/conversations?${params}`),
     api("/api/conversations/summary"),
   ]);
-  state.conversations = state.category ? conversations : conversations.filter((c) => c.id === state.selectedId || c.unreadCount > 0 || !isConversationCategoryHidden(c));
+  const visibleConversations = state.channel === "EMAIL"
+    ? conversations.filter((conversation) => {
+        return (conversation.emailMailbox || "GENERAL") === state.emailMailbox;
+      })
+    : conversations;
+  state.conversations = state.category ? visibleConversations : visibleConversations.filter((c) => c.id === state.selectedId || c.unreadCount > 0 || !isConversationCategoryHidden(c));
   const filteredUser = state.adminUsers.find((user) => user.id === state.assignedUser);
   $("#list-summary").textContent = `${state.conversations.length} atendimento${state.conversations.length === 1 ? "" : "s"}${filteredUser ? ` ativo${state.conversations.length === 1 ? "" : "s"} • ${filteredUser.name}` : ""}`;
   $("#clear-team-filter").hidden = !state.assignedUser;
@@ -1248,6 +1253,16 @@ document.querySelectorAll("[data-toggle-filter]").forEach((button) => button.add
   }
   loadConversations();
 }));
+const quickFiltersTray = $("#quick-filters-tray");
+try { quickFiltersTray.open = localStorage.getItem("mibro-quick-filters-open") !== "0"; } catch {}
+quickFiltersTray.addEventListener("toggle", () => {
+  try { localStorage.setItem("mibro-quick-filters-open", quickFiltersTray.open ? "1" : "0"); } catch {}
+});
+document.querySelectorAll("[data-email-mailbox]").forEach((button) => button.addEventListener("click", () => {
+  state.emailMailbox = button.dataset.emailMailbox;
+  document.querySelectorAll("[data-email-mailbox]").forEach((item) => item.classList.toggle("active", item === button));
+  loadConversations();
+}));
 let searchTimer; $("#search").addEventListener("input", (event) => { clearTimeout(searchTimer); state.search = event.target.value.trim(); searchTimer = setTimeout(loadConversations, 250); });
 const channelWorkspaceMeta = {
   "": { key:"all", title:"Conversas", eyebrow:"TODOS OS CANAIS" },
@@ -1264,6 +1279,7 @@ function setChannelWorkspace(value, { load = true, persist = true } = {}) {
   $(".workspace").dataset.channelView = meta.key;
   $("#workspace-channel-title").textContent = meta.title;
   $("#workspace-channel-eyebrow").textContent = meta.eyebrow;
+  $("#email-mailboxes").hidden = next !== "EMAIL";
   document.querySelectorAll(".channel-workspace-item").forEach((item) => {
     const active = item.dataset.channelView === next;
     item.classList.toggle("active", active);

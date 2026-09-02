@@ -46,22 +46,27 @@ async function downloadGmailAttachments(message, headers, http) {
 async function fetchGmailInbox({ accessToken, since, http = axios }) {
   const headers = { Authorization: `Bearer ${accessToken}` };
   const after = Math.max(0, Math.floor((since.getTime() - OVERLAP_MS) / 1000));
-  const ids = [];
-  let pageToken;
-  for (let page = 0; page < MAX_PAGES; page += 1) {
-    const response = await http.get("https://gmail.googleapis.com/gmail/v1/users/me/messages", {
-      headers, params: { labelIds: "INBOX", q: `after:${after}`, maxResults: 100, ...(pageToken ? { pageToken } : {}) }, timeout: 10000,
-    });
-    ids.push(...(response.data?.messages || []).map((item) => item.id).filter(Boolean));
-    pageToken = response.data?.nextPageToken;
-    if (!pageToken) break;
+  const ids = new Map();
+  for (const labelId of ["INBOX", "SPAM"]) {
+    let pageToken;
+    for (let page = 0; page < MAX_PAGES; page += 1) {
+      const response = await http.get("https://gmail.googleapis.com/gmail/v1/users/me/messages", {
+        headers, params: { labelIds: labelId, q: `after:${after}`, maxResults: 100, ...(pageToken ? { pageToken } : {}) }, timeout: 10000,
+      });
+      for (const item of response.data?.messages || []) {
+        if (item.id && !ids.has(item.id)) ids.set(item.id, labelId);
+      }
+      pageToken = response.data?.nextPageToken;
+      if (!pageToken) break;
+    }
   }
   const full = [];
-  for (const id of [...new Set(ids)]) {
+  for (const [id, sourceLabel] of ids) {
     const response = await http.get(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(id)}`, {
       headers, params: { format: "full" }, timeout: 10000,
     });
     if (response.data) {
+      if (!Array.isArray(response.data.labelIds)) response.data.labelIds = [sourceLabel];
       response.data.gmailAttachments = await downloadGmailAttachments(response.data, headers, http);
       full.push(response.data);
     }

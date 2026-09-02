@@ -280,6 +280,8 @@ class EmailAdapter extends ChannelAdapter {
       const subject = gmailHeader(headers, "Subject");
       const messageId = gmailHeader(headers, "Message-ID");
       const references = gmailHeader(headers, "References");
+      const labels = new Set(rawPayload.labelIds || []);
+      const gmailMailbox = labels.has("SPAM") ? "SPAM" : labels.has("CATEGORY_PROMOTIONS") ? "PROMOTIONS" : "GENERAL";
       const occurredAt = rawPayload.internalDate ? new Date(Number(rawPayload.internalDate)) : new Date();
       const bodyPart = findGmailBodyPart(rawPayload.payload);
       let text = null;
@@ -298,7 +300,7 @@ class EmailAdapter extends ChannelAdapter {
       if (text || !attachments.length) events.push({
         ...common, externalMessageId: rawPayload.id || null,
         type: text ? "text" : "unknown", text,
-        metadata: { subject, id: rawPayload.id, threadId: rawPayload.threadId, messageId, references },
+        metadata: { subject, id: rawPayload.id, threadId: rawPayload.threadId, messageId, references, gmailMailbox },
       });
       attachments.forEach((attachment, index) => {
         const mimeType = String(attachment.mimeType || "application/octet-stream").toLowerCase();
@@ -307,7 +309,7 @@ class EmailAdapter extends ChannelAdapter {
           ...common, externalMessageId: `${rawPayload.id}:attachment:${attachment.id || index}`,
           type, text: null,
           media: { buffer: attachment.buffer, mimeType, fileName: attachment.filename || "arquivo" },
-          metadata: { subject, id: rawPayload.id, threadId: rawPayload.threadId, messageId, references, attachment: true },
+          metadata: { subject, id: rawPayload.id, threadId: rawPayload.threadId, messageId, references, gmailMailbox, attachment: true },
         });
       });
       return events;
