@@ -1623,7 +1623,7 @@ html[data-theme="dark"] .messages { background-color:#0d0f13; background-image:r
 html[data-theme="dark"] .bubble { box-shadow:var(--shadow-xs); }
 .sent .bubble { box-shadow:var(--shadow-xs); border-radius:var(--radius-md) var(--radius-sm) var(--radius-md) var(--radius-md); }
 .message-row.received .bubble { border-radius:var(--radius-sm) var(--radius-md) var(--radius-md) var(--radius-md); }
-.chat-header { background:color-mix(in srgb,var(--surface-1) 96%,transparent); backdrop-filter:blur(10px); }
+.chat-header { position:relative; z-index:30; overflow:visible; background:color-mix(in srgb,var(--surface-1) 96%,transparent); backdrop-filter:blur(10px); }
 .chat-content { background:var(--surface-1); }
 
 /* ---- 7. Overflow "mais ações" no cabeçalho da conversa ---- */
@@ -1631,8 +1631,8 @@ html[data-theme="dark"] .bubble { box-shadow:var(--shadow-xs); }
 .chat-overflow-toggle { min-height:36px; padding:0 10px; border:1px solid var(--border-subtle); border-radius:var(--radius-sm); color:var(--text-2); background:var(--surface-1); font-size:16px; line-height:1; }
 .chat-overflow-toggle:hover { border-color:var(--orange); color:var(--orange); }
 .chat-overflow-panel {
-  position:absolute; z-index:20; top:calc(100% + 8px); right:0; width:220px; padding:6px; display:none; flex-direction:column; gap:2px;
-  border:1px solid var(--border-subtle); border-radius:var(--radius-md); background:color-mix(in srgb,var(--surface-2) 94%,transparent);
+  position:absolute; z-index:100; top:calc(100% + 8px); right:0; width:220px; padding:6px; display:none; flex-direction:column; gap:2px;
+  border:1px solid var(--border-subtle); border-radius:var(--radius-md); background:var(--surface-2);
   backdrop-filter:blur(var(--blur-glass)); box-shadow:var(--shadow-lg);
 }
 .chat-overflow.open .chat-overflow-panel { display:flex; animation:cmdk-in var(--dur-fast) var(--ease); }
@@ -1681,8 +1681,8 @@ html[data-theme="dark"] .context-info-row.alert strong { color:#ff9a90; }
 }
 
 /* ---- 9. Composer ---- */
-.composer-tools { height:44px; display:flex; align-items:center; gap:8px; }
-.composer-tools > .attach-image,.composer-tools > .quick-reply-shortcut { margin:0; align-self:center; }
+.composer-tools { height:44px; display:flex; align-items:flex-end; align-self:flex-end; gap:8px; }
+.composer-tools > .attach-image,.composer-tools > .quick-reply-shortcut { box-sizing:border-box; width:44px; min-width:44px; height:44px; margin:0; padding:0; align-self:flex-end; transform:none; }
 .composer textarea:focus { box-shadow:0 0 0 3px rgba(239,91,42,.14); }
 .composer > button[type="submit"] { box-shadow:var(--shadow-sm); }
 .composer > button[type="submit"]:hover { box-shadow:var(--shadow-glow); }
@@ -1731,6 +1731,8 @@ html[data-theme="dark"] .context-pane .notes-panel,html[data-theme="dark"] .cont
 .quick-reply-shortcut svg { width:26px; height:26px; display:block; overflow:visible; }
 .quick-reply-shortcut path { fill:url(#quick-bolt-gradient); stroke:#0a0b0d; stroke-width:1.7; stroke-linejoin:round; }
 .quick-reply-shortcut:hover,.composer > .quick-reply-shortcut:hover { border-color:#000; color:#111; background:#ff6b38; filter:brightness(1.04); }
+#composer .composer-tools > .quick-reply-shortcut,
+html[data-theme="dark"] #composer .composer-tools > .quick-reply-shortcut { border:2px solid #050607; color:#111; background:var(--orange); box-shadow:inset 0 0 0 1px rgba(255,255,255,.16); }
 html[data-theme="dark"] .panel-collapse-button { border-color:#424851; color:#eef0f3; background:#24282e; }
 html[data-theme="dark"] .panel-collapse-button:hover { border-color:var(--orange); color:#fff; background:var(--orange); }
 html[data-theme="dark"] .composer > .quick-reply-shortcut { border:2px solid #050607; color:#111; background:var(--orange); box-shadow:0 0 0 1px #f7a183,0 2px 0 #050607; }

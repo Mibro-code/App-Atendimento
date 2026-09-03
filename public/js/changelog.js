@@ -11,7 +11,9 @@
       changes: [
         "Adiciona cadastro de feriados por data na configuração da Triagem Inicial.",
         "Em feriados ativos, o bot usa a mensagem de fora do horário durante todo o dia.",
-        "Datas podem ser editadas, desativadas ou removidas, com auditoria e acesso Master."
+        "Datas podem ser editadas, desativadas ou removidas, com auditoria e acesso Master.",
+        "Menu de a\u00e7\u00f5es da conversa permanece leg\u00edvel acima das mensagens.",
+        "Bot\u00f5es de anexo e respostas r\u00e1pidas ficam alinhados, com o raio laranja no tema escuro."
       ]
     },
     {
