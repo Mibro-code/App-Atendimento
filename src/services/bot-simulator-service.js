@@ -17,6 +17,9 @@ function localDateParts(date, timezone) {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: timezone,
     weekday: "short",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
@@ -24,19 +27,24 @@ function localDateParts(date, timezone) {
   const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
   return {
     dayOfWeek: weekdayIndexes[values.weekday],
+    date: `${values.year}-${values.month}-${values.day}`,
     time: `${values.hour}:${values.minute}`,
   };
 }
 
 function scheduleState(bot, now = new Date()) {
   const schedules = Array.isArray(bot.schedules) ? bot.schedules : [];
-  if (!schedules.length) return { configured: false, withinHours: true, schedule: null };
-  const { dayOfWeek, time } = localDateParts(now, bot.timezone);
+  const holidays = Array.isArray(bot.holidays) ? bot.holidays : [];
+  const { dayOfWeek, date, time } = localDateParts(now, bot.timezone);
+  const holiday = holidays.find((item) => item.enabled !== false && item.date === date) || null;
+  if (holiday) return { configured: true, withinHours: false, schedule: null, holiday };
+  if (!schedules.length) return { configured: false, withinHours: true, schedule: null, holiday: null };
   const schedule = schedules.find((item) => item.dayOfWeek === dayOfWeek) || null;
   return {
     configured: true,
     withinHours: Boolean(schedule?.enabled && time >= schedule.startTime && time < schedule.endTime),
     schedule,
+    holiday: null,
   };
 }
 

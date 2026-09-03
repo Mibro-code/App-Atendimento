@@ -113,6 +113,59 @@ function renderSchedules(schedules = []) {
   }).join("");
 }
 
+function holidayDateLabel(value) {
+  const [year, month, day] = String(value || "").split("-");
+  return year && month && day ? `${day}/${month}/${year}` : value;
+}
+
+function holidayPayload(item) {
+  return { date: item.date, name: item.name, enabled: item.enabled !== false };
+}
+
+function closeHolidayForm() {
+  $("#holiday-form").hidden = true;
+  $("#holiday-form").reset();
+  $("#holiday-original-date").value = "";
+  $("#holiday-enabled").checked = true;
+}
+
+function renderHolidays() {
+  const holidays = [...(state.selected?.holidays || [])].sort((left, right) => left.date.localeCompare(right.date));
+  $("#holiday-list").innerHTML = holidays.length ? holidays.map((holiday) => `
+    <article class="holiday-row ${holiday.enabled ? "" : "inactive"}">
+      <time datetime="${escapeHtml(holiday.date)}">${escapeHtml(holidayDateLabel(holiday.date))}</time>
+      <b>${escapeHtml(holiday.name)}</b>
+      <div><button type="button" data-edit-holiday="${escapeHtml(holiday.date)}">Editar</button><button type="button" data-delete-holiday="${escapeHtml(holiday.date)}">Excluir</button></div>
+    </article>
+  `).join("") : '<div class="intent-empty">Nenhum feriado configurado.</div>';
+  document.querySelectorAll("[data-edit-holiday]").forEach((button) => button.addEventListener("click", () => editHoliday(button.dataset.editHoliday)));
+  document.querySelectorAll("[data-delete-holiday]").forEach((button) => button.addEventListener("click", () => removeHoliday(button.dataset.deleteHoliday)));
+}
+
+function editHoliday(date) {
+  const holiday = state.selected.holidays.find((item) => item.date === date);
+  if (!holiday) return;
+  $("#holiday-original-date").value = holiday.date;
+  $("#holiday-date").value = holiday.date;
+  $("#holiday-name").value = holiday.name;
+  $("#holiday-enabled").checked = holiday.enabled;
+  $("#holiday-form").hidden = false;
+  $("#holiday-name").focus();
+}
+
+async function saveHolidaysList(holidays) {
+  try {
+    await api(`/api/bots/${state.selected.id}/holidays`, { method: "PUT", body: JSON.stringify({ holidays }) });
+    toast("Feriados atualizados.");
+    await selectBot(state.selected.id);
+  } catch (error) { toast(error.message, true); }
+}
+
+async function removeHoliday(date) {
+  if (!confirm("Remover este feriado?")) return;
+  await saveHolidaysList(state.selected.holidays.filter((item) => item.date !== date).map(holidayPayload));
+}
+
 function renderIntents() {
   const intents = state.selected?.intents || [];
   $("#intent-list").innerHTML = intents.length ? intents.map((intent) => `
@@ -215,10 +268,12 @@ function renderEditor() {
   $("#triage-only-fields").hidden = !isTriage;
   $("#triage-only-config").hidden = !isTriage;
   $("#triage-options-card").hidden = !isTriage;
+  $("#triage-holidays-card").hidden = !isTriage;
   fillBotForm(bot);
   $("#intent-category").innerHTML = categoryOptions();
   $("#triage-option-category").innerHTML = triageCategoryOptions();
   renderSchedules(bot.schedules);
+  if (isTriage) renderHolidays();
   renderIntents();
   if (isTriage) renderTriageOptions();
   renderBotList();
@@ -744,6 +799,21 @@ $("#schedule-form").addEventListener("submit", async (event) => {
     toast("Horários atualizados.");
     await selectBot(state.selected.id);
   } catch (error) { toast(error.message, true); }
+});
+
+$("#new-holiday").addEventListener("click", () => {
+  closeHolidayForm();
+  $("#holiday-form").hidden = false;
+  $("#holiday-date").focus();
+});
+$("#cancel-holiday").addEventListener("click", closeHolidayForm);
+$("#holiday-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const originalDate = $("#holiday-original-date").value;
+  const draft = { date: $("#holiday-date").value, name: $("#holiday-name").value, enabled: $("#holiday-enabled").checked };
+  const current = (state.selected.holidays || []).filter((item) => item.date !== originalDate).map(holidayPayload);
+  closeHolidayForm();
+  await saveHolidaysList([...current, draft]);
 });
 
 $("#intent-form").addEventListener("submit", async (event) => {

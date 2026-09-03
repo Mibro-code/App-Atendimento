@@ -391,6 +391,7 @@ app.post(
   app.patch("/api/bots/:botId/status", botController.status);
   app.delete("/api/bots/:botId", botController.archive);
   app.put("/api/bots/:botId/schedules", botController.schedules);
+  app.put("/api/bots/:botId/holidays", botController.holidays);
   app.put("/api/bots/:botId/triage-options", botController.triageOptions);
   app.post("/api/bots/:botId/intents", botController.createIntent);
   app.patch("/api/bots/:botId/intents/:intentId", botController.updateIntent);

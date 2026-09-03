@@ -7,6 +7,7 @@ const {
 } = require("../src/services/bot-simulator-service");
 const {
   assertBotManager,
+  validateHolidays,
   validateSchedules,
 } = require("../src/services/bot-service");
 
@@ -126,7 +127,32 @@ test("considera o Bot disponível enquanto nenhum horário foi configurado", () 
     configured: false,
     withinHours: true,
     schedule: null,
+    holiday: null,
   });
+});
+
+test("feriado ativo fecha o Bot durante todo o dia no timezone configurado", () => {
+  const bot = botFixture({
+    schedules: [{ dayOfWeek: 1, enabled: true, startTime: "08:00", endTime: "17:00" }],
+    holidays: [{ date: "2026-08-24", name: "Feriado local", enabled: true }],
+  });
+  const result = scheduleState(bot, new Date("2026-08-24T15:00:00.000Z"));
+  assert.equal(result.withinHours, false);
+  assert.equal(result.holiday.name, "Feriado local");
+
+  bot.holidays[0].enabled = false;
+  assert.equal(scheduleState(bot, new Date("2026-08-24T15:00:00.000Z")).withinHours, true);
+});
+
+test("valida datas reais, nomes e duplicidade dos feriados", () => {
+  assert.deepEqual(validateHolidays([{ date: "2026-12-25", name: "Natal", enabled: true }]), [
+    { date: "2026-12-25", name: "Natal", enabled: true },
+  ]);
+  assert.throws(() => validateHolidays([{ date: "2026-02-30", name: "Inválido" }]), /inválida/i);
+  assert.throws(() => validateHolidays([
+    { date: "2026-12-25", name: "Natal" },
+    { date: "2026-12-25", name: "Duplicado" },
+  ]), /mais de um feriado/i);
 });
 
 test("valida dias, formato, ordem e duplicidade dos horários", () => {

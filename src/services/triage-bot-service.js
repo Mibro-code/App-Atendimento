@@ -92,6 +92,7 @@ async function getTriageBot() {
     where: { type: "SYSTEM_TRIAGE", archivedAt: null },
     include: {
       schedules: { orderBy: { dayOfWeek: "asc" } },
+      holidays: { orderBy: { date: "asc" } },
       triageOptions: {
         where: { enabled: true },
         orderBy: [{ order: "asc" }, { createdAt: "asc" }],

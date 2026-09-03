@@ -37,6 +37,7 @@ const categorySelection = { id: true, code: true, name: true, color: true, activ
 const botInclude = {
   defaultCategory: { select: categorySelection },
   schedules: { orderBy: { dayOfWeek: "asc" } },
+  holidays: { orderBy: { date: "asc" } },
   intents: {
     include: {
       category: { select: categorySelection },
@@ -183,6 +184,26 @@ function validateSchedules(value) {
   });
 }
 
+function validateHolidays(value) {
+  if (!Array.isArray(value)) throw fail("Os feriados devem ser uma lista.");
+  if (value.length > 100) throw fail("Configure no máximo 100 feriados.");
+  const dates = new Set();
+  return value.map((item) => {
+    const date = typeof item?.date === "string" ? item.date.trim() : "";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw fail("A data do feriado deve usar o formato AAAA-MM-DD.");
+    const parsed = new Date(`${date}T00:00:00.000Z`);
+    if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) throw fail("Data de feriado inválida.");
+    if (dates.has(date)) throw fail("Existe mais de um feriado configurado para a mesma data.");
+    dates.add(date);
+    if (item.enabled !== undefined && typeof item.enabled !== "boolean") throw fail("Informe se o feriado está habilitado.");
+    return {
+      date,
+      name: requiredText(item.name, "Nome do feriado", 100),
+      enabled: item.enabled === undefined ? true : item.enabled,
+    };
+  });
+}
+
 async function ensureBot(botId, client = prisma, include = undefined) {
   const bot = await client.bot.findFirst({
     where: { id: botId, archivedAt: null },
@@ -255,7 +276,7 @@ async function listBots(viewer) {
     include: {
       defaultCategory: { select: categorySelection },
       schedules: { orderBy: { dayOfWeek: "asc" } },
-      _count: { select: { schedules: true, intents: true, triageOptions: true } },
+      _count: { select: { schedules: true, holidays: true, intents: true, triageOptions: true } },
     },
     orderBy: [{ updatedAt: "desc" }, { name: "asc" }],
   });
@@ -443,6 +464,28 @@ async function replaceSchedules(botId, value, actor) {
       entityId: bot.id,
       summary: `Alterou os horários do Bot ${bot.name}`,
       details: { schedules },
+    }, transaction);
+    return transaction.bot.findUnique({ where: { id: botId }, include: botInclude });
+  });
+}
+
+async function replaceHolidays(botId, value, actor) {
+  assertBotManager(actor);
+  const bot = await ensureBot(botId);
+  if (bot.type !== "SYSTEM_TRIAGE") throw fail("Apenas o Bot de Triagem aceita feriados.");
+  const holidays = validateHolidays(value);
+  return prisma.$transaction(async (transaction) => {
+    await transaction.botHoliday.deleteMany({ where: { botId } });
+    if (holidays.length) {
+      await transaction.botHoliday.createMany({ data: holidays.map((holiday) => ({ ...holiday, botId })) });
+    }
+    await audit.recordAudit({
+      actor,
+      action: "BOT_HOLIDAYS_UPDATED",
+      entityType: "BOT",
+      entityId: bot.id,
+      summary: `Alterou os feriados do Bot ${bot.name}`,
+      details: { holidays },
     }, transaction);
     return transaction.bot.findUnique({ where: { id: botId }, include: botInclude });
   });
@@ -917,12 +960,14 @@ module.exports = {
   observationMetrics,
   recordObservationFeedback,
   replaceSchedules,
+  replaceHolidays,
   replaceTriageOptions,
   simulate,
   updateBot,
   updateBotStatus,
   updateIntent,
   validateSchedules,
+  validateHolidays,
   // Fluxo de atendimento (Flow Engine).
   listFlowSteps,
   createFlowStep,

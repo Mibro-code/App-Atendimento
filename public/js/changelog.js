@@ -1,9 +1,19 @@
 (() => {
-  const APP_VERSION = "0.28.4";
+  const APP_VERSION = "0.28.5";
 
 
 
   const CHANGELOG = [
+    {
+      version: "0.28.5",
+      date: "03/09/2026",
+      title: "Feriados na Triagem Inicial",
+      changes: [
+        "Adiciona cadastro de feriados por data na configuração da Triagem Inicial.",
+        "Em feriados ativos, o bot usa a mensagem de fora do horário durante todo o dia.",
+        "Datas podem ser editadas, desativadas ou removidas, com auditoria e acesso Master."
+      ]
+    },
     {
       version: "0.28.4",
       date: "02/09/2026",

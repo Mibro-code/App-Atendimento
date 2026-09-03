@@ -184,6 +184,25 @@ test("simulador do Bot de Triagem: nunca envia mensagem real e reflete horário/
   assert.ok(Array.isArray(result.options) && result.options.length === 4);
 });
 
+test("feriados da Triagem são persistidos e podem ser removidos sem mudar o calendário padrão", async () => {
+  try {
+    const updated = await botService.replaceHolidays(triageBot.id, [
+      { date: "2026-12-25", name: "Natal", enabled: true },
+    ], master);
+    assert.equal(updated.holidays.length, 1);
+    assert.equal(updated.holidays[0].name, "Natal");
+    await assert.rejects(
+      () => botService.replaceHolidays(triageBot.id, [
+        { date: "2026-12-25", name: "Natal" },
+        { date: "2026-12-25", name: "Duplicado" },
+      ], master),
+      /mais de um feriado/i,
+    );
+  } finally {
+    await botService.replaceHolidays(triageBot.id, [], master);
+  }
+});
+
 test("motor de IA (orchestrator) nunca resolve o Bot de Triagem como Bot comum do canal", async () => {
   const resolved = await resolveBot(null, "META", prisma);
   assert.notEqual(resolved?.id, triageBot.id);

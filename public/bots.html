@@ -177,6 +177,21 @@
             <div id="schedule-list" class="schedule-list"></div>
           </form>
 
+          <section id="triage-holidays-card" class="card requires-bot" hidden>
+            <div class="card-heading"><div><span>DISPONIBILIDADE</span><h3>Feriados</h3></div><button id="new-holiday" type="button">+ Feriado</button></div>
+            <p class="card-help">Nestas datas, a Triagem Inicial usa a mensagem de fora do horário durante todo o dia.</p>
+            <div id="holiday-list" class="holiday-list"></div>
+            <form id="holiday-form" class="intent-form" hidden>
+              <input id="holiday-original-date" type="hidden">
+              <div class="fields two-columns">
+                <label><span>Data *</span><input id="holiday-date" type="date" required></label>
+                <label><span>Nome *</span><input id="holiday-name" maxlength="100" required placeholder="Ex.: Natal"></label>
+                <label class="checkbox full"><input id="holiday-enabled" type="checkbox" checked><span>Feriado ativo</span></label>
+              </div>
+              <div class="form-actions"><button id="cancel-holiday" type="button">Cancelar</button><button type="submit">Salvar feriado</button></div>
+            </form>
+          </section>
+
           <section id="triage-options-card" class="card requires-bot" hidden>
             <div class="card-heading"><div><span>TRIAGEM</span><h3>Opções de triagem</h3></div><button id="new-triage-option" type="button">+ Opção</button></div>
             <p class="card-help">Setores mostrados na lista do WhatsApp, na ordem abaixo. Cada opção precisa de uma categoria de destino válida.</p>

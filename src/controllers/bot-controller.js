@@ -57,6 +57,13 @@ module.exports = {
     } catch (error) { return next(error); }
   },
 
+  async holidays(req, res, next) {
+    try {
+      const holidays = Array.isArray(req.body) ? req.body : req.body.holidays;
+      return res.json(await bots.replaceHolidays(req.params.botId, holidays, req.user));
+    } catch (error) { return next(error); }
+  },
+
   async createIntent(req, res, next) {
     try { return res.status(201).json(await bots.createIntent(req.params.botId, req.body, req.user)); }
     catch (error) { return next(error); }
