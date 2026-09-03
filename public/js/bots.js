@@ -8,6 +8,7 @@ const state = {
   // Fluxo de atendimento (Flow Engine).
   flowSteps: [], flowStepsCache: new Map(), tools: [], knowledgeSources: [],
   aiProviderOptions: null,
+  personalityPresets: null,
 };
 const flowActionLabels = {
   ASK_QUESTION: "Perguntar", USE_KNOWLEDGE: "Usar conhecimento", QUERY_TOOL: "Consultar Tool",
@@ -317,6 +318,112 @@ async function renderAiProviderStatus() {
   }
 }
 document.getElementById("flag-externalAiProvider")?.addEventListener("change", renderAiProviderStatus);
+function personalityListToText(items = []) {
+  return Array.isArray(items) ? items.join("\n") : "";
+}
+
+function personalityTextToList(value) {
+  return String(value || "").split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
+}
+
+function renderPersonalityCopySources() {
+  const select = $("#personality-copy-source");
+  select.innerHTML = '<option value="">Selecione...</option>' + state.bots
+    .filter((bot) => bot.id !== state.selected?.id)
+    .map((bot) => `<option value="${escapeHtml(bot.id)}">${escapeHtml(bot.name)}</option>`).join("");
+}
+
+async function ensurePersonalityPresetsLoaded() {
+  if (!state.personalityPresets) state.personalityPresets = await api("/api/bot-personality-presets");
+  $("#personality-preset").innerHTML = state.personalityPresets
+    .map((item) => `<option value="${escapeHtml(item.preset)}">${escapeHtml(item.label)}</option>`).join("");
+}
+
+function fillPersonalityForm(configuration) {
+  const current = configuration.effective || {};
+  $("#personality-status").textContent = configuration.isDefault ? "Padr\u00e3o Mibro herdado" : "Personalidade pr\u00f3pria";
+  $("#personality-status").classList.toggle("is-default", Boolean(configuration.isDefault));
+  $("#personality-preset").value = current.preset || "PERSONALIZADO";
+  $("#personality-assistant-name").value = current.assistantName || "";
+  $("#personality-role").value = current.roleDescription || "";
+  $("#personality-tone").value = personalityListToText(current.tone);
+  $("#personality-style").value = personalityListToText(current.responseStyle);
+  $("#personality-mandatory").value = personalityListToText(current.mandatoryBehaviors);
+  $("#personality-forbidden").value = personalityListToText(current.forbiddenBehaviors);
+  $("#personality-additional").value = current.additionalInstructions || "";
+  $("#personality-response-length").value = current.responseLength || "MEDIUM";
+  $("#apply-personality-preset").disabled = $("#personality-preset").value === "PERSONALIZADO";
+  renderPersonalityCopySources();
+}
+
+async function loadPersonality() {
+  if (!state.selected) return;
+  const botId = state.selected.id;
+  $("#personality-status").textContent = "Carregando";
+  try {
+    await ensurePersonalityPresetsLoaded();
+    const configuration = await api(`/api/bots/${encodeURIComponent(botId)}/personality`);
+    if (state.selected?.id === botId) fillPersonalityForm(configuration);
+  } catch (error) {
+    $("#personality-status").textContent = "Indispon\u00edvel";
+    toast(error.message, true);
+  }
+}
+
+function personalityPayload() {
+  return {
+    preset: "PERSONALIZADO",
+    assistantName: $("#personality-assistant-name").value || null,
+    roleDescription: $("#personality-role").value || null,
+    tone: personalityTextToList($("#personality-tone").value),
+    responseStyle: personalityTextToList($("#personality-style").value),
+    mandatoryBehaviors: personalityTextToList($("#personality-mandatory").value),
+    forbiddenBehaviors: personalityTextToList($("#personality-forbidden").value),
+    additionalInstructions: $("#personality-additional").value || null,
+    responseLength: $("#personality-response-length").value,
+  };
+}
+
+$("#personality-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  try {
+    await api(`/api/bots/${state.selected.id}/personality`, { method: "PUT", body: JSON.stringify(personalityPayload()) });
+    toast("Personalidade atualizada.");
+    await loadPersonality();
+  } catch (error) { toast(error.message, true); }
+});
+
+$("#personality-preset").addEventListener("change", () => {
+  $("#apply-personality-preset").disabled = $("#personality-preset").value === "PERSONALIZADO";
+});
+
+$("#apply-personality-preset").addEventListener("click", async () => {
+  const preset = $("#personality-preset").value;
+  if (!preset || preset === "PERSONALIZADO") return toast("Selecione um preset pronto.", true);
+  if (!window.confirm("Aplicar este preset substituir\u00e1 todos os campos atuais da personalidade. Continuar?")) return;
+  try {
+    await api(`/api/bots/${state.selected.id}/personality/preset`, { method: "POST", body: JSON.stringify({ preset }) });
+    toast("Preset aplicado.");
+    await loadPersonality();
+  } catch (error) { toast(error.message, true); }
+});
+
+$("#copy-personality").addEventListener("click", async () => {
+  const sourceBotId = $("#personality-copy-source").value;
+  if (!sourceBotId) return toast("Selecione o Bot de origem.", true);
+  if (!window.confirm("Copiar a personalidade substituir\u00e1 todos os campos atuais. Continuar?")) return;
+  try {
+    await api(`/api/bots/${state.selected.id}/personality/copy`, { method: "POST", body: JSON.stringify({ sourceBotId }) });
+    toast("Personalidade copiada.");
+    await loadPersonality();
+  } catch (error) { toast(error.message, true); }
+});
+
+$("#personality-form").addEventListener("input", (event) => {
+  if (event.target.id === "personality-preset") return;
+  $("#personality-preset").value = "PERSONALIZADO";
+  $("#apply-personality-preset").disabled = true;
+});
 
 document.getElementById("test-ai-provider")?.addEventListener("click", async () => {
   if (!window.confirm("Este teste fará uma chamada real e poderá gerar um pequeno custo no provider de IA. Deseja continuar?")) return;
@@ -434,6 +541,7 @@ async function selectBot(botId) {
   closeTriageOptionForm();
   resetSimulator();
   renderEditor();
+  await loadPersonality();
 }
 
 function startNewBot() {

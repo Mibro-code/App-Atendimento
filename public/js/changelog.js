@@ -14,7 +14,8 @@
         "Datas podem ser editadas, desativadas ou removidas, com auditoria e acesso Master.",
         "Personalidade configur\u00e1vel define identidade, tom, estilo, limites e tamanho das respostas de cada Bot.",
         "Entendimento sem\u00e2ntico melhora a leitura de mensagens informais sem alterar o texto original do cliente.",
-        "Agent Planner e estado do caso foram adicionados atr\u00e1s de flag, preservando o comportamento atual quando desligados."
+        "Agent Planner e estado do caso foram adicionados atr\u00e1s de flag, preservando o comportamento atual quando desligados.",
+        "Nova se\u00e7\u00e3o visual permite configurar presets, tom, estilo, regras e tamanho das respostas na tela de Bots."
       ]
     },
     {

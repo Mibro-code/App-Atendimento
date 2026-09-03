@@ -149,6 +149,29 @@
             </div>
           </form>
 
+          <form id="personality-form" class="card requires-bot personality-card">
+            <div class="card-heading">
+              <div><span>COMPORTAMENTO</span><h3>Personalidade do Bot</h3></div>
+              <div class="personality-heading-actions"><span id="personality-status" class="personality-status">Carregando</span><button type="submit">Salvar personalidade</button></div>
+            </div>
+            <p class="card-help">Define somente tom e estilo. Regras de seguran&ccedil;a, dados reais, Knowledge, Tools e Flow Engine continuam tendo prioridade.</p>
+            <div class="personality-toolbar">
+              <label><span>Preset</span><select id="personality-preset"></select></label>
+              <button id="apply-personality-preset" type="button">Aplicar preset</button>
+              <label><span>Copiar de outro Bot</span><select id="personality-copy-source"><option value="">Selecione...</option></select></label>
+              <button id="copy-personality" type="button">Copiar</button>
+            </div>
+            <div class="fields two-columns personality-fields">
+              <label><span>Nome do assistente</span><input id="personality-assistant-name" maxlength="80" placeholder="Ex.: Assistente Mibro"></label>
+              <label><span>Tamanho das respostas</span><select id="personality-response-length"><option value="SHORT">Curtas e diretas</option><option value="MEDIUM">Moderadas</option><option value="LONG">Completas e detalhadas</option></select></label>
+              <label class="full"><span>Papel do assistente</span><textarea id="personality-role" maxlength="500" placeholder="Descreva a fun&ccedil;&atilde;o deste Bot"></textarea></label>
+              <label><span>Tom de voz (um por linha)</span><textarea id="personality-tone" placeholder="acolhedor&#10;objetivo&#10;confi&aacute;vel"></textarea></label>
+              <label><span>Estilo de resposta (um por linha)</span><textarea id="personality-style" placeholder="humanizado&#10;educado&#10;direto"></textarea></label>
+              <label class="full"><span>Comportamentos obrigat&oacute;rios (um por linha)</span><textarea id="personality-mandatory" class="personality-list-textarea" placeholder="explicar de forma simples&#10;priorizar fontes oficiais"></textarea></label>
+              <label class="full"><span>Comportamentos proibidos (um por linha)</span><textarea id="personality-forbidden" class="personality-list-textarea" placeholder="inventar informa&ccedil;&otilde;es&#10;garantir fun&ccedil;&otilde;es n&atilde;o confirmadas"></textarea></label>
+              <label class="full"><span>Instru&ccedil;&otilde;es adicionais</span><textarea id="personality-additional" maxlength="2000" class="personality-list-textarea" placeholder="Orienta&ccedil;&otilde;es espec&iacute;ficas para este Bot"></textarea></label>
+            </div>
+          </form>
           <section class="card requires-bot">
             <div class="card-heading"><div><span>MOTOR DE IA</span><h3>Fallback externo</h3></div><button id="test-ai-provider" type="button">Testar conexão</button></div>
             <p class="card-help">A IA externa só é chamada quando "IA externa como fallback" está ligada acima e a confiança local fica abaixo do limiar — nunca em toda mensagem. Sem credencial configurada, o Bot continua funcionando normalmente só com o motor local. O status abaixo é sempre do provider selecionado à esquerda. Para cadastrar/trocar a chave de API, use a aba "Chaves de IA" (configuração global, só Master).</p>
