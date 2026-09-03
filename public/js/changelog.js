@@ -1,22 +1,29 @@
 (() => {
-  const APP_VERSION = "0.28.5";
+  const APP_VERSION = "0.29.0";
 
 
 
   const CHANGELOG = [
     {
-      version: "0.28.5",
+      version: "0.29.0",
       date: "03/09/2026",
-      title: "Bots inteligentes e ajustes da Central",
+      title: "Bots inteligentes e configur\u00e1veis",
       changes: [
         "Adiciona cadastro de feriados por data na configuração da Triagem Inicial.",
         "Em feriados ativos, o bot usa a mensagem de fora do horário durante todo o dia.",
         "Datas podem ser editadas, desativadas ou removidas, com auditoria e acesso Master.",
-        "Menu de a\u00e7\u00f5es da conversa permanece leg\u00edvel acima das mensagens.",
-        "Bot\u00f5es de anexo e respostas r\u00e1pidas ficam alinhados, com o raio laranja no tema escuro.",
         "Personalidade configur\u00e1vel define identidade, tom, estilo, limites e tamanho das respostas de cada Bot.",
         "Entendimento sem\u00e2ntico melhora a leitura de mensagens informais sem alterar o texto original do cliente.",
         "Agent Planner e estado do caso foram adicionados atr\u00e1s de flag, preservando o comportamento atual quando desligados."
+      ]
+    },
+    {
+      version: "0.28.5",
+      date: "03/09/2026",
+      title: "Ajustes visuais da Central",
+      changes: [
+        "Menu de a\u00e7\u00f5es da conversa permanece leg\u00edvel acima das mensagens.",
+        "Bot\u00f5es de anexo e respostas r\u00e1pidas ficam alinhados, com o raio laranja no tema escuro."
       ]
     },
     {
