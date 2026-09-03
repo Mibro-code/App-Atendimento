@@ -96,7 +96,10 @@ async function getTriageBot() {
       triageOptions: {
         where: { enabled: true },
         orderBy: [{ order: "asc" }, { createdAt: "asc" }],
-        include: { category: { select: { id: true, name: true, code: true, active: true } } },
+        include: { category: { select: {
+          id: true, name: true, code: true, active: true, masterOnly: true,
+          parent: { select: { active: true, masterOnly: true } },
+        } } },
       },
     },
     orderBy: { createdAt: "asc" },
@@ -127,7 +130,9 @@ async function saveBotText(conversation, text, system, channel) {
 }
 
 async function sendCategoryMenu(conversation, channel, bot) {
-  const options = (bot.triageOptions || []).filter((option) => option.category?.active);
+  const options = (bot.triageOptions || []).filter((option) => option.category?.active
+    && !option.category.masterOnly && option.category.parent?.active !== false
+    && !option.category.parent?.masterOnly);
   if (!options.length) {
     logMisconfiguration(bot.id, "Nenhuma opção de triagem ativa/válida configurada.", {});
     return saveBotText(conversation, bot.fallbackMessage, "triage_fallback", channel);
@@ -155,7 +160,9 @@ async function sendCategoryMenu(conversation, channel, bot) {
 }
 
 async function completeTriage(conversation, categoryId, channel, bot) {
-  const option = (bot.triageOptions || []).find((item) => item.categoryId === categoryId && item.category?.active);
+  const option = (bot.triageOptions || []).find((item) => item.categoryId === categoryId
+    && item.category?.active && !item.category.masterOnly
+    && item.category.parent?.active !== false && !item.category.parent?.masterOnly);
   if (!option) return sendCategoryMenu(conversation, channel, bot);
   const category = option.category;
 
@@ -299,7 +306,9 @@ function simulateTriage(bot, { message, replyId, now = new Date() } = {}) {
     return { simulation: true, sent: false, warning, active: false, response: null };
   }
   if (replyId) {
-    const option = (bot.triageOptions || []).find((item) => item.categoryId === replyId && item.enabled && item.category?.active);
+    const option = (bot.triageOptions || []).find((item) => item.categoryId === replyId
+      && item.enabled && item.category?.active && !item.category.masterOnly
+      && item.category.parent?.active !== false && !item.category.parent?.masterOnly);
     if (!hours.withinHours) {
       return { simulation: true, sent: false, warning, withinHours: false, response: null };
     }
@@ -322,7 +331,9 @@ function simulateTriage(bot, { message, replyId, now = new Date() } = {}) {
       response: renderTemplate(bot.outsideHoursMessage, { ...greetingVars(contact), horario: describeSchedule(bot) }),
     };
   }
-  const options = (bot.triageOptions || []).filter((option) => option.enabled && option.category?.active);
+  const options = (bot.triageOptions || []).filter((option) => option.enabled
+    && option.category?.active && !option.category.masterOnly
+    && option.category.parent?.active !== false && !option.category.parent?.masterOnly);
   if (!options.length) {
     return {
       simulation: true, sent: false, warning, withinHours: true,

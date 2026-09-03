@@ -700,6 +700,9 @@ async function updateConversation(id, { categoryId, status, assignedUserId, prio
       where: { id: categoryId, active: true }, include: { parent: true },
     });
     if (!targetCategory) throw Object.assign(new Error("Categoria não encontrada ou inativa."), { statusCode: 400 });
+    if (!authorization.isMaster(viewer) && (targetCategory.masterOnly || targetCategory.parent?.masterOnly)) {
+      throw authorization.forbidden("Esta categoria e exclusiva para contas Master.");
+    }
     if (!authorization.canTransfer(viewer) && !(await authorization.canAccessCategory(viewer, categoryId))) {
       throw authorization.forbidden("Você não possui acesso à categoria selecionada.");
     }
@@ -986,15 +989,19 @@ async function markAsRead(id, { channel, viewer } = {}) {
 }
 
 async function listCategories(viewer) {
-  let where;
+  const publicCategoryScope = {
+    masterOnly: false,
+    OR: [{ parentId: null }, { parent: { is: { masterOnly: false } } }],
+  };
+  let where = authorization.isMaster(viewer) ? undefined : publicCategoryScope;
   let selectableIds = null;
   if (!authorization.isMaster(viewer) && !viewer.canManageCategories && !authorization.canTransfer(viewer)) {
     const categoryIds = await authorization.allowedCategoryIds(viewer);
     selectableIds = new Set(categoryIds);
-    where = { OR: [
+    where = { AND: [publicCategoryScope, { OR: [
       { id: { in: categoryIds } },
-      { children: { some: { id: { in: categoryIds } } } },
-    ] };
+      { children: { some: { id: { in: categoryIds }, masterOnly: false } } },
+    ] }] };
   }
   const [categories, preferences] = await Promise.all([prisma.category.findMany({
     where,
@@ -1042,12 +1049,18 @@ async function setCategoryVisibility({ categoryId, hidden }, viewer) {
 }
 
 async function createCategory(data, viewer) {
+  if (data.masterOnly === true && !authorization.isMaster(viewer)) {
+    throw authorization.forbidden("Somente uma conta Master pode restringir categorias.");
+  }
   authorization.assertCanManageCategories(viewer);
   const name = validateCategoryName(data.name);
   const color = validateCategoryColor(data.color) || "#6b7280";
   const parentId = data.parentId || null;
   if (parentId) {
-    const parent = await prisma.category.findFirst({ where: { id: parentId, active: true, parentId: null } });
+    const parent = await prisma.category.findFirst({ where: {
+      id: parentId, active: true, parentId: null,
+      ...(authorization.isMaster(viewer) ? {} : { masterOnly: false }),
+    } });
     if (!parent) throw Object.assign(new Error("A categoria principal não existe, está inativa ou já é uma subcategoria."), { statusCode: 400 });
   }
   const baseCode = categoryCode(name);
@@ -1057,7 +1070,7 @@ async function createCategory(data, viewer) {
     try {
       return await prisma.$transaction(async (transaction) => {
         const category = await transaction.category.create({
-          data: { code, name, color, parentId, displayOrder: (order._max.displayOrder || 0) + 10 },
+          data: { code, name, color, parentId, masterOnly: Boolean(data.masterOnly), displayOrder: (order._max.displayOrder || 0) + 10 },
         });
         await audit.recordAudit({
           actor: viewer,
@@ -1078,19 +1091,26 @@ async function createCategory(data, viewer) {
 
 async function updateCategory(id, data, viewer) {
   authorization.assertCanManageCategories(viewer);
-  const existing = await prisma.category.findUnique({ where: { id } });
+  const existing = await prisma.category.findUnique({ where: { id }, include: { parent: { select: { masterOnly: true } } } });
   if (!existing) throw Object.assign(new Error("Categoria não encontrada."), { statusCode: 404 });
+  if ((existing.masterOnly || existing.parent?.masterOnly || data.masterOnly !== undefined) && !authorization.isMaster(viewer)) {
+    throw authorization.forbidden("Somente uma conta Master pode alterar categorias restritas.");
+  }
   const allowed = {};
   if (data.name !== undefined) allowed.name = validateCategoryName(data.name);
   if (data.color !== undefined) allowed.color = validateCategoryColor(data.color);
   if (typeof data.active === "boolean") allowed.active = data.active;
+  if (typeof data.masterOnly === "boolean") allowed.masterOnly = data.masterOnly;
   if (Number.isInteger(data.displayOrder)) allowed.displayOrder = data.displayOrder;
   if (data.parentId !== undefined) {
     const parentId = data.parentId || null;
     if (parentId === id) throw Object.assign(new Error("Uma categoria não pode ser sua própria categoria principal."), { statusCode: 400 });
     if (parentId) {
       const [parent, children] = await Promise.all([
-        prisma.category.findFirst({ where: { id: parentId, active: true, parentId: null } }),
+        prisma.category.findFirst({ where: {
+          id: parentId, active: true, parentId: null,
+          ...(authorization.isMaster(viewer) ? {} : { masterOnly: false }),
+        } }),
         prisma.category.count({ where: { parentId: id } }),
       ]);
       if (!parent) throw Object.assign(new Error("A categoria principal não existe, está inativa ou já é uma subcategoria."), { statusCode: 400 });
@@ -1101,6 +1121,11 @@ async function updateCategory(id, data, viewer) {
   try {
     return await prisma.$transaction(async (transaction) => {
       const category = await transaction.category.update({ where: { id }, data: allowed });
+      if (allowed.masterOnly === true) {
+        await transaction.botTriageOption.updateMany({
+          where: { category: { is: { OR: [{ id }, { parentId: id }] } } }, data: { enabled: false },
+        });
+      }
       await audit.recordAudit({
         actor: viewer,
         action: "CATEGORY_UPDATED",

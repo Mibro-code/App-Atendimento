@@ -73,9 +73,15 @@ function categoryOptions(selected = "") {
 // Sem "Sem categoria" — uma opção de triagem sempre precisa de destino
 // válido (item "não permitir destino inválido").
 function triageCategoryOptions(selected = "") {
-  return state.categories.filter((category) => category.active).map((category) => (
-    `<option value="${escapeHtml(category.id)}" ${category.id === selected ? "selected" : ""}>${escapeHtml(category.parentId ? `- ${category.name}` : category.name)}</option>`
-  )).join("");
+  const byId = new Map(state.categories.map((category) => [category.id, category]));
+  return state.categories.filter((category) => {
+    const parent = category.parentId ? byId.get(category.parentId) : null;
+    return category.active && !category.masterOnly && (!parent || (parent.active && !parent.masterOnly));
+  }).map((category) => {
+    const parent = category.parentId ? byId.get(category.parentId) : null;
+    const label = parent ? `Subcategoria - ${parent.name} / ${category.name}` : `Categoria - ${category.name}`;
+    return `<option value="${escapeHtml(category.id)}" ${category.id === selected ? "selected" : ""}>${escapeHtml(label)}</option>`;
+  }).join("");
 }
 
 function scheduleSummary(schedules = []) {

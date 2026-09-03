@@ -9,7 +9,13 @@ function forbidden(message = "Você não possui permissão para esta ação.") {
 async function allowedCategoryIds(user) {
   if (isMaster(user)) return null;
   const access = await prisma.userCategoryAccess.findMany({
-    where: { userId: user.id },
+    where: {
+      userId: user.id,
+      category: { is: {
+        masterOnly: false,
+        OR: [{ parentId: null }, { parent: { is: { masterOnly: false } } }],
+      } },
+    },
     select: { categoryId: true },
   });
   return access.map(({ categoryId }) => categoryId);
@@ -28,7 +34,16 @@ async function conversationScope(user) {
       { channelAccount: { is: { accessUsers: { some: { userId: user.id } } } } },
     ],
   };
-  return { AND: [operationalScope, emailAccountScope] };
+  const categoryScope = {
+    OR: [
+      { categoryId: null },
+      { category: { is: {
+        masterOnly: false,
+        OR: [{ parentId: null }, { parent: { is: { masterOnly: false } } }],
+      } } },
+    ],
+  };
+  return { AND: [operationalScope, categoryScope, emailAccountScope] };
 }
 
 async function canAccessCategory(user, categoryId) {

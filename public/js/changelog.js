@@ -1,9 +1,19 @@
 (() => {
-  const APP_VERSION = "0.29.0";
+  const APP_VERSION = "0.29.1";
 
 
 
   const CHANGELOG = [
+    {
+      version: "0.29.1",
+      date: "03/09/2026",
+      title: "Categorias restritas e subcategorias na triagem",
+      changes: [
+        "Categorias marcadas como Somente Master ficam ocultas do Bot e dos demais usuarios.",
+        "Transferencias para categorias restritas sao bloqueadas no backend para nao-Master.",
+        "A Triagem Inicial permite escolher categorias e subcategorias individualmente."
+      ]
+    },
     {
       version: "0.29.0",
       date: "03/09/2026",

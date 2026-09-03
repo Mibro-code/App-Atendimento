@@ -33,7 +33,10 @@ const botChannels = new Set([
 const fallbackActions = new Set(["USE_BOT_FALLBACK", "TRANSFER_TO_CATEGORY", "TRANSFER_TO_HUMAN"]);
 const timePattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
-const categorySelection = { id: true, code: true, name: true, color: true, active: true };
+const categorySelection = {
+  id: true, code: true, name: true, color: true, active: true, masterOnly: true,
+  parentId: true, parent: { select: { id: true, name: true, masterOnly: true } },
+};
 const botInclude = {
   defaultCategory: { select: categorySelection },
   schedules: { orderBy: { dayOfWeek: "asc" } },
@@ -96,6 +99,19 @@ async function validateCategoryId(value, client = prisma) {
     select: { id: true },
   });
   if (!category) throw fail("Categoria não encontrada ou inativa.");
+  return category.id;
+}
+
+async function validateTriageCategoryId(value) {
+  if (typeof value !== "string" || !value) throw fail("Categoria invalida.");
+  const category = await prisma.category.findFirst({
+    where: {
+      id: value, active: true, masterOnly: false,
+      OR: [{ parentId: null }, { parent: { is: { masterOnly: false, active: true } } }],
+    },
+    select: { id: true },
+  });
+  if (!category) throw fail("A categoria da triagem esta inativa ou restrita a contas Master.");
   return category.id;
 }
 
@@ -505,7 +521,7 @@ async function validateTriageOptions(value) {
   for (const [index, item] of value.entries()) {
     const label = requiredText(item?.label, "Rótulo da opção", 24);
     const description = optionalText(item?.description, "Descrição da opção", 200);
-    const categoryId = await validateCategoryId(item?.categoryId);
+    const categoryId = await validateTriageCategoryId(item?.categoryId);
     if (!categoryId) throw fail("Selecione a categoria de destino de cada opção.");
     if (usedCategories.has(categoryId)) throw fail("Cada categoria só pode aparecer em uma opção de triagem.");
     usedCategories.add(categoryId);

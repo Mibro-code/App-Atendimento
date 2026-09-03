@@ -464,6 +464,7 @@ async function loadCurrentUser() {
   $("#team-button").hidden = !status.user.isMaster && !status.user.canViewTeamActivity;
   $("#open-audit").hidden = !status.user.isMaster;
   $("#manage-categories").hidden = !status.user.canManageCategories;
+  $("#category-master-only-field").hidden = !status.user.isMaster;
   $("#assignee-select").disabled = !status.user.canTransferConversations;
   // Controle de prioridade fica visível para todos (mesmo padrão do
   // assignee-select acima) — só desabilitado quando o usuário não tem
@@ -684,7 +685,7 @@ async function loadCategories() {
   const [categories, visibility] = await Promise.all([api("/api/categories"), api("/api/category-visibility")]);
   state.categories = categories;
   state.categoryVisibility = visibility;
-  const signature = JSON.stringify([state.visibilityMode, visibility, categories.map((category) => [category.id, category.parentId, category.parent?.name, category.code, category.name, category.color, category.active, category.displayOrder, category.hidden])]);
+  const signature = JSON.stringify([state.visibilityMode, visibility, categories.map((category) => [category.id, category.parentId, category.parent?.name, category.code, category.name, category.color, category.active, category.masterOnly, category.displayOrder, category.hidden])]);
   if (signature === state.categorySignature) return;
   state.categorySignature = signature;
   state.selectedHeaderSignature = "";
@@ -735,6 +736,7 @@ function renderCategoryManager() {
     <input class="managed-name" maxlength="60" value="${escapeHtml(category.name)}" aria-label="Nome da categoria" required>
     <select class="managed-parent" aria-label="Categoria principal"><option value="">Principal</option>${parents.map((parent) => `<option value="${parent.id}" ${parent.id === category.parentId ? "selected" : ""}>${escapeHtml(parent.name)}</option>`).join("")}</select>
     <label class="active-switch"><input class="managed-active" type="checkbox" ${category.active ? "checked" : ""}><span>${category.active ? "Ativa" : "Inativa"}</span></label>
+    ${state.currentUser?.isMaster ? `<label class="active-switch master-only-switch"><input class="managed-master-only" type="checkbox" ${category.masterOnly ? "checked" : ""}><span>Somente Master</span></label>` : ""}
     <button type="submit">Salvar</button>
   </form>`;
   }).join("");
@@ -1743,8 +1745,8 @@ $("#claim-conversation").addEventListener("click", async () => { try { await api
 $("#manage-categories").addEventListener("click", () => { renderCategoryManager(); $("#category-dialog").showModal(); });
 $("#close-categories").addEventListener("click", () => $("#category-dialog").close());
 $("#category-dialog").addEventListener("click", (event) => { if (event.target === $("#category-dialog")) $("#category-dialog").close(); });
-$("#category-form").addEventListener("submit", async (event) => { event.preventDefault(); const name = $("#category-name").value.trim(); const color = $("#category-color").value; const parentId = $("#category-parent").value || null; try { await api("/api/categories", { method:"POST", body:JSON.stringify({ name, color, parentId }) }); $("#category-name").value = ""; await loadCategories(); await loadConversations(); toast(parentId ? "Subcategoria criada." : "Categoria criada."); } catch (e) { toast(e.message, true); } });
-$("#category-manager-list").addEventListener("submit", async (event) => { event.preventDefault(); const row = event.target.closest("[data-category-id]"); const name = row.querySelector(".managed-name").value.trim(); const color = row.querySelector(".managed-color").value; const parentId = row.querySelector(".managed-parent").value || null; const active = row.querySelector(".managed-active").checked; try { await api(`/api/categories/${row.dataset.categoryId}`, { method:"PATCH", body:JSON.stringify({ name, color, parentId, active }) }); await loadCategories(); await loadConversations(); toast("Categoria atualizada."); } catch (e) { toast(e.message, true); } });
+$("#category-form").addEventListener("submit", async (event) => { event.preventDefault(); const name = $("#category-name").value.trim(); const color = $("#category-color").value; const parentId = $("#category-parent").value || null; const masterOnly = Boolean(state.currentUser?.isMaster && $("#category-master-only").checked); try { await api("/api/categories", { method:"POST", body:JSON.stringify({ name, color, parentId, masterOnly }) }); $("#category-name").value = ""; $("#category-master-only").checked = false; await loadCategories(); await loadConversations(); toast(parentId ? "Subcategoria criada." : "Categoria criada."); } catch (e) { toast(e.message, true); } });
+$("#category-manager-list").addEventListener("submit", async (event) => { event.preventDefault(); const row = event.target.closest("[data-category-id]"); const name = row.querySelector(".managed-name").value.trim(); const color = row.querySelector(".managed-color").value; const parentId = row.querySelector(".managed-parent").value || null; const active = row.querySelector(".managed-active").checked; const masterOnly = row.querySelector(".managed-master-only")?.checked; try { await api(`/api/categories/${row.dataset.categoryId}`, { method:"PATCH", body:JSON.stringify({ name, color, parentId, active, ...(masterOnly === undefined ? {} : { masterOnly }) }) }); await loadCategories(); await loadConversations(); toast("Categoria atualizada."); } catch (e) { toast(e.message, true); } });
 $("#category-manager-list").addEventListener("change", (event) => { if (event.target.classList.contains("managed-active")) event.target.closest("label").querySelector("span").textContent = event.target.checked ? "Ativa" : "Inativa"; });
 $("#toggle-finalized").addEventListener("click", async (event) => {
   const button = event.currentTarget; const reopening = button.dataset.status === "FINALIZADO";

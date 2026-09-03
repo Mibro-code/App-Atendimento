@@ -513,6 +513,7 @@ model Category {
   name            String
   color           String?
   active          Boolean              @default(true)
+  masterOnly      Boolean              @default(false)
   displayOrder    Int                  @default(0)
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
