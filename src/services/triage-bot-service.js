@@ -195,7 +195,7 @@ async function sendCategoryMenu(conversation, channel, bot) {
 async function sendSubcategoryMenu(conversation, channel, bot, parentCategory) {
   const options = subcategoryOptions(bot, parentCategory.id);
   if (!options.length) return false;
-  const body = `Escolha uma subcategoria de ${parentCategory.name}:`;
+  const body = `Agora escolha por qual setor de ${parentCategory.name} voc\u00ea quer ser atendido:`;
   const rows = options.map((option) => ({
     id: categoryReplyId(option.categoryId), title: option.label.slice(0, 24),
   }));
@@ -381,7 +381,7 @@ function simulateTriage(bot, { message, replyId, now = new Date() } = {}) {
       const parentCategory = option?.category || children[0].category.parent;
       return {
         simulation: true, sent: false, warning, withinHours: true, step: "SUBCATEGORY",
-        response: `Escolha uma subcategoria de ${parentCategory.name}:`,
+        response: `Agora escolha por qual setor de ${parentCategory.name} voc\u00ea quer ser atendido:`,
         parentCategory: { id: parentCategory.id, name: parentCategory.name, code: parentCategory.code },
         options: children.map((child) => ({
           id: child.categoryId, label: child.label, categoryName: child.category.name,
