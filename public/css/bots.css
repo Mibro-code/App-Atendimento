@@ -35,3 +35,14 @@ html[data-theme=dark] .personality-toolbar button{background:var(--orange)}
 .triage-subcategory-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px}
 .triage-subcategory-options label{display:flex;align-items:center;gap:7px;padding:8px;border:1px solid var(--line);border-radius:8px;color:var(--ink);background:var(--surface);font-size:8px}
 .triage-subcategory-options input{width:14px!important;height:14px!important;accent-color:var(--orange)}
+.triage-option-card{position:relative;min-height:50px;align-items:center;transition:border-color .18s ease,transform .18s ease,background .18s ease}
+.triage-option-card:hover{transform:translateY(-1px);border-color:color-mix(in srgb,var(--triage-color) 55%,var(--line))}
+.triage-option-card b{display:flex;align-items:center;gap:7px}
+.triage-option-card b:before{content:"";width:7px;height:7px;flex:none;border-radius:50%;background:var(--triage-color);box-shadow:0 0 0 3px color-mix(in srgb,var(--triage-color) 18%,transparent)}
+.triage-option-card small{display:block;margin-top:3px;margin-left:14px}
+.triage-option-parent.has-children{border-color:color-mix(in srgb,var(--triage-color) 38%,var(--line));box-shadow:inset 3px 0 0 var(--triage-color)}
+.triage-option-child{width:calc(100% - 30px);margin-left:30px;background:var(--panel);border-color:color-mix(in srgb,var(--triage-color) 24%,var(--line))}
+.triage-option-child:before{content:"";position:absolute;left:-19px;top:-10px;width:13px;height:35px;border-left:1px solid color-mix(in srgb,var(--triage-color) 55%,var(--line));border-bottom:1px solid color-mix(in srgb,var(--triage-color) 55%,var(--line));border-bottom-left-radius:8px}
+.triage-option-child b{font-size:9px}.triage-option-child b:before{width:6px;height:6px}
+.triage-option-card>div:last-child{align-items:center;flex-wrap:wrap;justify-content:flex-end}
+@media(max-width:720px){.triage-option-child{width:calc(100% - 18px);margin-left:18px}.triage-option-child:before{left:-12px;width:8px}.triage-option-card{grid-template-columns:1fr}.triage-option-card>div:last-child{justify-content:flex-start;margin-left:14px}}

@@ -673,7 +673,7 @@ async function removeIntent(intentId) {
 function renderTriageOptions() {
   const options = state.selected?.triageOptions || [];
   $("#triage-option-list").innerHTML = options.length ? options.map((option, index) => `
-    <article class="intent-card ${option.enabled ? "" : "inactive"}">
+    <article class="intent-card triage-option-card ${option.category?.parentId ? "triage-option-child" : "triage-option-parent"} ${options.some((child) => child.category?.parentId === option.categoryId) ? "has-children" : ""} ${option.enabled ? "" : "inactive"}" style="--triage-color:${/^#[\da-f]{6}$/i.test(option.category?.color || "") ? option.category.color : "#ef5b2a"}">
       <div><b>${option.order}. ${escapeHtml(option.label)}</b><small>${escapeHtml(option.category?.name || "Categoria removida")}${option.description ? ` • ${escapeHtml(option.description)}` : ""}${option.enabled ? "" : " • desabilitada"}</small></div>
       <div>
         <button type="button" data-move-triage-option="${escapeHtml(option.id)}" data-direction="up" ${index === 0 ? "disabled" : ""}>&uarr;</button>
