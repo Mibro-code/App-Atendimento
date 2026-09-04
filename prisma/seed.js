@@ -40,6 +40,7 @@ async function seedTriageBot(client = prisma) {
       channel: "META",
       initialMessage: "👋 {{saudacao}}! Seja bem-vindo(a) à Mibro Brasil!\n\nÉ um prazer receber você por aqui. Nosso atendimento funciona de {{horario}}.\n\nPara encaminharmos você à equipe certa, escolha abaixo o setor com o qual deseja falar.",
       outsideHoursMessage: "🌙 {{saudacao}}! Agradecemos por entrar em contato com a Mibro Brasil.\n\nNo momento, nossa equipe não está online. Nosso atendimento funciona de {{horario}}.\n\nPor favor, envie uma nova mensagem dentro desse horário e teremos prazer em atender você. Até breve!",
+      holidayMessage: "🎉 {{saudacao}}! Hoje não teremos atendimento por conta do feriado. Retornaremos no próximo período de atendimento.",
       fallbackMessage: "Desculpe, tivemos um problema para continuar automaticamente. Já avisamos nossa equipe e alguém vai falar com você em instantes.",
       handoffMessage: "✅ Perfeito{{saudacao_virgula}}! Encaminhamos seu atendimento para o setor {{categoria}}. Em breve, nossa equipe continuará a conversa por aqui.",
       timezone: "America/Sao_Paulo",

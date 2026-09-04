@@ -329,6 +329,7 @@ async function createBot(data, actor) {
     channels: validateChannels(data.channels) || [],
     initialMessage: requiredText(data.initialMessage, "Mensagem inicial"),
     outsideHoursMessage: requiredText(data.outsideHoursMessage, "Mensagem fora do horário"),
+    holidayMessage: optionalText(data.holidayMessage, "Mensagem de feriado", 4000),
     fallbackMessage: requiredText(data.fallbackMessage, "Mensagem de fallback"),
     timezone: validateTimezone(data.timezone),
     defaultCategoryId: await validateCategoryId(data.defaultCategoryId),
@@ -359,6 +360,7 @@ async function updateBot(botId, data, actor) {
   if (data.channels !== undefined) update.channels = validateChannels(data.channels) || [];
   if (data.initialMessage !== undefined) update.initialMessage = requiredText(data.initialMessage, "Mensagem inicial");
   if (data.outsideHoursMessage !== undefined) update.outsideHoursMessage = requiredText(data.outsideHoursMessage, "Mensagem fora do horário");
+  if (data.holidayMessage !== undefined) update.holidayMessage = optionalText(data.holidayMessage, "Mensagem de feriado", 4000);
   if (data.fallbackMessage !== undefined) update.fallbackMessage = requiredText(data.fallbackMessage, "Mensagem de fallback");
   if (data.handoffMessage !== undefined) update.handoffMessage = optionalText(data.handoffMessage, "Mensagem após encaminhamento", 4000);
   if (data.timezone !== undefined) update.timezone = validateTimezone(data.timezone);

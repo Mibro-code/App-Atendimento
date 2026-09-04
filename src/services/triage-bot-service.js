@@ -324,7 +324,8 @@ async function handleIncomingTriage(event, message, channel, { now = new Date() 
     return routeTriageSelection(conversation, event.interactiveReplyId.slice(categoryReplyPrefix.length), channel, bot);
   }
 
-  const businessHours = scheduleState(bot, now).withinHours;
+  const hours = scheduleState(bot, now);
+  const businessHours = hours.withinHours;
   const lastAutomation = conversation.messages[0]?.rawPayload?.system;
   const isRetryAfterHours = conversation.status === "BOT" && businessHours && lastAutomation === "after_hours";
   if (conversation.status === "NOVO") {
@@ -345,7 +346,7 @@ async function handleIncomingTriage(event, message, channel, { now = new Date() 
   if (!claimed.count) return false;
   try {
     if (!businessHours) {
-      const text = renderTemplate(bot.outsideHoursMessage, {
+      const text = renderTemplate(hours.holiday && bot.holidayMessage ? bot.holidayMessage : bot.outsideHoursMessage, {
         ...greetingVars(conversation.contact), horario: describeSchedule(bot),
       });
       return await saveBotText(conversation, text, "after_hours", channel);
@@ -404,7 +405,7 @@ function simulateTriage(bot, { message, replyId, now = new Date() } = {}) {
   if (!hours.withinHours) {
     return {
       simulation: true, sent: false, warning, withinHours: false,
-      response: renderTemplate(bot.outsideHoursMessage, { ...greetingVars(contact), horario: describeSchedule(bot) }),
+      response: renderTemplate(hours.holiday && bot.holidayMessage ? bot.holidayMessage : bot.outsideHoursMessage, { ...greetingVars(contact), horario: describeSchedule(bot) }),
     };
   }
   const options = topLevelOptions(bot);

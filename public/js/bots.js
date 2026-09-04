@@ -246,6 +246,7 @@ function fillBotForm(bot = null) {
   $("#bot-high-confidence").value = bot?.highConfidenceThreshold ?? 0.8;
   $("#bot-initial").value = bot?.initialMessage || "";
   $("#bot-outside").value = bot?.outsideHoursMessage || "";
+  $("#bot-holiday").value = bot?.holidayMessage || "";
   $("#bot-fallback").value = bot?.fallbackMessage || "";
   $("#bot-handoff").value = bot?.handoffMessage || "";
   $("#bot-run-new").checked = bot ? Boolean(bot.runOnNewConversation) : true;
@@ -546,6 +547,7 @@ async function loadBots(selectId = state.selected?.id) {
   state.bots = MARKETPLACE_UI_ENABLED ? bots : bots.filter((bot) => !isMarketplaceChannel(bot.channel));
   renderBotList();
   if (selectId && state.bots.some((bot) => bot.id === selectId)) await selectBot(selectId);
+  else if (state.bots.length) await selectBot(state.bots[0].id);
   else if (!state.bots.length) {
     state.selected = null;
     $("#editor").dataset.creating = "false";
@@ -607,6 +609,7 @@ function botPayload() {
     highConfidenceThreshold: Number($("#bot-high-confidence").value),
     initialMessage: $("#bot-initial").value,
     outsideHoursMessage: $("#bot-outside").value,
+    holidayMessage: $("#bot-holiday").value || null,
     fallbackMessage: $("#bot-fallback").value,
     handoffMessage: $("#bot-handoff").value || null,
     runOnNewConversation: $("#bot-run-new").checked,

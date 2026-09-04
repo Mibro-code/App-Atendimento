@@ -11,7 +11,8 @@
       changes: [
         "A configuracao foi dividida em sete secoes objetivas, mostrando somente o grupo em uso.",
         "Identidade, triagem e recursos avancados agora podem ser recolhidos.",
-        "Configuracoes globais da lateral ficam compactas e expansivas sob demanda."
+        "Configuracoes globais da lateral ficam compactas e expansivas sob demanda.",
+        "Ao abrir, o primeiro Bot e selecionado automaticamente; os menus ficam no topo e a mensagem de feriado pode ser personalizada."
       ]
     },
     {

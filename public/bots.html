@@ -57,13 +57,22 @@
         <button type="button" class="tab-button" data-tab="ai-keys">Chaves de IA</button>
       </nav>
 
-      <div id="empty-state" class="empty-state">
+      <div id="empty-state" class="empty-state" hidden>
         <div>?</div><h2>Configure seus Bots</h2>
         <p>Crie mensagens, horários e intenções. Tudo pode ser testado localmente antes de qualquer integração.</p>
         <button id="empty-new-bot" type="button">Criar primeiro Bot</button>
       </div>
 
       <div id="editor" hidden>
+        <nav class="config-section-tabs" aria-label="Se&ccedil;&otilde;es de configura&ccedil;&atilde;o">
+          <button type="button" class="config-section-tab active" data-config-section-target="general"><span>01</span> Geral</button>
+          <button type="button" class="config-section-tab" data-config-section-target="personality"><span>02</span> Personalidade</button>
+          <button type="button" class="config-section-tab" data-config-section-target="intelligence"><span>03</span> Intelig&ecirc;ncia</button>
+          <button type="button" class="config-section-tab" data-config-section-target="availability"><span>04</span> Disponibilidade</button>
+          <button type="button" class="config-section-tab" data-config-section-target="rules"><span>05</span> Regras e triagem</button>
+          <button type="button" class="config-section-tab" data-config-section-target="quality"><span>06</span> Qualidade</button>
+          <button type="button" class="config-section-tab" data-config-section-target="simulator"><span>07</span> Simulador</button>
+        </nav>
         <header class="editor-heading">
           <div><span id="editor-eyebrow">BOT SELECIONADO</span><h2 id="editor-title">Novo Bot</h2><span id="system-bot-badge" class="mini-status SYSTEM" hidden>Bot do sistema</span><p id="editor-description">Configuração administrativa isolada do atendimento real.</p></div>
           <div id="status-actions" class="status-actions" hidden>
@@ -74,15 +83,6 @@
             <button id="archive-bot" class="danger" type="button">Arquivar</button>
           </div>
         </header>
-        <nav class="config-section-tabs" aria-label="Se&ccedil;&otilde;es de configura&ccedil;&atilde;o">
-          <button type="button" class="config-section-tab active" data-config-section-target="general"><span>01</span> Geral</button>
-          <button type="button" class="config-section-tab" data-config-section-target="personality"><span>02</span> Personalidade</button>
-          <button type="button" class="config-section-tab" data-config-section-target="intelligence"><span>03</span> Intelig&ecirc;ncia</button>
-          <button type="button" class="config-section-tab" data-config-section-target="availability"><span>04</span> Disponibilidade</button>
-          <button type="button" class="config-section-tab" data-config-section-target="rules"><span>05</span> Regras e triagem</button>
-          <button type="button" class="config-section-tab" data-config-section-target="quality"><span>06</span> Qualidade</button>
-          <button type="button" class="config-section-tab" data-config-section-target="simulator"><span>07</span> Simulador</button>
-        </nav>
 
         <div class="editor-grid">
           <form id="bot-form" class="card basic-card">
@@ -116,6 +116,7 @@
               <label><span>Confiança alta</span><input id="bot-high-confidence" type="number" min="0" max="1" step="0.01" value="0.8" required></label>
               <label class="full"><span>Mensagem inicial *</span><textarea id="bot-initial" maxlength="4000" required placeholder="Mensagem apresentada no início do fluxo"></textarea></label>
               <label class="full"><span>Mensagem fora do horário *</span><textarea id="bot-outside" maxlength="4000" required placeholder="Resposta usada fora do horário configurado"></textarea></label>
+              <label class="full"><span>Mensagem de feriado</span><textarea id="bot-holiday" maxlength="4000" placeholder="Resposta usada nos feriados ativos; se vazia, usa a mensagem fora do horário"></textarea></label>
               <label class="full"><span>Mensagem de fallback *</span><textarea id="bot-fallback" maxlength="4000" required placeholder="Resposta usada quando nenhuma intenção corresponder"></textarea></label>
             </div>
 
@@ -214,7 +215,7 @@
 
           <section id="triage-holidays-card" class="card requires-bot" hidden>
             <div class="card-heading"><div><span>DISPONIBILIDADE</span><h3>Feriados</h3></div><button id="new-holiday" type="button">+ Feriado</button></div>
-            <p class="card-help">Nestas datas, a Triagem Inicial usa a mensagem de fora do horário durante todo o dia.</p>
+            <p class="card-help">Nestas datas, a Triagem Inicial usa a mensagem de feriado; se estiver vazia, usa a mensagem fora do horário.</p>
             <div id="holiday-list" class="holiday-list"></div>
             <form id="holiday-form" class="intent-form" hidden>
               <input id="holiday-original-date" type="hidden">

@@ -87,7 +87,7 @@ function simulateBot(bot, message, { now = new Date() } = {}) {
       warning,
       withinHours: false,
       scheduleConfigured: hours.configured,
-      response: bot.outsideHoursMessage,
+      response: hours.holiday && bot.holidayMessage ? bot.holidayMessage : bot.outsideHoursMessage,
       intent: null,
       matchedExample: null,
       category: categorySummary(bot.defaultCategory),
