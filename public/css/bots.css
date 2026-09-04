@@ -46,3 +46,28 @@ html[data-theme=dark] .personality-toolbar button{background:var(--orange)}
 .triage-option-child b{font-size:9px}.triage-option-child b:before{width:6px;height:6px}
 .triage-option-card>div:last-child{align-items:center;flex-wrap:wrap;justify-content:flex-end}
 @media(max-width:720px){.triage-option-child{width:calc(100% - 18px);margin-left:18px}.triage-option-child:before{left:-12px;width:8px}.triage-option-card{grid-template-columns:1fr}.triage-option-card>div:last-child{justify-content:flex-start;margin-left:14px}}
+
+.config-section-tabs{margin:14px 18px 0;padding:6px;display:flex;gap:5px;overflow-x:auto;border:1px solid var(--line);border-radius:13px;background:color-mix(in srgb,var(--surface) 92%,transparent);box-shadow:0 8px 24px #0000000a;scrollbar-width:thin}
+.config-section-tab{min-width:max-content;padding:9px 12px;display:flex;align-items:center;gap:7px;border:1px solid transparent;border-radius:9px;color:var(--muted);background:transparent;font-size:8px;font-weight:800;transition:.18s ease}
+.config-section-tab span{width:21px;height:21px;display:grid;place-items:center;border-radius:7px;color:var(--muted);background:var(--panel);font-size:7px}
+.config-section-tab:hover{color:var(--ink);background:var(--panel)}
+.config-section-tab.active{color:var(--ink);border-color:color-mix(in srgb,var(--orange) 35%,var(--line));background:var(--orange-soft);box-shadow:inset 0 0 0 1px #ef5b2a0d}
+.config-section-tab.active span{color:#fff;background:var(--orange)}
+#editor .editor-heading{position:relative}
+.editor-grid[data-active-config-section]{max-width:1180px;margin:0 auto;grid-template-columns:minmax(0,1fr);padding-top:12px}
+.editor-grid[data-active-config-section]>[data-config-section]{display:none}
+.editor-grid[data-active-config-section]>[data-config-section].config-section-active:not([hidden]){display:block;grid-column:1/-1;animation:config-card-in .2s ease both}
+@keyframes config-card-in{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+.config-accordion-toggle{padding:10px!important;display:flex;align-items:center;justify-content:space-between;border:1px solid var(--line)!important;border-radius:9px;background:var(--panel);cursor:pointer;outline:none}
+.config-accordion-toggle:hover,.config-accordion-toggle:focus-visible{border-color:var(--orange)!important}
+.config-accordion-icon{width:20px;height:20px;display:grid;place-items:center;border-radius:7px;color:var(--ink);background:var(--surface);font-size:12px}
+.config-accordion-collapsed{display:none!important}
+.personality-fields>label:nth-child(6),.personality-fields>label:nth-child(7){grid-column:auto}
+.personality-list-textarea{min-height:72px!important}
+.global-settings-toggle{width:100%;margin-top:8px;padding:8px 10px;display:flex;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:9px;color:var(--ink);background:var(--surface);font-size:8px;font-weight:800}
+.global-settings-toggle span{font-size:13px;transition:transform .18s ease}
+.global-settings-toggle.active span{transform:rotate(180deg)}
+#global-settings-body{padding-top:8px}#global-settings-body[hidden]{display:none}
+@media(max-width:720px){.config-section-tabs{margin:10px;padding:5px}.config-section-tab{padding:8px 10px}.editor-grid[data-active-config-section]{padding-top:10px}.personality-fields>label:nth-child(6),.personality-fields>label:nth-child(7){grid-column:auto}}
+.bot-card>small{display:-webkit-box;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-height:1.45}
+.safety-note{padding:9px 11px}.safety-note p{margin-top:3px;display:-webkit-box;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:1}

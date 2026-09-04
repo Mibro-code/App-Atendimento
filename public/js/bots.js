@@ -586,6 +586,7 @@ function startNewBot() {
   $("#triage-only-config").hidden = true;
   document.querySelectorAll(".requires-bot").forEach((element) => { element.hidden = true; });
   fillBotForm();
+  setConfigSection("general");
   renderBotList();
 }
 
@@ -1376,6 +1377,76 @@ $("#analyze-conversation").addEventListener("click", async () => {
 });
 $("#learning-refresh").addEventListener("click", loadLearning);
 
+const configSectionSelectors = {
+  general: ["#bot-form"],
+  personality: ["#personality-form"],
+  intelligence: ["#test-ai-provider"],
+  availability: ["#schedule-form", "#triage-holidays-card"],
+  rules: ["#triage-options-card", ".intentions-card"],
+  quality: ["#rating-config-form"],
+  simulator: ["#simulator-form"],
+};
+
+function setConfigSection(section) {
+  const target = configSectionSelectors[section] ? section : "general";
+  $(".editor-grid").dataset.activeConfigSection = target;
+  document.querySelectorAll("[data-config-section-target]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.configSectionTarget === target);
+  });
+  document.querySelectorAll("[data-config-section]").forEach((card) => {
+    card.classList.toggle("config-section-active", card.dataset.configSection === target);
+  });
+  try { localStorage.setItem("mibro-bot-config-section", target); } catch {}
+  document.querySelector(".bots-workspace").scrollTop = 0;
+}
+
+function initializeConfigurationLayout() {
+  Object.entries(configSectionSelectors).forEach(([section, selectors]) => {
+    selectors.forEach((selector) => {
+      const element = document.querySelector(selector);
+      const card = element?.classList.contains("card") ? element : element?.closest(".card");
+      if (card) card.dataset.configSection = section;
+    });
+  });
+  let initialSection = "general";
+  try { initialSection = localStorage.getItem("mibro-bot-config-section") || initialSection; } catch {}
+  setConfigSection(initialSection);
+  document.querySelectorAll("[data-config-section-target]").forEach((button) => {
+    button.addEventListener("click", () => setConfigSection(button.dataset.configSectionTarget));
+  });
+
+  document.querySelectorAll("#bot-form .fields-heading").forEach((heading) => {
+    const panel = heading?.nextElementSibling;
+    if (!heading || !panel || !panel.classList.contains("fields")) return;
+    const title = heading.textContent.trim();
+    heading.classList.add("config-accordion-toggle");
+    heading.setAttribute("role", "button");
+    heading.tabIndex = 0;
+    heading.innerHTML = `<span>${escapeHtml(title)}</span><span class="config-accordion-icon"></span>`;
+    const setExpanded = (expanded) => {
+      heading.setAttribute("aria-expanded", String(expanded));
+      panel.classList.toggle("config-accordion-collapsed", !expanded);
+      heading.querySelector(".config-accordion-icon").textContent = expanded ? "-" : "+";
+    };
+    setExpanded(heading.id === "triage-only-fields");
+    heading.addEventListener("click", () => setExpanded(heading.getAttribute("aria-expanded") !== "true"));
+    heading.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      heading.click();
+    });
+  });
+
+  const globalToggle = $("#toggle-global-settings");
+  const globalBody = $("#global-settings-body");
+  globalToggle.addEventListener("click", () => {
+    const expanded = globalToggle.getAttribute("aria-expanded") !== "true";
+    globalToggle.setAttribute("aria-expanded", String(expanded));
+    globalToggle.classList.toggle("active", expanded);
+    globalBody.hidden = !expanded;
+  });
+}
+
 function setActiveTab(tab) {
   document.querySelectorAll(".tab-button").forEach((button) => button.classList.toggle("active", button.dataset.tab === tab));
   $("#observations-panel").hidden = tab !== "observations";
@@ -1599,6 +1670,7 @@ $("#kill-switch").addEventListener("click", async () => {
 
 document.querySelectorAll(".tab-button").forEach((button) => button.addEventListener("click", () => setActiveTab(button.dataset.tab)));
 $("#obs-refresh").addEventListener("click", loadObservations);
+initializeConfigurationLayout();
 
 (async () => {
   try {

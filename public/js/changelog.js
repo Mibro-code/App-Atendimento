@@ -1,9 +1,19 @@
 (() => {
-  const APP_VERSION = "0.29.2";
+  const APP_VERSION = "0.29.3";
 
 
 
   const CHANGELOG = [
+    {
+      version: "0.29.3",
+      date: "04/09/2026",
+      title: "Configuracao de Bots reorganizada",
+      changes: [
+        "A configuracao foi dividida em sete secoes objetivas, mostrando somente o grupo em uso.",
+        "Identidade, triagem e recursos avancados agora podem ser recolhidos.",
+        "Configuracoes globais da lateral ficam compactas e expansivas sob demanda."
+      ]
+    },
     {
       version: "0.29.2",
       date: "04/09/2026",

@@ -31,6 +31,8 @@
       <div class="safety-note"><b>Ambiente seguro</b><p>Ativar um Bot nesta fase não altera o webhook, a triagem atual ou os envios da Meta.</p></div>
       <div class="global-settings-card">
         <div class="global-settings-heading"><b>Configurações dos Bots</b><span id="global-automation-status" class="global-status-pill">...</span></div>
+        <button id="toggle-global-settings" class="global-settings-toggle" type="button" aria-expanded="false">Ajustes globais <span>&#8964;</span></button>
+        <div id="global-settings-body" hidden>
         <p class="card-help">Controla automação, observação, aprendizado, avaliações e ranking para TODOS os Bots de uma vez.</p>
         <label class="global-toggle-row"><span>Automação de Bots</span><input id="global-automation" type="checkbox" disabled aria-label="Estado da automação de Bots"></label>
         <label class="global-toggle-row"><span>Modo Observação global</span><input id="global-observation" type="checkbox"></label>
@@ -40,6 +42,7 @@
         <label class="global-toggle-row"><span>Amostra mínima p/ ranking</span><input id="global-min-ratings" type="number" min="1" max="10000" style="width:56px"></label>
         <button id="save-global-settings" type="button" class="global-save-button">Salvar configurações</button>
         <button id="kill-switch" type="button" class="kill-switch-button">DESATIVAR AUTOMAÇÃO DOS BOTS</button>
+        </div>
       </div>
     </aside>
 
@@ -71,6 +74,15 @@
             <button id="archive-bot" class="danger" type="button">Arquivar</button>
           </div>
         </header>
+        <nav class="config-section-tabs" aria-label="Se&ccedil;&otilde;es de configura&ccedil;&atilde;o">
+          <button type="button" class="config-section-tab active" data-config-section-target="general"><span>01</span> Geral</button>
+          <button type="button" class="config-section-tab" data-config-section-target="personality"><span>02</span> Personalidade</button>
+          <button type="button" class="config-section-tab" data-config-section-target="intelligence"><span>03</span> Intelig&ecirc;ncia</button>
+          <button type="button" class="config-section-tab" data-config-section-target="availability"><span>04</span> Disponibilidade</button>
+          <button type="button" class="config-section-tab" data-config-section-target="rules"><span>05</span> Regras e triagem</button>
+          <button type="button" class="config-section-tab" data-config-section-target="quality"><span>06</span> Qualidade</button>
+          <button type="button" class="config-section-tab" data-config-section-target="simulator"><span>07</span> Simulador</button>
+        </nav>
 
         <div class="editor-grid">
           <form id="bot-form" class="card basic-card">
