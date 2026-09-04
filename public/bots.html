@@ -226,6 +226,11 @@
                 <label><span>Ordem</span><input id="triage-option-order" type="number" step="10" value="0"></label>
                 <label class="full"><span>Descrição (opcional)</span><input id="triage-option-description" maxlength="200"></label>
                 <label class="full"><span>Categoria de destino *</span><select id="triage-option-category" required></select></label>
+                <fieldset id="triage-subcategory-field" class="triage-subcategory-field full" hidden>
+                  <legend>Subcategorias mostradas ap&oacute;s esta categoria</legend>
+                  <div id="triage-subcategory-options" class="triage-subcategory-options"></div>
+                  <small>Marque somente as op&ccedil;&otilde;es que o cliente poder&aacute; escolher na segunda etapa.</small>
+                </fieldset>
                 <label class="checkbox"><input id="triage-option-enabled" type="checkbox" checked><span>Opção habilitada</span></label>
               </div>
               <div class="form-actions"><button id="cancel-triage-option" type="button">Cancelar</button><button type="submit">Salvar opção</button></div>

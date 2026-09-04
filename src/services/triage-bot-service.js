@@ -98,7 +98,8 @@ async function getTriageBot() {
         orderBy: [{ order: "asc" }, { createdAt: "asc" }],
         include: { category: { select: {
           id: true, name: true, code: true, active: true, masterOnly: true,
-          parent: { select: { active: true, masterOnly: true } },
+          parentId: true,
+          parent: { select: { id: true, name: true, code: true, active: true, masterOnly: true } },
         } } },
       },
     },
@@ -106,6 +107,40 @@ async function getTriageBot() {
   });
   return bots[0] || null;
 }
+function triageOptionAvailable(option) {
+  return Boolean(option?.enabled !== false && option.category?.active
+    && !option.category.masterOnly && option.category.parent?.active !== false
+    && !option.category.parent?.masterOnly);
+}
+
+function availableTriageOptions(bot) {
+  return (bot.triageOptions || []).filter(triageOptionAvailable);
+}
+
+function subcategoryOptions(bot, parentId) {
+  return availableTriageOptions(bot).filter((option) => option.category?.parentId === parentId);
+}
+
+function topLevelOptions(bot) {
+  const available = availableTriageOptions(bot);
+  const roots = available.filter((option) => !option.category?.parentId);
+  const rootIds = new Set(roots.map((option) => option.categoryId));
+  for (const child of available.filter((option) => option.category?.parentId)) {
+    const parent = child.category.parent;
+    if (!parent || rootIds.has(parent.id)) continue;
+    roots.push({
+      ...child, categoryId: parent.id, label: parent.name, description: null,
+      order: child.order, syntheticParent: true,
+      category: { ...parent, parentId: null, parent: null },
+    });
+    rootIds.add(parent.id);
+  }
+  return roots.sort((left, right) => {
+    const order = (left.order || 0) - (right.order || 0);
+    return order || String(left.label).localeCompare(String(right.label), "pt-BR");
+  });
+}
+
 
 function logMisconfiguration(botId, reason, details) {
   // Nunca lança/derruba o webhook por causa de configuração inconsistente
@@ -130,9 +165,7 @@ async function saveBotText(conversation, text, system, channel) {
 }
 
 async function sendCategoryMenu(conversation, channel, bot) {
-  const options = (bot.triageOptions || []).filter((option) => option.category?.active
-    && !option.category.masterOnly && option.category.parent?.active !== false
-    && !option.category.parent?.masterOnly);
+  const options = topLevelOptions(bot);
   if (!options.length) {
     logMisconfiguration(bot.id, "Nenhuma opção de triagem ativa/válida configurada.", {});
     return saveBotText(conversation, bot.fallbackMessage, "triage_fallback", channel);
@@ -159,10 +192,32 @@ async function sendCategoryMenu(conversation, channel, bot) {
   return true;
 }
 
+async function sendSubcategoryMenu(conversation, channel, bot, parentCategory) {
+  const options = subcategoryOptions(bot, parentCategory.id);
+  if (!options.length) return false;
+  const body = `Escolha uma subcategoria de ${parentCategory.name}:`;
+  const rows = options.map((option) => ({
+    id: categoryReplyId(option.categoryId), title: option.label.slice(0, 24),
+  }));
+  const result = await channel.sendList(conversation.contact.phone, {
+    body, button: "Escolher op\u00e7\u00e3o", rows,
+  });
+  const occurredAt = new Date();
+  await prisma.$transaction([
+    prisma.message.create({ data: {
+      conversationId: conversation.id, externalId: result.externalId || null, channel: "META",
+      direction: "ENVIADA", status: "ENVIADA", type: "interactive", text: body,
+      occurredAt, rawPayload: { message: result.data, system: "triage_subcategory_menu", parentCategoryId: parentCategory.id },
+    } }),
+    prisma.conversation.update({
+      where: { id: conversation.id }, data: { status: "BOT", lastMessageAt: occurredAt },
+    }),
+  ]);
+  return true;
+}
+
 async function completeTriage(conversation, categoryId, channel, bot) {
-  const option = (bot.triageOptions || []).find((item) => item.categoryId === categoryId
-    && item.category?.active && !item.category.masterOnly
-    && item.category.parent?.active !== false && !item.category.parent?.masterOnly);
+  const option = availableTriageOptions(bot).find((item) => item.categoryId === categoryId);
   if (!option) return sendCategoryMenu(conversation, channel, bot);
   const category = option.category;
 
@@ -229,6 +284,17 @@ async function isReopenedConversation(conversationId) {
   return count > 0;
 }
 
+async function routeTriageSelection(conversation, categoryId, channel, bot) {
+  const direct = availableTriageOptions(bot).find((item) => item.categoryId === categoryId);
+  const children = subcategoryOptions(bot, categoryId);
+  if (children.length) {
+    const parentCategory = direct?.category || children[0].category.parent;
+    if (parentCategory) return sendSubcategoryMenu(conversation, channel, bot, parentCategory);
+  }
+  if (direct) return completeTriage(conversation, categoryId, channel, bot);
+  return sendCategoryMenu(conversation, channel, bot);
+}
+
 async function handleIncomingTriage(event, message, channel, { now = new Date() } = {}) {
   const conversation = await prisma.conversation.findUnique({
     where: { id: message.conversationId },
@@ -255,7 +321,7 @@ async function handleIncomingTriage(event, message, channel, { now = new Date() 
 
   if (event.interactiveReplyId?.startsWith(categoryReplyPrefix)) {
     if (!scheduleState(bot, now).withinHours) return false;
-    return completeTriage(conversation, event.interactiveReplyId.slice(categoryReplyPrefix.length), channel, bot);
+    return routeTriageSelection(conversation, event.interactiveReplyId.slice(categoryReplyPrefix.length), channel, bot);
   }
 
   const businessHours = scheduleState(bot, now).withinHours;
@@ -306,11 +372,21 @@ function simulateTriage(bot, { message, replyId, now = new Date() } = {}) {
     return { simulation: true, sent: false, warning, active: false, response: null };
   }
   if (replyId) {
-    const option = (bot.triageOptions || []).find((item) => item.categoryId === replyId
-      && item.enabled && item.category?.active && !item.category.masterOnly
-      && item.category.parent?.active !== false && !item.category.parent?.masterOnly);
+    const option = availableTriageOptions(bot).find((item) => item.categoryId === replyId);
+    const children = subcategoryOptions(bot, replyId);
     if (!hours.withinHours) {
       return { simulation: true, sent: false, warning, withinHours: false, response: null };
+    }
+    if (children.length) {
+      const parentCategory = option?.category || children[0].category.parent;
+      return {
+        simulation: true, sent: false, warning, withinHours: true, step: "SUBCATEGORY",
+        response: `Escolha uma subcategoria de ${parentCategory.name}:`,
+        parentCategory: { id: parentCategory.id, name: parentCategory.name, code: parentCategory.code },
+        options: children.map((child) => ({
+          id: child.categoryId, label: child.label, categoryName: child.category.name,
+        })),
+      };
     }
     if (!option) {
       return {
@@ -331,9 +407,7 @@ function simulateTriage(bot, { message, replyId, now = new Date() } = {}) {
       response: renderTemplate(bot.outsideHoursMessage, { ...greetingVars(contact), horario: describeSchedule(bot) }),
     };
   }
-  const options = (bot.triageOptions || []).filter((option) => option.enabled
-    && option.category?.active && !option.category.masterOnly
-    && option.category.parent?.active !== false && !option.category.parent?.masterOnly);
+  const options = topLevelOptions(bot);
   if (!options.length) {
     return {
       simulation: true, sent: false, warning, withinHours: true,

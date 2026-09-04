@@ -1,9 +1,18 @@
 (() => {
-  const APP_VERSION = "0.29.1";
+  const APP_VERSION = "0.29.2";
 
 
 
   const CHANGELOG = [
+    {
+      version: "0.29.2",
+      date: "04/09/2026",
+      title: "Triagem hierarquica por subcategorias",
+      changes: [
+        "O Bot mostra primeiro a categoria e depois somente as subcategorias selecionadas.",
+        "A tela de Bots ganhou uma selecao simples das subcategorias liberadas ao cliente."
+      ]
+    },
     {
       version: "0.29.1",
       date: "03/09/2026",

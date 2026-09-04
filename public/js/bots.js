@@ -84,6 +84,28 @@ function triageCategoryOptions(selected = "") {
   }).join("");
 }
 
+function renderTriageSubcategoryChoices(categoryId) {
+  const field = $("#triage-subcategory-field");
+  const container = $("#triage-subcategory-options");
+  const category = state.categories.find((item) => item.id === categoryId);
+  const children = state.categories.filter((item) => item.parentId === categoryId
+    && item.active && !item.masterOnly);
+  const enabledIds = new Set((state.selected?.triageOptions || [])
+    .filter((option) => option.enabled).map((option) => option.categoryId));
+  const hidden = !category || Boolean(category.parentId) || !children.length;
+  field.hidden = hidden;
+  if (hidden) {
+    container.innerHTML = "";
+    return;
+  }
+  container.innerHTML = children.map((child) => `
+    <label>
+      <input type="checkbox" data-triage-child="${escapeHtml(child.id)}" ${enabledIds.has(child.id) ? "checked" : ""}>
+      <span>${escapeHtml(child.name)}</span>
+    </label>
+  `).join("");
+}
+
 function scheduleSummary(schedules = []) {
   const enabled = schedules.filter((item) => item.enabled).sort((left, right) => left.dayOfWeek - right.dayOfWeek);
   if (!enabled.length) return "Sem horário configurado";
@@ -668,6 +690,8 @@ function renderTriageOptions() {
 
 function closeTriageOptionForm() {
   $("#triage-option-form").hidden = true;
+  $("#triage-subcategory-field").hidden = true;
+  $("#triage-subcategory-options").innerHTML = "";
   $("#triage-option-form").reset();
   $("#triage-option-id").value = "";
   $("#triage-option-order").value = String(((state.selected?.triageOptions || []).length + 1) * 10);
@@ -682,6 +706,7 @@ function editTriageOption(optionId) {
   $("#triage-option-description").value = option.description || "";
   $("#triage-option-order").value = option.order;
   $("#triage-option-category").innerHTML = triageCategoryOptions(option.categoryId);
+  renderTriageSubcategoryChoices(option.categoryId);
   $("#triage-option-enabled").checked = option.enabled;
   $("#triage-option-form").hidden = false;
   $("#triage-option-label").focus();
@@ -963,9 +988,26 @@ $("#triage-option-form").addEventListener("submit", async (event) => {
     order: Number($("#triage-option-order").value) || 0,
   };
   const existing = (state.selected.triageOptions || []).map(triageOptionToPayload);
-  const options = optionId
+  let options = optionId
     ? existing.map((item, index) => (state.selected.triageOptions[index].id === optionId ? draft : item))
     : [...existing, draft];
+  const selectedCategory = state.categories.find((item) => item.id === draft.categoryId);
+  const children = selectedCategory?.parentId ? [] : state.categories.filter((item) =>
+    item.parentId === draft.categoryId && item.active && !item.masterOnly);
+  if (children.length) {
+    const childIds = new Set(children.map((child) => child.id));
+    const checkedIds = new Set(Array.from(document.querySelectorAll("[data-triage-child]:checked"))
+      .map((input) => input.dataset.triageChild));
+    options = options.filter((item) => !childIds.has(item.categoryId));
+    children.filter((child) => checkedIds.has(child.id)).forEach((child, index) => {
+      const previous = existing.find((item) => item.categoryId === child.id);
+      options.push({
+        categoryId: child.id, label: previous?.label || child.name.slice(0, 24),
+        description: previous?.description || null, enabled: true,
+        order: previous?.order ?? draft.order + index + 1,
+      });
+    });
+  }
   closeTriageOptionForm();
   await saveTriageOptionsList(options);
 });
@@ -973,10 +1015,14 @@ $("#triage-option-form").addEventListener("submit", async (event) => {
 $("#new-triage-option").addEventListener("click", () => {
   closeTriageOptionForm();
   $("#triage-option-category").innerHTML = triageCategoryOptions();
+  renderTriageSubcategoryChoices($("#triage-option-category").value);
   $("#triage-option-form").hidden = false;
   $("#triage-option-label").focus();
 });
 $("#cancel-triage-option").addEventListener("click", closeTriageOptionForm);
+$("#triage-option-category").addEventListener("change", (event) => {
+  renderTriageSubcategoryChoices(event.target.value);
+});
 
 function renderSimulatorTranscript() {
   $("#simulator-transcript").innerHTML = state.simulatorHistory.map((entry) => (

@@ -28,3 +28,10 @@ html[data-theme=dark]{--ink:#edf0f3;--muted:#aab1b9;--line:#343a42;--surface:#1b
 .personality-fields textarea{line-height:1.55}.personality-list-textarea{min-height:94px!important}
 html[data-theme=dark] .personality-toolbar button{background:var(--orange)}
 @media(max-width:720px){.personality-card{grid-column:auto}.personality-heading-actions{align-items:flex-end;flex-direction:column}.personality-toolbar{grid-template-columns:1fr}.personality-toolbar button{width:100%}}
+.triage-subcategory-field{margin:2px 0 0;padding:11px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+.triage-subcategory-field[hidden]{display:none}
+.triage-subcategory-field legend{padding:0 5px;color:var(--ink);font-size:8px;font-weight:900}
+.triage-subcategory-field>small{margin-top:7px;color:var(--muted);font-size:7px;font-weight:500}
+.triage-subcategory-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px}
+.triage-subcategory-options label{display:flex;align-items:center;gap:7px;padding:8px;border:1px solid var(--line);border-radius:8px;color:var(--ink);background:var(--surface);font-size:8px}
+.triage-subcategory-options input{width:14px!important;height:14px!important;accent-color:var(--orange)}
