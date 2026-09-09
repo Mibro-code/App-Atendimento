@@ -23,6 +23,13 @@ function emptyCaseState() {
     product: null,
     app: null,
     os: null,
+    phone: null,
+    objective: null,
+    providedInfo: null,
+    lastResult: null,
+    orderNumber: null,
+    purchaseChannel: null,
+    topic: null,
     questionsAsked: [],
     solutionsTried: [],
     solutionsFailed: [],
@@ -42,6 +49,13 @@ function normalizeCaseState(raw) {
     product: typeof raw.product === "string" ? raw.product : null,
     app: typeof raw.app === "string" ? raw.app : null,
     os: typeof raw.os === "string" ? raw.os : null,
+    phone: typeof raw.phone === "string" ? raw.phone : null,
+    objective: typeof raw.objective === "string" ? raw.objective : null,
+    providedInfo: typeof raw.providedInfo === "string" ? raw.providedInfo : null,
+    lastResult: typeof raw.lastResult === "string" ? raw.lastResult : null,
+    orderNumber: typeof raw.orderNumber === "string" ? raw.orderNumber : null,
+    purchaseChannel: typeof raw.purchaseChannel === "string" ? raw.purchaseChannel : null,
+    topic: typeof raw.topic === "string" ? raw.topic : null,
     questionsAsked: Array.isArray(raw.questionsAsked) ? raw.questionsAsked.filter((item) => typeof item === "string") : [],
     solutionsTried: Array.isArray(raw.solutionsTried) ? raw.solutionsTried.filter((item) => item && typeof item.description === "string") : [],
     solutionsFailed: Array.isArray(raw.solutionsFailed) ? raw.solutionsFailed.filter((item) => item && typeof item.description === "string") : [],
@@ -67,7 +81,7 @@ function mergeCaseState(existing, patch = {}) {
   const base = normalizeCaseState(existing);
   const merged = { ...base };
 
-  for (const key of ["symptom", "product", "app", "os"]) {
+  for (const key of ["symptom", "product", "app", "os", "phone", "objective", "providedInfo", "lastResult", "orderNumber", "purchaseChannel", "topic"]) {
     if (typeof patch[key] === "string" && patch[key].trim()) merged[key] = patch[key].trim();
   }
 

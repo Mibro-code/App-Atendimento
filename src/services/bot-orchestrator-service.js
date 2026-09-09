@@ -142,6 +142,13 @@ async function resolveBot(activeBotId, channel, client) {
     });
     if (active) return active;
   }
+  // O assistente oficial pós-triagem é o fallback preferencial quando a conversa ainda não possui Bot ativo.
+  const mibroAssistant = await client.bot.findFirst({
+    where: { id: "mibro-assistant-observer", status: "ACTIVE", archivedAt: null, ...channelMatch(channel) },
+    include: botInclude,
+  });
+  if (mibroAssistant) return mibroAssistant;
+
   return client.bot.findFirst({
     where: { status: "ACTIVE", archivedAt: null, ...channelMatch(channel) },
     include: botInclude,

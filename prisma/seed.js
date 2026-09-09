@@ -68,6 +68,41 @@ async function seedTriageBot(client = prisma) {
   return bot;
 }
 
+
+const mibroAssistantBotId = "mibro-assistant-observer";
+const productKnowledgeDetails = {"mibro-c4":"Tela TFT 2,01 pol. 240x296; chamadas Bluetooth, controle e reprodução de música; mais de 100 modos; 2 ATM; Bluetooth 5.3; autonomia publicada de até 10 dias no uso diário e 45 no básico.","mibro-lite-3":"Tela AMOLED 1,3 pol. 360x360 com AOD; GPS/BeiDou/GLONASS/Galileo/QZSS; chamadas e reprodução de música; mais de 100 modos; 2 ATM; Bluetooth 5.3; até 12 dias no uso diário.","mibro-lite-3-pro":"Tela AMOLED 1,32 pol.; GNSS com GPS/BeiDou/GLONASS/Galileo/QZSS; NFC e chamadas Bluetooth; mais de 150 modos; 5 ATM; até 15 dias no uso diário e 15 horas em GPS.","mibro-gs-pro-2":"Mais de 150 modalidades e triatlo; rotas GPX/KML/TCX; GNSS de dupla frequência GPS L1+L5; chamadas Bluetooth; Mibro OS 2.0; 5 ATM; até 20 dias de uso diário e 20 horas de GPS.","mibro-gs-pro":"Tela AMOLED 1,43 pol.; GPS/BeiDou/GLONASS/Galileo/QZSS; NFC e chamadas Bluetooth; 105 modos; 5 ATM; até 20 dias de uso diário, 17 horas de GPS e 11 horas de chamadas.","mibro-gs-active":"Tela AMOLED de 1000 nits; GPS/BeiDou/GLONASS/Galileo/QZSS; 150 modos; 5 ATM; até 20 dias no modo diário, 50 no básico e 15 horas no GPS.","mibro-gs-active2":"Tela AMOLED 466x466 de 1200 nits; GPS de dupla frequência L1+L5; chamadas Bluetooth; mais de 150 modos; 5 ATM; até 20 dias de uso diário e 15 horas de GPS; sincronização com Strava, Apple Health e Google Fit."};
+const officialKnowledge = [
+["garantia","Garantia","WARRANTY","https://mibrobrasil.com.br/pages/termos-de-garantia","Nunca aprovar cobertura, troca ou reembolso. Casos de defeito dependem de análise humana; coletar pedido, descrição e evidências e encaminhar ao Suporte."],
+["catalogo","Catálogo","PRODUCT","https://mibrobrasil.com.br/collections/todos-os-produtos","Preço, promoção e estoque são dinâmicos. Consultar a página atual ou orientar o cliente a conferir a loja oficial; nunca memorizar como verdade."],
+["app","Mibro Fit","MANUAL","https://mibrobrasil.com.br/pages/app-mibro","Pareamento principal pelo Mibro Fit. Requisitos publicados: Android 5.0+ com Bluetooth 4.0; iOS 13.0+."],
+["trocas","Trocas e devoluções","POLICY","https://mibrobrasil.com.br/policies/refund-policy","Direito de arrependimento em até 7 dias corridos após o recebimento, conforme condições e solicitação prévia. Explicar, nunca autorizar; encaminhar ao Atendimento/Pós-venda."],
+["entrega","Entrega","POLICY","https://mibrobrasil.com.br/policies/shipping-policy","Situação específica exige ferramenta oficial atualizada; sem ferramenta, encaminhar ao Atendimento e nunca fingir consulta."],
+["privacidade","Privacidade","POLICY","https://mibrobrasil.com.br/policies/privacy-policy","Política oficial de privacidade."],
+["termos","Termos","POLICY","https://mibrobrasil.com.br/policies/terms-of-service","Compatibilidade e funções variam por modelo, sistema e versão. Confirmar na fonte oficial."],
+["sobre","Sobre a Mibro","GENERAL","https://mibrobrasil.com.br/pages/sobre-nos","Página institucional oficial."],
+["contato","Contato","GENERAL","https://mibrobrasil.com.br/policies/contact-information","Canais oficiais de contato."],
+["legal","Aviso legal","POLICY","https://mibrobrasil.com.br/policies/legal-notice","Aviso legal oficial."],
+...["mibro-c4","mibro-a3","mibro-lite-3","mibro-lite-3-pro","mibro-gs-pro-2","mibro-gs-pro","mibro-gs-active","mibro-gs-active2"].map(s=>["produto-"+s,s,"PRODUCT","https://mibrobrasil.com.br/products/"+s,productKnowledgeDetails[s] || "Fonte oficial do modelo. Confirmar aqui GPS/GNSS, NFC, chamadas, música, água, sensores, bateria, tela, AOD, bússola e compatibilidade antes de responder."])
+];
+const assistantIntents = [
+["Conexão e pareamento","SUPORTE",["relogio n conecta","app n acha","n pareia","bluetooh nao pega","fica procurando e nada"]],
+["Aplicativo e notificações","SUPORTE",["nao chega notificacao","mibro fit nao sincroniza","app nao atualiza"]],
+["Carregamento e bateria","SUPORTE",["relogio nao carrega","bateria acaba rapido","nao liga depois de carregar"]],
+["Funções e especificações","SUPORTE",["ele tem gps","pode nadar","tem nfc","faz ligacao"]],
+["Garantia e defeito","SUPORTE",["quero acionar garantia","tela quebrou","entrou agua","precisa de assistencia"]],
+["Pedidos e entrega","ATENDIMENTO",["onde esta meu pedido","pedido atrasado","preciso da nota fiscal"]],
+["Troca e devolução","ATENDIMENTO",["quero devolver","quero trocar","pedido reembolso"]],
+["Escolha de produto","COMERCIAL",["qual mibro comprar","qual modelo e melhor","tem em estoque","quanto custa"]],
+["Parceria e revenda","PARCERIAS",["quero ser revendedor","comprar atacado","sou influenciador"]]
+];
+async function seedMibroAssistant(client = prisma) {
+ const bot=await client.bot.upsert({where:{id:mibroAssistantBotId},update:{},create:{id:mibroAssistantBotId,name:"Assistente Mibro Brasil",description:"Primeiro atendimento pós-triagem. Em observação: analisa e sugere, sem enviar mensagens.",status:"ACTIVE",type:"STANDARD",isSystem:false,channel:"META",initialMessage:"Entendi. Consigo te ajudar com isso.",outsideHoursMessage:"Recebi sua mensagem. Vou registrar as informações para nossa equipe continuar no próximo período.",fallbackMessage:"Não encontrei informação oficial suficiente. Para não passar algo incorreto, vou encaminhar sua dúvida.",runOnNewConversation:false,runAfterReopen:true,autoReplyEnabled:false,toolsEnabled:false,ratingEnabled:false,featureFlags:{interpretationEnabled:true,conversationalBehaviorEnabled:true,contextEnabled:true,observationEnabled:true,learningEnabled:true,agentSuggestionsEnabled:true,knowledgeSuggestionsEnabled:true,knowledgeBaseEnabled:true,handoffAutoPauseEnabled:true,autoFinalizeOnResolution:false,externalAiFallbackEnabled:false,agentPlannerEnabled:true}}});
+ await client.botPersonality.upsert({where:{botId:bot.id},update:{},create:{botId:bot.id,preset:"PERSONALIZADO",assistantName:"Assistente Mibro Brasil",roleDescription:"Assistente oficial de primeiro atendimento pós-triagem. Resolve dúvidas simples e intermediárias e encaminha quando um humano é necessário.",tone:["humano","educado","natural","moderno","tecnológico","confiável"],responseStyle:["objetivo","prestativo","passo a passo","conciso"],mandatoryBehaviors:["Interpretar erros, abreviações e contexto","Perguntar só o necessário","Consultar Knowledge oficial","Dar uma orientação por vez","Confirmar o resultado","Resumir fatos e tentativas no handoff"],forbiddenBehaviors:["Inventar especificações, preço ou estoque","Repetir perguntas e procedimentos","Aprovar garantia, troca ou reembolso","Dar diagnóstico médico","Orientar reparo interno"],responseLength:"SHORT",additionalInstructions:"Interprete significado, erros, abreviações, respostas curtas e contexto anterior. Mantenha modelo, app, celular/SO, problema, sintomas, objetivo, informações fornecidas, tentativas, falhas, resultado, pedido, canal de compra e assunto; nunca repita pergunta ou procedimento já respondido. Hierarquia: ferramenta oficial ao vivo > Knowledge oficial > contexto confirmado > regras do Bot > conhecimento geral. Confirme o modelo antes de afirmar GPS/GNSS, NFC, chamadas, música, água, sensores, bateria, tela, AOD, bússola ou compatibilidade. Preço, promoção, estoque e prazo promocional só ao vivo; sem acesso, indique a loja oficial. No Mibro Fit, diagnostique passo a passo e dê uma orientação por vez: energia/carga, Bluetooth, permissões, pareamento pelo app, vínculo anterior e reinício quando apropriado; chamadas podem exigir áudio adicional, sem confundir com pareamento principal. Problema físico, defeito, água, superaquecimento, falha persistente, reparo ou garantia: explique brevemente, não desmonte nem prometa cobertura e encaminhe ao Suporte. Pedido, pagamento, entrega, troca, devolução e nota fiscal: use ferramenta oficial se disponível ou Atendimento; nunca finja consulta nem autorize resultado. Compra/comparação: entenda a necessidade e use apenas especificações confirmadas. Revenda/parceria: Parcerias. Bem-estar não é diagnóstico médico. Primeiro ajude e depois ofereça link oficial. Faça perguntas apenas quando necessárias. Após orientação relevante, confirme se funcionou; positivo resolve, negativo atualiza o caso. No handoff, preserve setor, motivo, produto, problema, informações, procedimentos, resultado e pendência."}});
+ for(const [key,title,type,source,content] of officialKnowledge) await client.knowledgeSource.upsert({where:{id:"mibro-"+key},update:{source,content,active:true},create:{id:"mibro-"+key,botId:bot.id,title,type,source,content,tags:["mibro","oficial"]}});
+ for(let n=0;n<assistantIntents.length;n++){const [name,code,examples]=assistantIntents[n];const category=await client.category.findUnique({where:{code}});const id="mibro-assistant-intent-"+(n+1);await client.botIntent.upsert({where:{id},update:{},create:{id,botId:bot.id,name,description:name,priority:100-n,active:true,fallbackAction:"TRANSFER_TO_CATEGORY",categoryId:category?.id||null}});for(let i=0;i<examples.length;i++)await client.botIntentExample.upsert({where:{id:id+"-example-"+(i+1)},update:{text:examples[i]},create:{id:id+"-example-"+(i+1),intentId:id,text:examples[i]}});}
+ return bot;
+}
+
 async function main() {
   for (const [index, [code, name, color]] of categories.entries()) {
     const data = { code, name, color, displayOrder: (index + 1) * 10 };
@@ -75,7 +110,7 @@ async function main() {
   }
   await seedTriageBot();
 }
-module.exports = { main, seedTriageBot };
+module.exports = { main, seedTriageBot, seedMibroAssistant };
 
 // Só roda sozinho quando chamado como script (`node prisma/seed.js` /
 // `npm run db:seed` / `db:seed` do run-tests.js) — quando importado por um

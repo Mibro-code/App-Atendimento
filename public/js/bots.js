@@ -122,6 +122,7 @@ function renderBotList() {
     <button class="bot-card ${state.selected?.id === bot.id ? "active" : ""}" type="button" data-bot-id="${escapeHtml(bot.id)}">
       <header><b>${escapeHtml(bot.name)}</b><span class="mini-status ${bot.status}">${statusLabels[bot.status]}</span></header>
       ${bot.isSystem ? String.raw`<span class="mini-status SYSTEM">Bot do sistema</span>` : ""}
+      ${!bot.autoReplyEnabled && bot.type !== "SYSTEM_TRIAGE" ? String.raw`<span class="mini-status SYSTEM">Observa&ccedil;&atilde;o</span>` : ""}
       <small>${escapeHtml(bot.description || "Sem descrição")}</small>
       <div class="bot-meta"><span>${escapeHtml(channelLabels[bot.channel] || "Canal legado")}</span><span>\u2022</span>${bot.type === "SYSTEM_TRIAGE" ? `<span>${bot._count.triageOptions} opcao(oes)</span><span>\u2022</span><span>${escapeHtml(scheduleSummary(bot.schedules || []))}</span>` : `<span>${bot._count.intents} intenção(ões)</span>`}</div>
     </button>
