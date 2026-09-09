@@ -1,9 +1,21 @@
 (() => {
-  const APP_VERSION = "0.29.3";
+  const APP_VERSION = "0.29.4";
 
 
 
   const CHANGELOG = [
+    {
+      version: "0.29.4",
+      date: "09/09/2026",
+      title: "Assistente Mibro em observacao",
+      changes: [
+        "Novo Assistente Mibro Brasil atua apos a triagem inicial em modo seguro de observacao.",
+        "O Bot analisa as conversas e gera sugestoes, sem enviar mensagens reais aos clientes.",
+        "Foram adicionadas 9 intencoes de atendimento e 18 fontes oficiais da Mibro Brasil.",
+        "A memoria registra produto, celular, objetivo, tentativas, resultado, pedido e canal de compra para evitar repeticoes.",
+        "O card identifica claramente o modo Observacao; a resposta real continuara bloqueada ate aprovacao."
+      ]
+    },
     {
       version: "0.29.3",
       date: "04/09/2026",
