@@ -61,6 +61,19 @@
           </div>
         </header>
 
+        <section class="card template-catalog-card">
+          <div class="card-heading">
+            <div><span>WHATSAPP • META</span><h3>Templates da WABA</h3><p id="template-sync-summary" class="card-help">Ainda não sincronizado.</p></div>
+            <div class="template-toolbar">
+              <select id="template-status-filter" aria-label="Filtrar templates por status">
+                <option value="APPROVED">Aprovados</option><option value="">Todos os status</option>
+                <option value="PENDING">Pendentes</option><option value="REJECTED">Rejeitados</option>
+              </select>
+              <button id="sync-templates" type="button">Sincronizar templates</button>
+            </div>
+          </div>
+          <div id="template-catalog" class="template-catalog"><p class="card-help">Sincronizando...</p></div>
+        </section>
         <div class="editor-grid">
           <form id="campaign-form" class="card basic-card">
             <div class="card-heading"><div><span>CONFIGURAÇÃO</span><h3>Identidade e template</h3></div><button id="campaign-save-button" type="submit" disabled>Salvar</button></div>

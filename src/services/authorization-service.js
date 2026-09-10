@@ -112,7 +112,7 @@ function assertCanMergeContacts(user) {
 }
 
 function canManageCampaigns(user) {
-  return isMaster(user) || user?.role === "SUPERVISOR" || Boolean(user?.canManageCampaigns);
+  return isMaster(user) || Boolean(user?.canManageCampaigns);
 }
 
 function assertCanManageCampaigns(user) {

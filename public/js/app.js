@@ -1202,6 +1202,7 @@ function editTeamUser(userId) {
   $("#permission-priority").checked = user.canSetConversationPriority;
   $("#permission-start-conversations").checked = user.canStartConversations;
   $("#permission-merge-contacts").checked = user.canMergeContacts;
+  $("#permission-manage-campaigns").checked = user.canManageCampaigns;
   $("#team-form-eyebrow").textContent = "EDITAR CONTA";
   $("#team-form-title").textContent = user.name;
   renderTeamCategoryAccess(user.categoryAccess.map((access) => access.categoryId), user.canViewUncategorized);
@@ -1627,6 +1628,7 @@ $("#team-form").addEventListener("submit", async (event) => {
     canSetConversationPriority: $("#permission-priority").checked,
     canStartConversations: $("#permission-start-conversations").checked,
     canMergeContacts: $("#permission-merge-contacts").checked,
+    canManageCampaigns: $("#permission-manage-campaigns").checked,
     categoryIds: [...document.querySelectorAll("#team-category-access .team-category-access-input:checked")].map((input) => input.value),
   };
   if (password) body.password = password;

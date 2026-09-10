@@ -14,6 +14,7 @@ const booleanPermissions = [
   "canSetConversationPriority",
   "canStartConversations",
   "canMergeContacts",
+  "canManageCampaigns",
 ];
 
 function validateName(value) {
@@ -63,6 +64,8 @@ const publicSelection = {
   canSetConversationPriority: true,
   canStartConversations: true,
   canMergeContacts: true,
+  // Prisma select: inclui o valor salvo na resposta; não concede permissão.
+  canManageCampaigns: true,
   categoryAccess: { include: { category: { select: { id: true, name: true, parentId: true, color: true } } } },
   _count: { select: { assignedConversations: true, sentMessages: true } },
 };

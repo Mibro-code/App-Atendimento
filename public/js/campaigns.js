@@ -1,7 +1,7 @@
 const state = {
   campaigns: [], selected: null, templates: [], categories: [], bots: [],
   importHeaders: [], importCsvText: "", importFileName: "", importErrors: [],
-  templatesAvailable: false,
+  templatesAvailable: false, templateSync: null,
 };
 const $ = (selector) => document.querySelector(selector);
 
@@ -17,7 +17,7 @@ async function api(url, options = {}) {
   if (response.status === 401) { location.replace("/login.html"); throw new Error("Sessão encerrada."); }
   if (response.headers.get("content-type")?.includes("text/csv")) return response;
   const body = response.status === 204 ? null : await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body?.error || "Não foi possível concluir a operação.");
+  if (!response.ok) { const error = new Error(body?.error || "Não foi possível concluir a operação."); error.metaError = body?.metaError || null; throw error; }
   return body;
 }
 
@@ -85,19 +85,22 @@ async function ensureTemplatesLoaded() {
   retry.hidden = true;
   try {
     const response = await api("/api/campaign-templates");
-    const templates = Array.isArray(response) ? response : [];
+    const templates = Array.isArray(response?.templates) ? response.templates : [];
+    state.templateSync = response?.sync || null;
     state.templates = templates;
-    if (!templates.length) {
+    renderTemplateCatalog();
+    const approved = templates.filter((template) => template.status === "APPROVED");
+    if (!approved.length) {
       select.innerHTML = `<option value="">Nenhum template aprovado encontrado</option>`;
       status.textContent = "Nenhum template APROVADO foi encontrado na conta da Meta configurada. Crie/aprove um template no WhatsApp Manager e tente novamente.";
       setTemplatesAvailability(false, status.textContent);
       retry.hidden = false;
       return;
     }
-    select.innerHTML = `<option value="">Selecione um template aprovado</option>${templates.map((template) => (
+    select.innerHTML = `<option value="">Selecione um template aprovado</option>${approved.map((template) => (
       `<option value="${escapeHtml(template.id)}">${escapeHtml(template.name)} (${escapeHtml(template.language)}) — ${escapeHtml(template.category)}</option>`
     )).join("")}`;
-    status.textContent = `${templates.length} template(s) aprovado(s) disponível(is).`;
+    status.textContent = `${approved.length} template(s) aprovado(s) disponível(is).`;
     setTemplatesAvailability(true);
   } catch (error) {
     state.templates = [];
@@ -105,10 +108,44 @@ async function ensureTemplatesLoaded() {
     status.textContent = error.message || "Não foi possível carregar os templates da Meta.";
     setTemplatesAvailability(false, `${status.textContent} A área de Campanhas permanece disponível em modo limitado.`);
     retry.hidden = false;
+    renderTemplateCatalog(error);
   }
 }
 $("#campaign-templates-retry").addEventListener("click", ensureTemplatesLoaded);
 
+function templateComponentContent(template) {
+  return (Array.isArray(template.components) ? template.components : []).map((component) => {
+    const type = escapeHtml(component.type || "COMPONENTE");
+    if (component.type === "BUTTONS") return `<div><b>${type}</b><span>${(component.buttons || []).map((button) => escapeHtml(button.text || button.type)).join(" • ") || "—"}</span></div>`;
+    return `<div><b>${type}${component.format ? ` • ${escapeHtml(component.format)}` : ""}</b><span>${escapeHtml(component.text || "—")}</span></div>`;
+  }).join("");
+}
+
+function renderTemplateCatalog(error = null) {
+  const catalog = $("#template-catalog");
+  const summary = $("#template-sync-summary");
+  if (!catalog || !summary) return;
+  if (error) {
+    const meta = error.metaError?.message ? ` (${error.metaError.message})` : "";
+    summary.textContent = `Falha na sincronização: ${error.message}${meta}`;
+    catalog.innerHTML = `<div class="template-sync-error">${escapeHtml(error.message + meta)}</div>`;
+    return;
+  }
+  const filter = $("#template-status-filter")?.value || "";
+  const templates = state.templates.filter((template) => !filter || template.status === filter);
+  const sync = state.templateSync;
+  summary.textContent = sync ? `Última sincronização: ${new Date(sync.syncedAt).toLocaleString("pt-BR")} • ${sync.total} encontrado(s)` : "Ainda não sincronizado.";
+  catalog.innerHTML = templates.length ? templates.map((template) => `
+    <article class="template-item">
+      <header><div><b>${escapeHtml(template.name)}</b><small>${escapeHtml(template.language || "Sem idioma")} • ${escapeHtml(template.category || "Sem categoria")}</small></div><span class="template-status ${escapeHtml(template.status)}">${escapeHtml(template.status || "UNKNOWN")}</span></header>
+      <div class="template-components">${templateComponentContent(template)}</div>
+      ${template.variables?.length ? `<footer><b>Variáveis:</b> ${template.variables.map((item) => escapeHtml(`{{${item.placeholder}}}`)).join(", ")}</footer>` : ""}
+    </article>
+  `).join("") : `<p class="card-help">Nenhum template neste status.</p>`;
+}
+
+$("#sync-templates").addEventListener("click", ensureTemplatesLoaded);
+$("#template-status-filter").addEventListener("change", () => renderTemplateCatalog());
 async function ensureCategoriesAndBotsLoaded() {
   try {
     state.categories = await api("/api/categories");

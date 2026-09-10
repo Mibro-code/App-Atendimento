@@ -21,9 +21,9 @@ function publicUser(user) {
     canViewTeamActivity: user.role === "ADMIN" || user.canViewTeamActivity,
     canViewConversationHistory: user.role === "ADMIN" || user.canViewConversationHistory,
     canViewPreviousMessages: user.role === "ADMIN" || user.canViewPreviousMessages,
-    // Campanhas/prospecção (item 27): Admin e Supervisor têm acesso por
-    // padrão; um Atendente específico pode ganhar via canManageCampaigns.
-    canManageCampaigns: user.role === "ADMIN" || user.role === "SUPERVISOR" || user.canManageCampaigns,
+    // Campanhas/templates: somente Master por padrão. Qualquer outra conta
+    // precisa receber a liberação individual canManageCampaigns.
+    canManageCampaigns: user.role === "ADMIN" || Boolean(user.canManageCampaigns),
     canStartConversations: user.role === "ADMIN" || user.canStartConversations,
     canMergeContacts: user.role === "ADMIN" || user.canMergeContacts,
   };

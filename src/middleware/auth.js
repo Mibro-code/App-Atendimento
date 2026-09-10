@@ -35,7 +35,7 @@ async function requireCampaignsPage(req, res, next) {
     const user = await auth.userFromToken(req.cookies[auth.COOKIE_NAME]);
     if (!user) return res.redirect("/login.html");
     const publicUser = auth.publicUser(user);
-    if (!publicUser.canManageCampaigns) return res.status(403).send("Acesso restrito a Admin/Supervisor ou usuários autorizados.");
+    if (!publicUser.canManageCampaigns) return res.status(403).send("Acesso restrito ao Master ou usuários autorizados.");
     req.user = publicUser;
     return next();
   } catch (error) { return next(error); }

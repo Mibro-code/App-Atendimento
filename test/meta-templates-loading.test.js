@@ -6,10 +6,19 @@ const fs = require("node:fs");
 const path = require("node:path");
 const MetaCloudChannel = require("../src/channels/meta-cloud-channel");
 const {
-  listApprovedTemplates, normalizeTemplate, templatesConfigured,
+  listApprovedTemplates, listTemplates, normalizeTemplate, templatesConfigured,
 } = require("../src/services/meta-template-service");
 const campaigns = require("../src/services/campaign-service");
+const auth = require("../src/services/auth-service");
+const authorization = require("../src/services/authorization-service");
 
+test("Campanhas: Master acessa por padrão e demais perfis exigem liberação individual", () => {
+  assert.equal(auth.publicUser({ role: "ADMIN" }).canManageCampaigns, true);
+  assert.equal(auth.publicUser({ role: "SUPERVISOR", canManageCampaigns: false }).canManageCampaigns, false);
+  assert.equal(auth.publicUser({ role: "SUPERVISOR", canManageCampaigns: true }).canManageCampaigns, true);
+  assert.equal(authorization.canManageCampaigns({ role: "ATENDENTE", canManageCampaigns: false }), false);
+  assert.equal(authorization.canManageCampaigns({ role: "ATENDENTE", canManageCampaigns: true }), true);
+});
 test("tela de campanhas respeita hidden e mantém modais fechados no carregamento", () => {
   const css = fs.readFileSync(path.join(__dirname, "../public/css/campaigns.css"), "utf8");
   const html = fs.readFileSync(path.join(__dirname, "../public/campaigns.html"), "utf8");
@@ -193,6 +202,20 @@ test("template com header de mídia (IMAGE): marcado como não suportado, nunca 
   assert.match(normalized.unsupportedReason, /image/i);
 });
 
+test("catálogo de campanhas retorna todos os status e resumo da sincronização", async () => {
+  await withEnv(baseEnv, async () => {
+    const channel = { listAllMessageTemplates: async () => [
+      { id: "a", name: "aprovado", language: "pt_BR", category: "UTILITY", status: "APPROVED", components: [] },
+      { id: "p", name: "pendente", language: "en_US", category: "MARKETING", status: "PENDING", components: [] },
+      { id: "r", name: "rejeitado", language: "pt_BR", category: "AUTHENTICATION", status: "REJECTED", components: [] },
+    ] };
+    const result = await listTemplates(channel);
+    assert.equal(result.templates.length, 3);
+    assert.deepEqual(result.sync.byStatus, { APPROVED: 1, PENDING: 1, REJECTED: 1 });
+    assert.equal(result.sync.wabaId, "waba-test");
+    assert.equal(result.sync.tokenSource, "WHATSAPP_TOKEN");
+  });
+});
 test("templates pausados/rejeitados nunca aparecem na listagem padrão (só APPROVED)", async () => {
   await withEnv(baseEnv, async () => {
     const previousGet = axios.get;

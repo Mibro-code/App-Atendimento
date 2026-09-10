@@ -2,7 +2,7 @@
 // listar templates aprovados (mesma integração usada pelo painel para
 // iniciar conversas avulsas). `channel` chega por closure, igual a
 // inbox-controller.js.
-const { listApprovedTemplates, templatesConfigured } = require("../services/meta-template-service");
+const { listTemplates, templatesConfigured } = require("../services/meta-template-service");
 const campaigns = require("../services/campaign-service");
 const importService = require("../services/campaign-import-service");
 const exportService = require("../services/campaign-export-service");
@@ -21,7 +21,7 @@ function createCampaignController(channel) {
         if (!templatesConfigured()) {
           return res.status(503).json({ error: "Templates da Meta ainda não configurados (WHATSAPP_BUSINESS_ACCOUNT_ID ausente)." });
         }
-        return res.json(await listApprovedTemplates(channel));
+        return res.json(await listTemplates(channel));
       } catch (error) { return next(error); }
     },
     async previewTemplate(req, res, next) {

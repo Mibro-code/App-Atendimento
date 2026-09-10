@@ -145,6 +145,32 @@ async function listApprovedTemplates(channel) {
     .sort((left, right) => String(left.name).localeCompare(String(right.name), "pt-BR"));
 }
 
+async function listTemplates(channel) {
+  const templates = typeof channel.listAllMessageTemplates === "function"
+    ? await channel.listAllMessageTemplates()
+    : await channel.listMessageTemplates();
+  const access = typeof channel.inspectAccessTokenScopes === "function"
+    ? await channel.inspectAccessTokenScopes()
+    : { scopes: null, valid: null, error: null };
+  const rows = (Array.isArray(templates) ? templates : []).map(normalizeTemplate).sort((left, right) => {
+    const priority = { APPROVED: 0, PENDING: 1, REJECTED: 2 };
+    return (priority[left.status] ?? 9) - (priority[right.status] ?? 9)
+      || String(left.name).localeCompare(String(right.name), "pt-BR");
+  });
+  const byStatus = rows.reduce((counts, template) => {
+    counts[template.status || "UNKNOWN"] = (counts[template.status || "UNKNOWN"] || 0) + 1;
+    return counts;
+  }, {});
+  return {
+    templates: rows,
+    sync: {
+      syncedAt: new Date().toISOString(), total: rows.length, byStatus,
+      wabaId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID?.trim() || null,
+      tokenSource: "WHATSAPP_TOKEN", scopes: access.scopes, tokenValid: access.valid,
+      scopeCheckError: access.error,
+    },
+  };
+}
 function templateComponents(template, values) {
   const variables = templateVariables(template);
   const components = [];
@@ -205,6 +231,7 @@ module.exports = {
   customerServiceWindowFrom,
   getCustomerServiceWindow,
   listApprovedTemplates,
+  listTemplates,
   normalizeTemplate,
   sendApprovedTemplate,
   templateComponents,

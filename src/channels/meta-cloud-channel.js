@@ -53,7 +53,21 @@ class MetaCloudChannel {
       // mostrado ao usuário final — nunca repassamos o corpo bruto do erro.
       message = providerError?.error_user_msg || fallback;
     }
-    return Object.assign(new Error(message), { statusCode, metaStatus: status || null, metaErrorCode: providerError?.code || null });
+    const token = process.env.WHATSAPP_TOKEN || "";
+    const clean = (value) => {
+      const text = String(value || "");
+      return token ? text.replaceAll(token, "[TOKEN_REMOVIDO]") : text;
+    };
+    const metaError = providerError ? {
+      status: status || null, code: providerError.code || null, subcode: providerError.error_subcode || null,
+      type: clean(providerError.type) || null,
+      message: clean(providerError.error_user_msg || providerError.message) || null,
+      traceId: clean(providerError.fbtrace_id) || null,
+    } : null;
+    return Object.assign(new Error(message), {
+      statusCode, metaStatus: status || null, metaErrorCode: providerError?.code || null,
+      ...(metaError ? { details: { metaError } } : {}),
+    });
   }
 
   parseWebhook(body) {
@@ -119,7 +133,7 @@ class MetaCloudChannel {
     }
   }
 
-  async listMessageTemplates() {
+  async fetchMessageTemplates() {
     this.assertTemplatesConfigured();
     const templates = [];
     let after;
@@ -139,14 +153,40 @@ class MetaCloudChannel {
         if (!response.data?.paging?.next || !nextAfter || nextAfter === after) break;
         after = nextAfter;
       }
-      // Item 3 (só templates utilizáveis por padrão): filtra por status e
-      // descarta qualquer item malformado (sem id/name) antes de devolver —
-      // nunca deixa um item quebrado derrubar o normalizador no service.
-      return templates.filter((template) => template && typeof template === "object" && template.status === "APPROVED" && template.id && template.name);
+      return templates.filter((template) => template && typeof template === "object" && template.id && template.name);
     } catch (error) {
       if (error.statusCode) throw error;
-      throw this.providerFailure(error, "Não foi possível consultar os templates aprovados na Meta.");
+      throw this.providerFailure(error, "Não foi possível consultar os templates na Meta.");
     }
+  }
+
+  async inspectAccessTokenScopes() {
+    const appId = process.env.META_APP_ID?.trim();
+    const appSecret = process.env.META_APP_SECRET?.trim();
+    if (!appId || !appSecret) return { scopes: null, error: "META_APP_ID/META_APP_SECRET não configurados para validar os scopes." };
+    try {
+      const response = await axios.get(this.apiUrl("debug_token"), {
+        params: { input_token: process.env.WHATSAPP_TOKEN, access_token: `${appId}|${appSecret}` },
+      });
+      const data = response.data?.data || {};
+      const granular = Array.isArray(data.granular_scopes) ? data.granular_scopes.map((item) => item.scope).filter(Boolean) : [];
+      return {
+        scopes: [...new Set([...(Array.isArray(data.scopes) ? data.scopes : []), ...granular])],
+        valid: data.is_valid === true,
+        expiresAt: data.expires_at ? new Date(data.expires_at * 1000).toISOString() : null,
+        error: null,
+      };
+    } catch (error) {
+      const meta = this.sanitizedMetaError ? this.sanitizedMetaError(error) : null;
+      return { scopes: null, valid: null, error: meta?.message || "Não foi possível validar os scopes do token." };
+    }
+  }
+  async listAllMessageTemplates() {
+    return this.fetchMessageTemplates();
+  }
+
+  async listMessageTemplates() {
+    return (await this.fetchMessageTemplates()).filter((template) => template.status === "APPROVED");
   }
 
   async sendTemplate(to, { name, language, components = [] }) {

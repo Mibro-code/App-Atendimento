@@ -1,9 +1,20 @@
 (() => {
-  const APP_VERSION = "0.29.4";
+  const APP_VERSION = "0.29.5";
 
 
 
   const CHANGELOG = [
+    {
+      version: "0.29.5",
+      date: "10/09/2026",
+      title: "Templates da WABA e acesso controlado",
+      changes: [
+        "Campanhas agora sincroniza e exibe templates aprovados, pendentes e rejeitados, com conteúdo, componentes e variáveis.",
+        "A sincronização mostra horário, quantidade e o erro específico retornado pela Meta sem expor credenciais.",
+        "Somente o Master acessa Campanhas por padrão; o Master pode liberar a permissão individualmente na área de Equipes.",
+        "O envio de mensagens não foi alterado e continua aceitando somente templates aprovados."
+      ]
+    },
     {
       version: "0.29.4",
       date: "09/09/2026",
@@ -109,7 +120,8 @@
         "Filtros rápidos agora podem ser recolhidos e mantêm a preferência do usuário.",
         "Sidebar compacta corrigida para não cortar os textos dos atalhos."
       ]
-    },    {
+    },
+    {
       version: "0.28.0",
       date: "02/09/2026",
       title: "Central multicanal premium",
@@ -410,7 +422,8 @@
         "Restringe cada resposta à conversa autorizada e impede acesso cruzado entre setores ou canais.",
         "Prepara sugestões passivas para Bots e Observações, sem envio automático e sem alterar o WhatsApp/Meta ou o bot de triagem."
       ]
-    },    {
+    },
+    {
       version: "0.16.0",
       date: "26/08/2026",
       title: "Base segura de integrações omnichannel",
