@@ -113,6 +113,24 @@ function renderText(text, variables, values) {
 // nunca precisa checar se uma chave existe: {id, name, language, category,
 // status, components, variables} + os campos derivados de apresentação
 // (supported/preview/etc.) já usados pelo restante do app.
+const DEFAULT_BRAZIL_RATES = {
+  MARKETING: 0.3217,
+  UTILITY: 0.035,
+  AUTHENTICATION: 0.035,
+  SERVICE: 0,
+};
+
+function templatePricing(category) {
+  const normalizedCategory = String(category || "").toUpperCase();
+  if (!(normalizedCategory in DEFAULT_BRAZIL_RATES)) return null;
+  const raw = process.env[`WHATSAPP_RATE_BRL_${normalizedCategory}`];
+  const configured = raw === undefined || String(raw).trim() === "" ? Number.NaN : Number(raw);
+  return {
+    market: "BR", currency: "BRL",
+    rate: Number.isFinite(configured) && configured >= 0 ? configured : DEFAULT_BRAZIL_RATES[normalizedCategory],
+    basis: "DELIVERED_MESSAGE", baseRate: true, updatedAt: "2026-09-11",
+  };
+}
 function normalizeTemplate(template) {
   const components = safeComponents(template);
   const variables = templateVariables(template);
@@ -127,6 +145,7 @@ function normalizeTemplate(template) {
     language: template.language ?? null,
     category: template.category ?? null,
     status: template.status ?? null,
+    pricing: templatePricing(template.category),
     components,
     supported: !unsupportedHeader,
     unsupportedReason: unsupportedHeader ? `O template usa cabeçalho ${String(header.format).toLowerCase()}, ainda não disponível neste envio.` : null,
@@ -235,5 +254,6 @@ module.exports = {
   normalizeTemplate,
   sendApprovedTemplate,
   templateComponents,
+  templatePricing,
   templatesConfigured,
 };

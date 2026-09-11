@@ -503,13 +503,21 @@ function toast(message, error = false) { const el = $("#toast"); el.textContent 
 function syncCustomerServiceWindow() {
   const configured = Boolean(state.customerServiceWindow?.configured);
   const closed = Boolean(state.selectedId && state.customerServiceWindow?.requiresTemplate);
-  $("#open-templates").hidden = !configured;
-  $("#service-window-notice").hidden = !closed;
+  const canUseTemplates = Boolean(state.currentUser?.canManageCampaigns);
+  $("#open-templates").hidden = !configured || !canUseTemplates;
+  $("#service-window-notice").hidden = !closed || !canUseTemplates;
   $("#composer").classList.toggle("window-closed", closed);
   $("#message-input").disabled = closed;
   $("#attachment-input").disabled = closed;
   $("#send-button").disabled = closed;
-  $("#message-input").placeholder = closed ? "Use um template aprovado para retomar o contato" : "Digite uma mensagem...";
+  $("#message-input").placeholder = closed ? (canUseTemplates ? "Use um template aprovado para retomar o contato" : "Envio indisponível") : "Digite uma mensagem...";
+}
+
+function templateRateLabel(template) {
+  const pricing = template?.pricing;
+  if (!pricing || !Number.isFinite(Number(pricing.rate))) return "Tarifa indisponível";
+  const amount = new Intl.NumberFormat("pt-BR", { style:"currency", currency:pricing.currency || "BRL", minimumFractionDigits:4 }).format(Number(pricing.rate));
+  return `Tarifa base Brasil: ${amount} por mensagem entregue`;
 }
 
 function templatePreview(template) {
@@ -539,7 +547,7 @@ function renderTemplateEditor() {
 function renderTemplateList() {
   const search = $("#template-search").value.trim().toLocaleLowerCase("pt-BR");
   const templates = state.templates.filter((template) => `${template.name} ${template.language} ${template.category}`.toLocaleLowerCase("pt-BR").includes(search));
-  $("#template-list").innerHTML = templates.length ? templates.map((template) => `<button class="template-card ${state.selectedTemplate?.id === template.id ? "selected" : ""}" type="button" data-template-id="${escapeHtml(template.id)}" ${template.supported ? "" : "disabled"} title="${escapeHtml(template.unsupportedReason || "Selecionar template")}"><strong>${escapeHtml(template.name)}</strong><span><b>${escapeHtml(template.language)}</b><b>${escapeHtml(template.category)}</b></span><small>${escapeHtml(template.unsupportedReason || template.preview || "Sem prévia")}</small></button>`).join("") : `<div class="template-empty">Nenhum template aprovado encontrado.</div>`;
+  $("#template-list").innerHTML = templates.length ? templates.map((template) => `<button class="template-card ${state.selectedTemplate?.id === template.id ? "selected" : ""}" type="button" data-template-id="${escapeHtml(template.id)}" ${template.supported ? "" : "disabled"} title="${escapeHtml(template.unsupportedReason || "Selecionar template")}"><strong>${escapeHtml(template.name)}</strong><span><b>${escapeHtml(template.language)}</b><b>${escapeHtml(template.category)}</b></span><small>${escapeHtml(template.unsupportedReason || template.preview || "Sem prévia")}</small><em class="template-rate">${escapeHtml(templateRateLabel(template))}</em></button>`).join("") : `<div class="template-empty">Nenhum template aprovado encontrado.</div>`;
   document.querySelectorAll("[data-template-id]").forEach((button) => button.addEventListener("click", () => {
     state.selectedTemplate = state.templates.find((template) => template.id === button.dataset.templateId) || null;
     renderTemplateList();
@@ -549,6 +557,7 @@ function renderTemplateList() {
 
 async function openTemplates() {
   if (!state.selectedId) return;
+  if (!state.currentUser?.canManageCampaigns) return toast("Você não tem permissão para usar templates.", true);
   if (!state.customerServiceWindow?.configured) {
     toast("A integração de templates da Meta ainda não está ativada.", true);
     return;
@@ -591,7 +600,7 @@ function renderOutboundTemplateEditor() {
 function renderOutboundTemplateList() {
   const search = $("#outbound-meta-template-search").value.trim().toLocaleLowerCase("pt-BR");
   const templates = state.outboundTemplates.filter((template) => `${template.name} ${template.language} ${template.category}`.toLocaleLowerCase("pt-BR").includes(search));
-  $("#outbound-meta-template-list").innerHTML = templates.length ? templates.map((template) => `<button class="template-card ${state.selectedOutboundTemplate?.id === template.id ? "selected" : ""}" type="button" data-outbound-template-id="${escapeHtml(template.id)}" ${template.supported ? "" : "disabled"}><strong>${escapeHtml(template.name)}</strong><span><b>${escapeHtml(template.language)}</b><b>${escapeHtml(template.category)}</b></span><small>${escapeHtml(template.unsupportedReason || template.preview || "Sem prévia")}</small></button>`).join("") : `<div class="template-empty">Nenhum template aprovado encontrado.</div>`;
+  $("#outbound-meta-template-list").innerHTML = templates.length ? templates.map((template) => `<button class="template-card ${state.selectedOutboundTemplate?.id === template.id ? "selected" : ""}" type="button" data-outbound-template-id="${escapeHtml(template.id)}" ${template.supported ? "" : "disabled"}><strong>${escapeHtml(template.name)}</strong><span><b>${escapeHtml(template.language)}</b><b>${escapeHtml(template.category)}</b></span><small>${escapeHtml(template.unsupportedReason || template.preview || "Sem prévia")}</small><em class="template-rate">${escapeHtml(templateRateLabel(template))}</em></button>`).join("") : `<div class="template-empty">Nenhum template aprovado encontrado.</div>`;
   document.querySelectorAll("[data-outbound-template-id]").forEach((button) => button.addEventListener("click", () => {
     state.selectedOutboundTemplate = state.outboundTemplates.find((template) => template.id === button.dataset.outboundTemplateId) || null;
     renderOutboundTemplateList(); renderOutboundTemplateEditor();

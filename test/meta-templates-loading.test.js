@@ -11,6 +11,7 @@ const {
 const campaigns = require("../src/services/campaign-service");
 const auth = require("../src/services/auth-service");
 const authorization = require("../src/services/authorization-service");
+const { requireCampaignAccess } = require("../src/middleware/auth");
 
 test("nova conversa WhatsApp usa template aprovado pela rota outbound", () => {
   const html = fs.readFileSync(path.join(__dirname, "../public/index.html"), "utf8");
@@ -279,4 +280,36 @@ test("previewTemplate: template não encontrado/aprovado nunca derruba com TypeE
     () => campaigns.previewTemplate(channel, { templateName: "nao_existe", templateLanguage: "pt_BR", variableMapping: {} }),
     (error) => { assert.ok(error.statusCode); assert.match(error.message, /não encontrado|aprovado/i); return true; },
   );
+});
+
+test("middleware bloqueia templates e campanhas sem permissão individual", () => {
+  let statusCode = null;
+  let payload = null;
+  const res = { status(code) { statusCode = code; return this; }, json(body) { payload = body; return this; } };
+  let nextCalled = false;
+  requireCampaignAccess({ user: { role: "ATENDENTE", canManageCampaigns: false } }, res, () => { nextCalled = true; });
+  assert.equal(statusCode, 403);
+  assert.equal(nextCalled, false);
+  assert.match(payload.error, /permissão/i);
+  requireCampaignAccess({ user: { role: "SUPERVISOR", canManageCampaigns: true } }, res, () => { nextCalled = true; });
+  assert.equal(nextCalled, true);
+});
+
+test("frontend oculta templates e aviso de 24h para usuário sem permissão", () => {
+  const js = fs.readFileSync(path.join(__dirname, "../public/js/app.js"), "utf8");
+  const app = fs.readFileSync(path.join(__dirname, "../src/app.js"), "utf8");
+  const controller = fs.readFileSync(path.join(__dirname, "../src/controllers/inbox-controller.js"), "utf8");
+  assert.match(js, /open-templates[^\n]+!configured \|\| !canUseTemplates/);
+  assert.match(js, /service-window-notice[^\n]+!closed \|\| !canUseTemplates/);
+  assert.match(app, /api\/meta\/templates[^\n]+requireCampaignAccess/);
+  assert.match(controller, /replyTemplate[\s\S]{0,100}assertCanManageCampaigns/);
+});
+
+test("template inclui tarifa base configurável em BRL por mensagem entregue", async () => {
+  await withEnv({ WHATSAPP_RATE_BRL_MARKETING: "0.4321" }, async () => {
+    const normalized = normalizeTemplate({ id:"price", name:"price", language:"pt_BR", category:"MARKETING", status:"APPROVED" });
+    assert.equal(normalized.pricing.rate, 0.4321);
+    assert.equal(normalized.pricing.currency, "BRL");
+    assert.equal(normalized.pricing.basis, "DELIVERED_MESSAGE");
+  });
 });

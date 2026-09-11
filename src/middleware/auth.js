@@ -41,6 +41,13 @@ async function requireCampaignsPage(req, res, next) {
   } catch (error) { return next(error); }
 }
 
+function requireCampaignAccess(req, res, next) {
+  if (!req.user?.canManageCampaigns) {
+    return res.status(403).json({ error: "Você não tem permissão para acessar campanhas ou templates." });
+  }
+  return next();
+}
+
 // Configurações → Conversas (item 13): Admin edita, Supervisor só visualiza —
 // mesma régua de "requireCampaignsPage", trocando o flag por checagem de role.
 async function requireConversationSettingsPage(req, res, next) {
@@ -57,5 +64,5 @@ async function requireConversationSettingsPage(req, res, next) {
 }
 
 module.exports = {
-  authenticate, requireCampaignsPage, requireConversationSettingsPage, requireMasterPage, requirePageAuth,
+  authenticate, requireCampaignAccess, requireCampaignsPage, requireConversationSettingsPage, requireMasterPage, requirePageAuth,
 };

@@ -113,6 +113,12 @@ async function ensureTemplatesLoaded() {
 }
 $("#campaign-templates-retry").addEventListener("click", ensureTemplatesLoaded);
 
+function templateRateLabel(template) {
+  const pricing = template?.pricing;
+  if (!pricing || !Number.isFinite(Number(pricing.rate))) return "Tarifa indisponível";
+  return `Tarifa base Brasil: ${new Intl.NumberFormat("pt-BR", { style:"currency", currency:pricing.currency || "BRL", minimumFractionDigits:4 }).format(Number(pricing.rate))} por mensagem entregue`;
+}
+
 function templateComponentContent(template) {
   return (Array.isArray(template.components) ? template.components : []).map((component) => {
     const type = escapeHtml(component.type || "COMPONENTE");
@@ -139,6 +145,7 @@ function renderTemplateCatalog(error = null) {
     <article class="template-item">
       <header><div><b>${escapeHtml(template.name)}</b><small>${escapeHtml(template.language || "Sem idioma")} • ${escapeHtml(template.category || "Sem categoria")}</small></div><span class="template-status ${escapeHtml(template.status)}">${escapeHtml(template.status || "UNKNOWN")}</span></header>
       <div class="template-components">${templateComponentContent(template)}</div>
+      <div class="template-price">${escapeHtml(templateRateLabel(template))}</div>
       ${template.variables?.length ? `<footer><b>Variáveis:</b> ${template.variables.map((item) => escapeHtml(`{{${item.placeholder}}}`)).join(", ")}</footer>` : ""}
     </article>
   `).join("") : `<p class="card-help">Nenhum template neste status.</p>`;

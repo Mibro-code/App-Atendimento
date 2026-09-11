@@ -12,7 +12,7 @@ const { observeIncomingMessage } = require("./services/bot-observation-service")
 const { createInboxController } = require("./controllers/inbox-controller");
 const authController = require("./controllers/auth-controller");
 const {
-  authenticate, requireCampaignsPage, requireConversationSettingsPage, requireMasterPage, requirePageAuth,
+  authenticate, requireCampaignAccess, requireCampaignsPage, requireConversationSettingsPage, requireMasterPage, requirePageAuth,
 } = require("./middleware/auth");
 const conversationSettingsController = require("./controllers/conversation-settings-controller");
 const verifyMetaSignature = require("./middleware/meta-signature");
@@ -341,7 +341,7 @@ app.post(
   app.get("/api/conversations/summary", inbox.summary);
   app.get("/api/alerts", inbox.alerts);
   app.get("/api/meta/status", inbox.metaStatus);
-  app.get("/api/meta/templates", inbox.templates);
+  app.get("/api/meta/templates", requireCampaignAccess, inbox.templates);
   app.get("/api/outbound/channels", inbox.outboundChannels);
   app.post("/api/conversations/outbound/email", inbox.createOutboundEmail);
   app.post("/api/conversations/outbound", inbox.createOutbound);
@@ -480,6 +480,7 @@ app.post(
   app.delete("/api/bot-ai-credentials/:provider", botController.removeAiCredential);
 
   // Campanhas / envio em massa (WhatsApp).
+  app.use(["/api/campaign-templates", "/api/campaign-settings", "/api/campaign-opt-outs", "/api/campaigns"], requireCampaignAccess);
   app.get("/api/campaign-templates", campaignController.listTemplates);
   app.post("/api/campaign-templates/preview", campaignController.previewTemplate);
   app.get("/api/campaign-settings", campaignController.getSettings);

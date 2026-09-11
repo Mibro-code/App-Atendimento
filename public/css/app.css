@@ -1348,6 +1348,7 @@ html[data-theme="dark"] .outbound-channel-card { background:#22262c; }
 .template-card:disabled { opacity: .55; cursor: not-allowed; }
 .template-card > span { display: flex; gap: 6px; flex-wrap: wrap; color: var(--muted); font-size: 11px; }
 .template-card small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+.template-rate { color: var(--orange); font-size: 10px; font-style: normal; font-weight: 800; }
 .template-form { padding: 18px; overflow-y: auto; }
 .template-empty { height: 100%; display: grid; place-items: center; color: var(--muted); text-align: center; }
 .template-selected-meta { display: grid; gap: 4px; margin-bottom: 12px; }

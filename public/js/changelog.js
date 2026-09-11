@@ -1,9 +1,19 @@
 (() => {
-  const APP_VERSION = "0.29.6";
+  const APP_VERSION = "0.29.7";
 
 
 
   const CHANGELOG = [
+    {
+      version: "0.29.7",
+      date: "11/09/2026",
+      title: "Permissão de templates e tarifa por mensagem",
+      changes: [
+        "Usuários sem a permissão Campanhas e templates não veem nem acessam templates ou o aviso da janela de 24 horas.",
+        "As rotas de campanhas, listagem e envio de templates agora também validam a permissão no backend.",
+        "Templates exibem a tarifa base estimada por mensagem entregue no Brasil."
+      ]
+    },
     {
       version: "0.29.6",
       date: "11/09/2026",

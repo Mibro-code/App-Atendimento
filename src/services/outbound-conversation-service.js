@@ -53,6 +53,7 @@ async function findExistingConversation(phone) {
 
 async function createOutboundConversation({ phone, customName, template, user, channel }) {
   authorization.assertCanStartConversations(user);
+  authorization.assertCanManageCampaigns(user);
   if (!templatesConfigured()) {
     throw Object.assign(new Error("A criação de conversas ficará disponível após configurar os templates da Meta."), {
       statusCode: 503,
@@ -149,11 +150,12 @@ async function listOutboundChannels(user) {
       })),
     };
     if (channelName === "META") {
-      const enabled = templatesConfigured();
+      const permitted = authorization.canManageCampaigns(user);
+      const enabled = permitted && templatesConfigured();
       return {
         channel: channelName, label: CHANNEL_LABELS[channelName], enabled,
         accounts: enabled ? [{ id: "meta", name: "WABA conectada" }] : [],
-        reason: enabled ? null : "Configure a WABA para iniciar pelo WhatsApp.",
+        reason: !permitted ? "Você não tem permissão para usar templates do WhatsApp." : (enabled ? null : "Configure a WABA para iniciar pelo WhatsApp."),
       };
     }
     return {

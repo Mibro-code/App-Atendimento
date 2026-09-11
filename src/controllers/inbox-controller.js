@@ -80,6 +80,7 @@ function createInboxController(channel) {
     },
     async replyTemplate(req, res, next) {
       try {
+        authorization.assertCanManageCampaigns(req.user);
         await authorization.assertCanViewConversation(req.user, req.params.id);
         const name = String(req.body.name || "").trim();
         const language = String(req.body.language || "").trim();
