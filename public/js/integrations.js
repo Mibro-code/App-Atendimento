@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const MARKETPLACE_UI_ENABLED = window.MIBRO_FEATURES?.marketplaces !== false;
 const isMarketplaceChannel = (channel) => window.isMarketplaceFeatureChannel?.(channel) === true;
-const state = { overview: [], settings: null, users: [], editingChannel: null, editingAccountId: null, accessAccountId: null };
+const state = { overview: [], settings: null, users: [], categories: [], editingChannel: null, editingAccountId: null, accessAccountId: null };
 
 const CHANNEL_LABELS = {
   META: "WhatsApp (Meta)",
@@ -46,7 +46,13 @@ const OAUTH_OPTIONS_BY_CHANNEL = {
 // inventado: os que ainda não têm API confirmada (Shopee, Reclame Aqui)
 // só guardam configuração básica para quando o acesso for liberado.
 const CHANNEL_FIELDS = {
-  META: null,
+  META: [
+    { key: "config.phoneNumberId", label: "Phone Number ID" },
+    { key: "config.wabaId", label: "WABA ID" },
+    { key: "config.displayPhoneNumber", label: "Número exibido (opcional)", optional: true },
+    { key: "config.graphVersion", label: "Graph API version (opcional)", optional: true },
+    { key: "secrets.accessToken", label: "Access token da conta", secret: true },
+  ],
   EMAIL: [
     { key: "config.provider", label: "Provedor (GMAIL ou MICROSOFT_365)", secret: false },
     { key: "secrets.accessToken", label: "Access token (OAuth)", secret: true },
@@ -174,11 +180,11 @@ function renderCards() {
           <span class="enabled-pill ${account.enabled ? "on" : "off"}">${account.enabled ? "Ativado" : "Desativado"}</span>
         </div>
         <div class="account-row-meta">
-          ${account.oauthProvider ? `<span>Provider: ${escapeHtml(account.oauthProvider)}</span>` : ""}${account.providerMetadata?.username ? `<span>Conta: ${escapeHtml(account.providerMetadata.username)}</span>` : ""}${account.externalAccountId ? `<span>ID externo: ${escapeHtml(account.externalAccountId)}</span>` : ""}${account.lastSyncAt ? `<span>Última sincronização: ${escapeHtml(new Date(account.lastSyncAt).toLocaleString("pt-BR"))}</span>` : ""}${entry.channel === "EMAIL" ? `<span>Acesso: ${account.allowedUsers?.length ? escapeHtml(account.allowedUsers.map((item) => item.user?.name).filter(Boolean).join(", ")) : "somente Master"}</span>` : ""}
+          ${account.oauthProvider ? `<span>Provider: ${escapeHtml(account.oauthProvider)}</span>` : ""}${account.providerMetadata?.username ? `<span>Conta: ${escapeHtml(account.providerMetadata.username)}</span>` : ""}${account.externalAccountId ? `<span>ID externo: ${escapeHtml(account.externalAccountId)}</span>` : ""}${account.lastSyncAt ? `<span>Última sincronização: ${escapeHtml(new Date(account.lastSyncAt).toLocaleString("pt-BR"))}</span>` : ""}${["EMAIL", "META"].includes(entry.channel) ? `<span>Atendentes: ${account.allowedUsers?.length ? escapeHtml(account.allowedUsers.map((item) => item.user?.name).filter(Boolean).join(", ")) : "somente Master"}</span><span>Áreas: ${account.allowedCategoryIds?.length ? escapeHtml(state.categories.filter((item) => account.allowedCategoryIds.includes(item.id)).map((item) => item.name).join(", ")) : "todas"}</span>` : ""}
           ${account.lastErrorMessage ? `<span class="error-text">Erro: ${escapeHtml(account.lastErrorMessage)}</span>` : ""}
         </div>
         <div class="account-row-actions">
-          ${entry.channel === "EMAIL" ? `<button type="button" data-action="access" data-id="${escapeHtml(account.id)}">Gerenciar acesso</button>` : ""}
+          ${["EMAIL", "META"].includes(entry.channel) ? `<button type="button" data-action="access" data-id="${escapeHtml(account.id)}">Gerenciar acesso</button>` : ""}
           <button type="button" data-action="test" data-id="${escapeHtml(account.id)}">Testar conexão</button>
           <button type="button" data-action="reconnect" data-id="${escapeHtml(account.id)}" data-channel="${escapeHtml(entry.channel)}">Reconectar</button>
           <button type="button" data-action="toggle" data-id="${escapeHtml(account.id)}" data-enabled="${account.enabled}">${account.enabled ? "Desativar" : "Ativar"}</button>
@@ -194,14 +200,11 @@ function renderCards() {
           ${entry.adapterAvailable ? "" : '<span class="status-pill status-idle">Sem adapter</span>'}
         </header>
         <div class="cap-badges">${capBadges || '<span class="cap-badge cap-badge-empty">Sem capacidades ativas nesta fase</span>'}</div>
-        ${isMeta
-          ? '<p class="meta-note">Gerenciado pelas variáveis de ambiente originais do WhatsApp — este painel não altera essa integração.</p>'
-          : `<div class="account-list">${accountsHtml}</div>
-             ${oauthButtons(entry)
-               ? `<div class="oauth-actions">${oauthButtons(entry)}</div>`
-               : `<details class="advanced-config"><summary>Configuração avançada</summary><button type="button" class="add-account" data-channel="${escapeHtml(entry.channel)}">Adicionar manualmente</button></details>`}`
-        }
-      </section>
+        ${isMeta ? '<p class="meta-note">O número principal atual continua ativo pelas variáveis ENV. Números adicionais ficam isolados por conta abaixo.</p>' : ""}
+        <div class="account-list">${accountsHtml}</div>
+        ${oauthButtons(entry)
+          ? `<div class="oauth-actions">${oauthButtons(entry)}</div>`
+          : `<details class="advanced-config"><summary>Configuração avançada</summary><button type="button" class="add-account" data-channel="${escapeHtml(entry.channel)}">${isMeta ? "Adicionar número WhatsApp" : "Adicionar manualmente"}</button></details>`}      </section>
     `;
   }).join("");
 
@@ -329,28 +332,36 @@ function openAccessDialog(accountId) {
   const account = state.overview.flatMap((entry) => entry.accounts || []).find((item) => item.id === accountId);
   if (!account) return;
   state.accessAccountId = accountId;
-  const selected = new Set((account.allowedUsers || []).map((item) => item.userId));
+  const selectedUsers = new Set((account.allowedUsers || []).map((item) => item.userId));
+  const selectedCategories = new Set(account.allowedCategoryIds || []);
   $("#account-access-name").textContent = account.name;
   $("#account-access-users").innerHTML = state.users.filter((user) => user.role !== "ADMIN").map((user) => `
-    <label class="access-user-option"><input type="checkbox" value="${escapeHtml(user.id)}" ${selected.has(user.id) ? "checked" : ""}>
+    <label class="access-user-option"><input type="checkbox" value="${escapeHtml(user.id)}" ${selectedUsers.has(user.id) ? "checked" : ""}>
       <span><strong>${escapeHtml(user.name)}</strong><small>${escapeHtml(user.email)}</small></span>
     </label>`).join("") || '<p class="no-accounts">Nenhum usuário ativo disponível.</p>';
+  $("#account-access-categories").innerHTML = state.categories.filter((category) => category.active !== false).map((category) => `
+    <label class="access-user-option"><input type="checkbox" value="${escapeHtml(category.id)}" ${selectedCategories.has(category.id) ? "checked" : ""}>
+      <span><strong>${escapeHtml(category.parentId ? `↳ ${category.name}` : category.name)}</strong><small>${category.parentId ? "Subcategoria" : "Categoria principal"}</small></span>
+    </label>`).join("") || '<p class="no-accounts">Nenhuma categoria ativa disponível.</p>';
   $("#account-access-dialog").showModal();
 }
 
 async function saveAccountAccess(event) {
   event.preventDefault();
   const userIds = [...document.querySelectorAll("#account-access-users input:checked")].map((input) => input.value);
+  const categoryIds = [...document.querySelectorAll("#account-access-categories input:checked")].map((input) => input.value);
   try {
-    await api(`/api/integrations/accounts/${state.accessAccountId}/access`, { method: "PATCH", body: JSON.stringify({ userIds }) });
+    await api(`/api/integrations/accounts/${state.accessAccountId}/access`, { method: "PATCH", body: JSON.stringify({ userIds, categoryIds }) });
     $("#account-access-dialog").close();
-    toast("Acesso da conta de e-mail atualizado.");
+    toast("Atendentes e áreas da conta atualizados.");
     await loadOverview();
   } catch (error) { toast(error.message, true); }
 }
 
 async function loadUsers() {
-  state.users = await api("/api/users");
+  const [users, categories] = await Promise.all([api("/api/users"), api("/api/categories")]);
+  state.users = users;
+  state.categories = categories;
 }
 async function testConnection(accountId) {
   try {
@@ -423,7 +434,8 @@ $("#logout").addEventListener("click", async () => {
     const status = await api("/api/auth/status");
     if (!status.authenticated || !status.user.isMaster) return location.replace("/");
     $("#current-user").textContent = status.user.name;
-    await Promise.all([loadOverview(), loadSettings(), loadUsers()]);
+    await loadUsers();
+    await Promise.all([loadOverview(), loadSettings()]);
   } catch (error) {
     if ($("#channel-cards").querySelector(".skeleton-list")) $("#channel-cards").innerHTML = `<div class="empty-list">Não foi possível carregar as integrações.</div>`;
     toast(error.message, true);

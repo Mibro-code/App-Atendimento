@@ -28,9 +28,10 @@ async function conversationScope(user) {
   if (categoryIds.length) visible.push({ categoryId: { in: categoryIds } });
   if (user.canViewUncategorized) visible.push({ categoryId: null });
   const operationalScope = visible.length ? { OR: visible } : { id: { in: [] } };
-  const emailAccountScope = {
+  const channelAccountScope = {
     OR: [
-      { channel: { not: "EMAIL" } },
+      { channelAccountId: null },
+      { channel: { notIn: ["EMAIL", "META"] } },
       { channelAccount: { is: { accessUsers: { some: { userId: user.id } } } } },
     ],
   };
@@ -43,7 +44,23 @@ async function conversationScope(user) {
       } } },
     ],
   };
-  return { AND: [operationalScope, categoryScope, emailAccountScope] };
+  return { AND: [operationalScope, categoryScope, channelAccountScope] };
+}
+
+async function canAccessChannelAccount(user, channelAccountId) {
+  if (isMaster(user) || !channelAccountId) return true;
+  return Boolean(await prisma.channelAccountUserAccess.findUnique({ where: { channelAccountId_userId: { channelAccountId, userId: user.id } }, select: { userId: true } }));
+}
+
+async function assertChannelAccountAllowsCategory(channelAccountId, categoryId) {
+  if (!channelAccountId || !categoryId) return;
+  const account = await prisma.channelAccount.findUnique({ where: { id: channelAccountId }, select: { config: true } });
+  const allowed = Array.isArray(account?.config?.allowedCategoryIds) ? account.config.allowedCategoryIds : [];
+  if (!allowed.length || allowed.includes(categoryId)) return;
+  const category = await prisma.category.findUnique({ where: { id: categoryId }, select: { parentId: true } });
+  if (!category?.parentId || !allowed.includes(category.parentId)) {
+    throw forbidden("Esta conta não está liberada para a categoria selecionada.");
+  }
 }
 
 async function canAccessCategory(user, categoryId) {
@@ -135,6 +152,6 @@ function assertCanViewConversationSettings(user) {
 module.exports = {
   allowedCategoryIds, assertCanAccessContact, assertCanManageCampaigns, assertCanManageCategories, assertCanMergeContacts, assertCanStartConversations,
   assertCanSetPriority, assertCanViewConversation, assertCanViewConversationSettings, assertMaster,
-  canAccessCategory, canManageCampaigns, canMergeContacts, canSetPriority, canStartConversations, canTransfer, canViewConversationSettings,
+  assertChannelAccountAllowsCategory, canAccessCategory, canAccessChannelAccount, canManageCampaigns, canMergeContacts, canSetPriority, canStartConversations, canTransfer, canViewConversationSettings,
   conversationScope, forbidden, isMaster,
 };

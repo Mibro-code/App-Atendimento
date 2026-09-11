@@ -194,6 +194,8 @@ async function listConversations({
         },
       },
 
+      channelAccount: { select: { id: true, name: true, externalAccountId: true, providerMetadata: true, config: true } },
+
       assignedUser: {
         select: {
           id: true,
@@ -463,6 +465,7 @@ async function getConversation(id, viewer) {
     where: { AND: [{ id }, scope] },
     include: {
       category: { include: { parent: true } },
+      channelAccount: { select: { id: true, name: true, externalAccountId: true, providerMetadata: true, config: true } },
       assignedUser: { select: { id: true, name: true, email: true } },
       messages: {
         where: messageVisibility.where,
@@ -700,6 +703,7 @@ async function updateConversation(id, { categoryId, status, assignedUserId, prio
       where: { id: categoryId, active: true }, include: { parent: true },
     });
     if (!targetCategory) throw Object.assign(new Error("Categoria não encontrada ou inativa."), { statusCode: 400 });
+    await authorization.assertChannelAccountAllowsCategory(currentSnapshot.channelAccountId, categoryId);
     if (!authorization.isMaster(viewer) && (targetCategory.masterOnly || targetCategory.parent?.masterOnly)) {
       throw authorization.forbidden("Esta categoria e exclusiva para contas Master.");
     }
@@ -715,6 +719,9 @@ async function updateConversation(id, { categoryId, status, assignedUserId, prio
   if (assignedUserId) {
     const user = await prisma.user.findFirst({ where: { id: assignedUserId, active: true } });
     if (!user) throw Object.assign(new Error("Atendente não encontrado ou inativo."), { statusCode: 400 });
+    if (!(await authorization.canAccessChannelAccount(user, currentSnapshot.channelAccountId))) {
+      throw Object.assign(new Error("O atendente não foi liberado para esta conta de canal."), { statusCode: 400 });
+    }
     const targetCategoryId = categoryId !== undefined ? categoryId : currentAccess.categoryId;
     if (!(await authorization.canAccessCategory(user, targetCategoryId))) {
       throw Object.assign(new Error("O atendente não possui acesso à categoria desta conversa."), { statusCode: 400 });

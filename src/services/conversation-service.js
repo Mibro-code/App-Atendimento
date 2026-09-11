@@ -24,6 +24,8 @@ function validContactName(name, phone) {
 }
 
 async function findOrCreateMetaConversation(event, db = prisma) {
+  const channelAccountId = event.channelAccountId || null;
+  const channelScope = channelAccountId || "LEGACY";
   const contactName = validContactName(
     event.contactName,
     event.phone
@@ -55,7 +57,7 @@ async function findOrCreateMetaConversation(event, db = prisma) {
       contactId_channel_channelScope: {
         contactId: contact.id,
         channel: "META",
-        channelScope: "LEGACY"
+        channelScope
       }
     },
 
@@ -64,7 +66,8 @@ async function findOrCreateMetaConversation(event, db = prisma) {
     create: {
       contactId: contact.id,
       channel: "META",
-      channelScope: "LEGACY",
+      channelScope,
+      channelAccountId,
       status: "NOVO"
     }
   });

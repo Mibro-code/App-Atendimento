@@ -44,17 +44,23 @@ async function validateTemplateSelection(channel, selection) {
   return { name, language, values };
 }
 
-async function findExistingConversation(phone) {
+async function findExistingConversation(phone, channelScope = "LEGACY") {
   return prisma.conversation.findFirst({
-    where: { channel: "META", contact: { is: { channel: "META", externalId: phone } } },
+    where: { channel: "META", channelScope, contact: { is: { channel: "META", externalId: phone } } },
     select: { id: true, contactId: true },
   });
 }
 
-async function createOutboundConversation({ phone, customName, template, user, channel }) {
+async function createOutboundConversation({ phone, customName, template, accountId = "legacy", user, channel }) {
   authorization.assertCanStartConversations(user);
   authorization.assertCanManageCampaigns(user);
-  if (!templatesConfigured()) {
+  const selectedAccountId = accountId && accountId !== "legacy" ? String(accountId) : null;
+  let providerChannel = channel;
+  if (selectedAccountId) {
+    if (!(await authorization.canAccessChannelAccount(user, selectedAccountId))) throw authorization.forbidden("Você não tem acesso a este número.");
+    providerChannel = (await channelMessageService.adapterFor("META", selectedAccountId)).channel;
+  }
+  if (!selectedAccountId && !templatesConfigured()) {
     throw Object.assign(new Error("A criação de conversas ficará disponível após configurar os templates da Meta."), {
       statusCode: 503,
       code: "META_TEMPLATES_NOT_CONFIGURED",
@@ -62,9 +68,10 @@ async function createOutboundConversation({ phone, customName, template, user, c
   }
   const normalizedPhone = normalizeOutboundPhone(phone);
   const normalizedName = cleanCustomName(customName);
-  const selectedTemplate = await validateTemplateSelection(channel, template);
+  const selectedTemplate = await validateTemplateSelection(providerChannel, template);
 
-  let conversation = await findExistingConversation(normalizedPhone);
+  const channelScope = selectedAccountId || "LEGACY";
+  let conversation = await findExistingConversation(normalizedPhone, channelScope);
   let created = false;
   if (conversation) {
     await authorization.assertCanViewConversation(user, conversation.id);
@@ -83,12 +90,12 @@ async function createOutboundConversation({ phone, customName, template, user, c
         },
       });
       const current = await transaction.conversation.findUnique({
-        where: { contactId_channel_channelScope: { contactId: contact.id, channel: "META", channelScope: "LEGACY" } },
+        where: { contactId_channel_channelScope: { contactId: contact.id, channel: "META", channelScope } },
         select: { id: true, contactId: true },
       });
       if (current) return { conversation: current, created: false };
       const inserted = await transaction.conversation.create({ data: {
-        contactId: contact.id, channel: "META", channelScope: "LEGACY", status: "EM_ATENDIMENTO", assignedUserId: user.id,
+        contactId: contact.id, channel: "META", channelScope, channelAccountId: selectedAccountId, status: "EM_ATENDIMENTO", assignedUserId: user.id,
       }, select: { id: true, contactId: true } });
       await transaction.conversationActivity.create({ data: {
         conversationId: inserted.id, actorUserId: user.id, action: "CONVERSATION_CREATED",
@@ -137,9 +144,23 @@ async function availableEmailAccounts(user) {
   });
 }
 
+async function availableMetaAccounts(user) {
+  const stored = await prisma.channelAccount.findMany({
+    where: { channel: "META", enabled: true, status: "CONNECTED", ...emailAccountScope(user) },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, externalAccountId: true, providerMetadata: true, config: true },
+  });
+  const rows = stored.map((account) => ({
+    id: account.id, name: account.name,
+    address: account.config?.displayPhoneNumber || account.providerMetadata?.username || account.externalAccountId || null,
+  }));
+  if (templatesConfigured()) rows.unshift({ id: "legacy", name: "WhatsApp principal", address: process.env.PHONE_NUMBER_ID || null });
+  return rows;
+}
+
 async function listOutboundChannels(user) {
   if (!authorization.canStartConversations(user)) return [];
-  const accounts = await availableEmailAccounts(user);
+  const [accounts, metaAccounts] = await Promise.all([availableEmailAccounts(user), availableMetaAccounts(user)]);
   return ALL_MANAGED_CHANNELS.map((channelName) => {
     if (channelName === "EMAIL") return {
       channel: channelName, label: CHANNEL_LABELS[channelName], enabled: accounts.length > 0,
@@ -151,11 +172,11 @@ async function listOutboundChannels(user) {
     };
     if (channelName === "META") {
       const permitted = authorization.canManageCampaigns(user);
-      const enabled = permitted && templatesConfigured();
+      const enabled = permitted && metaAccounts.length > 0;
       return {
         channel: channelName, label: CHANNEL_LABELS[channelName], enabled,
-        accounts: enabled ? [{ id: "meta", name: "WABA conectada" }] : [],
-        reason: !permitted ? "Você não tem permissão para usar templates do WhatsApp." : (enabled ? null : "Configure a WABA para iniciar pelo WhatsApp."),
+        accounts: enabled ? metaAccounts : [],
+        reason: !permitted ? "Você não tem permissão para usar templates do WhatsApp." : (enabled ? null : "Nenhum número WhatsApp conectado e liberado para você."),
       };
     }
     return {

@@ -1,14 +1,19 @@
 // Adapter que ENVOLVE a integração Meta/WhatsApp já existente
 // (src/channels/meta-cloud-channel.js) na nova interface ChannelAdapter,
-// sem alterar uma linha do arquivo original. Zero risco de regressão: todo
+// preservando o fluxo legado por ENV e permitindo credenciais isoladas por conta. Todo
 // método aqui delega para a classe já testada e em produção.
 const { ChannelAdapter } = require("./channel-adapter");
 const MetaCloudChannel = require("../../channels/meta-cloud-channel");
 
 class MetaAdapter extends ChannelAdapter {
-  constructor(account, channel = new MetaCloudChannel()) {
+  constructor(account, channel = null) {
     super(account);
-    this.channel = channel;
+    this.channel = channel || new MetaCloudChannel(account ? {
+      graphVersion: account.config?.graphVersion,
+      phoneNumberId: account.config?.phoneNumberId || account.externalAccountId,
+      wabaId: account.config?.wabaId,
+      accessToken: account.secrets?.accessToken,
+    } : {});
   }
 
   capabilities() {
@@ -24,6 +29,11 @@ class MetaAdapter extends ChannelAdapter {
       supportsWebhook: true,
     };
   }
+
+  async listMessageTemplates() { return this.channel.listMessageTemplates(); }
+  async listAllMessageTemplates() { return this.channel.listAllMessageTemplates(); }
+  async inspectAccessTokenScopes() { return this.channel.inspectAccessTokenScopes(); }
+  async sendTemplate({ to, name, language, components }) { return this.channel.sendTemplate(to, { name, language, components }); }
 
   async sendMessage({ to, text }) {
     return this.channel.sendText(to, text);
@@ -48,7 +58,7 @@ class MetaAdapter extends ChannelAdapter {
 
   async testConnection() {
     this.channel.assertConfigured();
-    return { status: "CONNECTED" };
+    return { status: "CONNECTED", externalAccountId: this.channel.phoneNumberId, providerMetadata: { displayName: this.account?.name || null, username: this.account?.config?.displayPhoneNumber || null } };
   }
 }
 

@@ -1,4 +1,5 @@
 const prisma = require("../database/prisma");
+const channelMessageService = require("./channels/channel-message-service");
 const { updateConversationAfterSending } = require("./message-service");
 
 const CUSTOMER_SERVICE_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -217,7 +218,8 @@ function templateComponents(template, values) {
 async function sendApprovedTemplate({ conversationId, name, language, values = {}, sentByUserId, channel }) {
   const conversation = await prisma.conversation.findUnique({ where: { id: conversationId }, include: { contact: true } });
   if (!conversation) throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
-  const templates = await channel.listMessageTemplates();
+  const providerChannel = conversation.channelAccountId ? (await channelMessageService.adapterFor("META", conversation.channelAccountId)).channel : channel;
+  const templates = await providerChannel.listMessageTemplates();
   const template = templates.find((item) => item.name === name && item.language === language && item.status === "APPROVED");
   if (!template) throw Object.assign(new Error("Template aprovado não encontrado na Meta."), { statusCode: 404 });
   const normalized = normalizeTemplate(template);
@@ -228,14 +230,14 @@ async function sendApprovedTemplate({ conversationId, name, language, values = {
     }
   }
   const components = templateComponents(template, values);
-  const result = await channel.sendTemplate(conversation.contact.phone, { name, language, components });
+  const result = await providerChannel.sendTemplate(conversation.contact.phone, { name, language, components });
   const occurredAt = new Date();
   const preview = [
     ...(template.components || []).filter((item) => ["HEADER", "BODY"].includes(item.type)).map((item) => renderText(item.text, normalized.variables, values)),
     (template.components || []).find((item) => item.type === "FOOTER")?.text,
   ].filter(Boolean).join("\n\n");
   const message = await prisma.message.create({ data: {
-    conversationId, externalId: result.externalId, channel: conversation.channel,
+    conversationId, externalId: conversation.channelAccountId && result.externalId ? `${conversation.channelAccountId}:${result.externalId}` : result.externalId, channel: conversation.channel, channelAccountId: conversation.channelAccountId || null,
     direction: "ENVIADA", status: "ENVIADA", type: "template", text: preview,
     occurredAt, sentByUserId: sentByUserId || null,
     rawPayload: { message: result.data, template: { name, language, category: template.category, values } },

@@ -68,3 +68,4 @@
 .access-user-option input { width:18px; height:18px; }
 .access-user-option span { display:grid; gap:2px; }
 .access-user-option small { color:var(--muted); }
+#account-access-dialog{width:min(620px,94vw)}#account-access-dialog h3{margin:8px 0 0;color:var(--ink);font-size:11px}.account-access-users{max-height:210px}

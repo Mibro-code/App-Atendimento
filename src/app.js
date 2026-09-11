@@ -119,14 +119,25 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
 
   app.post("/webhook/whatsapp", verifyMetaSignature, async (req, res) => {
     try {
-      const events = channel.parseWebhook(req.body);
+      const incomingPhoneNumberId = req.body?.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id || null;
+      let eventChannel = channel;
+      let channelAccountId = null;
+      if (incomingPhoneNumberId && incomingPhoneNumberId !== process.env.PHONE_NUMBER_ID) {
+        const metaAccounts = await prisma.channelAccount.findMany({ where: { channel: "META", enabled: true, status: "CONNECTED" } });
+        const account = metaAccounts.find((item) => item.externalAccountId === incomingPhoneNumberId || item.config?.phoneNumberId === incomingPhoneNumberId);
+        if (!account) return res.sendStatus(404);
+        const adapter = createAdapter("META", { ...account, secrets: decryptAccountSecretsSafe(account) });
+        eventChannel = adapter.channel;
+        channelAccountId = account.id;
+      }
+      const events = eventChannel.parseWebhook(req.body).map((event) => ({ ...event, channelAccountId }));
       let changed = false;
       for (const event of events) {
         if (event.kind === "message") {
           if (["image", "audio", "video", "sticker", "document"].includes(event.type) && event.mediaId) {
             const existing = await prisma.message.findUnique({ where: { externalId: event.externalId }, select: { id: true } });
             if (existing) continue;
-            const media = await channel.downloadMedia(event.mediaId, {
+            const media = await eventChannel.downloadMedia(event.mediaId, {
               maxSize: event.type === "sticker" ? 500 * 1024
                 : (event.type === "image" ? 5 * 1024 * 1024
                   : (event.type === "document" ? 100 * 1024 * 1024 : 16 * 1024 * 1024)),
@@ -138,7 +149,7 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
           const result = await saveIncoming(event);
           if (!result.duplicate) {
             if (event.type !== "reaction") {
-              await handleIncomingTriage(event, result.message, channel);
+              await handleIncomingTriage(event, result.message, eventChannel);
               observeIncomingMessage(event, result.message).catch(() => {});
               pushService.notifyIncomingMessage(result.message).catch(() => {});
               // Campanhas (itens 9/13): nunca bloqueia o atendimento normal —

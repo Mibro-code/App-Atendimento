@@ -234,7 +234,7 @@ function conversationSignature(conversation) {
   return JSON.stringify([
     conversation.id, conversation.id === state.selectedId, conversation.status, conversation.channel, conversation.unreadCount, conversation.lastMessageAt,
     conversation.categoryId, conversation.category?.name, conversation.category?.color, conversation.category?.parent?.name,
-    conversation.assignedUserId, conversation.assignedUser?.name,
+    conversation.assignedUserId, conversation.assignedUser?.name, conversation.channelAccountId, conversation.channelAccount?.name,
     conversation.priority, conversation.firstResponseSlaBreached, conversation.responseSlaBreached, conversation.slaMinutesRemaining,
     conversation.isPinned,
     conversation.contact.customName, conversation.contact.name, conversation.contact.email, conversation.contact.phone, conversation.contact._count?.notes,
@@ -249,7 +249,7 @@ function conversationCardMarkup(c) {
     <span class="card-grip" aria-hidden="true"></span><span class="avatar">${escapeHtml(initials(name))}</span><span class="card-main">
     <span class="card-title"><strong>${c.isPinned ? `<i class="conversation-pin" title="Conversa fixada">★</i>` : ""}${escapeHtml(name)}</strong><small>${escapeHtml(c.contact.email || c.contact.phone || "")}</small></span>
     <span class="preview">${escapeHtml(messagePreview(last))}</span>
-    <span class="card-labels">${channelBadge(c.channel) ? `<span class="channel-label">${escapeHtml(channelBadge(c.channel))}</span>` : ""}<span class="category-label" style="color:${c.category?.color || "#666"};border-color:${c.category?.color || "#aaa"}">${escapeHtml(categoryLabel(c.category))}</span><span class="status-label">${escapeHtml(statusLabel(c.status))}</span>${c.assignedUser ? `<span class="assignee-label">${escapeHtml(c.assignedUser.name)}</span>` : ""}${priorityBadge(c.priority)}${slaBadge(c.slaMinutesRemaining)}</span></span>
+    <span class="card-labels">${channelBadge(c.channel) ? `<span class="channel-label">${escapeHtml(channelBadge(c.channel))}</span>` : ""}${c.channel === "META" && c.channelAccount?.name ? `<span class="channel-label">${escapeHtml(c.channelAccount.name)}</span>` : ""}<span class="category-label" style="color:${c.category?.color || "#666"};border-color:${c.category?.color || "#aaa"}">${escapeHtml(categoryLabel(c.category))}</span><span class="status-label">${escapeHtml(statusLabel(c.status))}</span>${c.assignedUser ? `<span class="assignee-label">${escapeHtml(c.assignedUser.name)}</span>` : ""}${priorityBadge(c.priority)}${slaBadge(c.slaMinutesRemaining)}</span></span>
     <span class="card-side"><span>${time(c.lastMessageAt)}</span><span class="card-elapsed">${escapeHtml(elapsedShort(c.lastMessageAt))}</span>${c.unreadCount ? `<span class="unread">${c.unreadCount}</span>` : ""}</span>
     <span class="note-preview"><b>NOTA</b> ${escapeHtml(note?.content || "Sem notas para este contato")}${c.contact._count?.notes ? `<i>${c.contact._count.notes}</i>` : ""}</span></button>`;
 }
@@ -568,7 +568,7 @@ async function openTemplates() {
   renderTemplateEditor();
   $("#template-dialog").showModal();
   try {
-    state.templates = await api("/api/meta/templates");
+    state.templates = await api(`/api/meta/templates?conversationId=${encodeURIComponent(state.selectedId)}`);
     renderTemplateList();
   } catch (error) {
     $("#template-list").innerHTML = `<div class="template-empty">${escapeHtml(error.message)}</div>`;
@@ -607,16 +607,25 @@ function renderOutboundTemplateList() {
   }));
 }
 
+async function loadOutboundMetaTemplates() {
+  state.selectedOutboundTemplate = null;
+  state.outboundTemplates = [];
+  renderOutboundTemplateEditor();
+  $("#outbound-meta-template-list").innerHTML = `<div class="template-empty">Consultando templates aprovados...</div>`;
+  try {
+    const accountId = $("#outbound-meta-account").value;
+    state.outboundTemplates = await api(`/api/meta/templates?accountId=${encodeURIComponent(accountId)}`);
+    renderOutboundTemplateList();
+  } catch (error) { $("#outbound-meta-template-list").innerHTML = `<div class="template-empty">${escapeHtml(error.message)}</div>`; }
+}
+
 async function openOutboundMeta() {
   $("#outbound-channel-dialog").close();
   $("#outbound-meta-form").reset();
-  state.selectedOutboundTemplate = null;
-  state.outboundTemplates = [];
-  $("#outbound-meta-template-list").innerHTML = `<div class="template-empty">Consultando templates aprovados...</div>`;
-  renderOutboundTemplateEditor();
+  const metaChannel = state.outboundChannels.find((item) => item.channel === "META");
+  $("#outbound-meta-account").innerHTML = (metaChannel?.accounts || []).map((account) => `<option value="${escapeHtml(account.id)}">${escapeHtml(account.name)}${account.address ? ` — ${escapeHtml(account.address)}` : ""}</option>`).join("");
   $("#outbound-meta-dialog").showModal();
-  try { state.outboundTemplates = await api("/api/meta/templates"); renderOutboundTemplateList(); }
-  catch (error) { $("#outbound-meta-template-list").innerHTML = `<div class="template-empty">${escapeHtml(error.message)}</div>`; }
+  await loadOutboundMetaTemplates();
 }
 function renderOutboundChannels() {
   const container = $("#outbound-channel-list");
@@ -1135,6 +1144,7 @@ function renderContextDetails(c) {
     </div>
     <div class="context-info-list">
       <div class="context-info-row"><span>Canal</span><strong>${escapeHtml(channel)}</strong></div>
+      ${c.channel === "META" ? `<div class="context-info-row"><span>Número de atendimento</span><strong>${escapeHtml(c.channelAccount?.name || "WhatsApp principal")}</strong></div>` : ""}
       <div class="context-info-row"><span>Categoria</span><strong>${escapeHtml(categoryLabel(c.category))}</strong></div>
       <div class="context-info-row"><span>Status</span><strong>${escapeHtml(statusLabel(c.status))}</strong></div>
       <div class="context-info-row"><span>Responsável</span><strong>${escapeHtml(c.assignedUser?.name || "Sem responsável")}</strong></div>
@@ -1378,6 +1388,7 @@ $("#outbound-channel-dialog").addEventListener("click", (event) => { if (event.t
 $("#close-outbound-meta").addEventListener("click", () => $("#outbound-meta-dialog").close());
 $("#outbound-meta-dialog").addEventListener("click", (event) => { if (event.target === $("#outbound-meta-dialog")) $("#outbound-meta-dialog").close(); });
 $("#outbound-meta-template-search").addEventListener("input", renderOutboundTemplateList);
+$("#outbound-meta-account").addEventListener("change", loadOutboundMetaTemplates);
 $("#outbound-meta-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!state.selectedOutboundTemplate) return toast("Selecione um template aprovado.", true);
@@ -1386,7 +1397,7 @@ $("#outbound-meta-form").addEventListener("submit", async (event) => {
   button.disabled = true;
   try {
     const result = await api("/api/conversations/outbound", { method:"POST", body:JSON.stringify({
-      phone: $("#outbound-meta-phone").value.trim(), customName: $("#outbound-meta-name").value.trim(),
+      accountId: $("#outbound-meta-account").value, phone: $("#outbound-meta-phone").value.trim(), customName: $("#outbound-meta-name").value.trim(),
       template: { name:state.selectedOutboundTemplate.name, language:state.selectedOutboundTemplate.language, values },
     }) });
     $("#outbound-meta-dialog").close();

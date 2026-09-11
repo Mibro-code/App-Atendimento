@@ -11,6 +11,7 @@ const { analyzeConversation } = require("../services/bot-learning-service");
 const { submitAgentFeedback } = require("../services/bot-agent-feedback-service");
 const { Channel: ChannelEnum } = require("@prisma/client");
 const contactMerge = require("../services/contact-merge-service");
+const channelMessageService = require("../services/channels/channel-message-service");
 
 const knownChannels = new Set(Object.values(ChannelEnum));
 
@@ -54,8 +55,18 @@ function createInboxController(channel) {
       } catch (error) { return next(error); }
     },
     async templates(req, res, next) {
-      try { return res.json(await listApprovedTemplates(channel)); }
-      catch (error) { return next(error); }
+      try {
+        let providerChannel = channel;
+        if (req.query.conversationId) {
+          await authorization.assertCanViewConversation(req.user, req.query.conversationId);
+          const conversation = await prisma.conversation.findUnique({ where: { id: req.query.conversationId }, select: { channelAccountId: true } });
+          if (conversation?.channelAccountId) providerChannel = (await channelMessageService.adapterFor("META", conversation.channelAccountId)).channel;
+        } else if (req.query.accountId && req.query.accountId !== "legacy") {
+          if (!(await authorization.canAccessChannelAccount(req.user, req.query.accountId))) throw authorization.forbidden("Você não tem acesso a este número.");
+          providerChannel = (await channelMessageService.adapterFor("META", req.query.accountId)).channel;
+        }
+        return res.json(await listApprovedTemplates(providerChannel));
+      } catch (error) { return next(error); }
     },
     async metaStatus(_req, res) {
       return res.json({ templatesConfigured: templatesConfigured() });

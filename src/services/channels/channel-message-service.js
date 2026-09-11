@@ -35,6 +35,13 @@ function buildAdapter(channel, account) {
   return adapter;
 }
 
+async function adapterFor(channel, channelAccountId) {
+  const account = await refreshAccountIfNeeded(await loadAccount(channelAccountId, channel));
+  if (account?.status === "RECONNECT_REQUIRED") throw channelError("TOKEN_EXPIRED", "Reconecte a conta antes de continuar.");
+  if (account && !account.enabled) throw channelError("NOT_SUPPORTED", "Conta de canal está desativada.");
+  return buildAdapter(channel, account);
+}
+
 // `send({ channel, channelAccountId, ...params })` — nunca assume
 // capability: sempre confere capabilities() primeiro (item 3/12).
 async function send({ channel, channelAccountId, kind = "text", ...params }) {
@@ -72,4 +79,4 @@ async function markAsRead({ channel, channelAccountId, ...params }) {
   return adapter.markAsRead(params);
 }
 
-module.exports = { markAsRead, send };
+module.exports = { adapterFor, markAsRead, send };

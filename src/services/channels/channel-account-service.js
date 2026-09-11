@@ -32,6 +32,8 @@ function publicAccount(account) {
     ...rest,
     config: Object.fromEntries(Object.entries(config || {}).filter(([key]) => key !== "_secretHints")),
     secretHints: Object.fromEntries(account.secretKeys.map((key) => [key, hints[key] || maskSecret("****")])),
+    allowedUsers: rest.accessUsers || [],
+    allowedCategoryIds: Array.isArray(config?.allowedCategoryIds) ? config.allowedCategoryIds : [],
   };
 }
 
@@ -290,24 +292,31 @@ async function deleteAccount(id, actor) {
   return { deleted: true };
 }
 
-async function setAccountAccess(id, userIds, actor) {
+async function setAccountAccess(id, userIds, categoryIds, actor) {
+  if (actor === undefined) { actor = categoryIds; categoryIds = undefined; }
   assertIntegrationManager(actor);
   const account = await ensureAccount(id);
-  if (account.channel !== "EMAIL") throw fail("O controle individual de acesso está disponível para contas de e-mail.");
-  if (!Array.isArray(userIds) || userIds.some((value) => typeof value !== "string" || !value)) {
-    throw fail("userIds deve ser uma lista de usuários.");
-  }
+  if (categoryIds === undefined) categoryIds = Array.isArray(account.config?.allowedCategoryIds) ? account.config.allowedCategoryIds : [];
+  if (!Array.isArray(userIds) || userIds.some((value) => typeof value !== "string" || !value)) throw fail("userIds deve ser uma lista de usuários.");
+  if (!Array.isArray(categoryIds) || categoryIds.some((value) => typeof value !== "string" || !value)) throw fail("categoryIds deve ser uma lista de categorias.");
   const uniqueIds = [...new Set(userIds)];
-  const validUsers = uniqueIds.length ? await prisma.user.findMany({ where: { id: { in: uniqueIds }, active: true }, select: { id: true, name: true } }) : [];
+  const uniqueCategoryIds = [...new Set(categoryIds)];
+  const [validUsers, validCategories] = await Promise.all([
+    uniqueIds.length ? prisma.user.findMany({ where: { id: { in: uniqueIds }, active: true }, select: { id: true } }) : [],
+    uniqueCategoryIds.length ? prisma.category.findMany({ where: { id: { in: uniqueCategoryIds }, active: true }, select: { id: true } }) : [],
+  ]);
   if (validUsers.length !== uniqueIds.length) throw fail("Um ou mais usuários selecionados são inválidos ou estão inativos.");
+  if (validCategories.length !== uniqueCategoryIds.length) throw fail("Uma ou mais categorias selecionadas são inválidas ou estão inativas.");
+  const currentConfig = plainObject(account.config);
   await prisma.$transaction(async (transaction) => {
     await transaction.channelAccountUserAccess.deleteMany({ where: { channelAccountId: id } });
     if (uniqueIds.length) await transaction.channelAccountUserAccess.createMany({ data: uniqueIds.map((userId) => ({ channelAccountId: id, userId })) });
+    await transaction.channelAccount.update({ where: { id }, data: { config: { ...currentConfig, allowedCategoryIds: uniqueCategoryIds } } });
   });
   await audit.recordAudit({
     actor, action: "CHANNEL_ACCOUNT_ACCESS_UPDATED", entityType: "CHANNEL_ACCOUNT", entityId: id,
-    summary: `Atualizou os usuários com acesso à conta de e-mail "${account.name}"`,
-    details: { userIds: uniqueIds },
+    summary: `Atualizou os acessos da conta "${account.name}"`,
+    details: { channel: account.channel, userIds: uniqueIds, categoryIds: uniqueCategoryIds },
   });
   return publicAccount(await prisma.channelAccount.findUnique({
     where: { id }, include: { accessUsers: { include: { user: { select: { id: true, name: true, email: true } } } } },

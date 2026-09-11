@@ -22,7 +22,7 @@ async function saveIncoming(event) {
         fileName: event.mediaFileName, stableId: event.externalId,
       }) : null;
       const message = await tx.message.create({ data: {
-        conversationId: conversation.id, externalId: event.externalId, channel: "META",
+        conversationId: conversation.id, externalId: event.externalId, channel: "META", channelAccountId: event.channelAccountId || null,
         direction: "RECEBIDA", status: "RECEBIDA", type: event.type, text: event.text,
         mediaStorageKey: media?.storageKey, mediaMimeType: media?.mimeType,
         mediaFileName: media?.fileName, mediaSize: media?.size,
@@ -76,7 +76,8 @@ async function saveIncoming(event) {
 
 async function updateStatus(event) {
   if (!statuses[event.status]) return null;
-  return prisma.message.updateMany({ where: { externalId: event.externalId }, data: { status: statuses[event.status] } });
+  const externalIds = [event.externalId, ...(event.channelAccountId ? [`${event.channelAccountId}:${event.externalId}`] : [])];
+  return prisma.message.updateMany({ where: { externalId: { in: externalIds } }, data: { status: statuses[event.status] } });
 }
 
 async function updateConversationAfterSending({ conversationId, sentByUserId, occurredAt }) {
@@ -169,6 +170,15 @@ async function emailReplyContext(conversation) {
   };
 }
 
+async function sendMetaForConversation(conversation, legacyChannel, method, payload) {
+  if (!conversation.channelAccountId) return legacyChannel[method](conversation.contact.phone, payload);
+  if (method === "sendText") {
+    return channelMessageService.send({ channel: "META", channelAccountId: conversation.channelAccountId, kind: "text", to: conversation.contact.phone, text: payload });
+  }
+  const type = { sendImage: "image", sendVideo: "video", sendDocument: "document" }[method];
+  return channelMessageService.send({ channel: "META", channelAccountId: conversation.channelAccountId, kind: "media", type, to: conversation.contact.phone, ...payload });
+}
+
 async function sendText({ conversationId, text, sentByUserId, channel }) {
   const conversation = await prisma.conversation.findUnique({ where: { id: conversationId }, include: { contact: true, category: { include: { parent: true } } } });
   if (!conversation) throw Object.assign(new Error("Conversa não encontrada."), { statusCode: 404 });
@@ -187,7 +197,7 @@ async function sendText({ conversationId, text, sentByUserId, channel }) {
     if (providerText.length > 4096) {
       throw Object.assign(new Error("A mensagem ficou acima do limite após adicionar o nome da equipe."), { statusCode: 400 });
     }
-    result = await channel.sendText(conversation.contact.phone, providerText);
+    result = await sendMetaForConversation(conversation, channel, "sendText", providerText);
   } else {
     throw Object.assign(new Error("Este canal ainda não está liberado para respostas pela Central."), { statusCode: 409 });
   }
@@ -254,7 +264,7 @@ async function sendImage({ conversationId, buffer, mimeType, fileName, caption, 
   const media = await storeImage({ buffer, mimeType, fileName });
   let result;
   try {
-    result = await channel.sendImage(conversation.contact.phone, {
+    result = await sendMetaForConversation(conversation, channel, "sendImage", {
       buffer, mimeType, fileName: media.fileName, caption: providerCaption || null,
     });
   } catch (error) {
@@ -263,7 +273,7 @@ async function sendImage({ conversationId, buffer, mimeType, fileName, caption, 
   }
   const occurredAt = new Date();
   const message = await prisma.message.create({ data: {
-    conversationId, externalId: result.externalId, channel: conversation.channel, direction: "ENVIADA",
+    conversationId, externalId: conversation.channelAccountId && result.externalId ? `${conversation.channelAccountId}:${result.externalId}` : result.externalId, channel: conversation.channel, channelAccountId: conversation.channelAccountId || null, direction: "ENVIADA",
     status: "ENVIADA", type: "image", text: cleanCaption,
     mediaStorageKey: media.storageKey, mediaMimeType: media.mimeType,
     mediaFileName: media.fileName, mediaSize: media.size,
@@ -290,7 +300,7 @@ async function sendVideo({ conversationId, buffer, mimeType, fileName, caption, 
   const media = await storeVideo({ buffer, mimeType, fileName });
   let result;
   try {
-    result = await channel.sendVideo(conversation.contact.phone, {
+    result = await sendMetaForConversation(conversation, channel, "sendVideo", {
       buffer, mimeType: media.mimeType, fileName: media.fileName, caption: providerCaption || null,
     });
   } catch (error) {
@@ -299,7 +309,7 @@ async function sendVideo({ conversationId, buffer, mimeType, fileName, caption, 
   }
   const occurredAt = new Date();
   const message = await prisma.message.create({ data: {
-    conversationId, externalId: result.externalId, channel: conversation.channel, direction: "ENVIADA",
+    conversationId, externalId: conversation.channelAccountId && result.externalId ? `${conversation.channelAccountId}:${result.externalId}` : result.externalId, channel: conversation.channel, channelAccountId: conversation.channelAccountId || null, direction: "ENVIADA",
     status: "ENVIADA", type: "video", text: cleanCaption,
     mediaStorageKey: media.storageKey, mediaMimeType: media.mimeType,
     mediaFileName: media.fileName, mediaSize: media.size,
@@ -326,7 +336,7 @@ async function sendDocument({ conversationId, buffer, mimeType, fileName, captio
   const media = await storeDocument({ buffer, mimeType, fileName });
   let result;
   try {
-    result = await channel.sendDocument(conversation.contact.phone, {
+    result = await sendMetaForConversation(conversation, channel, "sendDocument", {
       buffer, mimeType: media.mimeType, fileName: media.fileName, caption: providerCaption || null,
     });
   } catch (error) {
@@ -335,7 +345,7 @@ async function sendDocument({ conversationId, buffer, mimeType, fileName, captio
   }
   const occurredAt = new Date();
   const message = await prisma.message.create({ data: {
-    conversationId, externalId: result.externalId, channel: conversation.channel, direction: "ENVIADA",
+    conversationId, externalId: conversation.channelAccountId && result.externalId ? `${conversation.channelAccountId}:${result.externalId}` : result.externalId, channel: conversation.channel, channelAccountId: conversation.channelAccountId || null, direction: "ENVIADA",
     status: "ENVIADA", type: "document", text: cleanCaption,
     mediaStorageKey: media.storageKey, mediaMimeType: media.mimeType,
     mediaFileName: media.fileName, mediaSize: media.size,

@@ -113,16 +113,19 @@ function triageOptionAvailable(option) {
     && !option.category.parent?.masterOnly);
 }
 
-function availableTriageOptions(bot) {
-  return (bot.triageOptions || []).filter(triageOptionAvailable);
+function availableTriageOptions(bot, conversation = null) {
+  const allowedIds = Array.isArray(conversation?.channelAccount?.config?.allowedCategoryIds)
+    ? conversation.channelAccount.config.allowedCategoryIds : [];
+  return (bot.triageOptions || []).filter((option) => triageOptionAvailable(option)
+    && (!allowedIds.length || allowedIds.includes(option.categoryId) || allowedIds.includes(option.category?.parentId)));
 }
 
-function subcategoryOptions(bot, parentId) {
-  return availableTriageOptions(bot).filter((option) => option.category?.parentId === parentId);
+function subcategoryOptions(bot, parentId, conversation = null) {
+  return availableTriageOptions(bot, conversation).filter((option) => option.category?.parentId === parentId);
 }
 
-function topLevelOptions(bot) {
-  const available = availableTriageOptions(bot);
+function topLevelOptions(bot, conversation = null) {
+  const available = availableTriageOptions(bot, conversation);
   const roots = available.filter((option) => !option.category?.parentId);
   const rootIds = new Set(roots.map((option) => option.categoryId));
   for (const child of available.filter((option) => option.category?.parentId)) {
@@ -140,8 +143,6 @@ function topLevelOptions(bot) {
     return order || String(left.label).localeCompare(String(right.label), "pt-BR");
   });
 }
-
-
 function logMisconfiguration(botId, reason, details) {
   // Nunca lança/derruba o webhook por causa de configuração inconsistente
   // (item "Fallback se configuração falhar") — só registra para diagnóstico.
@@ -153,7 +154,7 @@ async function saveBotText(conversation, text, system, channel) {
   const occurredAt = new Date();
   await prisma.$transaction([
     prisma.message.create({ data: {
-      conversationId: conversation.id, externalId: result.externalId || null, channel: "META",
+      conversationId: conversation.id, externalId: conversation.channelAccountId && result.externalId ? `${conversation.channelAccountId}:${result.externalId}` : (result.externalId || null), channel: "META", channelAccountId: conversation.channelAccountId || null,
       direction: "ENVIADA", status: "ENVIADA", type: "text", text, occurredAt,
       rawPayload: { message: result.data, system },
     } }),
@@ -165,7 +166,7 @@ async function saveBotText(conversation, text, system, channel) {
 }
 
 async function sendCategoryMenu(conversation, channel, bot) {
-  const options = topLevelOptions(bot);
+  const options = topLevelOptions(bot, conversation);
   if (!options.length) {
     logMisconfiguration(bot.id, "Nenhuma opção de triagem ativa/válida configurada.", {});
     return saveBotText(conversation, bot.fallbackMessage, "triage_fallback", channel);
@@ -181,7 +182,7 @@ async function sendCategoryMenu(conversation, channel, bot) {
   });
   await prisma.$transaction([
     prisma.message.create({ data: {
-      conversationId: conversation.id, externalId: result.externalId || null, channel: "META",
+      conversationId: conversation.id, externalId: conversation.channelAccountId && result.externalId ? `${conversation.channelAccountId}:${result.externalId}` : (result.externalId || null), channel: "META", channelAccountId: conversation.channelAccountId || null,
       direction: "ENVIADA", status: "ENVIADA", type: "interactive", text: menuText,
       occurredAt: new Date(), rawPayload: { message: result.data, system: "triage_menu" },
     } }),
@@ -193,7 +194,7 @@ async function sendCategoryMenu(conversation, channel, bot) {
 }
 
 async function sendSubcategoryMenu(conversation, channel, bot, parentCategory) {
-  const options = subcategoryOptions(bot, parentCategory.id);
+  const options = subcategoryOptions(bot, parentCategory.id, conversation);
   if (!options.length) return false;
   const body = "Perfeito! Para continuarmos, escolha abaixo o tipo de atendimento que voc\u00ea precisa.";
   const rows = options.map((option) => ({
@@ -205,7 +206,7 @@ async function sendSubcategoryMenu(conversation, channel, bot, parentCategory) {
   const occurredAt = new Date();
   await prisma.$transaction([
     prisma.message.create({ data: {
-      conversationId: conversation.id, externalId: result.externalId || null, channel: "META",
+      conversationId: conversation.id, externalId: conversation.channelAccountId && result.externalId ? `${conversation.channelAccountId}:${result.externalId}` : (result.externalId || null), channel: "META", channelAccountId: conversation.channelAccountId || null,
       direction: "ENVIADA", status: "ENVIADA", type: "interactive", text: body,
       occurredAt, rawPayload: { message: result.data, system: "triage_subcategory_menu", parentCategoryId: parentCategory.id },
     } }),
@@ -217,7 +218,7 @@ async function sendSubcategoryMenu(conversation, channel, bot, parentCategory) {
 }
 
 async function completeTriage(conversation, categoryId, channel, bot) {
-  const option = availableTriageOptions(bot).find((item) => item.categoryId === categoryId);
+  const option = availableTriageOptions(bot, conversation).find((item) => item.categoryId === categoryId);
   if (!option) return sendCategoryMenu(conversation, channel, bot);
   const category = option.category;
 
@@ -235,7 +236,7 @@ async function completeTriage(conversation, categoryId, channel, bot) {
     const occurredAt = new Date();
     await prisma.$transaction(async (transaction) => {
       await transaction.message.create({ data: {
-        conversationId: conversation.id, externalId: result.externalId || null, channel: "META",
+        conversationId: conversation.id, externalId: conversation.channelAccountId && result.externalId ? `${conversation.channelAccountId}:${result.externalId}` : (result.externalId || null), channel: "META", channelAccountId: conversation.channelAccountId || null,
         direction: "ENVIADA", status: "ENVIADA", type: "text", text, occurredAt,
         rawPayload: { message: result.data, system: "triage_confirmation" },
       } });
@@ -285,8 +286,8 @@ async function isReopenedConversation(conversationId) {
 }
 
 async function routeTriageSelection(conversation, categoryId, channel, bot) {
-  const direct = availableTriageOptions(bot).find((item) => item.categoryId === categoryId);
-  const children = subcategoryOptions(bot, categoryId);
+  const direct = availableTriageOptions(bot, conversation).find((item) => item.categoryId === categoryId);
+  const children = subcategoryOptions(bot, categoryId, conversation);
   if (children.length) {
     const parentCategory = direct?.category || children[0].category.parent;
     if (parentCategory) return sendSubcategoryMenu(conversation, channel, bot, parentCategory);
@@ -300,6 +301,7 @@ async function handleIncomingTriage(event, message, channel, { now = new Date() 
     where: { id: message.conversationId },
     include: {
       contact: true,
+      channelAccount: { select: { config: true } },
       messages: {
         where: { direction: "ENVIADA" }, orderBy: { occurredAt: "desc" }, take: 1,
         select: { rawPayload: true },
