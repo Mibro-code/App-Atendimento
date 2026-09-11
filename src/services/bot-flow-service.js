@@ -24,6 +24,8 @@ const { isActiveNow } = require("./bot-knowledge-source-service");
 const { KnowledgeSourceProvider } = require("./bot-knowledge/knowledge-provider");
 const { interpretWithProviders } = require("./bot-interpreter-service");
 const { getFallbackProvider } = require("./ai/get-ai-provider");
+const { similarity } = require("./ai/local-fallback-provider");
+const { normalizeSemantic } = require("./bot-semantic-normalizer");
 
 const defaultKnowledgeProvider = new KnowledgeSourceProvider();
 
@@ -43,9 +45,11 @@ function knowledgeAccessWhere(botId) {
 
 const flowStepSelect = {
   id: true, intentId: true, name: true, order: true, action: true, question: true, entityKey: true,
-  required: true, knowledgeSourceId: true, toolName: true, responseMessage: true,
+  required: true, knowledgeSourceId: true, responseBlockId: true, toolName: true, responseMessage: true,
   nextStepId: true, onSuccessStepId: true, onFailureStepId: true, gotoStepId: true, maxAttempts: true,
   active: true, createdAt: true, updatedAt: true,
+  responseBlock: { select: { id: true, code: true, name: true, content: true, kind: true, active: true } },
+  options: { orderBy: [{ order: "asc" }, { createdAt: "asc" }] },
 };
 
 // ---------------------------------------------------------------------------
@@ -85,6 +89,7 @@ function flowStepInput(body = {}) {
     entityKey: body.entityKey ? String(body.entityKey).trim().slice(0, 60) : null,
     required: body.required !== false,
     knowledgeSourceId: body.knowledgeSourceId || null,
+    responseBlockId: body.responseBlockId || null,
     toolName: body.toolName ? String(body.toolName).trim() : null,
     responseMessage: body.responseMessage ? String(body.responseMessage).trim().slice(0, 4000) : null,
     nextStepId: body.nextStepId || null,
@@ -96,10 +101,16 @@ function flowStepInput(body = {}) {
   };
 }
 
-const FLOW_STEP_ACTIONS = ["ASK_QUESTION", "USE_KNOWLEDGE", "QUERY_TOOL", "RESPOND", "RESOLVED", "HANDOFF_HUMAN", "GOTO_STEP"];
+const FLOW_STEP_ACTIONS = ["ASK_QUESTION", "SHOW_OPTIONS", "USE_KNOWLEDGE", "USE_RESPONSE_BLOCK", "QUERY_TOOL", "RESPOND", "RESOLVED", "HANDOFF_HUMAN", "GOTO_STEP"];
 function validateStepActionFields(data) {
-  if (data.action === "ASK_QUESTION" && !data.question) {
+  if (data.action === "ASK_QUESTION" && !data.question && !data.responseBlockId) {
     throw Object.assign(new Error("Informe a pergunta da etapa."), { statusCode: 400 });
+  }
+  if (data.action === "SHOW_OPTIONS" && !data.question && !data.responseBlockId) {
+    throw Object.assign(new Error("Informe o texto apresentado antes das opções."), { statusCode: 400 });
+  }
+  if (data.action === "USE_RESPONSE_BLOCK" && !data.responseBlockId) {
+    throw Object.assign(new Error("Selecione o bloco de resposta da etapa."), { statusCode: 400 });
   }
   if (data.action === "QUERY_TOOL" && !data.toolName) {
     throw Object.assign(new Error("Selecione a Tool da etapa."), { statusCode: 400 });
@@ -109,6 +120,54 @@ function validateStepActionFields(data) {
   }
   if (data.action === "GOTO_STEP" && !data.gotoStepId) {
     throw Object.assign(new Error("Selecione a etapa de destino."), { statusCode: 400 });
+  }
+}
+
+async function assertResponseBlockAccessible(intentId, responseBlockId, client) {
+  if (!responseBlockId) return;
+  const intent = await client.botIntent.findUnique({ where: { id: intentId }, select: { botId: true } });
+  const block = intent && await client.botResponseBlock.findFirst({ where: { id: responseBlockId, botId: intent.botId }, select: { id: true } });
+  if (!block) throw Object.assign(new Error("O bloco selecionado não pertence a este Bot."), { statusCode: 400 });
+}
+
+function optionInput(option, index) {
+  const label = String(option?.label || "").trim().slice(0, 120);
+  const value = String(option?.value || label).trim().toLocaleUpperCase("pt-BR").replace(/[^A-Z0-9_]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 80);
+  if (!label || !value) throw Object.assign(new Error("Toda opção precisa de nome e valor."), { statusCode: 400 });
+  return {
+    label, value,
+    aliases: [...new Set((Array.isArray(option.aliases) ? option.aliases : []).map((item) => String(item).trim()).filter(Boolean))].slice(0, 30),
+    order: Number.isInteger(Number(option.order)) ? Number(option.order) : index,
+    active: option.active !== false,
+    nextStepId: option.nextStepId || null,
+    targetIntentId: option.targetIntentId || null,
+    responseBlockId: option.responseBlockId || null,
+    conditions: option.conditions && typeof option.conditions === "object" ? option.conditions : {},
+  };
+}
+
+async function validateOptions(intentId, options, client) {
+  const normalized = (Array.isArray(options) ? options : []).map(optionInput);
+  if (new Set(normalized.map((item) => item.value)).size !== normalized.length) {
+    throw Object.assign(new Error("As opções não podem ter valores repetidos."), { statusCode: 400 });
+  }
+  const intent = await client.botIntent.findUnique({ where: { id: intentId }, select: { botId: true } });
+  for (const option of normalized) {
+    if (option.nextStepId && !(await assertStepBelongsToIntent(intentId, option.nextStepId, client))) {
+      throw Object.assign(new Error(`O destino da opção "${option.label}" não pertence a esta intenção.`), { statusCode: 400 });
+    }
+    if (option.targetIntentId) {
+      const target = await client.botIntent.findFirst({ where: { id: option.targetIntentId, botId: intent.botId }, select: { id: true } });
+      if (!target) throw Object.assign(new Error(`A intenção da opção "${option.label}" não pertence a este Bot.`), { statusCode: 400 });
+    }
+    await assertResponseBlockAccessible(intentId, option.responseBlockId, client);
+  }
+  return normalized;
+}
+
+function assertOtherOption(options) {
+  if (!options.some((option) => option.value === "OUTRO" || normalizeText(option.label) === "outro")) {
+    throw Object.assign(new Error('Todo menu precisa oferecer a opção "Outro".'), { statusCode: 400 });
   }
 }
 
@@ -132,6 +191,10 @@ async function createFlowStep(intentId, body, client = prisma) {
   validateStepActionFields(data);
 
   await assertKnowledgeSourceAccessible(intentId, data.knowledgeSourceId, client);
+  await assertResponseBlockAccessible(intentId, data.responseBlockId, client);
+  const options = await validateOptions(intentId, body.options, client);
+  if (data.action === "SHOW_OPTIONS" && options.length < 2) throw Object.assign(new Error("Adicione ao menos duas opções."), { statusCode: 400 });
+  if (data.action === "SHOW_OPTIONS") assertOtherOption(options);
 
   for (const field of ["nextStepId", "onSuccessStepId", "onFailureStepId", "gotoStepId"]) {
     if (data[field] && !(await assertStepBelongsToIntent(intentId, data[field], client))) {
@@ -143,6 +206,9 @@ async function createFlowStep(intentId, body, client = prisma) {
   return client.botFlowStep.create({
     data: { ...data, intentId, order: nextOrderFor(existing) },
     select: flowStepSelect,
+  }).then(async (step) => {
+    if (options.length) await client.botFlowOption.createMany({ data: options.map((option) => ({ ...option, stepId: step.id })) });
+    return client.botFlowStep.findUnique({ where: { id: step.id }, select: flowStepSelect });
   });
 }
 
@@ -156,6 +222,10 @@ async function updateFlowStep(stepId, body, client = prisma) {
   validateStepActionFields(data);
 
   await assertKnowledgeSourceAccessible(current.intentId, data.knowledgeSourceId, client);
+  await assertResponseBlockAccessible(current.intentId, data.responseBlockId, client);
+  const options = body.options === undefined ? null : await validateOptions(current.intentId, body.options, client);
+  if (data.action === "SHOW_OPTIONS" && options && options.length < 2) throw Object.assign(new Error("Adicione ao menos duas opções."), { statusCode: 400 });
+  if (data.action === "SHOW_OPTIONS" && options) assertOtherOption(options);
 
   for (const field of ["nextStepId", "onSuccessStepId", "onFailureStepId", "gotoStepId"]) {
     if (data[field] === stepId) throw Object.assign(new Error("Uma etapa não pode apontar para ela mesma."), { statusCode: 400 });
@@ -164,7 +234,12 @@ async function updateFlowStep(stepId, body, client = prisma) {
     }
   }
 
-  return client.botFlowStep.update({ where: { id: stepId }, data, select: flowStepSelect });
+  await client.botFlowStep.update({ where: { id: stepId }, data });
+  if (options) {
+    await client.botFlowOption.deleteMany({ where: { stepId } });
+    if (options.length) await client.botFlowOption.createMany({ data: options.map((option) => ({ ...option, stepId })) });
+  }
+  return client.botFlowStep.findUnique({ where: { id: stepId }, select: flowStepSelect });
 }
 
 async function deleteFlowStep(stepId, client = prisma) {
@@ -371,6 +446,44 @@ function resolveNextStepId(step, outcome) {
   return step.nextStepId || null;
 }
 
+function renderBlock(block, entities = {}) {
+  if (!block?.active || !block.content) return null;
+  return block.content.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_match, key) => String(entities[key] ?? ""));
+}
+
+function availableOptions(step, flowState) {
+  return (step.options || []).filter((option) => {
+    if (!option.active) return false;
+    const conditions = option.conditions && typeof option.conditions === "object" ? option.conditions : {};
+    return Object.entries(conditions).every(([key, expected]) => flowState.collectedEntities[key] === expected);
+  });
+}
+
+function optionsPrompt(step, flowState) {
+  const prompt = renderBlock(step.responseBlock, flowState.collectedEntities) || step.question || step.name;
+  const choices = availableOptions(step, flowState).map((option, index) => `${index + 1}. ${option.label}`);
+  return `${prompt}\n\n${choices.join("\n")}`;
+}
+
+function matchOption(step, message, bot, flowState) {
+  const options = availableOptions(step, flowState);
+  const raw = String(message || "").trim();
+  const numeric = Number.parseInt(raw, 10);
+  if (/^\d+$/.test(raw) && numeric >= 1 && numeric <= options.length) {
+    return { option: options[numeric - 1], rule: "OPTION_NUMBER", confidence: 1 };
+  }
+  const normalized = normalizeSemantic(raw, bot.synonymGroups || []).normalized;
+  let best = null;
+  for (const option of options) {
+    for (const candidate of [option.value, option.label, ...(option.aliases || [])]) {
+      const normalizedCandidate = normalizeSemantic(candidate, bot.synonymGroups || []).normalized;
+      const score = similarity(normalized, normalizedCandidate);
+      if (!best || score > best.confidence) best = { option, rule: score === 1 ? "OPTION_EXACT" : "OPTION_FUZZY", confidence: score };
+    }
+  }
+  return best && best.confidence >= 0.72 ? best : null;
+}
+
 // Percorre etapas automáticas (USE_KNOWLEDGE/QUERY_TOOL/RESPOND/GOTO_STEP)
 // encadeadas até: precisar esperar uma resposta (ASK_QUESTION), terminar
 // (RESOLVED/HANDOFF_HUMAN) ou esgotar o limite de segurança do encadeamento.
@@ -400,12 +513,25 @@ async function runChain({ bot, intent, stepMap, startStepId, flowState, channel,
         continue;
       }
       if (!flowState.askedQuestions.includes(step.id)) flowState.askedQuestions.push(step.id);
-      responses.push(step.question || step.name);
+      const question = renderBlock(step.responseBlock, flowState.collectedEntities) || step.question || step.name;
+      responses.push(question);
       return {
         responseText: responses.join("\n\n"),
         terminal: null,
         summary: `Aguardando resposta da etapa "${step.name}".`,
-        flow: toFlowPersist(flowState, step.id, "IN_PROGRESS", step.question || step.name),
+        flow: toFlowPersist(flowState, step.id, "IN_PROGRESS", question),
+      };
+    }
+
+    if (step.action === "SHOW_OPTIONS") {
+      const prompt = optionsPrompt(step, flowState);
+      if (!flowState.askedQuestions.includes(step.id)) flowState.askedQuestions.push(step.id);
+      responses.push(prompt);
+      return {
+        responseText: responses.join("\n\n"), terminal: null,
+        summary: `Aguardando escolha na etapa "${step.name}".`,
+        flow: toFlowPersist(flowState, step.id, "IN_PROGRESS", prompt),
+        selectedFlow: intent.name,
       };
     }
 
@@ -422,6 +548,14 @@ async function runChain({ bot, intent, stepMap, startStepId, flowState, channel,
       continue;
     }
 
+    if (step.action === "USE_RESPONSE_BLOCK") {
+      const text = renderBlock(step.responseBlock, flowState.collectedEntities);
+      recordAttempt(flowState, step, text ? "SUCCESS" : "FAILURE", { responseBlockCode: step.responseBlock?.code || null });
+      if (text) responses.push(text);
+      stepId = resolveNextStepId(step, text ? "SUCCESS" : "FAILURE");
+      continue;
+    }
+
     if (step.action === "QUERY_TOOL") {
       const result = await resolveStepTool({ step, bot, flowState, channel, mode });
       recordAttempt(flowState, step, result.success ? "SUCCESS" : "FAILURE");
@@ -431,7 +565,8 @@ async function runChain({ bot, intent, stepMap, startStepId, flowState, channel,
     }
 
     if (step.action === "RESPOND") {
-      if (step.responseMessage) responses.push(step.responseMessage);
+      const text = renderBlock(step.responseBlock, flowState.collectedEntities) || step.responseMessage;
+      if (text) responses.push(text);
       recordAttempt(flowState, step, "SUCCESS");
       stepId = resolveNextStepId(step, "SUCCESS");
       continue;
@@ -443,7 +578,8 @@ async function runChain({ bot, intent, stepMap, startStepId, flowState, channel,
     }
 
     if (step.action === "RESOLVED") {
-      if (step.responseMessage) responses.push(step.responseMessage);
+      const text = renderBlock(step.responseBlock, flowState.collectedEntities) || step.responseMessage;
+      if (text) responses.push(text);
       return {
         responseText: responses.join("\n\n") || "Que bom que conseguimos resolver! Qualquer coisa, é só chamar.",
         terminal: "RESOLVED",
@@ -453,7 +589,7 @@ async function runChain({ bot, intent, stepMap, startStepId, flowState, channel,
     }
 
     if (step.action === "HANDOFF_HUMAN") {
-      responses.push(step.responseMessage || "Vou te encaminhar para um de nossos atendentes, só um instante.");
+      responses.push(renderBlock(step.responseBlock, flowState.collectedEntities) || step.responseMessage || "Vou te encaminhar para um de nossos atendentes, só um instante.");
       return {
         responseText: responses.join("\n\n"),
         terminal: "HANDOFF",
@@ -583,12 +719,69 @@ async function continueFlow({ bot, intent, message, state, channel, mode, client
     };
   }
 
-  if (currentStep.action !== "ASK_QUESTION") {
-    // Só etapas ASK_QUESTION pausam esperando o cliente — qualquer outra
+  if (!["ASK_QUESTION", "SHOW_OPTIONS"].includes(currentStep.action)) {
+    // Só etapas de pergunta/opções pausam esperando o cliente — qualquer outra
     // situação aqui é defensiva (estado inconsistente), nunca trava.
     return runChain({
       bot, intent, stepMap, startStepId: currentStep.id, flowState, channel, mode, client, message,
     });
+  }
+
+  if (currentStep.action === "SHOW_OPTIONS") {
+    const matched = matchOption(currentStep, message, bot, flowState);
+    const attempts = (flowState.stepAttempts[currentStep.id] || 0) + 1;
+    flowState.stepAttempts[currentStep.id] = attempts;
+    if (!matched) {
+      if (attempts >= (currentStep.maxAttempts || DEFAULT_MAX_ATTEMPTS)) {
+        recordAttempt(flowState, currentStep, "FAILURE", { ruleMatched: null });
+        return {
+          responseText: "Não consegui identificar uma das opções. Vou te encaminhar para um atendente.",
+          terminal: "HANDOFF",
+          summary: `Máximo de tentativas atingido no menu "${currentStep.name}".`,
+          flow: toFlowPersist(flowState, null, "HANDED_OFF"), matchedRule: null,
+        };
+      }
+      const prompt = optionsPrompt(currentStep, flowState);
+      return {
+        responseText: `Não consegui identificar a opção. Responda com o número ou nome desejado.\n\n${prompt}`,
+        terminal: null, summary: `Opção não reconhecida em "${currentStep.name}".`,
+        flow: toFlowPersist(flowState, currentStep.id, "IN_PROGRESS", prompt), matchedRule: null,
+      };
+    }
+
+    flowState.collectedEntities.lastOption = matched.option.value;
+    recordAttempt(flowState, currentStep, "SUCCESS", {
+      selectedOption: matched.option.value, ruleMatched: matched.rule, confidence: matched.confidence,
+    });
+
+    if (matched.option.targetIntentId) {
+      const targetIntent = (bot.intents || []).find((item) => item.id === matched.option.targetIntentId && item.active);
+      if (!targetIntent) {
+        return {
+          responseText: "Esta opção está temporariamente indisponível. Vou te encaminhar para um atendente.", terminal: "HANDOFF",
+          summary: `Intenção de destino da opção "${matched.option.label}" indisponível.`,
+          flow: toFlowPersist(flowState, null, "HANDED_OFF"), matchedRule: matched.rule,
+        };
+      }
+      const targetOutcome = await startFlow({ bot, intent: targetIntent, channel, mode, client, seedEntities: flowState.collectedEntities });
+      if (targetOutcome) return {
+        ...targetOutcome,
+        targetIntentId: targetIntent.id,
+        matchedRule: matched.rule,
+        selectedFlow: targetIntent.name,
+      };
+    }
+
+    if (matched.option.nextStepId) {
+      const result = await runChain({ bot, intent, stepMap, startStepId: matched.option.nextStepId, flowState, channel, mode, client, message });
+      return { ...result, matchedRule: matched.rule, selectedFlow: intent.name };
+    }
+
+    return {
+      responseText: "Vou te encaminhar para um de nossos atendentes, só um instante.", terminal: "HANDOFF",
+      summary: `Opção "${matched.option.label}" encaminhada para atendimento humano.`,
+      flow: toFlowPersist(flowState, null, "HANDED_OFF"), matchedRule: matched.rule, selectedFlow: intent.name,
+    };
   }
 
   // "sim"/"não"/frases de resolução nunca disparam troca de assunto — são o
@@ -607,10 +800,10 @@ async function continueFlow({ bot, intent, message, state, channel, mode, client
 
   if (outcome === "RETRY") {
     return {
-      responseText: currentStep.question || currentStep.name,
+      responseText: renderBlock(currentStep.responseBlock, flowState.collectedEntities) || currentStep.question || currentStep.name,
       terminal: null,
       summary: `Resposta não compreendida na etapa "${currentStep.name}"; repetindo a pergunta.`,
-      flow: toFlowPersist(flowState, currentStep.id, "IN_PROGRESS", currentStep.question || currentStep.name),
+      flow: toFlowPersist(flowState, currentStep.id, "IN_PROGRESS", renderBlock(currentStep.responseBlock, flowState.collectedEntities) || currentStep.question || currentStep.name),
     };
   }
 

@@ -609,6 +609,8 @@ model Bot {
   campaigns               Campaign[]
   triageOptions           BotTriageOption[]
   personality             BotPersonality?
+  responseBlocks          BotResponseBlock[]
+  synonymGroups           BotSynonymGroup[]
 
   @@index([status, channel])
   @@index([defaultCategoryId])
@@ -788,6 +790,7 @@ model BotFlowStep {
   // USE_KNOWLEDGE (associação direta; se vazio, cai para busca por
   // intenção/palavra-chave via KnowledgeSourceProvider, igual ao fluxo atual)
   knowledgeSourceId String?
+  responseBlockId   String?
 
   // QUERY_TOOL (nome de uma Tool do registry — bot-tools/tool-registry.js;
   // continua bloqueada se desativada/sem permissão, ver bot-tool-orchestrator-service.js)
@@ -809,20 +812,81 @@ model BotFlowStep {
 
   intent          BotIntent        @relation(fields: [intentId], references: [id], onDelete: Cascade)
   knowledgeSource KnowledgeSource? @relation(fields: [knowledgeSourceId], references: [id], onDelete: SetNull)
+  responseBlock   BotResponseBlock? @relation(fields: [responseBlockId], references: [id], onDelete: SetNull)
+  options         BotFlowOption[]
 
   @@unique([intentId, order])
   @@index([intentId, active])
   @@index([knowledgeSourceId])
+  @@index([responseBlockId])
 }
 
 enum BotFlowStepAction {
   ASK_QUESTION
+  SHOW_OPTIONS
   USE_KNOWLEDGE
+  USE_RESPONSE_BLOCK
   QUERY_TOOL
   RESPOND
   RESOLVED
   HANDOFF_HUMAN
   GOTO_STEP
+}
+
+model BotResponseBlock {
+  id        String   @id @default(cuid())
+  botId     String
+  code      String
+  name      String
+  content   String   @db.Text
+  kind      String   @default("RESPONSE")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  bot       Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+  flowSteps BotFlowStep[]
+  options   BotFlowOption[]
+
+  @@unique([botId, code])
+  @@index([botId, active])
+}
+
+model BotSynonymGroup {
+  id        String   @id @default(cuid())
+  botId     String
+  key       String
+  label     String
+  terms     String[] @default([])
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  bot       Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@unique([botId, key])
+  @@index([botId, active])
+}
+
+model BotFlowOption {
+  id              String            @id @default(cuid())
+  stepId          String
+  label           String
+  value           String
+  aliases         String[]          @default([])
+  order           Int               @default(0)
+  active          Boolean           @default(true)
+  nextStepId      String?
+  targetIntentId  String?
+  responseBlockId String?
+  conditions      Json              @default("{}")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  step            BotFlowStep       @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  responseBlock   BotResponseBlock? @relation(fields: [responseBlockId], references: [id], onDelete: SetNull)
+
+  @@unique([stepId, value])
+  @@index([stepId, order])
+  @@index([targetIntentId])
+  @@index([responseBlockId])
 }
 
 enum FlowResolutionStatus {

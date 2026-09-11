@@ -14,6 +14,7 @@ const suggestions = require("../services/bot-suggestion-service");
 const quality = require("../services/bot-quality-service");
 const aiCredentials = require("../services/ai/ai-credential-service");
 const personality = require("../services/bot-personality-service");
+const guidedConfig = require("../services/bot-guided-config-service");
 
 module.exports = {
   async list(req, res, next) {
@@ -114,6 +115,34 @@ module.exports = {
     try {
       return res.json(await bots.reorderFlowSteps(req.params.botId, req.params.intentId, req.body.stepIds, req.user));
     } catch (error) { return next(error); }
+  },
+  async guidedConfig(req, res, next) {
+    try { return res.json(await guidedConfig.list(req.params.botId, req.user)); }
+    catch (error) { return next(error); }
+  },
+  async createResponseBlock(req, res, next) {
+    try { return res.status(201).json(await guidedConfig.createBlock(req.params.botId, req.body, req.user)); }
+    catch (error) { return next(error); }
+  },
+  async updateResponseBlock(req, res, next) {
+    try { return res.json(await guidedConfig.updateBlock(req.params.botId, req.params.blockId, req.body, req.user)); }
+    catch (error) { return next(error); }
+  },
+  async deleteResponseBlock(req, res, next) {
+    try { return res.json(await guidedConfig.deleteBlock(req.params.botId, req.params.blockId, req.user)); }
+    catch (error) { return next(error); }
+  },
+  async createSynonym(req, res, next) {
+    try { return res.status(201).json(await guidedConfig.createSynonym(req.params.botId, req.body, req.user)); }
+    catch (error) { return next(error); }
+  },
+  async updateSynonym(req, res, next) {
+    try { return res.json(await guidedConfig.updateSynonym(req.params.botId, req.params.synonymId, req.body, req.user)); }
+    catch (error) { return next(error); }
+  },
+  async deleteSynonym(req, res, next) {
+    try { return res.json(await guidedConfig.deleteSynonym(req.params.botId, req.params.synonymId, req.user)); }
+    catch (error) { return next(error); }
   },
 
   async simulate(req, res, next) {

@@ -114,6 +114,8 @@ async function interpretWithProviders({ bot, message, context = [], state = null
     confidence: intent ? Math.min(1, Math.max(0, Number(result.confidence) || 0)) : 0,
     matchedExample: result.matchedExample || null,
     entities: mergeEntities(localEntities, result.entities),
+    problem: result.problem || null,
+    recommendedFlow: result.recommendedFlow || null,
     provider: result.providerName,
     status,
     errorCode,

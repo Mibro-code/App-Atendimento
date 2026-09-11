@@ -412,6 +412,13 @@ app.post(
   app.patch("/api/bots/:botId/intents/:intentId/flow-steps/:stepId", botController.updateFlowStep);
   app.delete("/api/bots/:botId/intents/:intentId/flow-steps/:stepId", botController.deleteFlowStep);
   app.put("/api/bots/:botId/intents/:intentId/flow-steps/reorder", botController.reorderFlowSteps);
+  app.get("/api/bots/:botId/guided-config", botController.guidedConfig);
+  app.post("/api/bots/:botId/response-blocks", botController.createResponseBlock);
+  app.patch("/api/bots/:botId/response-blocks/:blockId", botController.updateResponseBlock);
+  app.delete("/api/bots/:botId/response-blocks/:blockId", botController.deleteResponseBlock);
+  app.post("/api/bots/:botId/synonyms", botController.createSynonym);
+  app.patch("/api/bots/:botId/synonyms/:synonymId", botController.updateSynonym);
+  app.delete("/api/bots/:botId/synonyms/:synonymId", botController.deleteSynonym);
   app.post("/api/bots/:botId/simulate", botController.simulate);
   app.get("/api/bot-observations", botController.observations);
   app.get("/api/bot-observations/metrics", botController.observationMetrics);

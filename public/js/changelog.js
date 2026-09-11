@@ -1,9 +1,20 @@
 (() => {
-  const APP_VERSION = "0.30.0";
+  const APP_VERSION = "0.30.1";
 
 
 
   const CHANGELOG = [
+    {
+      version: "0.30.1",
+      date: "11/09/2026",
+      title: "Assistente híbrido e guiado",
+      changes: [
+        "O Assistente Mibro ganhou menus e submenus configuráveis, preservando contexto entre as etapas.",
+        "Blocos de resposta e grupos de sinônimos agora podem ser gerenciados no painel de Bots.",
+        "Normalização local, fuzzy matching e Knowledge resolvem casos simples sem consumir IA externa.",
+        "A IA externa permanece apenas como fallback estruturado e o Assistente continua em observação, sem enviar mensagens reais."
+      ]
+    },
     {
       version: "0.30.0",
       date: "11/09/2026",

@@ -56,10 +56,25 @@ function expandToken(token) {
 
 // Representação normalizada interna — nunca persistida como substituto da
 // mensagem original (quem chama continua gravando Message.text intocado).
-function normalizeSemantic(message) {
+function configurableSynonymMap(groups = []) {
+  const map = new Map();
+  for (const group of groups) {
+    if (group?.active === false) continue;
+    const key = normalizeText(group?.key);
+    if (!key) continue;
+    for (const term of [group.key, ...(Array.isArray(group.terms) ? group.terms : [])]) {
+      const normalized = normalizeText(term);
+      if (normalized) map.set(normalized, key);
+    }
+  }
+  return map;
+}
+
+function normalizeSemantic(message, synonymGroups = []) {
   const base = normalizeText(message);
   if (!base) return { normalized: "", tokens: [] };
-  const tokens = base.split(/\s+/).filter(Boolean).map(expandToken);
+  const synonyms = configurableSynonymMap(synonymGroups);
+  const tokens = base.split(/\s+/).filter(Boolean).map(expandToken).map((token) => synonyms.get(token) || token);
   return { normalized: tokens.join(" "), tokens };
 }
 
@@ -129,13 +144,14 @@ function tokenSetSimilarity(tokensA, tokensB) {
 
 // Ponto de entrada único desta camada — usado pelo interpretador (fase 1) e
 // pelo simulador (diagnóstico, item 12).
-function understandMessage(message) {
-  const { normalized, tokens } = normalizeSemantic(message);
+function understandMessage(message, synonymGroups = []) {
+  const { normalized, tokens } = normalizeSemantic(message, synonymGroups);
   return { original: message, normalized, tokens, concepts: matchConceptClusters(tokens) };
 }
 
 module.exports = {
   CONCEPT_CLUSTERS,
+  configurableSynonymMap,
   expandToken,
   matchConceptClusters,
   normalizeSemantic,

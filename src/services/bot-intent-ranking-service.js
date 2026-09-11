@@ -32,7 +32,7 @@ function scoreExample(messageSemantic, example) {
   const normalizedExample = normalizeText(example.text);
   const lexicalScore = similarity(normalizedMessage, normalizedExample);
 
-  const exampleSemantic = normalizeSemantic(example.text);
+  const exampleSemantic = normalizeSemantic(example.text, messageSemantic.synonymGroups);
   const semanticOverlap = tokenSetSimilarity(messageSemantic.tokens, exampleSemantic.tokens);
   const exampleConcepts = new Set(matchConceptClusters(exampleSemantic.tokens).map((c) => c.id));
   const sharedConcept = messageSemantic.concepts.some((c) => exampleConcepts.has(c.id));
@@ -47,7 +47,8 @@ function scoreExample(messageSemantic, example) {
 // `status`: "OK" (um candidato claramente à frente), "AMBIGUOUS" (dois ou
 // mais muito próximos) ou "UNKNOWN" (nada bateu o mínimo).
 function rankIntentCandidates(bot, message) {
-  const messageSemantic = { original: message, ...normalizeSemantic(message) };
+  const synonymGroups = bot.synonymGroups || [];
+  const messageSemantic = { original: message, ...normalizeSemantic(message, synonymGroups), synonymGroups };
   messageSemantic.concepts = matchConceptClusters(messageSemantic.tokens);
 
   const scored = [];

@@ -16,7 +16,7 @@ function parseJsonResponse(text) {
 
 function validateClassification(parsed, bot) {
   const { sanitizeEntities } = require("../bot-entity-extractor");
-  if (!parsed || typeof parsed !== "object") return { intentId: null, confidence: 0, entities: {} };
+  if (!parsed || typeof parsed !== "object") return { intentId: null, problem: null, recommendedFlow: null, confidence: 0, entities: {} };
   const intents = bot.intents || [];
   const validIntentIds = new Set(intents.map((intent) => intent.id));
   const candidate = typeof parsed.intentId === "string" ? parsed.intentId.trim() : "";
@@ -28,8 +28,10 @@ function validateClassification(parsed, bot) {
   }
   const rawConfidence = Number(parsed.confidence);
   const confidence = Number.isFinite(rawConfidence) ? Math.min(1, Math.max(0, rawConfidence)) : 0;
-  if (!intentId) return { intentId: null, confidence: 0, entities: sanitizeEntities(parsed.entities) };
-  return { intentId, confidence, entities: sanitizeEntities(parsed.entities) };
+  const cleanText = (value) => typeof value === "string" ? value.trim().slice(0, 500) || null : null;
+  const structured = { problem: cleanText(parsed.problem), recommendedFlow: cleanText(parsed.recommendedFlow) };
+  if (!intentId) return { intentId: null, ...structured, confidence: 0, entities: sanitizeEntities(parsed.entities) };
+  return { intentId, ...structured, confidence, entities: sanitizeEntities(parsed.entities) };
 }
 
 module.exports = { parseJsonResponse, validateClassification };

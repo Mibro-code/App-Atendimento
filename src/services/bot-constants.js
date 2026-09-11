@@ -164,12 +164,14 @@ const FEATURE_FLAG_DEFAULTS = Object.freeze({
   // mesmos serviços de sempre, nunca duplicados. Um Bot que nunca ligar isto
   // continua se comportando byte a byte como antes.
   agentPlannerEnabled: false,
+  guidedFlowEnabled: false,
+  guidedEntryIntentId: "",
 });
 const BOOLEAN_FEATURE_FLAG_KEYS = Object.freeze([
   "interpretationEnabled", "conversationalBehaviorEnabled", "contextEnabled", "autoSwitchEnabled",
   "observationEnabled", "learningEnabled", "agentSuggestionsEnabled", "knowledgeSuggestionsEnabled", "knowledgeBaseEnabled",
   "handoffAutoPauseEnabled", "handoffEnabled", "toolsFeatureEnabled", "flowEngineEnabled",
-  "autoFinalizeOnResolution", "externalAiFallbackEnabled", "agentPlannerEnabled",
+  "autoFinalizeOnResolution", "externalAiFallbackEnabled", "agentPlannerEnabled", "guidedFlowEnabled",
 ]);
 const NUMERIC_FEATURE_FLAG_RANGES = Object.freeze({
   contextMaxMessages: { min: 1, max: 30 },
@@ -191,6 +193,7 @@ const ENUM_FEATURE_FLAG_KEYS = Object.freeze({
 // sanitização) — hoje só o nome do modelo do provider externo escolhido.
 const FREE_TEXT_FEATURE_FLAG_KEYS = Object.freeze({
   externalAiModel: { maxLength: 120 },
+  guidedEntryIntentId: { maxLength: 120 },
 });
 
 const RATING_REQUEST_MODES = Object.freeze(["BOT_COMPLETED", "BEFORE_HANDOFF", "MANUAL", "NEVER"]);

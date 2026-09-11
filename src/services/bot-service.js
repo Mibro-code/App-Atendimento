@@ -53,6 +53,8 @@ const botInclude = {
     include: { category: { select: categorySelection } },
   },
   personality: true,
+  responseBlocks: { orderBy: [{ code: "asc" }] },
+  synonymGroups: { orderBy: [{ label: "asc" }] },
 };
 
 function fail(message, statusCode = 400) {

@@ -49,9 +49,10 @@ function buildIntentPrompt({ bot, message, context = [] }) {
   return [
     "Você classifica a intenção de mensagens de clientes de um chat de atendimento.",
     "Responda APENAS com um JSON válido, sem texto antes ou depois, no formato:",
-    '{"intentId": "<id da intenção mais provável ou null>", "confidence": <número de 0 a 1>, "entities": {"orderNumber": null, "cpf": null, "cnpj": null, "serialNumber": null, "email": null, "productName": null, "trackingCode": null}}',
+    '{"intentId": "<id da intenção mais provável ou null>", "problem": "<resumo curto ou null>", "recommendedFlow": "<id da intenção/fluxo recomendado ou null>", "confidence": <número de 0 a 1>, "entities": {"orderNumber": null, "cpf": null, "cnpj": null, "serialNumber": null, "email": null, "productName": null, "trackingCode": null}}',
     "Preencha em entities apenas os campos que a mensagem realmente informar; deixe os demais como null.",
     "Escolha intentId apenas entre os IDs listados abaixo. Se nenhuma intenção corresponder com confiança, use null.",
+    "recommendedFlow deve usar o mesmo ID de intenção sugerido, ou null. Não gere resposta ao cliente.",
     "",
     `Intenções disponíveis: ${JSON.stringify(intents)}`,
     recentTurns ? `\nContexto recente da conversa:\n${recentTurns}` : "",

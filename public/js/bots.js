@@ -7,11 +7,13 @@ const state = {
   simulatorHistory: [], simulatorState: null,
   // Fluxo de atendimento (Flow Engine).
   flowSteps: [], flowStepsCache: new Map(), tools: [], knowledgeSources: [],
+  guidedConfig: { responseBlocks: [], synonymGroups: [] },
   aiProviderOptions: null,
   personalityPresets: null,
 };
 const flowActionLabels = {
-  ASK_QUESTION: "Perguntar", USE_KNOWLEDGE: "Usar conhecimento", QUERY_TOOL: "Consultar Tool",
+  ASK_QUESTION: "Perguntar", SHOW_OPTIONS: "Mostrar opções", USE_KNOWLEDGE: "Usar conhecimento",
+  USE_RESPONSE_BLOCK: "Usar bloco", QUERY_TOOL: "Consultar Tool",
   RESPOND: "Responder", RESOLVED: "Resolvido", HANDOFF_HUMAN: "Encaminhar humano", GOTO_STEP: "Ir para etapa",
 };
 const actionLabels = {
@@ -306,6 +308,7 @@ function renderEditor() {
   renderSchedules(bot.schedules);
   if (isTriage) renderHolidays();
   renderIntents();
+  renderGuidedConfig();
   if (isTriage) renderTriageOptions();
   renderBotList();
   renderAiProviderStatus();
@@ -568,6 +571,8 @@ function resetSimulator() {
 
 async function selectBot(botId) {
   state.selected = await api(`/api/bots/${encodeURIComponent(botId)}`);
+  try { state.guidedConfig = await api(`/api/bots/${encodeURIComponent(botId)}/guided-config`); }
+  catch { state.guidedConfig = { responseBlocks: [], synonymGroups: [] }; }
   closeIntentForm();
   closeTriageOptionForm();
   resetSimulator();
@@ -757,6 +762,64 @@ async function moveTriageOption(optionId, direction) {
 
 // ===== Fluxo de atendimento (Flow Engine) =====
 
+function renderGuidedConfig() {
+  const blocks = state.guidedConfig?.responseBlocks || [];
+  const groups = state.guidedConfig?.synonymGroups || [];
+  const blockList = $("#response-block-list");
+  const synonymList = $("#synonym-list");
+  if (!blockList || !synonymList) return;
+  blockList.innerHTML = blocks.length ? blocks.map((block) => `<article class="intent-card ${block.active ? "" : "inactive"}"><div><b>${escapeHtml(block.code)}</b><small>${escapeHtml(block.name)} • ${escapeHtml(block.kind)}</small></div><div><button type="button" data-edit-response-block="${escapeHtml(block.id)}">Editar</button><button type="button" data-delete-response-block="${escapeHtml(block.id)}">Excluir</button></div></article>`).join("") : '<div class="intent-empty">Nenhum bloco configurado.</div>';
+  synonymList.innerHTML = groups.length ? groups.map((group) => `<article class="intent-card ${group.active ? "" : "inactive"}"><div><b>${escapeHtml(group.key)}</b><small>${escapeHtml(group.terms.join(", "))}</small></div><div><button type="button" data-edit-synonym="${escapeHtml(group.id)}">Editar</button><button type="button" data-delete-synonym="${escapeHtml(group.id)}">Excluir</button></div></article>`).join("") : '<div class="intent-empty">Nenhum grupo configurado.</div>';
+  document.querySelectorAll("[data-edit-response-block]").forEach((button) => button.addEventListener("click", () => openResponseBlockForm(button.dataset.editResponseBlock)));
+  document.querySelectorAll("[data-delete-response-block]").forEach((button) => button.addEventListener("click", () => deleteGuidedResource("response-blocks", button.dataset.deleteResponseBlock)));
+  document.querySelectorAll("[data-edit-synonym]").forEach((button) => button.addEventListener("click", () => openSynonymForm(button.dataset.editSynonym)));
+  document.querySelectorAll("[data-delete-synonym]").forEach((button) => button.addEventListener("click", () => deleteGuidedResource("synonyms", button.dataset.deleteSynonym)));
+}
+
+async function reloadGuidedConfig() {
+  state.guidedConfig = await api(`/api/bots/${state.selected.id}/guided-config`);
+  renderGuidedConfig();
+  populateFlowStepSelects();
+}
+
+function closeResponseBlockForm() { $("#response-block-form").hidden = true; $("#response-block-form").reset(); $("#response-block-id").value = ""; }
+function openResponseBlockForm(id = "") {
+  const block = (state.guidedConfig.responseBlocks || []).find((item) => item.id === id);
+  $("#response-block-id").value = block?.id || ""; $("#response-block-code").value = block?.code || "";
+  $("#response-block-name").value = block?.name || ""; $("#response-block-kind").value = block?.kind || "RESPONSE";
+  $("#response-block-content").value = block?.content || ""; $("#response-block-active").checked = block ? block.active : true;
+  $("#response-block-form").hidden = false; $("#response-block-code").focus();
+}
+function closeSynonymForm() { $("#synonym-form").hidden = true; $("#synonym-form").reset(); $("#synonym-id").value = ""; }
+function openSynonymForm(id = "") {
+  const group = (state.guidedConfig.synonymGroups || []).find((item) => item.id === id);
+  $("#synonym-id").value = group?.id || ""; $("#synonym-key").value = group?.key || "";
+  $("#synonym-label").value = group?.label || ""; $("#synonym-terms").value = (group?.terms || []).join(", ");
+  $("#synonym-active").checked = group ? group.active : true; $("#synonym-form").hidden = false; $("#synonym-key").focus();
+}
+async function deleteGuidedResource(resource, id) {
+  if (!confirm("Excluir esta configuração?")) return;
+  try { await api(`/api/bots/${state.selected.id}/${resource}/${id}`, { method: "DELETE" }); await reloadGuidedConfig(); toast("Configuração removida."); }
+  catch (error) { toast(error.message, true); }
+}
+
+$("#new-response-block").addEventListener("click", () => openResponseBlockForm());
+$("#cancel-response-block").addEventListener("click", closeResponseBlockForm);
+$("#response-block-form").addEventListener("submit", async (event) => {
+  event.preventDefault(); const id = $("#response-block-id").value;
+  const body = { code: $("#response-block-code").value, name: $("#response-block-name").value, kind: $("#response-block-kind").value, content: $("#response-block-content").value, active: $("#response-block-active").checked };
+  try { await api(`/api/bots/${state.selected.id}/response-blocks${id ? `/${id}` : ""}`, { method: id ? "PATCH" : "POST", body: JSON.stringify(body) }); closeResponseBlockForm(); await reloadGuidedConfig(); toast("Bloco salvo."); }
+  catch (error) { toast(error.message, true); }
+});
+$("#new-synonym").addEventListener("click", () => openSynonymForm());
+$("#cancel-synonym").addEventListener("click", closeSynonymForm);
+$("#synonym-form").addEventListener("submit", async (event) => {
+  event.preventDefault(); const id = $("#synonym-id").value;
+  const body = { key: $("#synonym-key").value, label: $("#synonym-label").value, terms: $("#synonym-terms").value.split(",").map((item) => item.trim()).filter(Boolean), active: $("#synonym-active").checked };
+  try { await api(`/api/bots/${state.selected.id}/synonyms${id ? `/${id}` : ""}`, { method: id ? "PATCH" : "POST", body: JSON.stringify(body) }); closeSynonymForm(); await reloadGuidedConfig(); toast("Sinônimos salvos."); }
+  catch (error) { toast(error.message, true); }
+});
+
 async function ensureToolsLoaded() {
   if (state.tools.length) return state.tools;
   try { state.tools = await api("/api/bot-tools"); } catch { state.tools = []; }
@@ -804,14 +867,46 @@ function populateFlowStepSelects(currentStepId) {
     .map((source) => `<option value="${escapeHtml(source.id)}">${escapeHtml(source.title)}</option>`).join("");
   $("#flow-step-tool").innerHTML = `<option value="">Nenhuma</option>` + state.tools
     .map((tool) => `<option value="${escapeHtml(tool.name)}">${escapeHtml(tool.name)}${tool.enabled ? "" : " (desativada)"}</option>`).join("");
+  $("#flow-step-block").innerHTML = `<option value="">Nenhum</option>` + (state.guidedConfig.responseBlocks || [])
+    .filter((block) => block.active).map((block) => `<option value="${escapeHtml(block.id)}">${escapeHtml(block.code)} — ${escapeHtml(block.name)}</option>`).join("");
+}
+
+function flowDestinationOptions(selected = "") {
+  const intentOptions = (state.selected?.intents || []).map((intent) => `<option value="intent:${escapeHtml(intent.id)}" ${selected === `intent:${intent.id}` ? "selected" : ""}>Fluxo: ${escapeHtml(intent.name)}</option>`).join("");
+  const stepOptions = state.flowSteps.filter((step) => step.id !== $("#flow-step-id").value).map((step) => `<option value="step:${escapeHtml(step.id)}" ${selected === `step:${step.id}` ? "selected" : ""}>Etapa: ${escapeHtml(step.name)}</option>`).join("");
+  return `<option value="">Handoff</option>${intentOptions}${stepOptions}`;
+}
+
+function addFlowOptionRow(option = {}) {
+  const row = document.createElement("div"); row.className = "flow-option-row";
+  row.dataset.value = option.value || ""; row.dataset.conditions = JSON.stringify(option.conditions || {});
+  const selected = option.targetIntentId ? `intent:${option.targetIntentId}` : option.nextStepId ? `step:${option.nextStepId}` : "";
+  const conditionEntries = Object.entries(option.conditions || {});
+  const [conditionKey = "", conditionValue = ""] = conditionEntries[0] || [];
+  row.innerHTML = `<input class="flow-option-label" maxlength="120" placeholder="Nome da opção" value="${escapeHtml(option.label || "")}" required><input class="flow-option-aliases" placeholder="sinônimos separados por vírgula" value="${escapeHtml((option.aliases || []).join(", "))}"><select class="flow-option-destination">${flowDestinationOptions(selected)}</select><input class="flow-option-condition-key" maxlength="60" placeholder="Condição: campo (opcional)" value="${escapeHtml(conditionKey)}"><input class="flow-option-condition-value" maxlength="120" placeholder="Condição: valor" value="${escapeHtml(conditionValue)}"><button type="button" aria-label="Remover opção">×</button>`;
+  row.querySelector("button").addEventListener("click", () => row.remove());
+  $("#flow-option-list").appendChild(row);
+}
+
+function readFlowOptions() {
+  return Array.from(document.querySelectorAll("#flow-option-list .flow-option-row")).map((row, index) => {
+    const label = row.querySelector(".flow-option-label").value.trim();
+    const destination = row.querySelector(".flow-option-destination").value;
+    const conditionKey = row.querySelector(".flow-option-condition-key").value.trim();
+    const conditionValue = row.querySelector(".flow-option-condition-value").value.trim();
+    const conditions = conditionKey ? { [conditionKey]: conditionValue } : {};
+    return { label, value: row.dataset.value || label, aliases: row.querySelector(".flow-option-aliases").value.split(",").map((item) => item.trim()).filter(Boolean), order: index, active: true, nextStepId: destination.startsWith("step:") ? destination.slice(5) : null, targetIntentId: destination.startsWith("intent:") ? destination.slice(7) : null, conditions };
+  });
 }
 
 function flowStepFieldVisibility() {
   const action = $("#flow-step-action").value;
-  document.querySelectorAll(".flow-field-question").forEach((el) => { el.hidden = action !== "ASK_QUESTION"; });
+  document.querySelectorAll(".flow-field-question").forEach((el) => { el.hidden = !["ASK_QUESTION", "SHOW_OPTIONS"].includes(action); });
   document.querySelectorAll(".flow-field-knowledge").forEach((el) => { el.hidden = action !== "USE_KNOWLEDGE"; });
   document.querySelectorAll(".flow-field-tool").forEach((el) => { el.hidden = action !== "QUERY_TOOL"; });
   document.querySelectorAll(".flow-field-response").forEach((el) => { el.hidden = !["RESPOND", "RESOLVED", "HANDOFF_HUMAN"].includes(action); });
+  document.querySelectorAll(".flow-field-block").forEach((el) => { el.hidden = !["ASK_QUESTION", "SHOW_OPTIONS", "USE_RESPONSE_BLOCK", "RESPOND", "RESOLVED", "HANDOFF_HUMAN"].includes(action); });
+  document.querySelectorAll(".flow-field-options").forEach((el) => { el.hidden = action !== "SHOW_OPTIONS"; });
   document.querySelectorAll(".flow-field-goto").forEach((el) => { el.hidden = action !== "GOTO_STEP"; });
   $("#flow-step-question").required = action === "ASK_QUESTION";
   $("#flow-step-tool").required = action === "QUERY_TOOL";
@@ -823,6 +918,7 @@ function closeFlowStepForm() {
   $("#flow-step-form").hidden = true;
   $("#flow-step-form").reset();
   $("#flow-step-id").value = "";
+  $("#flow-option-list").innerHTML = "";
 }
 
 function openFlowStepForm(stepId = "") {
@@ -838,11 +934,14 @@ function openFlowStepForm(stepId = "") {
   $("#flow-step-active").checked = step ? step.active : true;
   populateFlowStepSelects();
   $("#flow-step-knowledge").value = step?.knowledgeSourceId || "";
+  $("#flow-step-block").value = step?.responseBlockId || "";
   $("#flow-step-tool").value = step?.toolName || "";
   $("#flow-step-next").value = step?.nextStepId || "";
   $("#flow-step-on-success").value = step?.onSuccessStepId || "";
   $("#flow-step-on-failure").value = step?.onFailureStepId || "";
   $("#flow-step-goto").value = step?.gotoStepId || "";
+  $("#flow-option-list").innerHTML = "";
+  (step?.options || []).forEach(addFlowOptionRow);
   flowStepFieldVisibility();
   $("#flow-step-form").hidden = false;
   $("#flow-step-name").focus();
@@ -859,6 +958,7 @@ async function removeFlowStep(stepId) {
 }
 
 $("#flow-step-action").addEventListener("change", flowStepFieldVisibility);
+$("#add-flow-option").addEventListener("click", () => addFlowOptionRow());
 $("#new-flow-step").addEventListener("click", async () => {
   await Promise.all([ensureToolsLoaded(), ensureKnowledgeSourcesLoaded()]);
   openFlowStepForm();
@@ -876,6 +976,7 @@ $("#flow-step-form").addEventListener("submit", async (event) => {
     entityKey: $("#flow-step-entity-key").value || null,
     required: $("#flow-step-required").checked,
     knowledgeSourceId: $("#flow-step-knowledge").value || null,
+    responseBlockId: $("#flow-step-block").value || null,
     toolName: $("#flow-step-tool").value || null,
     responseMessage: $("#flow-step-response").value || null,
     nextStepId: $("#flow-step-next").value || null,
@@ -884,6 +985,7 @@ $("#flow-step-form").addEventListener("submit", async (event) => {
     gotoStepId: $("#flow-step-goto").value || null,
     maxAttempts: Number($("#flow-step-max-attempts").value) || 3,
     active: $("#flow-step-active").checked,
+    options: readFlowOptions(),
   };
   try {
     const url = stepId
@@ -1061,12 +1163,16 @@ $("#simulator-form").addEventListener("submit", async (event) => {
     $("#simulator-result").innerHTML = `<b>${escapeHtml(result.response || "Sem resposta automática")}</b><div class="result-grid">
       <span>Bot<strong>${escapeHtml(result.botName || "-")}</strong></span>
       <span>Intenção<strong>${escapeHtml(result.intentName || "Nenhuma")}</strong></span>
+      <span>Mensagem normalizada<strong>${escapeHtml(result.normalizedMessage || "-")}</strong></span>
+      <span>Regra encontrada<strong>${escapeHtml(result.matchedRule || result.matchedExample || "Nenhuma")}</strong></span>
       <span>Confiança<strong>${result.confidence != null ? `${Math.round(result.confidence * 100)}%` : "-"}</strong></span>
       <span>Ação<strong>${escapeHtml(actionLabels[result.action] || result.action || "-")}</strong></span>
       <span>Categoria<strong>${escapeHtml(result.categoryName || "Nenhuma")}</strong></span>
       <span>Entidades<strong>${escapeHtml(entitiesSummary(result.extractedEntities))}</strong></span>
       <span>Tool<strong>${escapeHtml(result.toolName || "Nenhuma")}</strong></span>
       <span>Conhecimento<strong>${escapeHtml(result.knowledgeSourceTitle || "Nenhum")}</strong></span>
+      <span>Fluxo escolhido<strong>${escapeHtml(result.selectedFlow || "Nenhum")}</strong></span>
+      <span>Bloco usado<strong>${escapeHtml(result.responseBlockCode || "Nenhum")}</strong></span>
       <span>IA externa<strong>${result.calledExternalAi ? "Chamada" : "Não chamada"}</strong></span>
       <span>Provider<strong>${escapeHtml(result.provider || "-")}</strong></span>
     </div><p>${escapeHtml(result.warning)}</p>`;

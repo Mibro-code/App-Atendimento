@@ -23,6 +23,8 @@ function buildResponseJsonSchema(bot) {
     type: "object",
     properties: {
       intentId: intentIds.length ? { anyOf: [{ type: "string", enum: intentIds }, { type: "null" }] } : { type: "null" },
+      problem: nullableString,
+      recommendedFlow: intentIds.length ? { anyOf: [{ type: "string", enum: intentIds }, { type: "null" }] } : { type: "null" },
       confidence: { type: "number", minimum: 0, maximum: 1 },
       entities: {
         type: "object",
@@ -30,7 +32,7 @@ function buildResponseJsonSchema(bot) {
         additionalProperties: false,
       },
     },
-    required: ["intentId", "confidence", "entities"],
+    required: ["intentId", "problem", "recommendedFlow", "confidence", "entities"],
     additionalProperties: false,
   };
 }

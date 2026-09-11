@@ -38,6 +38,8 @@ const botInclude = {
     },
     orderBy: [{ priority: "desc" }, { createdAt: "asc" }],
   },
+  responseBlocks: { where: { active: true }, orderBy: { code: "asc" } },
+  synonymGroups: { where: { active: true }, orderBy: { label: "asc" } },
   personality: true,
 };
 
@@ -204,6 +206,8 @@ function toStandardResult({ bot, targetBot, interpretation, decision, responseTe
     withinHours: decision.withinHours,
     socialBehavior: interpretation.socialBehavior || null,
     extractedEntities: interpretation.entities,
+    interpretedProblem: interpretation.problem || null,
+    recommendedFlow: interpretation.recommendedFlow || null,
     summary: decision.summary,
     response: responseText,
     // Item 18/19 (simulador/observação): rastro do que o motor usaria/
@@ -214,6 +218,9 @@ function toStandardResult({ bot, targetBot, interpretation, decision, responseTe
     knowledgeSourceId: decision.knowledgeSourceId || null,
     knowledgeSourceTitle: decision.knowledgeSourceTitle || null,
     knowledgeConflict: Boolean(decision.knowledgeConflict),
+    matchedRule: decision.matchedRule || null,
+    selectedFlow: decision.selectedFlow || null,
+    responseBlockCode: decision.responseBlockCode || null,
     calledExternalAi: Boolean(interpretation.calledExternalAi),
     externalProvider: interpretation.externalProvider || null,
     externalAccepted: Boolean(interpretation.externalAccepted),
@@ -240,11 +247,15 @@ function flowInterpretationStub(intent, outcome) {
 }
 
 function flowDecisionStub(intent, outcome) {
+  const lastBlock = [...(outcome.flow?.attemptedSolutions || [])].reverse().find((item) => item.responseBlockCode);
   return {
     action: outcome.terminal === "HANDOFF" ? "HANDOFF_HUMAN" : "RESPOND",
     categoryId: intent.categoryId || null, needsClarification: false,
     shouldHandoff: outcome.terminal === "HANDOFF", withinHours: true,
     summary: outcome.summary, flowResponseText: outcome.responseText,
+    matchedRule: outcome.matchedRule || null,
+    selectedFlow: outcome.selectedFlow || intent.name,
+    responseBlockCode: lastBlock?.responseBlockCode || null,
   };
 }
 
@@ -289,8 +300,11 @@ async function runDecisionPipeline({
         topicSwitchDetected = true;
         flowStackUpdate = flowEngine.pushFlowStack(flowStack, state);
       } else {
-        interpretation = flowInterpretationStub(flowIntent, outcome);
-        decision = flowDecisionStub(flowIntent, outcome);
+        const outcomeIntent = outcome.targetIntentId
+          ? (findIntentInBot(bot, outcome.targetIntentId) || flowIntent)
+          : flowIntent;
+        interpretation = flowInterpretationStub(outcomeIntent, outcome);
+        decision = flowDecisionStub(outcomeIntent, outcome);
         flowUpdate = outcome.flow;
       }
     }
@@ -331,6 +345,26 @@ async function runDecisionPipeline({
       caseStateUpdate = askedQuestion ? recordQuestionAsked(caseState, askedQuestion) : caseState;
     } else {
       decision = decide({ bot, interpretation, message, state, now, flags });
+    }
+
+    // Entrada guiada: quando as regras locais não classificam com segurança,
+    // abre o menu configurado do Bot em vez de fabricar uma resposta livre.
+    // O provider externo continua sendo opcional e o Assistente Mibro nasce
+    // com ele desligado durante a fase de observação.
+    if (!humanPaused && flags.guidedFlowEnabled === true && flags.guidedEntryIntentId
+      && (!interpretation.intentId || interpretation.intentStatus === "UNKNOWN")) {
+      const entryIntent = findIntentInBot(bot, flags.guidedEntryIntentId);
+      if (entryIntent) {
+        interpretation = {
+          ...interpretation, intentId: entryIntent.id, intentName: entryIntent.name,
+          confidence: 1, provider: "GUIDED_FLOW", status: "OK", matchedExample: null,
+        };
+        decision = {
+          action: "RESPOND", categoryId: entryIntent.categoryId || null,
+          needsClarification: false, shouldHandoff: false, withinHours: true,
+          summary: "Fluxo guiado inicial selecionado por ausência de classificação local segura.",
+        };
+      }
     }
 
     // Uma intenção com etapas configuradas (Fluxo de atendimento) é

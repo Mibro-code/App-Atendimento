@@ -69,3 +69,9 @@ test("tokenSetSimilarity: mensagens com o mesmo significado e vocabulário disju
 test("matchConceptClusters nunca lança para lista de tokens vazia", () => {
   assert.deepEqual(matchConceptClusters([]), []);
 });
+
+test("sinônimos configuráveis convertem variações para a mesma chave local", () => {
+  const groups = [{ key: "CONEXAO", active: true, terms: ["sincronizar", "sincroniza"] }];
+  assert.equal(normalizeSemantic("não sincroniza", groups).normalized, "nao conexao");
+  assert.equal(normalizeSemantic("sincronizar agora", groups).tokens[0], "conexao");
+});

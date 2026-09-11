@@ -251,6 +251,37 @@
           </section>
 
           <section class="card requires-bot intentions-card">
+            <details class="guided-library" open>
+              <summary><span>FLUXO HÍBRIDO</span><strong>Blocos e sinônimos reutilizáveis</strong><small>Configuração local, sem chamada de IA.</small></summary>
+              <div class="guided-library-grid">
+                <div>
+                  <div class="card-heading"><div><span>RESPOSTAS</span><h3>Response Blocks</h3></div><button id="new-response-block" type="button">+ Bloco</button></div>
+                  <div id="response-block-list" class="intent-list"></div>
+                  <form id="response-block-form" class="intent-form" hidden>
+                    <input id="response-block-id" type="hidden"><div class="fields two-columns">
+                      <label><span>Código *</span><input id="response-block-code" maxlength="80" placeholder="ASK_MODEL" required></label>
+                      <label><span>Tipo</span><select id="response-block-kind"><option value="QUESTION">Pergunta</option><option value="RESPONSE">Resposta</option><option value="HANDOFF">Handoff</option></select></label>
+                      <label class="full"><span>Nome *</span><input id="response-block-name" maxlength="120" required></label>
+                      <label class="full"><span>Conteúdo *</span><textarea id="response-block-content" maxlength="4000" required></textarea></label>
+                      <label class="checkbox"><input id="response-block-active" type="checkbox" checked><span>Ativo</span></label>
+                    </div><div class="form-actions"><button id="cancel-response-block" type="button">Cancelar</button><button type="submit">Salvar bloco</button></div>
+                  </form>
+                </div>
+                <div>
+                  <div class="card-heading"><div><span>ENTENDIMENTO LOCAL</span><h3>Sinônimos</h3></div><button id="new-synonym" type="button">+ Grupo</button></div>
+                  <div id="synonym-list" class="intent-list"></div>
+                  <form id="synonym-form" class="intent-form" hidden>
+                    <input id="synonym-id" type="hidden"><div class="fields">
+                      <label><span>Conceito *</span><input id="synonym-key" maxlength="80" placeholder="CONEXAO" required></label>
+                      <label><span>Nome *</span><input id="synonym-label" maxlength="120" required></label>
+                      <label><span>Termos separados por vírgula *</span><textarea id="synonym-terms" placeholder="conectar, conecta, parear, pareia" required></textarea></label>
+                      <label class="checkbox"><input id="synonym-active" type="checkbox" checked><span>Ativo</span></label>
+                    </div><div class="form-actions"><button id="cancel-synonym" type="button">Cancelar</button><button type="submit">Salvar grupo</button></div>
+                  </form>
+                </div>
+              </div>
+            </details>
+
             <div class="card-heading"><div><span>REGRAS</span><h3>Intenções</h3></div><button id="new-intent" type="button">+ Intenção</button></div>
             <div id="intent-list" class="intent-list"></div>
             <form id="intent-form" class="intent-form" hidden>
@@ -279,7 +310,9 @@
                   <label><span>Nome da etapa *</span><input id="flow-step-name" maxlength="120" required></label>
                   <label><span>Ação *</span><select id="flow-step-action" required>
                     <option value="ASK_QUESTION">Perguntar (ASK_QUESTION)</option>
+                    <option value="SHOW_OPTIONS">Mostrar opções (SHOW_OPTIONS)</option>
                     <option value="USE_KNOWLEDGE">Usar Base de Conhecimento (USE_KNOWLEDGE)</option>
+                    <option value="USE_RESPONSE_BLOCK">Usar bloco (USE_RESPONSE_BLOCK)</option>
                     <option value="QUERY_TOOL">Consultar Tool (QUERY_TOOL)</option>
                     <option value="RESPOND">Responder (RESPOND)</option>
                     <option value="RESOLVED">Marcar como resolvido (RESOLVED)</option>
@@ -292,6 +325,8 @@
                   <label class="checkbox flow-field-question"><input id="flow-step-required" type="checkbox" checked><span>Resposta obrigatória</span></label>
 
                   <label class="full flow-field-knowledge"><span>Conhecimento associado</span><select id="flow-step-knowledge"><option value="">Buscar automaticamente pela intenção</option></select></label>
+                  <label class="full flow-field-block"><span>Response Block</span><select id="flow-step-block"><option value="">Nenhum</option></select></label>
+                  <fieldset class="full flow-field-options flow-options-editor"><legend>Opções apresentadas ao cliente</legend><div id="flow-option-list"></div><button id="add-flow-option" type="button">+ Adicionar opção</button></fieldset>
 
                   <label class="full flow-field-tool"><span>Tool associada (futura)</span><select id="flow-step-tool"><option value="">Nenhuma</option></select></label>
 
