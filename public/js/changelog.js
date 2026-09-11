@@ -1,9 +1,20 @@
 (() => {
-  const APP_VERSION = "0.29.7";
+  const APP_VERSION = "0.30.0";
 
 
 
   const CHANGELOG = [
+    {
+      version: "0.30.0",
+      date: "11/09/2026",
+      title: "Múltiplos números WhatsApp",
+      changes: [
+        "Permite cadastrar números WhatsApp adicionais com Phone Number ID, WABA e token próprios, sempre criptografados.",
+        "O Master define os atendentes e as áreas autorizadas para cada número; categorias principais incluem suas subcategorias.",
+        "Conversas e respostas permanecem vinculadas ao número que recebeu o contato, inclusive mídia, triagem e templates.",
+        "Ao iniciar uma conversa, o usuário escolhe somente entre os números liberados para sua conta."
+      ]
+    },
     {
       version: "0.29.7",
       date: "11/09/2026",
