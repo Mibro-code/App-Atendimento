@@ -70,8 +70,13 @@ function createInboxController(channel) {
         inboxEvents.publish();
         return res.status(result.created ? 201 : 200).json(result);
       } catch (error) { return next(error); }
-    },    async createOutbound(_req, res) {
-      return res.status(409).json({ error: "O início de conversas pela Meta está temporariamente desativado." });
+    },
+    async createOutbound(req, res, next) {
+      try {
+        const result = await createOutboundConversation({ ...req.body, user: req.user, channel });
+        inboxEvents.publish();
+        return res.status(result.created ? 201 : 200).json(result);
+      } catch (error) { return next(error); }
     },
     async replyTemplate(req, res, next) {
       try {

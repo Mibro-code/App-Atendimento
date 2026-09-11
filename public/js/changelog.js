@@ -1,9 +1,19 @@
 (() => {
-  const APP_VERSION = "0.29.5";
+  const APP_VERSION = "0.29.6";
 
 
 
   const CHANGELOG = [
+    {
+      version: "0.29.6",
+      date: "11/09/2026",
+      title: "Nova conversa pelo WhatsApp",
+      changes: [
+        "Libera o WhatsApp no botão Nova quando a WABA e os templates estão configurados.",
+        "A nova conversa exige nome, telefone e um template aprovado pela Meta.",
+        "Mensagens livres continuam protegidas pelas regras da janela de atendimento da Meta."
+      ]
+    },
     {
       version: "0.29.5",
       date: "10/09/2026",

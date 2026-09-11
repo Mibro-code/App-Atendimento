@@ -52,6 +52,7 @@ async function findExistingConversation(phone) {
 }
 
 async function createOutboundConversation({ phone, customName, template, user, channel }) {
+  authorization.assertCanStartConversations(user);
   if (!templatesConfigured()) {
     throw Object.assign(new Error("A criação de conversas ficará disponível após configurar os templates da Meta."), {
       statusCode: 503,
@@ -147,11 +148,17 @@ async function listOutboundChannels(user) {
         address: account.providerMetadata?.username || account.externalAccountId || null,
       })),
     };
+    if (channelName === "META") {
+      const enabled = templatesConfigured();
+      return {
+        channel: channelName, label: CHANNEL_LABELS[channelName], enabled,
+        accounts: enabled ? [{ id: "meta", name: "WABA conectada" }] : [],
+        reason: enabled ? null : "Configure a WABA para iniciar pelo WhatsApp.",
+      };
+    }
     return {
       channel: channelName, label: CHANNEL_LABELS[channelName], enabled: false, accounts: [],
-      reason: channelName === "META"
-        ? "Início de conversa pela Meta desativado temporariamente."
-        : "Integração ainda não liberada para iniciar conversas.",
+      reason: "Integração ainda não liberada para iniciar conversas.",
     };
   });
 }

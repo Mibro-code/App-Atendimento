@@ -274,7 +274,30 @@
       <label class="email-outbound-message"><span>Mensagem</span><textarea id="outbound-message" maxlength="20000" placeholder="Digite a mensagem" required></textarea></label>
       <button id="send-outbound" type="submit">Enviar e-mail</button>
     </form>
-  </dialog>  <dialog id="template-dialog" class="template-dialog">
+  </dialog>
+  <dialog id="outbound-meta-dialog" class="template-dialog">
+    <div class="dialog-header"><div><span>WHATSAPP • NOVA CONVERSA</span><h2>Enviar template aprovado</h2><p>A Meta exige um template aprovado para iniciar o contato.</p></div><button id="close-outbound-meta" type="button" aria-label="Fechar">×</button></div>
+    <div class="template-billing-warning"><b>Atenção à cobrança</b><span>O envio pode gerar cobrança conforme a categoria e as regras da Meta.</span></div>
+    <form id="outbound-meta-form" class="outbound-layout">
+      <section class="outbound-contact-fields">
+        <label><span>Nome do contato</span><input id="outbound-meta-name" maxlength="160" required placeholder="Ex.: João Silva"></label>
+        <label><span>Telefone com DDD</span><input id="outbound-meta-phone" inputmode="tel" required placeholder="(11) 90000-0000"><small>O código do Brasil (55) será incluído automaticamente.</small></label>
+        <div class="outbound-template-heading"><b>Template aprovado</b><small>Selecione a mensagem inicial.</small></div>
+        <label class="template-search"><span>Buscar template</span><input id="outbound-meta-template-search" type="search" placeholder="Nome, idioma ou categoria"></label>
+        <div id="outbound-meta-template-list" class="template-list"></div>
+      </section>
+      <section class="outbound-template-editor">
+        <div id="outbound-meta-template-empty" class="template-empty">Selecione um template para preencher e enviar.</div>
+        <div id="outbound-meta-template-editor" hidden>
+          <div class="template-selected-meta"><strong id="outbound-meta-template-name"></strong><span id="outbound-meta-template-details"></span></div>
+          <pre id="outbound-meta-template-preview" class="template-preview"></pre>
+          <div id="outbound-meta-template-variables" class="template-variables"></div>
+          <button id="send-outbound-meta" type="submit">Iniciar conversa pelo WhatsApp</button>
+        </div>
+      </section>
+    </form>
+  </dialog>
+  <dialog id="template-dialog" class="template-dialog">
     <div class="dialog-header"><div><span>WHATSAPP • META</span><h2>Templates aprovados</h2><p>Use uma mensagem previamente aprovada para iniciar ou retomar o atendimento.</p></div><button id="close-templates" type="button" aria-label="Fechar">×</button></div>
     <div class="template-billing-warning"><b>Atenção à cobrança</b><span>O envio de um template pode gerar cobrança pela Meta, conforme a categoria e as regras vigentes da conta.</span></div>
     <div class="template-layout">
@@ -398,7 +421,7 @@
   <div class="changelog-current">
     <div>
       <small>VERSÃO ATUAL</small>
-      <strong id="changelog-current-version">v0.29.5</strong>
+      <strong id="changelog-current-version">v0.29.6</strong>
     </div>
     <span id="changelog-current-date"></span>
   </div>

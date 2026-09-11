@@ -12,6 +12,16 @@ const campaigns = require("../src/services/campaign-service");
 const auth = require("../src/services/auth-service");
 const authorization = require("../src/services/authorization-service");
 
+test("nova conversa WhatsApp usa template aprovado pela rota outbound", () => {
+  const html = fs.readFileSync(path.join(__dirname, "../public/index.html"), "utf8");
+  const js = fs.readFileSync(path.join(__dirname, "../public/js/app.js"), "utf8");
+  const controller = fs.readFileSync(path.join(__dirname, "../src/controllers/inbox-controller.js"), "utf8");
+  assert.match(html, /id="outbound-meta-dialog"/);
+  assert.match(html, /id="outbound-meta-phone"/);
+  assert.match(js, /api\("\/api\/conversations\/outbound"/);
+  assert.match(controller, /createOutboundConversation\(\{ \.\.\.req\.body, user: req\.user, channel \}\)/);
+  assert.doesNotMatch(controller, /createOutbound\(_req, res\)/);
+});
 test("Campanhas: Master acessa por padrão e demais perfis exigem liberação individual", () => {
   assert.equal(auth.publicUser({ role: "ADMIN" }).canManageCampaigns, true);
   assert.equal(auth.publicUser({ role: "SUPERVISOR", canManageCampaigns: false }).canManageCampaigns, false);
