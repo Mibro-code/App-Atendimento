@@ -4,6 +4,7 @@ const audit = require("./audit-service");
 const { normalizeText } = require("./bot-simulator-service");
 const { simulateOrchestration } = require("./bot-orchestrator-service");
 const { simulateTriage } = require("./triage-bot-service");
+const { categoryFamily } = require("./bot-sector-intake-service");
 const flowEngine = require("./bot-flow-service");
 const learning = require("./bot-learning-service");
 const governance = require("./bot-governance-service");
@@ -740,6 +741,10 @@ function normalizeSimulatorState(state) {
       ? Math.min(MAX_FAILED_INTERPRETATIONS, Math.max(0, state.failedInterpretations)) : 0,
     pendingClarification: Boolean(state.pendingClarification),
     extractedEntities: state.extractedEntities && typeof state.extractedEntities === "object" ? state.extractedEntities : {},
+    contextEntities: normalizeJsonField(state.contextEntities, {}),
+    caseState: normalizeJsonField(state.caseState, {}),
+    flowStack: Array.isArray(state.flowStack) ? state.flowStack : [],
+    pendingQuestion: typeof state.pendingQuestion === "string" ? state.pendingQuestion : null,
     // Item 8 (Simulador): o Flow Engine roda pelo mesmo pipeline de uma
     // conversa real (bot-orchestrator-service.js), então o estado de fluxo
     // também precisa ir e voltar pelo cliente, igual ao restante do estado.
@@ -768,7 +773,7 @@ function normalizeSimulatorHistory(history) {
 // Simulador multi-turno: nunca usa o canal real da Meta nem toca em
 // Conversation/ConversationBotState. O "estado" e o "histórico" trafegam
 // inteiramente pelo cliente (tela de Bots), que os devolve a cada chamada.
-async function simulate(botId, message, viewer, { state, history, replyId } = {}) {
+async function simulate(botId, message, viewer, { state, history, replyId, categoryId } = {}) {
   assertBotManager(viewer);
   const bot = await ensureBot(botId, prisma, botInclude);
   // O Bot de Triagem não usa o motor de intenções/IA (é lista fixa de
@@ -778,11 +783,29 @@ async function simulate(botId, message, viewer, { state, history, replyId } = {}
     return simulateTriage(bot, { message, replyId });
   }
   const simulatorMessage = requiredText(message, "Mensagem da simulação", 4000);
+  let category = null;
+  if (categoryId) {
+    category = await prisma.category.findFirst({
+      where: { id: categoryId, active: true },
+      select: {
+        id: true, code: true, name: true,
+        parent: { select: { id: true, code: true, name: true } },
+      },
+    });
+    if (!category) throw fail("Categoria de simulacao invalida.", 400);
+  }
+  if (bot.id === "mibro-assistant-observer" && !category) {
+    throw fail("Selecione a categoria definida pela triagem para testar este Bot.", 400);
+  }
+  if (bot.id === "mibro-assistant-observer" && !categoryFamily(category)) {
+    throw fail("A categoria selecionada não pertence a um setor atendido pelo Assistente.", 400);
+  }
   const result = await simulateOrchestration({
     bot,
     message: simulatorMessage,
     context: normalizeSimulatorHistory(history),
     state: normalizeSimulatorState(state),
+    intakeContext: { category },
   });
   return { ...result, simulation: true, sent: false, warning: "Simulação - nenhuma mensagem foi enviada" };
 }

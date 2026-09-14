@@ -569,6 +569,26 @@ function resetSimulator() {
   if (flowInfo) { flowInfo.hidden = true; flowInfo.innerHTML = ""; }
 }
 
+function renderSimulatorCategory() {
+  const field = document.getElementById("simulator-category-field");
+  const select = document.getElementById("simulator-category");
+  if (!field || !select) return;
+  const enabled = state.selected?.id === "mibro-assistant-observer";
+  field.hidden = !enabled;
+  select.required = enabled;
+  const supported = new Set(["SUPORTE", "ATENDIMENTO", "COMERCIAL", "PARCERIAS"]);
+  const eligible = state.categories.filter((category) => {
+    const parent = state.categories.find((item) => item.id === category.parentId);
+    return category.active !== false && (
+      supported.has(String(category.code || category.name || "").toUpperCase())
+      || supported.has(String(parent?.code || parent?.name || "").toUpperCase())
+    );
+  });
+  select.innerHTML = `<option value="">Selecione o setor</option>${eligible
+    .map((category) => `<option value="${escapeHtml(category.id)}">${escapeHtml(category.name)}</option>`)
+    .join("")}`;
+}
+
 async function selectBot(botId) {
   state.selected = await api(`/api/bots/${encodeURIComponent(botId)}`);
   try { state.guidedConfig = await api(`/api/bots/${encodeURIComponent(botId)}/guided-config`); }
@@ -577,6 +597,7 @@ async function selectBot(botId) {
   closeTriageOptionForm();
   resetSimulator();
   renderEditor();
+  renderSimulatorCategory();
   await loadPersonality();
 }
 
@@ -1152,7 +1173,12 @@ $("#simulator-form").addEventListener("submit", async (event) => {
   try {
     const result = await api(`/api/bots/${state.selected.id}/simulate`, {
       method: "POST",
-      body: JSON.stringify({ message, state: state.simulatorState, history: state.simulatorHistory }),
+      body: JSON.stringify({
+        message,
+        state: state.simulatorState,
+        history: state.simulatorHistory,
+        categoryId: $("#simulator-category")?.value || null,
+      }),
     });
     state.simulatorHistory.push({ direction: "RECEBIDA", text: message });
     if (result.response) state.simulatorHistory.push({ direction: "ENVIADA", text: result.response });
@@ -1168,6 +1194,8 @@ $("#simulator-form").addEventListener("submit", async (event) => {
       <span>Confiança<strong>${result.confidence != null ? `${Math.round(result.confidence * 100)}%` : "-"}</strong></span>
       <span>Ação<strong>${escapeHtml(actionLabels[result.action] || result.action || "-")}</strong></span>
       <span>Categoria<strong>${escapeHtml(result.categoryName || "Nenhuma")}</strong></span>
+      <span>Setor<strong>${escapeHtml(result.sector || "Nenhum")}</strong></span>
+      <span>Assunto identificado<strong>${escapeHtml(result.issue || "Nenhum")}</strong></span>
       <span>Entidades<strong>${escapeHtml(entitiesSummary(result.extractedEntities))}</strong></span>
       <span>Tool<strong>${escapeHtml(result.toolName || "Nenhuma")}</strong></span>
       <span>Conhecimento<strong>${escapeHtml(result.knowledgeSourceTitle || "Nenhum")}</strong></span>
@@ -1216,6 +1244,7 @@ async function renderSimulatorFlowInfo(nextState) {
 }
 
 $("#simulator-clear").addEventListener("click", resetSimulator);
+$("#simulator-category").addEventListener("change", resetSimulator);
 
 document.querySelectorAll("[data-status]").forEach((button) => button.addEventListener("click", async () => {
   try {

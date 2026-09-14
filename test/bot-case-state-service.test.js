@@ -11,6 +11,8 @@ test("caseState vazio nunca lança e tem o shape completo", () => {
     symptom: null, product: null, app: null, os: null,
     phone: null, objective: null, providedInfo: null, lastResult: null,
     orderNumber: null, purchaseChannel: null, topic: null,
+    sector: null, issue: null, hasInvoice: null, purchaseDateApprox: null,
+    pendingField: null, intakeQuestionCount: 0,
     questionsAsked: [], solutionsTried: [], solutionsFailed: [], toolsUsed: [], pending: [],
   });
 });

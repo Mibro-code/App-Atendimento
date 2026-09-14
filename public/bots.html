@@ -347,6 +347,10 @@
 
           <form id="simulator-form" class="card requires-bot simulator-card">
             <div class="card-heading"><div><span>TESTE SEGURO</span><h3>Simulador</h3></div><span class="local-only">NÃO ENVIA MENSAGENS</span></div>
+            <label id="simulator-category-field" class="simulator-input" hidden>
+              <span>Categoria definida pela triagem</span>
+              <select id="simulator-category"><option value="">Selecione o setor</option></select>
+            </label>
             <div id="simulator-transcript" class="simulator-transcript"></div>
             <label class="simulator-input"><span>Mensagem do cliente</span><textarea id="simulator-message" required placeholder="Digite uma mensagem para testar o fluxo"></textarea></label>
             <div class="simulator-actions">

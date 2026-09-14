@@ -30,6 +30,12 @@ function emptyCaseState() {
     orderNumber: null,
     purchaseChannel: null,
     topic: null,
+    sector: null,
+    issue: null,
+    hasInvoice: null,
+    purchaseDateApprox: null,
+    pendingField: null,
+    intakeQuestionCount: 0,
     questionsAsked: [],
     solutionsTried: [],
     solutionsFailed: [],
@@ -56,6 +62,12 @@ function normalizeCaseState(raw) {
     orderNumber: typeof raw.orderNumber === "string" ? raw.orderNumber : null,
     purchaseChannel: typeof raw.purchaseChannel === "string" ? raw.purchaseChannel : null,
     topic: typeof raw.topic === "string" ? raw.topic : null,
+    sector: typeof raw.sector === "string" ? raw.sector : null,
+    issue: typeof raw.issue === "string" ? raw.issue : null,
+    hasInvoice: typeof raw.hasInvoice === "boolean" ? raw.hasInvoice : null,
+    purchaseDateApprox: typeof raw.purchaseDateApprox === "string" ? raw.purchaseDateApprox : null,
+    pendingField: typeof raw.pendingField === "string" ? raw.pendingField : null,
+    intakeQuestionCount: Number.isInteger(raw.intakeQuestionCount) && raw.intakeQuestionCount >= 0 ? raw.intakeQuestionCount : 0,
     questionsAsked: Array.isArray(raw.questionsAsked) ? raw.questionsAsked.filter((item) => typeof item === "string") : [],
     solutionsTried: Array.isArray(raw.solutionsTried) ? raw.solutionsTried.filter((item) => item && typeof item.description === "string") : [],
     solutionsFailed: Array.isArray(raw.solutionsFailed) ? raw.solutionsFailed.filter((item) => item && typeof item.description === "string") : [],
@@ -81,9 +93,11 @@ function mergeCaseState(existing, patch = {}) {
   const base = normalizeCaseState(existing);
   const merged = { ...base };
 
-  for (const key of ["symptom", "product", "app", "os", "phone", "objective", "providedInfo", "lastResult", "orderNumber", "purchaseChannel", "topic"]) {
+  for (const key of ["symptom", "product", "app", "os", "phone", "objective", "providedInfo", "lastResult", "orderNumber", "purchaseChannel", "topic", "sector", "issue", "purchaseDateApprox", "pendingField"]) {
     if (typeof patch[key] === "string" && patch[key].trim()) merged[key] = patch[key].trim();
   }
+  if (typeof patch.hasInvoice === "boolean") merged.hasInvoice = patch.hasInvoice;
+  if (Number.isInteger(patch.intakeQuestionCount) && patch.intakeQuestionCount >= 0) merged.intakeQuestionCount = patch.intakeQuestionCount;
 
   for (const question of patch.questionsAsked || []) {
     merged.questionsAsked = dedupeAppend(merged.questionsAsked, question);

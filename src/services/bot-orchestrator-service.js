@@ -26,6 +26,7 @@ const { captureHandoffContext } = require("./bot-handoff-service");
 const { recordAiUsage } = require("./bot-ai-usage-service");
 const { submitRatingFromBot, shouldRequestRating } = require("./bot-rating-service");
 const flowEngine = require("./bot-flow-service");
+const { isSectorIntakeBot, runSectorIntake } = require("./bot-sector-intake-service");
 
 const categorySelection = { id: true, code: true, name: true, color: true, active: true };
 const botInclude = {
@@ -200,7 +201,7 @@ function toStandardResult({ bot, targetBot, interpretation, decision, responseTe
     errorCode: interpretation.errorCode,
     action: decision.action,
     categoryId: decision.categoryId,
-    categoryName: categoryNameFor(targetBot, decision.categoryId),
+    categoryName: decision.categoryName || categoryNameFor(targetBot, decision.categoryId),
     needsClarification: decision.needsClarification,
     shouldHandoff: decision.shouldHandoff,
     withinHours: decision.withinHours,
@@ -282,7 +283,7 @@ function flowDecisionStub(intent, outcome) {
 // continuarem funcionando. `flowStack`/`seedEntities` — itens 5/6.
 async function runDecisionPipeline({
   bot, message, context, state, guardState, previousIntroducedAt, flags, now, channel, client, sessionExpired = false,
-  toolMode = "OBSERVATION", humanPaused = false, flowStack = [], seedEntities = null,
+  toolMode = "OBSERVATION", humanPaused = false, flowStack = [], seedEntities = null, intakeContext = null,
 }) {
   let interpretation;
   let decision;
@@ -296,14 +297,39 @@ async function runDecisionPipeline({
   // continueFlow/startFlow também precisam dele (para não repetir uma
   // instrução já tentada nesta conversa — ver wasAlreadyTried em
   // bot-flow-service.js), não só o caminho de classificação abaixo.
-  let caseStateUpdate = flags.agentPlannerEnabled === true ? normalizeCaseState(state?.caseState) : null;
+  let caseStateUpdate = (flags.agentPlannerEnabled === true || isSectorIntakeBot(bot))
+    ? normalizeCaseState(state?.caseState) : null;
+
+  // O Assistente Mibro e estritamente pos-triagem. Com a categoria real ja
+  // escolhida, o intake setorial substitui o antigo menu generico: regras
+  // locais primeiro, perguntas curtas e Knowledge antes do handoff.
+  if (!humanPaused && isSectorIntakeBot(bot) && intakeContext?.category) {
+    const intake = await runSectorIntake({
+      bot, category: intakeContext.category, message, context, state, flags,
+      caseState: caseStateUpdate,
+    });
+    if (intake) {
+      interpretation = intake.interpretation;
+      decision = intake.decision;
+      caseStateUpdate = intake.caseState;
+      if (intake.knowledgeSource) {
+        decision = {
+          ...decision,
+          knowledgeSourceId: intake.knowledgeSource.id,
+          knowledgeSourceTitle: intake.knowledgeSource.title,
+        };
+      }
+      flowUpdate = flowEngine.resetFlowPersist();
+      flowStackUpdate = [];
+    }
+  }
 
   // Flow Engine (múltiplas etapas): se já existe uma etapa aguardando
   // resposta nesta conversa, a mensagem é interpretada como resposta a ELA,
   // não reclassificada do zero — mesmo espírito do carryOverFromContext já
   // existente para "sim"/"não" após esclarecimento (item 5). Nunca continua
   // um fluxo enquanto um humano estiver com a conversa (item 3).
-  if (!humanPaused && flags.flowEngineEnabled !== false && state?.currentFlowStepId && state?.activeFlowIntentId) {
+  if (!decision && !humanPaused && flags.flowEngineEnabled !== false && state?.currentFlowStepId && state?.activeFlowIntentId) {
     const flowIntent = findIntentInBot(bot, state.activeFlowIntentId);
     if (flowIntent) {
       const outcome = await flowEngine.continueFlow({
@@ -540,6 +566,20 @@ async function orchestrate({
   const state = await getState(conversationId, client);
   const bot = await resolveBot(state?.activeBotId, channel, client);
   if (!bot) return null;
+  const conversation = await client.conversation.findUnique({
+    where: { id: conversationId },
+    select: {
+      assignedUserId: true, status: true,
+      category: {
+        select: {
+          id: true, code: true, name: true,
+          parent: { select: { id: true, code: true, name: true } },
+        },
+      },
+    },
+  });
+  // Nunca inicia o assistente antes de o SYSTEM_TRIAGE definir o setor.
+  if (isSectorIntakeBot(bot) && !conversation?.category) return null;
 
   const globalSettings = await getGlobalSettings(client);
   const flags = resolveFeatureFlags(bot);
@@ -564,9 +604,6 @@ async function orchestrate({
   // era enviada — o estado ficava fora de sincronia com o que o humano via.
   let humanPaused = false;
   if (flags.handoffAutoPauseEnabled) {
-    const conversation = await client.conversation.findUnique({
-      where: { id: conversationId }, select: { assignedUserId: true, status: true },
-    });
     humanPaused = Boolean(conversation?.assignedUserId)
       && ["EM_ATENDIMENTO", "AGUARDANDO_EQUIPE", "AGUARDANDO_CLIENTE"].includes(conversation?.status);
   }
@@ -624,6 +661,7 @@ async function orchestrate({
     bot, message, context, state: conversationalState, guardState: operationalState,
     previousIntroducedAt: state?.introducedAt || null, flags, now, channel, client, sessionExpired, toolMode,
     humanPaused, flowStack: flowStackBefore, seedEntities: priorContextEntities,
+    intakeContext: { category: conversation?.category || null },
   });
 
   const targetFlags = targetBot.id === bot.id ? flags : resolveFeatureFlags(targetBot);
@@ -634,6 +672,7 @@ async function orchestrate({
       await captureHandoffContext({
         conversationId, bot: targetBot, interpretation, decision: decisionWithCategoryName, message, context,
         flow, product: priorContextEntities?.productName || interpretation.entities?.productName || null,
+        caseState: caseStateUpdate,
       }, client);
     } catch (error) {
       // Nunca pode derrubar a interpretação/observação por falha ao gravar o
@@ -755,7 +794,7 @@ async function orchestrate({
 // Mesma interpretação, mas para o simulador: usa um "estado" transitório
 // fornecido pelo cliente (nunca a tabela ConversationBotState) e nunca troca
 // de Bot fora da lista de Bots ativos do canal — apenas sinaliza a sugestão.
-async function simulateOrchestration({ bot, message, context = [], state = null, now = new Date() }) {
+async function simulateOrchestration({ bot, message, context = [], state = null, now = new Date(), intakeContext = null }) {
   // O simulador deve permitir testar configurações em rascunho sem ativá-las
   // no modo observação. A cópia em memória nunca é persistida.
   const simulationBot = bot.status === "ACTIVE" ? bot : { ...bot, status: "ACTIVE" };
@@ -768,6 +807,7 @@ async function simulateOrchestration({ bot, message, context = [], state = null,
   } = await runDecisionPipeline({
     bot: simulationBot, message, context, state, guardState: state, flags, now, channel: bot.channel, client: prisma,
     sessionExpired: false, flowStack: state?.flowStack || [], seedEntities: priorContextEntities,
+    intakeContext,
     // O simulador é uma caixa de areia do painel administrativo (nunca fala
     // com um cliente real) — pode mostrar o comportamento real de uma Tool
     // (LIVE) sem violar a regra de "Observação nunca chama Tool de verdade"
@@ -838,6 +878,8 @@ async function simulateOrchestration({ bot, message, context = [], state = null,
         plannerReason: decision.plannerResult?.reason || null,
         plannerResult: decision.plannerResult || null,
         caseState: caseStateUpdate !== null ? caseStateUpdate : (state?.caseState ?? null),
+        sector: interpretation.sector || null,
+        issue: interpretation.issue || null,
       },
     }),
     nextState,

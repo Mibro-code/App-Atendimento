@@ -32,6 +32,21 @@ function buildSummary({
   return parts.slice(0, 6).join(" ");
 }
 
+function buildSectorSummary({ caseState, category, message, handoffReason }) {
+  if (!caseState?.sector) return null;
+  const invoice = caseState.hasInvoice == null ? "não informado" : (caseState.hasInvoice ? "sim" : "não");
+  const attempted = (caseState.solutionsTried || []).map((item) => item.description).filter(Boolean).join("; ") || "nenhuma informada";
+  return [
+    `Setor: ${category || caseState.sector}.`,
+    `Assunto: ${caseState.issue || caseState.topic || "não classificado"}.`,
+    `Produto/modelo: ${caseState.product || "não informado"}.`,
+    `Problema/sintoma: ${caseState.symptom || message || "não informado"}.`,
+    `Nota fiscal: ${invoice}. Compra: ${caseState.purchaseChannel || "canal não informado"}; data: ${caseState.purchaseDateApprox || "não informada"}.`,
+    `Procedimentos já tentados: ${attempted}.`,
+    `Pendência/motivo: ${handoffReason || "continuar atendimento humano"}.`,
+  ].join("\n");
+}
+
 // Item 2 (handoff inteligente): quando o handoff acontece DENTRO de um Flow
 // Engine, os dados estruturados do fluxo (produto coletado, soluções
 // tentadas com nome/ação/resultado, etapa em que parou) são muito mais
@@ -56,7 +71,7 @@ function deriveConversationSignals(context = []) {
 }
 
 async function captureHandoffContext({
-  conversationId, bot, interpretation, decision, message, context = [], flow = null, product = null,
+  conversationId, bot, interpretation, decision, message, context = [], flow = null, product = null, caseState = null,
 }, client = prisma) {
   const flowSignals = deriveFlowSignals(flow);
   const { questionsAsked, solutionsTried } = flowSignals
@@ -66,7 +81,10 @@ async function captureHandoffContext({
   const currentStepName = flow?.terminalStepName || (flow?.attemptedSolutions?.length
     ? flow.attemptedSolutions[flow.attemptedSolutions.length - 1].name
     : null);
-  const summary = buildSummary({
+  const summary = buildSectorSummary({
+    caseState, category: decision?.categoryName || null, message,
+    handoffReason: decision?.summary || null,
+  }) || buildSummary({
     botName: bot?.name || null,
     intentName: interpretation?.intentName || null,
     confidence,
@@ -89,7 +107,7 @@ async function captureHandoffContext({
       intentName: interpretation?.intentName || null,
       confidence,
       category: decision?.categoryName || null,
-      extractedEntities: interpretation?.entities || {},
+      extractedEntities: caseState ? { ...(interpretation?.entities || {}), caseState } : (interpretation?.entities || {}),
       lastRelevantInfo: message || null,
       questionsAsked,
       solutionsTried,
@@ -137,4 +155,4 @@ async function resumeBot(conversationId, actor) {
   return updated;
 }
 
-module.exports = { captureHandoffContext, deriveConversationSignals, getLatestHandoffContext, listHandoffContexts, resumeBot };
+module.exports = { buildSectorSummary, captureHandoffContext, deriveConversationSignals, getLatestHandoffContext, listHandoffContexts, resumeBot };

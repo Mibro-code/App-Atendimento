@@ -149,6 +149,7 @@ module.exports = {
     try {
       return res.json(await bots.simulate(req.params.botId, req.body.message, req.user, {
         state: req.body.state, history: req.body.history, replyId: req.body.replyId,
+        categoryId: req.body.categoryId,
       }));
     } catch (error) { return next(error); }
   },

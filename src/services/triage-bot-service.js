@@ -172,7 +172,7 @@ async function sendCategoryMenu(conversation, channel, bot) {
     return saveBotText(conversation, bot.fallbackMessage, "triage_fallback", channel);
   }
   const rows = options.map((option) => ({
-    id: categoryReplyId(option.categoryId), title: option.label.slice(0, 24),
+    id: categoryReplyId(option.categoryId), title: option.category.name.slice(0, 24),
   }));
   const menuText = renderTemplate(bot.initialMessage, {
     ...greetingVars(conversation.contact), horario: describeSchedule(bot),
@@ -198,7 +198,7 @@ async function sendSubcategoryMenu(conversation, channel, bot, parentCategory) {
   if (!options.length) return false;
   const body = "Perfeito! Para continuarmos, escolha abaixo o tipo de atendimento que voc\u00ea precisa.";
   const rows = options.map((option) => ({
-    id: categoryReplyId(option.categoryId), title: option.label.slice(0, 24),
+    id: categoryReplyId(option.categoryId), title: option.category.name.slice(0, 24),
   }));
   const result = await channel.sendList(conversation.contact.phone, {
     body, button: "Escolher op\u00e7\u00e3o", rows,
@@ -421,7 +421,7 @@ function simulateTriage(bot, { message, replyId, now = new Date() } = {}) {
   return {
     simulation: true, sent: false, warning, withinHours: true,
     response: renderTemplate(bot.initialMessage, { ...greetingVars(contact), horario: describeSchedule(bot) }),
-    options: options.map((option) => ({ id: option.categoryId, label: option.label, categoryName: option.category.name })),
+    options: options.map((option) => ({ id: option.categoryId, label: option.category.name, categoryName: option.category.name })),
   };
 }
 
