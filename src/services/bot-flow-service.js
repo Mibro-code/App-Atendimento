@@ -524,7 +524,7 @@ async function matchOptionWithAi({ step, message, bot, flowState, context, inter
   return {
     match: {
       option,
-      rule: result.calledExternalAi ? "OPTION_AI" : "OPTION_INTENT",
+      rule: result.externalAccepted ? "OPTION_AI" : "OPTION_INTENT",
       confidence: result.confidence,
     },
     aiTrace,

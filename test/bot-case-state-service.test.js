@@ -71,3 +71,9 @@ test("item 13 — 'já desliguei o bluetooth' reconhece uma tentativa já regist
   assert.equal(wasAlreadyTried(state, "já desliguei o bluetooth"), true);
   assert.equal(wasAlreadyTried(state, "já reiniciei o celular"), false);
 });
+
+test("solução apenas exibida ou bem-sucedida não é tratada como falha", () => {
+  let state = emptyCaseState();
+  state = recordSolutionAttempt(state, "verificar o carregador", "SUCCESS");
+  assert.equal(wasAlreadyTried(state, "verificar o carregador"), false);
+});

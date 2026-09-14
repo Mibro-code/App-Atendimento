@@ -33,11 +33,15 @@ function baseResult(overrides) {
 }
 
 // Funde entidades explícitas desta mensagem com o que o Case State já sabe
-// (produto, no momento) — é isto que implementa "nunca perguntar de novo o
-// que já é conhecido" no nível de entidade/dado.
+// — é isto que implementa "nunca perguntar de novo o que já é conhecido" no
+// nível de entidade/dado.
 function buildKnownEntities(interpretation, caseState) {
   const known = { ...(interpretation.entities || {}) };
   if (!known.productName && caseState?.product) known.productName = caseState.product;
+  if (!known.appName && caseState?.app) known.appName = caseState.app;
+  if (!known.phoneOs && caseState?.os) known.phoneOs = caseState.os;
+  if (!known.orderNumber && caseState?.orderNumber) known.orderNumber = caseState.orderNumber;
+  if (!known.purchaseChannel && caseState?.purchaseChannel) known.purchaseChannel = caseState.purchaseChannel;
   return known;
 }
 

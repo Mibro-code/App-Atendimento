@@ -1,9 +1,20 @@
 (() => {
-  const APP_VERSION = "0.30.1";
+  const APP_VERSION = "0.30.2";
 
 
 
   const CHANGELOG = [
+    {
+      version: "0.30.2",
+      date: "14/09/2026",
+      title: "Assistente com contexto e fallback inteligente",
+      changes: [
+        "O menu guiado consulta o Gemini somente quando o reconhecimento local não encontra uma opção segura.",
+        "O Assistente preserva contexto do caso e evita repetir somente soluções que o cliente confirmou como falhas.",
+        "Dados já informados, como produto, aplicativo, sistema e número do pedido, são reaproveitados nas próximas etapas.",
+        "Chamadas externas e consumo ficam identificados corretamente no simulador e nas métricas."
+      ]
+    },
     {
       version: "0.30.1",
       date: "11/09/2026",

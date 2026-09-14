@@ -115,6 +115,17 @@ test("produto já conhecido pelo Case State entra em knownEntities sem precisar 
   assert.equal(result.knownEntities.productName, "GS Pro 2");
 });
 
+test("número do pedido já conhecido pelo Case State evita perguntar novamente", () => {
+  const interpretation = interpretationFixture({
+    intentStatus: "OK", entities: {},
+    intentCandidates: [{ intentId: "intent-pedido", intentName: "Acompanhar pedido", confidence: 0.9 }],
+  });
+  const caseState = { ...emptyCaseState(), orderNumber: "123456" };
+  const result = plan({ bot: botFixture(), interpretation, caseState });
+  assert.equal(result.action, "USE_TOOL");
+  assert.equal(result.knownEntities.orderNumber, "123456");
+});
+
 test("candidato aponta para uma intent que não existe mais no Bot -> CLARIFY seguro (nunca lança)", () => {
   const interpretation = interpretationFixture({
     intentStatus: "OK",

@@ -59,3 +59,16 @@ test("classificador local pode reconhecer intenção sem fingir chamada de IA ex
   assert.equal(result.match.rule, "OPTION_INTENT");
   assert.equal(result.aiTrace, null);
 });
+
+test("tentativa externa sem resposta aceita mantém a classificação como local", async () => {
+  const result = await matchOptionWithAi({
+    step, bot, message: "preciso de suporte", flowState: { collectedEntities: {} }, context: [],
+    interpretMessage: async () => ({
+      intentId: "intent-support", confidence: 0.9, calledExternalAi: true,
+      externalProvider: "GEMINI", externalAccepted: false, externalStatus: "PROVIDER_ERROR",
+    }),
+  });
+  assert.equal(result.match.rule, "OPTION_INTENT");
+  assert.equal(result.aiTrace.calledExternalAi, true);
+  assert.equal(result.aiTrace.externalAccepted, false);
+});

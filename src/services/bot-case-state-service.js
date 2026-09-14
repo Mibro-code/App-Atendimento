@@ -128,7 +128,10 @@ function wasAlreadyTried(caseState, description) {
   const normalizedTarget = normalizeForComparison(description);
   const targetTokens = new Set(normalizedTarget.split(/\s+/).filter(Boolean));
   if (!targetTokens.size) return false;
-  return (caseState.solutionsTried || []).some((item) => {
+  // Só uma solução confirmada como falha deve ser pulada. Uma orientação
+  // apenas exibida (ou confirmada como bem-sucedida) continua válida em um
+  // fluxo futuro e não pode provocar encaminhamento indevido.
+  return (caseState.solutionsFailed || []).some((item) => {
     const tokens = normalizeForComparison(item.description).split(/\s+/).filter(Boolean);
     if (!tokens.length) return false;
     const hits = tokens.filter((token) => targetTokens.has(token)).length;

@@ -242,7 +242,7 @@ function flowInterpretationStub(intent, outcome) {
   const aiTrace = outcome.aiTrace || {};
   return {
     intentId: intent.id, intentName: intent.name, confidence: 1, matchedExample: null,
-    entities: outcome.flow.collectedEntities || {}, provider: "FLOW_ENGINE", status: "OK",
+    entities: outcome.flow?.collectedEntities || {}, provider: "FLOW_ENGINE", status: "OK",
     errorCode: null, socialBehavior: null,
     problem: aiTrace.problem || null,
     recommendedFlow: aiTrace.recommendedFlow || null,
@@ -513,6 +513,8 @@ async function runDecisionPipeline({
       app: flowEntities.appName || interpretation.entities?.appName || null,
       os: flowEntities.phoneOs || interpretation.entities?.phoneOs || null,
       providedInfo: flowEntities.orderContext || null,
+      orderNumber: flowEntities.orderNumber || interpretation.entities?.orderNumber || null,
+      purchaseChannel: flowEntities.purchaseChannel || interpretation.entities?.purchaseChannel || null,
       symptom: interpretation.problem || null,
     });
     // Item 10 (não repetir solução já tentada): promove as tentativas reais
