@@ -22,7 +22,14 @@ module.exports = {
     try {
       if (!authorization.isMaster(req.user)) throw authorization.forbidden("Somente uma conta Master pode ver o relatório semanal de conversas.");
       const weekOffset = Number.parseInt(req.query.weekOffset, 10) || 0;
-      return res.json(await reportService.buildConversationReport({ weekOffset }));
+      const page = Number.parseInt(req.query.page, 10) || 1;
+      return res.json(await reportService.buildConversationReport({
+        mode: req.query.mode,
+        weekOffset,
+        startDate: req.query.startDate,
+        endDate: req.query.endDate,
+        page,
+      }));
     } catch (error) { return next(error); }
   },
 };

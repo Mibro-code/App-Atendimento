@@ -9,7 +9,9 @@ require("dotenv").config();
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const prisma = require("../src/database/prisma");
-const { buildConversationReport, weekBounds } = require("../src/services/conversation-report-service");
+const {
+  buildConversationReport, weekBounds, customBounds, resolvePeriod,
+} = require("../src/services/conversation-report-service");
 
 const emailPrefix = "relatorio-semanal-teste";
 const contactPrefix = "relatorio-semanal-contato";
@@ -44,6 +46,20 @@ test("weekBounds: usa meia-noite de Brasília mesmo se o processo estiver em UTC
   const bounds = weekBounds(0, sundayLateInBrazil);
   assert.equal(bounds.start.toISOString(), "2026-09-07T03:00:00.000Z");
   assert.equal(bounds.end.toISOString(), "2026-09-14T03:00:00.000Z");
+});
+
+test("período personalizado inclui os dois dias completos no horário de Brasília", () => {
+  const bounds = customBounds("2026-09-01", "2026-09-14");
+  assert.equal(bounds.start.toISOString(), "2026-09-01T03:00:00.000Z");
+  assert.equal(bounds.end.toISOString(), "2026-09-15T03:00:00.000Z");
+  assert.equal(bounds.label, "01/09/2026 a 14/09/2026");
+});
+
+test("relatório geral não aplica limites de data e intervalo inválido é recusado", () => {
+  assert.deepEqual(resolvePeriod({ mode: "ALL" }), {
+    mode: "ALL", start: null, end: null, label: "Todo o histórico",
+  });
+  assert.throws(() => customBounds("2026-09-15", "2026-09-14"), /data inicial/i);
 });
 
 test("classifica corretamente: resolvida com agente, resolvida só por bot, e nunca respondida", async () => {
@@ -107,6 +123,16 @@ test("classifica corretamente: resolvida com agente, resolvida só por bot, e nu
   } });
 
   const report = await buildConversationReport({ weekOffset: 0 });
+  const inputDate = new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Sao_Paulo" }).format(midWeek);
+  const customReport = await buildConversationReport({
+    mode: "CUSTOM", startDate: inputDate, endDate: inputDate,
+  });
+  const allReport = await buildConversationReport({ mode: "ALL" });
+  assert.equal(customReport.periodMode, "CUSTOM");
+  assert.ok(customReport.conversations.some((item) => item.id === conv1.id));
+  assert.equal(allReport.periodMode, "ALL");
+  assert.ok(allReport.conversations.some((item) => item.id === conv1.id));
+  assert.ok(allReport.totalPages >= 1);
 
   const row1 = report.conversations.find((item) => item.contactPhone === "5511900000001");
   assert.ok(row1, "conversa 1 deveria aparecer no relatório da semana");

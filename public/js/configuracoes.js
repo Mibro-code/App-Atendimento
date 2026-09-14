@@ -100,10 +100,12 @@ $("#logout").addEventListener("click", async () => {
   location.href = "/login.html";
 });
 
-// Relatório semanal (Configurações → Conversas, nova seção — só Master).
-// Calculado na hora pelo backend a cada chamada (nenhum estado local
-// persiste entre recarregamentos além do offset de semana escolhido).
+// Relatórios ficam em uma aba própria e continuam exclusivos da conta Master.
 let reportWeekOffset = 0;
+let reportMode = "WEEK";
+let reportPage = 1;
+let reportTotalPages = 1;
+let reportLoaded = false;
 
 const STATUS_LABELS = {
   NOVO: "Novo", EM_ATENDIMENTO: "Em atendimento", AGUARDANDO_EQUIPE: "Aguardando equipe",
@@ -118,7 +120,7 @@ function formatDateTime(value) {
 function renderBars(container, rows, valueKey) {
   const withValue = rows.filter((row) => row[valueKey] > 0);
   if (!withValue.length) {
-    container.innerHTML = '<p class="report-empty">Sem atividade nesta semana.</p>';
+    container.innerHTML = '<p class="report-empty">Sem atividade neste período.</p>';
     return;
   }
   const max = Math.max(...withValue.map((row) => row[valueKey]));
@@ -141,7 +143,7 @@ function situationBadge(row) {
 function renderReportTable(rows) {
   const body = $("#report-table-body");
   if (!rows.length) {
-    body.innerHTML = '<tr><td colspan="6" class="report-empty">Nenhuma conversa nesta semana.</td></tr>';
+    body.innerHTML = '<tr><td colspan="6" class="report-empty">Nenhuma conversa neste período.</td></tr>';
     return;
   }
   body.innerHTML = rows.map((row) => `
@@ -157,7 +159,9 @@ function renderReportTable(rows) {
 }
 
 function renderReport(report) {
-  $("#report-week-label").textContent = report.weekLabel;
+  $("#report-week-label").textContent = report.periodLabel || report.weekLabel;
+  $("#report-period-label").textContent = report.periodLabel || report.weekLabel;
+  $("#report-tile-total").textContent = report.totals.conversationsInPeriod ?? report.totals.conversationsInWeek;
   $("#report-tile-new").textContent = report.totals.newConversations;
   $("#report-tile-resolved").textContent = report.totals.resolved;
   $("#report-tile-finalized").textContent = report.totals.finalizedTotal;
@@ -165,23 +169,73 @@ function renderReport(report) {
   $("#report-tile-no-agent").textContent = report.totals.resolvedWithoutAgentResponse;
   renderBars($("#report-agent-bars"), report.perAgent, "messagesSent");
   renderBars($("#report-agent-finalized"), report.perAgent, "conversationsFinalized");
-  const countLabel = report.truncated
-    ? `mostrando as ${report.conversations.length} mais recentes`
-    : `${report.conversations.length} conversa${report.conversations.length === 1 ? "" : "s"}`;
+  reportPage = report.page || 1;
+  reportTotalPages = report.totalPages || 1;
+  const first = report.totalConversations ? ((reportPage - 1) * report.pageSize) + 1 : 0;
+  const last = Math.min(reportPage * report.pageSize, report.totalConversations || 0);
+  const countLabel = report.totalConversations
+    ? `${first}–${last} de ${report.totalConversations} conversas`
+    : "0 conversas";
   $("#report-table-count").textContent = countLabel;
+  $("#report-page-label").textContent = `Página ${reportPage} de ${reportTotalPages}`;
+  $("#report-prev-page").disabled = reportPage <= 1;
+  $("#report-next-page").disabled = reportPage >= reportTotalPages;
   renderReportTable(report.conversations);
+}
+
+function reportQuery() {
+  const params = new URLSearchParams({ mode: reportMode, page: String(reportPage) });
+  if (reportMode === "WEEK") params.set("weekOffset", String(reportWeekOffset));
+  if (reportMode === "CUSTOM") {
+    params.set("startDate", $("#report-start-date").value);
+    params.set("endDate", $("#report-end-date").value);
+  }
+  return params;
 }
 
 async function loadReport() {
   try {
-    const report = await api(`/api/conversation-settings/weekly-report?weekOffset=${reportWeekOffset}`);
+    const report = await api(`/api/conversation-settings/weekly-report?${reportQuery()}`);
     renderReport(report);
+    reportLoaded = true;
   } catch (error) { toast(error.message, true); }
 }
 
-$("#report-prev-week").addEventListener("click", () => { reportWeekOffset -= 1; loadReport(); });
-$("#report-next-week").addEventListener("click", () => { reportWeekOffset += 1; loadReport(); });
-$("#report-current-week").addEventListener("click", () => { reportWeekOffset = 0; loadReport(); });
+function selectSettingsTab(tab) {
+  const reports = tab === "reports";
+  $("#settings-view").hidden = reports;
+  $("#weekly-report-section").hidden = !reports;
+  document.querySelectorAll("[data-settings-tab]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.settingsTab === tab);
+  });
+  if (reports && !reportLoaded) loadReport();
+}
+
+document.querySelectorAll("[data-settings-tab]").forEach((button) => button.addEventListener("click", () => {
+  selectSettingsTab(button.dataset.settingsTab);
+}));
+
+$("#report-period-mode").addEventListener("change", (event) => {
+  reportMode = event.target.value;
+  reportPage = 1;
+  $("#report-week-controls").hidden = reportMode !== "WEEK";
+  $("#report-custom-controls").hidden = reportMode !== "CUSTOM";
+  if (reportMode !== "CUSTOM") loadReport();
+});
+$("#report-custom-controls").addEventListener("submit", (event) => {
+  event.preventDefault();
+  reportPage = 1;
+  loadReport();
+});
+$("#report-prev-week").addEventListener("click", () => { reportWeekOffset -= 1; reportPage = 1; loadReport(); });
+$("#report-next-week").addEventListener("click", () => { reportWeekOffset += 1; reportPage = 1; loadReport(); });
+$("#report-current-week").addEventListener("click", () => { reportWeekOffset = 0; reportPage = 1; loadReport(); });
+$("#report-prev-page").addEventListener("click", () => {
+  if (reportPage > 1) { reportPage -= 1; loadReport(); }
+});
+$("#report-next-page").addEventListener("click", () => {
+  if (reportPage < reportTotalPages) { reportPage += 1; loadReport(); }
+});
 
 (async function boot() {
   try {
@@ -197,12 +251,9 @@ $("#report-current-week").addEventListener("click", () => { reportWeekOffset = 0
     fillForm(settings);
     setReadOnly(!status.user.isMaster);
 
-    // Relatório semanal: seção nova, visível e carregada só para Master —
-    // nem a chamada à API acontece para Admin/Supervisor sem isMaster
-    // (o backend também recusa, isto só evita uma chamada/erro 403 à toa).
+    // A aba e a API de relatórios existem somente para Master.
     if (status.user.isMaster) {
-      $("#weekly-report-section").hidden = false;
-      loadReport();
+      $("#reports-tab-button").hidden = false;
     }
   } catch (error) { toast(error.message, true); }
 })();

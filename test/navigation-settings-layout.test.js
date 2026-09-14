@@ -8,6 +8,8 @@ const read = (file) => fs.readFileSync(path.join(publicDir, file), "utf8");
 const html = read("index.html");
 const appCss = read("css/app.css");
 const settingsCss = read("css/configuracoes.css");
+const settingsHtml = read("configuracoes.html");
+const settingsJs = read("js/configuracoes.js");
 const appJs = read("js/app.js");
 const featureFlagsJs = read("js/feature-flags.js");
 
@@ -22,6 +24,20 @@ test("textos de ajuda ficam abaixo dos campos sem margem negativa", () => {
   assert.match(rule, /margin:12px 0 0/);
   assert.doesNotMatch(rule, /margin:-/);
   assert.match(rule, /line-height:1\.55/);
+});
+
+test("relatórios ficam em aba própria e oferecem semana, histórico e datas específicas", () => {
+  assert.match(settingsHtml, /data-settings-tab="settings"/);
+  assert.match(settingsHtml, /id="reports-tab-button"[^>]*hidden/);
+  assert.match(settingsHtml, /data-settings-tab="reports"/);
+  assert.match(settingsHtml, /option value="WEEK"/);
+  assert.match(settingsHtml, /option value="ALL"/);
+  assert.match(settingsHtml, /option value="CUSTOM"/);
+  assert.match(settingsHtml, /id="report-start-date"/);
+  assert.match(settingsHtml, /id="report-end-date"/);
+  assert.match(settingsHtml, /id="report-prev-page"/);
+  assert.match(settingsJs, /status\.user\.isMaster/);
+  assert.match(settingsJs, /URLSearchParams/);
 });
 
 test("atalhos ficam agrupados na sidebar e preservam IDs únicos", () => {

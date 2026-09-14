@@ -48,6 +48,40 @@ function weekBounds(weekOffset = 0, now = new Date()) {
   return { start, end, label: `${fmt(start)} a ${fmt(lastDay)}` };
 }
 
+function parseLocalDate(value, fieldName) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ""));
+  if (!match) throw Object.assign(new Error(`Informe ${fieldName} no formato AAAA-MM-DD.`), { statusCode: 400 });
+  const [, year, month, day] = match.map(Number);
+  const check = new Date(Date.UTC(year, month - 1, day));
+  if (check.getUTCFullYear() !== year || check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day) {
+    throw Object.assign(new Error(`Informe uma ${fieldName} válida.`), { statusCode: 400 });
+  }
+  return { year, month, day, check };
+}
+
+function customBounds(startDate, endDate) {
+  const startParts = parseLocalDate(startDate, "data inicial");
+  const endParts = parseLocalDate(endDate, "data final");
+  if (startParts.check > endParts.check) {
+    throw Object.assign(new Error("A data inicial não pode ser posterior à data final."), { statusCode: 400 });
+  }
+  const nextDay = new Date(endParts.check);
+  nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+  const start = localMidnightToUtc(startParts.year, startParts.month, startParts.day);
+  const end = localMidnightToUtc(nextDay.getUTCFullYear(), nextDay.getUTCMonth() + 1, nextDay.getUTCDate());
+  const fmt = (date) => date.toLocaleDateString("pt-BR", {
+    timeZone: REPORT_TIME_ZONE, day: "2-digit", month: "2-digit", year: "numeric",
+  });
+  return { start, end, label: `${fmt(start)} a ${fmt(new Date(end.getTime() - 1))}` };
+}
+
+function resolvePeriod({ mode = "WEEK", weekOffset = 0, startDate, endDate } = {}) {
+  const normalizedMode = String(mode || "WEEK").toUpperCase();
+  if (normalizedMode === "ALL") return { mode: "ALL", start: null, end: null, label: "Todo o histórico" };
+  if (normalizedMode === "CUSTOM") return { mode: "CUSTOM", ...customBounds(startDate, endDate) };
+  return { mode: "WEEK", ...weekBounds(Number.isFinite(Number(weekOffset)) ? Number(weekOffset) : 0) };
+}
+
 const MEDIA_LABELS = { image: "[imagem]", video: "[vídeo]", audio: "[áudio]", document: "[documento]", sticker: "[figurinha]", reaction: "[reação]" };
 function previewFor(message) {
   if (!message) return null;
@@ -60,21 +94,29 @@ function contactLabel(contact) {
   return contact.customName || contact.name || contact.phone || contact.email || "Sem nome";
 }
 
-const CONVERSATION_LIST_LIMIT = 500;
+const CONVERSATION_LIST_LIMIT = 100;
 
-async function buildConversationReport({ weekOffset = 0 } = {}, client = prisma) {
-  const { start, end, label } = weekBounds(Number.isFinite(Number(weekOffset)) ? Number(weekOffset) : 0);
+async function buildConversationReport({ mode = "WEEK", weekOffset = 0, startDate, endDate, page = 1 } = {}, client = prisma) {
+  const period = resolvePeriod({ mode, weekOffset, startDate, endDate });
+  const { start, end, label } = period;
+  const safePage = Math.max(1, Number.parseInt(page, 10) || 1);
+  const range = start && end ? { gte: start, lt: end } : null;
+  const conversationWhere = range ? {
+    OR: [
+      { lastMessageAt: range },
+      { createdAt: range },
+    ],
+  } : {};
 
-  // Coorte da semana: qualquer conversa com atividade (última mensagem) OU
-  // criada dentro da janela — cobre tanto "conversa nova esta semana" quanto
-  // "conversa antiga que teve movimento esta semana".
+  // IDs leves mantêm os indicadores exatos; a tabela detalhada é paginada
+  // para que "Todo o histórico" não sobrecarregue o navegador.
+  const cohortRefs = await client.conversation.findMany({
+    where: conversationWhere,
+    select: { id: true, status: true, createdAt: true },
+  });
+  const cohortIds = cohortRefs.map((item) => item.id);
   const cohort = await client.conversation.findMany({
-    where: {
-      OR: [
-        { lastMessageAt: { gte: start, lt: end } },
-        { createdAt: { gte: start, lt: end } },
-      ],
-    },
+    where: conversationWhere,
     select: {
       id: true, status: true, finalizedAt: true, lastMessageAt: true, createdAt: true, assignedUserId: true,
       assignedUser: { select: { id: true, name: true } },
@@ -82,29 +124,33 @@ async function buildConversationReport({ weekOffset = 0 } = {}, client = prisma)
       category: { select: { name: true, color: true } },
     },
     orderBy: [{ lastMessageAt: "desc" }, { createdAt: "desc" }],
+    skip: (safePage - 1) * CONVERSATION_LIST_LIMIT,
     take: CONVERSATION_LIST_LIMIT,
   });
-  const cohortIds = cohort.map((item) => item.id);
+  const pageIds = cohort.map((item) => item.id);
+  const relationFilter = range ? { conversation: conversationWhere } : {};
+  const activityRange = range ? { occurredAt: range } : {};
+  const finalizedRange = range ? { finalizedAt: range } : {};
 
   const [answeredGroups, answeredByAgentGroups, lastMessages, finalizedTotal, agentActivity, agentFinalized] = await Promise.all([
     cohortIds.length
-      ? client.message.groupBy({ by: ["conversationId"], where: { conversationId: { in: cohortIds }, direction: "ENVIADA" }, _count: { _all: true } })
+      ? client.message.groupBy({ by: ["conversationId"], where: { ...relationFilter, direction: "ENVIADA" }, _count: { _all: true } })
       : [],
     cohortIds.length
-      ? client.message.groupBy({ by: ["conversationId"], where: { conversationId: { in: cohortIds }, direction: "ENVIADA", sentByUserId: { not: null } }, _count: { _all: true } })
+      ? client.message.groupBy({ by: ["conversationId"], where: { ...relationFilter, direction: "ENVIADA", sentByUserId: { not: null } }, _count: { _all: true } })
       : [],
-    cohortIds.length
+    pageIds.length
       ? client.message.findMany({
-        where: { conversationId: { in: cohortIds } }, orderBy: { occurredAt: "desc" }, distinct: ["conversationId"],
+        where: { conversationId: { in: pageIds } }, orderBy: { occurredAt: "desc" }, distinct: ["conversationId"],
         select: { conversationId: true, text: true, type: true, direction: true, occurredAt: true },
       })
       : [],
-    client.conversation.count({ where: { status: "FINALIZADO", finalizedAt: { gte: start, lt: end } } }),
+    client.conversation.count({ where: { status: "FINALIZADO", ...finalizedRange } }),
     client.message.groupBy({
-      by: ["sentByUserId"], where: { direction: "ENVIADA", sentByUserId: { not: null }, occurredAt: { gte: start, lt: end } }, _count: { _all: true },
+      by: ["sentByUserId"], where: { direction: "ENVIADA", sentByUserId: { not: null }, ...activityRange }, _count: { _all: true },
     }),
     client.conversation.groupBy({
-      by: ["assignedUserId"], where: { status: "FINALIZADO", finalizedAt: { gte: start, lt: end }, assignedUserId: { not: null } }, _count: { _all: true },
+      by: ["assignedUserId"], where: { status: "FINALIZADO", ...finalizedRange, assignedUserId: { not: null } }, _count: { _all: true },
     }),
   ]);
 
@@ -139,12 +185,15 @@ async function buildConversationReport({ weekOffset = 0 } = {}, client = prisma)
   });
 
   const totals = {
-    conversationsInWeek: rows.length,
-    newConversations: cohort.filter((item) => item.createdAt >= start && item.createdAt < end).length,
-    resolved: rows.filter((item) => item.resolved).length,
+    conversationsInWeek: cohortRefs.length,
+    conversationsInPeriod: cohortRefs.length,
+    newConversations: range
+      ? cohortRefs.filter((item) => item.createdAt >= start && item.createdAt < end).length
+      : cohortRefs.length,
+    resolved: cohortRefs.filter((item) => item.status === "FINALIZADO").length,
     finalizedTotal,
-    unanswered: rows.filter((item) => !item.answered).length,
-    resolvedWithoutAgentResponse: rows.filter((item) => item.resolvedWithoutAgentResponse).length,
+    unanswered: cohortRefs.filter((item) => !answeredSet.has(item.id)).length,
+    resolvedWithoutAgentResponse: cohortRefs.filter((item) => item.status === "FINALIZADO" && !answeredByAgentSet.has(item.id)).length,
   };
 
   const agentUserIds = [...new Set([
@@ -169,10 +218,17 @@ async function buildConversationReport({ weekOffset = 0 } = {}, client = prisma)
   })).sort((a, b) => b.messagesSent - a.messagesSent);
 
   return {
+    periodMode: period.mode, periodStart: start, periodEnd: end, periodLabel: label,
     weekStart: start, weekEnd: end, weekLabel: label, weekOffset: Number(weekOffset) || 0,
-    truncated: cohort.length >= CONVERSATION_LIST_LIMIT,
+    page: safePage, pageSize: CONVERSATION_LIST_LIMIT,
+    totalConversations: cohortRefs.length,
+    totalPages: Math.max(1, Math.ceil(cohortRefs.length / CONVERSATION_LIST_LIMIT)),
+    truncated: cohortRefs.length > CONVERSATION_LIST_LIMIT,
     totals, perAgent, conversations: rows,
   };
 }
 
-module.exports = { buildConversationReport, weekBounds, CONVERSATION_LIST_LIMIT, REPORT_TIME_ZONE };
+module.exports = {
+  buildConversationReport, weekBounds, customBounds, resolvePeriod,
+  CONVERSATION_LIST_LIMIT, REPORT_TIME_ZONE,
+};
