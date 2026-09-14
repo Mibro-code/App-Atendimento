@@ -5,20 +5,46 @@
 // qualquer semana anterior pedida via `weekOffset`), então o relatório já
 // nasce sempre em dia, sem depender de nenhum processo em segundo plano.
 //
-// Semana = segunda 00:00 até o domingo seguinte 23:59:59 (horário local do
-// servidor), mesmo padrão usado no resto do sistema (nenhuma conversão de
-// fuso horário adicional é feita aqui).
+// Semana = segunda 00:00 até a segunda seguinte, sempre em Brasília.
+// O container da VPS pode rodar em UTC, portanto não dependemos do fuso
+// local do processo para montar os limites consultados no banco.
 const prisma = require("../database/prisma");
 
-function weekBounds(weekOffset = 0) {
-  const now = new Date();
-  const diffToMonday = (now.getDay() + 6) % 7; // 0 = segunda, ..., 6 = domingo
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diffToMonday + weekOffset * 7);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 7);
+const REPORT_TIME_ZONE = "America/Sao_Paulo";
+
+function zonedParts(date) {
+  return Object.fromEntries(new Intl.DateTimeFormat("en-CA", {
+    timeZone: REPORT_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(date).filter((part) => part.type !== "literal").map((part) => [part.type, Number(part.value)]));
+}
+
+function localMidnightToUtc(year, month, day) {
+  const desired = Date.UTC(year, month - 1, day);
+  let instant = desired;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: REPORT_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
+    }).formatToParts(new Date(instant));
+    const values = Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, Number(part.value)]));
+    const represented = Date.UTC(values.year, values.month - 1, values.day, values.hour, values.minute, values.second);
+    instant -= represented - desired;
+  }
+  return new Date(instant);
+}
+
+function weekBounds(weekOffset = 0, now = new Date()) {
+  const local = zonedParts(now);
+  const localDate = new Date(Date.UTC(local.year, local.month - 1, local.day));
+  const diffToMonday = (localDate.getUTCDay() + 6) % 7;
+  localDate.setUTCDate(localDate.getUTCDate() - diffToMonday + weekOffset * 7);
+  const start = localMidnightToUtc(localDate.getUTCFullYear(), localDate.getUTCMonth() + 1, localDate.getUTCDate());
+  localDate.setUTCDate(localDate.getUTCDate() + 7);
+  const end = localMidnightToUtc(localDate.getUTCFullYear(), localDate.getUTCMonth() + 1, localDate.getUTCDate());
   const lastDay = new Date(end.getTime() - 1);
-  const fmt = (date) => date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const fmt = (date) => date.toLocaleDateString("pt-BR", {
+    timeZone: REPORT_TIME_ZONE, day: "2-digit", month: "2-digit", year: "numeric",
+  });
   return { start, end, label: `${fmt(start)} a ${fmt(lastDay)}` };
 }
 
@@ -149,4 +175,4 @@ async function buildConversationReport({ weekOffset = 0 } = {}, client = prisma)
   };
 }
 
-module.exports = { buildConversationReport, weekBounds, CONVERSATION_LIST_LIMIT };
+module.exports = { buildConversationReport, weekBounds, CONVERSATION_LIST_LIMIT, REPORT_TIME_ZONE };

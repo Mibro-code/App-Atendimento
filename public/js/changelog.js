@@ -1,9 +1,20 @@
 (() => {
-  const APP_VERSION = "0.30.2";
+  const APP_VERSION = "0.30.3";
 
 
 
   const CHANGELOG = [
+    {
+      version: "0.30.3",
+      date: "14/09/2026",
+      title: "Assistente por setor, segurança e relatório semanal",
+      changes: [
+        "O Assistente Mibro agora começa somente após a triagem e adapta perguntas, contexto e encaminhamento ao setor escolhido.",
+        "Uploads executáveis são bloqueados, arquivos suspeitos são sinalizados e os webhooks ganharam proteção contra flood sem ignorar pedidos de opt-out.",
+        "A conta Master ganhou o relatório Conversas por semana, com indicadores, produtividade por atendente e detalhamento das conversas.",
+        "O relatório semanal usa explicitamente o horário de Brasília, inclusive quando a VPS opera em UTC."
+      ]
+    },
     {
       version: "0.30.2",
       date: "14/09/2026",

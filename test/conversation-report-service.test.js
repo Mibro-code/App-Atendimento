@@ -39,6 +39,13 @@ test("weekBounds: semana atual (offset 0) sempre contém 'agora', e offset -1 é
   assert.equal(previous.end.getTime(), current.start.getTime());
 });
 
+test("weekBounds: usa meia-noite de Brasília mesmo se o processo estiver em UTC", () => {
+  const sundayLateInBrazil = new Date("2026-09-14T02:30:00.000Z"); // domingo, 23:30 em Brasília
+  const bounds = weekBounds(0, sundayLateInBrazil);
+  assert.equal(bounds.start.toISOString(), "2026-09-07T03:00:00.000Z");
+  assert.equal(bounds.end.toISOString(), "2026-09-14T03:00:00.000Z");
+});
+
 test("classifica corretamente: resolvida com agente, resolvida só por bot, e nunca respondida", async () => {
   const { start } = weekBounds(0);
   const midWeek = new Date(start.getTime() + 2 * 60 * 60 * 1000);
