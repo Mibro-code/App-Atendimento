@@ -153,6 +153,36 @@ async function getCaseState(conversationId, client) {
   return normalizeCaseState(state?.caseState);
 }
 
+// Promove o histórico de tentativas do Flow Engine (ConversationBotState.
+// flowAttemptedSolutions, memória de UM fluxo) para o Case State (memória da
+// CONVERSA inteira, sobrevive à troca de fluxo/intenção). Só considera
+// USE_RESPONSE_BLOCK/USE_KNOWLEDGE com outcome SUCCESS como "solução
+// realmente mostrada ao cliente" (outcome FAILURE nesses dois, em
+// bot-flow-service.js, só significa "bloco/conhecimento vazio", não "não
+// resolveu" — nunca registrado aqui como tentativa). Quando a etapa de
+// confirmação seguinte (ASK_QUESTION sem entityKey, ex. "funcionou?") avalia
+// FAILURE (cliente disse que não resolveu), marca a ÚLTIMA solução mostrada
+// como falha — é isto que alimenta wasAlreadyTried() para o Flow Engine não
+// repetir a mesma instrução em uma etapa/fluxo futuro. Idempotente: pode ser
+// chamada de novo a cada turno com a lista acumulada inteira sem duplicar
+// (recordSolutionAttempt já deduplica por descrição).
+function mergeFlowAttemptsIntoCaseState(caseState, attemptedSolutions = []) {
+  let next = caseState;
+  let lastSolutionName = null;
+  for (const attempt of attemptedSolutions) {
+    if ((attempt.action === "USE_RESPONSE_BLOCK" || attempt.action === "USE_KNOWLEDGE")
+      && attempt.outcome === "SUCCESS" && !attempt.skippedAsAlreadyTried) {
+      lastSolutionName = attempt.name || null;
+      if (lastSolutionName) next = recordSolutionAttempt(next, lastSolutionName, "SUCCESS");
+      continue;
+    }
+    if (attempt.action === "ASK_QUESTION" && attempt.outcome === "FAILURE" && lastSolutionName) {
+      next = recordSolutionAttempt(next, lastSolutionName, "FAILURE");
+    }
+  }
+  return next;
+}
+
 module.exports = {
   emptyCaseState,
   normalizeCaseState,
@@ -161,5 +191,6 @@ module.exports = {
   recordSolutionAttempt,
   wasAlreadyTried,
   wasAlreadyAsked,
+  mergeFlowAttemptsIntoCaseState,
   getCaseState,
 };

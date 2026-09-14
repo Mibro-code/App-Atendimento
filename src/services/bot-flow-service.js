@@ -26,6 +26,7 @@ const { interpret, interpretWithProviders } = require("./bot-interpreter-service
 const { getFallbackProvider } = require("./ai/get-ai-provider");
 const { similarity } = require("./ai/local-fallback-provider");
 const { normalizeSemantic } = require("./bot-semantic-normalizer");
+const { wasAlreadyTried } = require("./bot-case-state-service");
 
 const defaultKnowledgeProvider = new KnowledgeSourceProvider();
 
@@ -533,7 +534,7 @@ async function matchOptionWithAi({ step, message, bot, flowState, context, inter
 // Percorre etapas automáticas (USE_KNOWLEDGE/QUERY_TOOL/RESPOND/GOTO_STEP)
 // encadeadas até: precisar esperar uma resposta (ASK_QUESTION), terminar
 // (RESOLVED/HANDOFF_HUMAN) ou esgotar o limite de segurança do encadeamento.
-async function runChain({ bot, intent, stepMap, startStepId, flowState, channel, mode, client, message }) {
+async function runChain({ bot, intent, stepMap, startStepId, flowState, channel, mode, client, message, caseState = null }) {
   const responses = [];
   let stepId = startStepId;
   let iterations = 0;
@@ -595,6 +596,19 @@ async function runChain({ bot, intent, stepMap, startStepId, flowState, channel,
     }
 
     if (step.action === "USE_RESPONSE_BLOCK") {
+      // Case State (item 10 do pedido — "já fiz isso"): se esta MESMA
+      // instrução já consta como tentada nesta conversa (bot-case-state-
+      // service.js#mergeFlowAttemptsIntoCaseState, alimentado a cada turno
+      // pelo orquestrador), não repete o texto — avança como se tivesse
+      // falhado de novo, sem motivo para mostrar a mesma orientação outra
+      // vez. `caseState` só existe quando o Agent Planner está ligado neste
+      // Bot (ver bot-orchestrator-service.js); em qualquer outro Bot este
+      // bloco nunca executa, comportamento continua idêntico ao de antes.
+      if (caseState && wasAlreadyTried(caseState, step.name)) {
+        recordAttempt(flowState, step, "FAILURE", { skippedAsAlreadyTried: true });
+        stepId = resolveNextStepId(step, "FAILURE");
+        continue;
+      }
       const text = renderBlock(step.responseBlock, flowState.collectedEntities);
       recordAttempt(flowState, step, text ? "SUCCESS" : "FAILURE", { responseBlockCode: step.responseBlock?.code || null });
       if (text) responses.push(text);
@@ -664,12 +678,12 @@ async function runChain({ bot, intent, stepMap, startStepId, flowState, channel,
 // Inicia o fluxo de uma intenção pela primeira vez nesta conversa (chamado
 // quando decide() resolveu RESPOND/QUERY_TOOL para uma intenção que tem
 // etapas ativas configuradas).
-async function startFlow({ bot, intent, channel, mode, client = prisma, seedEntities = null }) {
+async function startFlow({ bot, intent, channel, mode, client = prisma, seedEntities = null, caseState = null }) {
   const steps = await getActiveOrderedSteps(intent.id, client);
   if (!steps.length) return null;
   const stepMap = new Map(steps.map((step) => [step.id, step]));
   const flowState = emptyFlowState(intent.id, seedEntities);
-  return runChain({ bot, intent, stepMap, startStepId: steps[0].id, flowState, channel, mode, client, message: null });
+  return runChain({ bot, intent, stepMap, startStepId: steps[0].id, flowState, channel, mode, client, message: null, caseState });
 }
 
 // ---------------------------------------------------------------------------
@@ -750,7 +764,9 @@ async function detectTopicSwitch({ bot, message, currentIntentId, context = [] }
 
 // Continua um fluxo já em andamento: interpreta `message` como resposta à
 // etapa atual (`state.currentFlowStepId`) e avança.
-async function continueFlow({ bot, intent, message, state, channel, mode, client = prisma, context = [], interpretMessage = interpret }) {
+async function continueFlow({
+  bot, intent, message, state, channel, mode, client = prisma, context = [], interpretMessage = interpret, caseState = null,
+}) {
   const steps = await getActiveOrderedSteps(intent.id, client);
   const stepMap = new Map(steps.map((step) => [step.id, step]));
   const currentStep = stepMap.get(state.currentFlowStepId);
@@ -769,7 +785,7 @@ async function continueFlow({ bot, intent, message, state, channel, mode, client
     // Só etapas de pergunta/opções pausam esperando o cliente — qualquer outra
     // situação aqui é defensiva (estado inconsistente), nunca trava.
     return runChain({
-      bot, intent, stepMap, startStepId: currentStep.id, flowState, channel, mode, client, message,
+      bot, intent, stepMap, startStepId: currentStep.id, flowState, channel, mode, client, message, caseState,
     });
   }
 
@@ -815,7 +831,9 @@ async function continueFlow({ bot, intent, message, state, channel, mode, client
           flow: toFlowPersist(flowState, null, "HANDED_OFF"), matchedRule: matched.rule, aiTrace,
         };
       }
-      const targetOutcome = await startFlow({ bot, intent: targetIntent, channel, mode, client, seedEntities: flowState.collectedEntities });
+      const targetOutcome = await startFlow({
+        bot, intent: targetIntent, channel, mode, client, seedEntities: flowState.collectedEntities, caseState,
+      });
       if (targetOutcome) return {
         ...targetOutcome,
         targetIntentId: targetIntent.id,
@@ -826,7 +844,9 @@ async function continueFlow({ bot, intent, message, state, channel, mode, client
     }
 
     if (matched.option.nextStepId) {
-      const result = await runChain({ bot, intent, stepMap, startStepId: matched.option.nextStepId, flowState, channel, mode, client, message });
+      const result = await runChain({
+        bot, intent, stepMap, startStepId: matched.option.nextStepId, flowState, channel, mode, client, message, caseState,
+      });
       return { ...result, matchedRule: matched.rule, selectedFlow: intent.name, aiTrace };
     }
 
@@ -872,7 +892,7 @@ async function continueFlow({ bot, intent, message, state, channel, mode, client
 
   recordAttempt(flowState, currentStep, outcome);
   const nextStepId = resolveNextStepId(currentStep, outcome);
-  return runChain({ bot, intent, stepMap, startStepId: nextStepId, flowState, channel, mode, client, message });
+  return runChain({ bot, intent, stepMap, startStepId: nextStepId, flowState, channel, mode, client, message, caseState });
 }
 
 // Item 2 (expiração de contexto): estado "vazio" para limpar os campos flow*

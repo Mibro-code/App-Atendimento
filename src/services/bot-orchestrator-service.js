@@ -10,7 +10,7 @@ const { decide } = require("./bot-decision-service");
 const { plan } = require("./bot-agent-planner-service");
 const { clarificationFor } = require("./bot-tool-orchestrator-service");
 const {
-  normalizeCaseState, mergeCaseState, recordQuestionAsked,
+  normalizeCaseState, mergeCaseState, recordQuestionAsked, mergeFlowAttemptsIntoCaseState,
 } = require("./bot-case-state-service");
 const { computeResponse, isPersonalityEligible } = require("./bot-response-service");
 const { applyPersonality } = require("./bot-personality-service");
@@ -290,6 +290,14 @@ async function runDecisionPipeline({
   let flowStackUpdate = flowStack;
   let topicSwitchDetected = false;
 
+  // Case State (plano de Inteligência de Bots, item 4): só existe/é escrito
+  // quando o Agent Planner está ligado neste Bot — nenhum outro Bot muda de
+  // comportamento por causa disto. Calculado ANTES do Flow Engine porque
+  // continueFlow/startFlow também precisam dele (para não repetir uma
+  // instrução já tentada nesta conversa — ver wasAlreadyTried em
+  // bot-flow-service.js), não só o caminho de classificação abaixo.
+  let caseStateUpdate = flags.agentPlannerEnabled === true ? normalizeCaseState(state?.caseState) : null;
+
   // Flow Engine (múltiplas etapas): se já existe uma etapa aguardando
   // resposta nesta conversa, a mensagem é interpretada como resposta a ELA,
   // não reclassificada do zero — mesmo espírito do carryOverFromContext já
@@ -299,7 +307,7 @@ async function runDecisionPipeline({
     const flowIntent = findIntentInBot(bot, state.activeFlowIntentId);
     if (flowIntent) {
       const outcome = await flowEngine.continueFlow({
-        bot, intent: flowIntent, message, state, channel, mode: toolMode, client, context,
+        bot, intent: flowIntent, message, state, channel, mode: toolMode, client, context, caseState: caseStateUpdate,
       });
       if (outcome.topicSwitch) {
         // Item 4/5: a mensagem não é resposta à etapa pendente — é uma
@@ -319,8 +327,6 @@ async function runDecisionPipeline({
     }
   }
 
-  let caseStateUpdate = null;
-
   if (!decision) {
     interpretation = await interpret({ bot, message, context, state, flags });
 
@@ -337,13 +343,12 @@ async function runDecisionPipeline({
         interpretation = { ...interpretation, intentId: top.intentId, intentName: top.intentName, confidence: top.confidence };
       }
 
-      // Contexto real (item 4): lido do MESMO `state` que já alimenta
-      // contextEntities/flow* — nunca uma consulta extra ao banco. No
-      // simulador, `state` é o objeto transitório da sessão de teste; numa
-      // conversa real, é o ConversationBotState já carregado por
-      // orchestrate(). Ambos os casos tratam ausência como caso vazio.
-      const caseState = normalizeCaseState(state?.caseState);
-      const plannerResult = plan({ bot, interpretation, caseState });
+      // Contexto real (item 4): lido do MESMO `caseStateUpdate` calculado no
+      // topo desta função (nunca uma consulta extra ao banco). No simulador,
+      // vem do objeto transitório da sessão de teste; numa conversa real, de
+      // ConversationBotState já carregado por orchestrate(). Ambos tratam
+      // ausência como caso vazio.
+      const plannerResult = plan({ bot, interpretation, caseState: caseStateUpdate });
       decision = planToLegacyDecision(plannerResult, interpretation);
 
       // Registra a pergunta feita (ASK/CLARIFY) para nunca repeti-la
@@ -351,7 +356,7 @@ async function runDecisionPipeline({
       // novo o que já é conhecido", agora também para PERGUNTAS já feitas,
       // não só para entidades já capturadas.
       const askedQuestion = decision.clarificationQuestion || null;
-      caseStateUpdate = askedQuestion ? recordQuestionAsked(caseState, askedQuestion) : caseState;
+      if (askedQuestion) caseStateUpdate = recordQuestionAsked(caseStateUpdate, askedQuestion);
     } else {
       decision = decide({ bot, interpretation, message, state, now, flags });
     }
@@ -384,7 +389,9 @@ async function runDecisionPipeline({
       const hasFlow = await flowEngine.hasActiveFlow(interpretation.intentId, client);
       if (hasFlow) {
         const flowIntent = findIntentInBot(bot, interpretation.intentId);
-        const outcome = await flowEngine.startFlow({ bot, intent: flowIntent, channel, mode: toolMode, client, seedEntities });
+        const outcome = await flowEngine.startFlow({
+          bot, intent: flowIntent, channel, mode: toolMode, client, seedEntities, caseState: caseStateUpdate,
+        });
         if (outcome) {
           decision = { ...decision, ...flowDecisionStub(flowIntent, outcome) };
           flowUpdate = outcome.flow;
@@ -486,13 +493,35 @@ async function runDecisionPipeline({
     lastResponseRepeatCount: finalLoop.repeatCount,
   };
 
-  // Captura de entidade no Case State (item 4): só quando o Planner rodou
-  // (caseStateUpdate só é setado nesse caminho) — produto é a primeira
-  // entidade "promovida" do bag genérico de intepretation.entities para o
-  // caso estruturado; mesma regra de nunca sobrescrever um fato já sabido
-  // com vazio (ver mergeCaseState).
+  // Captura de contexto real no Case State (item 4): só quando o Agent
+  // Planner está ligado neste Bot (caseStateUpdate só é setado nesse
+  // caminho, ver topo desta função). `topic` acompanha a intenção/etapa mais
+  // específica do turno (refina conforme o cliente avança no menu guiado);
+  // product/app/os vêm tanto do bag genérico de entidades quanto do que o
+  // Flow Engine já coletou nesta etapa (flowUpdate.collectedEntities,
+  // entityKey productName/appName/phoneOs — ver a seed do Mibro);
+  // providedInfo guarda texto livre já informado (ex.: número/canal do
+  // pedido) sem tentar adivinhar o formato; symptom só é preenchido quando a
+  // IA externa realmente rodou e devolveu um resumo do problema
+  // (interpretation.problem) — nunca inventado localmente. mergeCaseState
+  // nunca sobrescreve um fato já sabido com vazio.
   if (caseStateUpdate) {
-    caseStateUpdate = mergeCaseState(caseStateUpdate, { product: interpretation.entities?.productName || null });
+    const flowEntities = flowUpdate?.collectedEntities || {};
+    caseStateUpdate = mergeCaseState(caseStateUpdate, {
+      topic: interpretation.intentName || null,
+      product: flowEntities.productName || interpretation.entities?.productName || null,
+      app: flowEntities.appName || interpretation.entities?.appName || null,
+      os: flowEntities.phoneOs || interpretation.entities?.phoneOs || null,
+      providedInfo: flowEntities.orderContext || null,
+      symptom: interpretation.problem || null,
+    });
+    // Item 10 (não repetir solução já tentada): promove as tentativas reais
+    // deste fluxo (bloco/conhecimento mostrado + confirmação "funcionou?"
+    // seguinte) para o Case State — idempotente, sempre a lista acumulada
+    // inteira do fluxo (ver mergeFlowAttemptsIntoCaseState).
+    if (flowUpdate?.attemptedSolutions?.length) {
+      caseStateUpdate = mergeFlowAttemptsIntoCaseState(caseStateUpdate, flowUpdate.attemptedSolutions);
+    }
   }
 
   return {
