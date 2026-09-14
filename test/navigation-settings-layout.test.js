@@ -26,18 +26,17 @@ test("textos de ajuda ficam abaixo dos campos sem margem negativa", () => {
   assert.match(rule, /line-height:1\.55/);
 });
 
-test("relatórios ficam em aba própria e oferecem semana, histórico e datas específicas", () => {
-  assert.match(settingsHtml, /data-settings-tab="settings"/);
-  assert.match(settingsHtml, /id="reports-tab-button"[^>]*hidden/);
-  assert.match(settingsHtml, /data-settings-tab="reports"/);
-  assert.match(settingsHtml, /option value="WEEK"/);
-  assert.match(settingsHtml, /option value="ALL"/);
-  assert.match(settingsHtml, /option value="CUSTOM"/);
-  assert.match(settingsHtml, /id="report-start-date"/);
-  assert.match(settingsHtml, /id="report-end-date"/);
-  assert.match(settingsHtml, /id="report-prev-page"/);
+test("relatórios ficam em página própria, com histórico e datas específicas", () => {
+  const reportHtml = read("relatorio-conversas.html");
+  const reportJs = read("js/relatorio-conversas.js");
+  assert.match(settingsHtml, /id="weekly-report-link"[^>]*href="\/relatorio-conversas\.html"[^>]*hidden/);
+  assert.match(reportHtml, /option value="all"/);
+  assert.match(reportHtml, /option value="custom"/);
+  assert.match(reportHtml, /id="f-start"/);
+  assert.match(reportHtml, /id="f-end"/);
+  assert.match(reportHtml, /id="conversations-pagination"/);
   assert.match(settingsJs, /status\.user\.isMaster/);
-  assert.match(settingsJs, /URLSearchParams/);
+  assert.match(reportJs, /URLSearchParams/);
 });
 
 test("atalhos ficam agrupados na sidebar e preservam IDs únicos", () => {

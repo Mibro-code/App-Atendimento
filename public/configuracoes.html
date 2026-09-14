@@ -21,12 +21,11 @@
   </header>
 
   <main class="settings-shell">
-    <nav class="settings-tabs" aria-label="Áreas de configurações">
-      <button class="settings-tab active" type="button" data-settings-tab="settings">Configurações</button>
-      <button id="reports-tab-button" class="settings-tab" type="button" data-settings-tab="reports" hidden>Relatórios</button>
+    <nav class="settings-tabs" aria-label="Areas de configuracoes">
+      <a class="settings-tab active" href="/configuracoes.html" aria-current="page">Configura&ccedil;&otilde;es</a>
+      <a id="weekly-report-link" class="settings-tab" href="/relatorio-conversas.html" hidden>Relat&oacute;rios</a>
     </nav>
 
-    <section id="settings-view">
     <div class="settings-heading">
       <div><span>CONVERSAS</span><h1>Configurações de Conversas</h1><p>Fonte central de SLAs, alertas, contexto do Bot e reabertura — nenhum desses prazos vive hardcoded em outro lugar do sistema.</p></div>
       <div id="settings-readonly-note" class="readonly-note" hidden>Modo somente leitura — apenas uma conta Master pode alterar estas configurações.</div>
@@ -92,74 +91,6 @@
         <button id="save-settings" type="submit">Salvar configurações</button>
       </div>
     </form>
-    </section>
-
-    <section id="weekly-report-section" class="weekly-report" hidden>
-      <div class="settings-heading">
-        <div><span>RELATÓRIOS &bull; SOMENTE MASTER</span><h1>Relatório de conversas</h1><p>Consulte a semana, todo o histórico ou um intervalo específico. Os dados são calculados na hora.</p></div>
-      </div>
-
-      <div class="report-period-card">
-        <label><span>PERÍODO</span>
-          <select id="report-period-mode">
-            <option value="WEEK">Por semana</option>
-            <option value="ALL">Todo o histórico</option>
-            <option value="CUSTOM">Datas específicas</option>
-          </select>
-        </label>
-        <strong id="report-period-label" class="report-period-label">—</strong>
-        <div id="report-week-controls" class="report-nav">
-          <button id="report-prev-week" type="button" class="round-button" title="Semana anterior">&larr;</button>
-          <strong id="report-week-label">—</strong>
-          <button id="report-next-week" type="button" class="round-button" title="Próxima semana">&rarr;</button>
-          <button id="report-current-week" type="button" class="link-button">Semana atual</button>
-        </div>
-        <form id="report-custom-controls" class="report-custom-controls" hidden>
-          <label><span>DATA INICIAL</span><input id="report-start-date" type="date" required></label>
-          <label><span>DATA FINAL</span><input id="report-end-date" type="date" required></label>
-          <button type="submit">Aplicar período</button>
-        </form>
-      </div>
-
-      <div class="report-tiles">
-        <div class="report-tile"><span id="report-tile-total">0</span><small>Conversas no período</small></div>
-        <div class="report-tile"><span id="report-tile-new">0</span><small>Novas conversas</small></div>
-        <div class="report-tile"><span id="report-tile-resolved">0</span><small>Resolvidas</small></div>
-        <div class="report-tile"><span id="report-tile-finalized">0</span><small>Finalizadas (total)</small></div>
-        <div class="report-tile warn"><span id="report-tile-unanswered">0</span><small>Nunca respondidas (nem Bot)</small></div>
-        <div class="report-tile warn"><span id="report-tile-no-agent">0</span><small>Finalizadas sem resposta do vendedor</small></div>
-      </div>
-
-      <div class="report-columns">
-        <div class="card">
-          <div class="card-heading"><h3>Mensagens enviadas por vendedor</h3></div>
-          <div id="report-agent-bars" class="report-bars"><p class="report-empty">Sem atividade nesta semana.</p></div>
-        </div>
-        <div class="card">
-          <div class="card-heading"><h3>Conversas finalizadas por vendedor</h3></div>
-          <div id="report-agent-finalized" class="report-bars"><p class="report-empty">Sem atividade nesta semana.</p></div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-heading"><h3>Conversas do período</h3><span id="report-table-count" class="report-table-count"></span></div>
-        <div class="report-table-wrap">
-          <table class="report-table">
-            <thead>
-              <tr>
-                <th>Contato</th><th>Última mensagem</th><th>Quando</th><th>Status</th><th>Vendedor</th><th>Situação</th>
-              </tr>
-            </thead>
-            <tbody id="report-table-body"></tbody>
-          </table>
-        </div>
-        <div class="report-pagination">
-          <button id="report-prev-page" type="button" class="link-button">Página anterior</button>
-          <span id="report-page-label">Página 1 de 1</span>
-          <button id="report-next-page" type="button" class="link-button">Próxima página</button>
-        </div>
-      </div>
-    </section>
   </main>
 
   <div id="toast" class="toast"></div>
