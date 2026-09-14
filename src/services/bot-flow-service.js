@@ -496,21 +496,38 @@ function matchOption(step, message, bot, flowState) {
 // das intenções desta etapa (via targetIntentId) e a confiança atinge o
 // mesmo limiar usado para trocar de assunto (bot.highConfidenceThreshold) —
 // nunca inventa uma opção fora do menu.
-async function matchOptionWithAi({ step, message, bot, flowState, context }) {
+async function matchOptionWithAi({ step, message, bot, flowState, context, interpretMessage = interpret }) {
   const options = availableOptions(step, flowState).filter((option) => option.targetIntentId);
-  if (!options.length) return null;
+  if (!options.length) return { match: null, aiTrace: null };
   let result;
   try {
-    result = await interpret({ bot, message, context, flags: bot.featureFlags || {} });
+    result = await interpretMessage({ bot, message, context, flags: bot.featureFlags || {} });
   } catch (_error) {
-    return null;
+    return { match: null, aiTrace: null };
   }
-  if (!result?.intentId) return null;
+  const aiTrace = result?.calledExternalAi ? {
+    calledExternalAi: true,
+    externalProvider: result.externalProvider || result.provider || null,
+    externalAccepted: Boolean(result.externalAccepted),
+    externalStatus: result.externalStatus || result.status || null,
+    externalErrorCode: result.externalErrorCode || result.errorCode || null,
+    aiUsage: result.aiUsage || result.usage || null,
+    problem: result.problem || null,
+    recommendedFlow: result.recommendedFlow || null,
+  } : null;
+  if (!result?.intentId) return { match: null, aiTrace };
   const option = options.find((item) => item.targetIntentId === result.intentId);
-  if (!option) return null;
+  if (!option) return { match: null, aiTrace };
   const threshold = typeof bot.highConfidenceThreshold === "number" ? bot.highConfidenceThreshold : DEFAULT_HIGH_CONFIDENCE_THRESHOLD;
-  if (result.confidence < threshold) return null;
-  return { option, rule: "OPTION_AI", confidence: result.confidence };
+  if (result.confidence < threshold) return { match: null, aiTrace };
+  return {
+    match: {
+      option,
+      rule: result.calledExternalAi ? "OPTION_AI" : "OPTION_INTENT",
+      confidence: result.confidence,
+    },
+    aiTrace,
+  };
 }
 
 // Percorre etapas automáticas (USE_KNOWLEDGE/QUERY_TOOL/RESPOND/GOTO_STEP)
@@ -733,7 +750,7 @@ async function detectTopicSwitch({ bot, message, currentIntentId, context = [] }
 
 // Continua um fluxo já em andamento: interpreta `message` como resposta à
 // etapa atual (`state.currentFlowStepId`) e avança.
-async function continueFlow({ bot, intent, message, state, channel, mode, client = prisma, context = [] }) {
+async function continueFlow({ bot, intent, message, state, channel, mode, client = prisma, context = [], interpretMessage = interpret }) {
   const steps = await getActiveOrderedSteps(intent.id, client);
   const stepMap = new Map(steps.map((step) => [step.id, step]));
   const currentStep = stepMap.get(state.currentFlowStepId);
@@ -757,8 +774,13 @@ async function continueFlow({ bot, intent, message, state, channel, mode, client
   }
 
   if (currentStep.action === "SHOW_OPTIONS") {
-    const matched = matchOption(currentStep, message, bot, flowState)
-      || (await matchOptionWithAi({ step: currentStep, message, bot, flowState, context }));
+    let matched = matchOption(currentStep, message, bot, flowState);
+    let aiTrace = null;
+    if (!matched) {
+      const classified = await matchOptionWithAi({ step: currentStep, message, bot, flowState, context, interpretMessage });
+      matched = classified.match;
+      aiTrace = classified.aiTrace;
+    }
     const attempts = (flowState.stepAttempts[currentStep.id] || 0) + 1;
     flowState.stepAttempts[currentStep.id] = attempts;
     if (!matched) {
@@ -768,14 +790,14 @@ async function continueFlow({ bot, intent, message, state, channel, mode, client
           responseText: "Não consegui identificar uma das opções. Vou te encaminhar para um atendente.",
           terminal: "HANDOFF",
           summary: `Máximo de tentativas atingido no menu "${currentStep.name}".`,
-          flow: toFlowPersist(flowState, null, "HANDED_OFF"), matchedRule: null,
+          flow: toFlowPersist(flowState, null, "HANDED_OFF"), matchedRule: null, aiTrace,
         };
       }
       const prompt = optionsPrompt(currentStep, flowState);
       return {
         responseText: `Não consegui identificar a opção. Responda com o número ou nome desejado.\n\n${prompt}`,
         terminal: null, summary: `Opção não reconhecida em "${currentStep.name}".`,
-        flow: toFlowPersist(flowState, currentStep.id, "IN_PROGRESS", prompt), matchedRule: null,
+        flow: toFlowPersist(flowState, currentStep.id, "IN_PROGRESS", prompt), matchedRule: null, aiTrace,
       };
     }
 
@@ -790,7 +812,7 @@ async function continueFlow({ bot, intent, message, state, channel, mode, client
         return {
           responseText: "Esta opção está temporariamente indisponível. Vou te encaminhar para um atendente.", terminal: "HANDOFF",
           summary: `Intenção de destino da opção "${matched.option.label}" indisponível.`,
-          flow: toFlowPersist(flowState, null, "HANDED_OFF"), matchedRule: matched.rule,
+          flow: toFlowPersist(flowState, null, "HANDED_OFF"), matchedRule: matched.rule, aiTrace,
         };
       }
       const targetOutcome = await startFlow({ bot, intent: targetIntent, channel, mode, client, seedEntities: flowState.collectedEntities });
@@ -799,18 +821,19 @@ async function continueFlow({ bot, intent, message, state, channel, mode, client
         targetIntentId: targetIntent.id,
         matchedRule: matched.rule,
         selectedFlow: targetIntent.name,
+        aiTrace,
       };
     }
 
     if (matched.option.nextStepId) {
       const result = await runChain({ bot, intent, stepMap, startStepId: matched.option.nextStepId, flowState, channel, mode, client, message });
-      return { ...result, matchedRule: matched.rule, selectedFlow: intent.name };
+      return { ...result, matchedRule: matched.rule, selectedFlow: intent.name, aiTrace };
     }
 
     return {
       responseText: "Vou te encaminhar para um de nossos atendentes, só um instante.", terminal: "HANDOFF",
       summary: `Opção "${matched.option.label}" encaminhada para atendimento humano.`,
-      flow: toFlowPersist(flowState, null, "HANDED_OFF"), matchedRule: matched.rule, selectedFlow: intent.name,
+      flow: toFlowPersist(flowState, null, "HANDED_OFF"), matchedRule: matched.rule, selectedFlow: intent.name, aiTrace,
     };
   }
 
@@ -875,6 +898,7 @@ module.exports = {
   detectTopicSwitch,
   startFlow,
   continueFlow,
+  matchOptionWithAi,
   MAX_FLOW_STACK_DEPTH,
   pushFlowStack,
   popFlowStack,

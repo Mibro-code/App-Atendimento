@@ -11,6 +11,13 @@
 -- ver ai/get-ai-provider.js) e não é tocada por esta migration. Sem
 -- credencial configurada, o Bot continua funcionando normalmente só com o
 -- classificador local (getPrimaryProvider() cai em LOCAL_FALLBACK).
+-- Se o Master já escolheu outro provider para este Bot, a escolha existente
+-- é preservada; Gemini é definido apenas quando ainda não há provider.
 UPDATE "Bot"
-SET "featureFlags" = COALESCE("featureFlags", '{}'::jsonb) || '{"externalAiFallbackEnabled":true,"externalAiProvider":"GEMINI"}'::jsonb
+SET "featureFlags" =
+  jsonb_set(COALESCE("featureFlags", '{}'::jsonb), '{externalAiFallbackEnabled}', 'true'::jsonb, true)
+  || CASE
+    WHEN COALESCE("featureFlags", '{}'::jsonb) ? 'externalAiProvider' THEN '{}'::jsonb
+    ELSE '{"externalAiProvider":"GEMINI"}'::jsonb
+  END
 WHERE "id" = 'mibro-assistant-observer';
