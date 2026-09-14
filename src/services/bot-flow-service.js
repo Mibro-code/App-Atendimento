@@ -22,7 +22,7 @@ const {
 const { resolveToolDecision } = require("./bot-tool-orchestrator-service");
 const { isActiveNow } = require("./bot-knowledge-source-service");
 const { KnowledgeSourceProvider } = require("./bot-knowledge/knowledge-provider");
-const { interpretWithProviders } = require("./bot-interpreter-service");
+const { interpret, interpretWithProviders } = require("./bot-interpreter-service");
 const { getFallbackProvider } = require("./ai/get-ai-provider");
 const { similarity } = require("./ai/local-fallback-provider");
 const { normalizeSemantic } = require("./bot-semantic-normalizer");
@@ -484,6 +484,35 @@ function matchOption(step, message, bot, flowState) {
   return best && best.confidence >= 0.72 ? best : null;
 }
 
+// Quando o cliente responde ao menu (SHOW_OPTIONS) de um jeito que o
+// casamento local (número/label/sinônimo, matchOption acima) não reconhece,
+// tenta a IA externa configurada no Bot (interpretCore, via interpret() —
+// bot-interpreter-service.js) ANTES de gastar mais uma tentativa/encaminhar.
+// interpret() já só chama o provider externo quando
+// featureFlags.externalAiFallbackEnabled === true (default false) — sem
+// isso, ou sem credencial configurada, esta função só roda o classificador
+// LOCAL de intenção e, na prática, quase nunca casa (comportamento igual ao
+// de antes desta mudança). Só aceita o resultado quando ele aponta para uma
+// das intenções desta etapa (via targetIntentId) e a confiança atinge o
+// mesmo limiar usado para trocar de assunto (bot.highConfidenceThreshold) —
+// nunca inventa uma opção fora do menu.
+async function matchOptionWithAi({ step, message, bot, flowState, context }) {
+  const options = availableOptions(step, flowState).filter((option) => option.targetIntentId);
+  if (!options.length) return null;
+  let result;
+  try {
+    result = await interpret({ bot, message, context, flags: bot.featureFlags || {} });
+  } catch (_error) {
+    return null;
+  }
+  if (!result?.intentId) return null;
+  const option = options.find((item) => item.targetIntentId === result.intentId);
+  if (!option) return null;
+  const threshold = typeof bot.highConfidenceThreshold === "number" ? bot.highConfidenceThreshold : DEFAULT_HIGH_CONFIDENCE_THRESHOLD;
+  if (result.confidence < threshold) return null;
+  return { option, rule: "OPTION_AI", confidence: result.confidence };
+}
+
 // Percorre etapas automáticas (USE_KNOWLEDGE/QUERY_TOOL/RESPOND/GOTO_STEP)
 // encadeadas até: precisar esperar uma resposta (ASK_QUESTION), terminar
 // (RESOLVED/HANDOFF_HUMAN) ou esgotar o limite de segurança do encadeamento.
@@ -728,7 +757,8 @@ async function continueFlow({ bot, intent, message, state, channel, mode, client
   }
 
   if (currentStep.action === "SHOW_OPTIONS") {
-    const matched = matchOption(currentStep, message, bot, flowState);
+    const matched = matchOption(currentStep, message, bot, flowState)
+      || (await matchOptionWithAi({ step: currentStep, message, bot, flowState, context }));
     const attempts = (flowState.stepAttempts[currentStep.id] || 0) + 1;
     flowState.stepAttempts[currentStep.id] = attempts;
     if (!matched) {
