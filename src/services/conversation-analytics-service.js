@@ -430,8 +430,9 @@ async function getAgentRanking(query) {
     });
   }
 
-  rows.sort((a, b) => b.attended - a.attended);
-  return { truncated, agents: rows };
+  const visibleRows = rows.filter((row) => row.role !== "ADMIN");
+  visibleRows.sort((a, b) => b.attended - a.attended);
+  return { truncated, agents: visibleRows };
 }
 
 async function getAgentDetail(userId, query) {

@@ -34,7 +34,7 @@
       </select>
       <input id="f-start" type="date" hidden>
       <input id="f-end" type="date" hidden>
-      <select id="f-agent"><option value="">Vendedor: todos</option></select>
+      <select id="f-agent"><option value="">Atendente: todos</option></select>
       <select id="f-channel"><option value="">Canal: todos</option></select>
       <select id="f-category"><option value="">Categoria: todas</option></select>
       <select id="f-status"><option value="">Status: todos</option></select>
@@ -88,8 +88,9 @@
 
     <section class="rp-card">
       <div class="rp-card-head">
-        <div><h3>Desempenho dos vendedores</h3><p>Clique numa linha para o detalhe; selecione até 3 para comparar.</p></div>
+        <div><h3>Desempenho dos atendentes</h3><p>Clique numa linha para o detalhe; selecione até 3 para comparar.</p></div>
         <div class="rp-head-controls">
+          <select id="agents-category-filter" class="rp-section-filter"><option value="">Categoria: todas</option></select>
           <button id="agents-compare-btn" class="rp-btn" type="button" disabled>Comparar selecionados</button>
           <button id="agents-export" class="rp-btn" type="button">Exportar CSV</button>
         </div>
@@ -97,7 +98,7 @@
       <div class="rp-table-wrap">
         <table class="rp-table" id="agents-table">
           <thead><tr>
-            <th></th><th data-sort="name">Vendedor</th><th data-sort="attended">Atendidas</th><th data-sort="claimed">Assumidas</th>
+            <th></th><th data-sort="name">Atendente</th><th data-sort="attended">Atendidas</th><th data-sort="claimed">Assumidas</th>
             <th data-sort="resolved">Resolvidas</th><th data-sort="finalized">Finalizadas</th><th data-sort="messagesSent">Mensagens</th>
             <th data-sort="firstResponseAvgSeconds">1ª resposta</th><th data-sort="responseAvgSeconds">Resposta</th>
             <th data-sort="resolutionAvgSeconds">Resolução</th><th data-sort="resolutionRate">Taxa resolução</th>

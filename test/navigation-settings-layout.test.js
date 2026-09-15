@@ -37,6 +37,13 @@ test("relatórios ficam em página própria, com histórico e datas específicas
   assert.match(reportHtml, /id="conversations-pagination"/);
   assert.match(settingsJs, /status\.user\.isMaster/);
   assert.match(reportJs, /URLSearchParams/);
+  assert.match(reportHtml, /Desempenho dos atendentes/);
+  assert.match(reportHtml, /id="agents-category-filter"/);
+  assert.match(reportJs, /agents-category-filter/);
+});
+
+test("permissão de prioridade não exibe explicação sobre perfis", () => {
+  assert.doesNotMatch(html, /Admin e Supervisor sempre podem/);
 });
 
 test("atalhos ficam agrupados na sidebar e preservam IDs únicos", () => {

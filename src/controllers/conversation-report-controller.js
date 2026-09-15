@@ -31,12 +31,12 @@ module.exports = {
   agentRanking: wrap((req) => analytics.getAgentRanking(req.query)),
   agentDetail: wrap(async (req) => {
     const detail = await analytics.getAgentDetail(req.params.userId, req.query);
-    if (!detail) throw Object.assign(new Error("Vendedor não encontrado."), { statusCode: 404 });
+    if (!detail) throw Object.assign(new Error("Atendente não encontrado."), { statusCode: 404 });
     return detail;
   }),
   compareAgents: wrap((req) => {
     const ids = String(req.query.userIds || "").split(",").map((id) => id.trim()).filter(Boolean).slice(0, 3);
-    if (!ids.length) throw Object.assign(new Error("Informe ao menos um vendedor para comparar."), { statusCode: 400 });
+    if (!ids.length) throw Object.assign(new Error("Informe ao menos um atendente para comparar."), { statusCode: 400 });
     return analytics.compareAgents(ids, req.query);
   }),
   heatmap: wrap((req) => analytics.getHeatmap(req.query)),
@@ -56,7 +56,7 @@ module.exports = {
     try {
       assertMaster(req);
       const { items } = await analytics.listConversations({ ...req.query, page: 1, pageSize: 100 });
-      const header = ["Contato", "Telefone", "Canal", "Categoria", "Status", "Prioridade", "Vendedor", "Criada em", "Última atividade", "Finalizada em", "Última mensagem"];
+      const header = ["Contato", "Telefone", "Canal", "Categoria", "Status", "Prioridade", "Atendente", "Criada em", "Última atividade", "Finalizada em", "Última mensagem"];
       const lines = [header.map(csvEscape).join(",")];
       for (const item of items) {
         lines.push([
@@ -75,7 +75,7 @@ module.exports = {
     try {
       assertMaster(req);
       const { agents } = await analytics.getAgentRanking(req.query);
-      const header = ["Vendedor", "E-mail", "Atendidas", "Assumidas", "Resolvidas", "Finalizadas", "Mensagens enviadas", "Nunca respondidas", "1ª resposta média (s)", "Resposta média (s)", "Resolução média (s)", "Taxa de resolução (%)", "SLA cumprido (%)"];
+      const header = ["Atendente", "E-mail", "Atendidas", "Assumidas", "Resolvidas", "Finalizadas", "Mensagens enviadas", "Nunca respondidas", "1ª resposta média (s)", "Resposta média (s)", "Resolução média (s)", "Taxa de resolução (%)", "SLA cumprido (%)"];
       const lines = [header.map(csvEscape).join(",")];
       for (const agent of agents) {
         lines.push([
@@ -88,7 +88,7 @@ module.exports = {
         ].map(csvEscape).join(","));
       }
       res.setHeader("Content-Type", "text/csv; charset=utf-8");
-      res.setHeader("Content-Disposition", `attachment; filename="relatorio-vendedores-${new Date().toISOString().slice(0, 10)}.csv"`);
+      res.setHeader("Content-Disposition", `attachment; filename="relatorio-atendentes-${new Date().toISOString().slice(0, 10)}.csv"`);
       return res.send(`﻿${lines.join("\n")}`);
     } catch (error) { return next(error); }
   },

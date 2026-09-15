@@ -99,7 +99,7 @@ function queryFromState(extra = {}) {
 // Filtros: chips + clear + selects
 // ---------------------------------------------------------------------
 const FILTER_LABELS = {
-  agentId: (value, ctx) => `Vendedor: ${ctx.agents.find((a) => a.id === value)?.name || value}`,
+  agentId: (value, ctx) => `Atendente: ${ctx.agents.find((a) => a.id === value)?.name || value}`,
   channel: (value) => `Canal: ${CHANNEL_LABELS[value] || value}`,
   categoryId: (value, ctx) => `Categoria: ${ctx.categories.find((c) => c.id === value)?.name || value}`,
   status: (value) => `Status: ${STATUS_LABELS[value] || value}`,
@@ -118,10 +118,12 @@ function renderChips() {
 async function populateFilterOptions() {
   const [users, categories] = await Promise.all([api("/api/users"), api("/api/categories")]);
   filterContext = { agents: users, categories };
-  $("#f-agent").innerHTML = '<option value="">Vendedor: todos</option><option value="unassigned">Sem responsável</option>'
+  $("#f-agent").innerHTML = '<option value="">Atendente: todos</option><option value="unassigned">Sem responsável</option>'
     + users.map((u) => `<option value="${u.id}">${escapeHtml(u.name)}</option>`).join("");
   $("#f-channel").innerHTML = '<option value="">Canal: todos</option>' + Object.entries(CHANNEL_LABELS).map(([value, label]) => `<option value="${value}">${label}</option>`).join("");
-  $("#f-category").innerHTML = '<option value="">Categoria: todas</option>' + categories.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("");
+  const categoryOptions = '<option value="">Categoria: todas</option>' + categories.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("");
+  $("#f-category").innerHTML = categoryOptions;
+  $("#agents-category-filter").innerHTML = categoryOptions;
   $("#f-status").innerHTML = '<option value="">Status: todos</option>' + Object.entries(STATUS_LABELS).map(([value, label]) => `<option value="${value}">${label}</option>`).join("");
   $("#f-priority").innerHTML = '<option value="">Prioridade: todas</option>' + ["NORMAL", "ALTA", "URGENTE"].map((p) => `<option value="${p}">${p}</option>`).join("");
 
@@ -129,6 +131,7 @@ async function populateFilterOptions() {
   $("#f-agent").value = state.agentId;
   $("#f-channel").value = state.channel;
   $("#f-category").value = state.categoryId;
+  $("#agents-category-filter").value = state.categoryId;
   $("#f-status").value = state.status;
   $("#f-priority").value = state.priority;
   $("#f-start").hidden = state.period !== "custom"; $("#f-end").hidden = state.period !== "custom";
@@ -142,6 +145,7 @@ $("#f-end").addEventListener("change", (e) => { state.endDate = e.target.value; 
 $("#f-agent").addEventListener("change", (e) => { state.agentId = e.target.value; onFiltersChanged(); });
 $("#f-channel").addEventListener("change", (e) => { state.channel = e.target.value; onFiltersChanged(); });
 $("#f-category").addEventListener("change", (e) => { state.categoryId = e.target.value; onFiltersChanged(); });
+$("#agents-category-filter").addEventListener("change", (e) => { state.categoryId = e.target.value; onFiltersChanged(); });
 $("#f-status").addEventListener("change", (e) => { state.status = e.target.value; onFiltersChanged(); });
 $("#f-priority").addEventListener("change", (e) => { state.priority = e.target.value; onFiltersChanged(); });
 $("#f-clear").addEventListener("click", () => {
@@ -156,7 +160,11 @@ $("#theme-toggle").addEventListener("click", () => {
 });
 $("#refresh").addEventListener("click", () => loadAll());
 
-function onFiltersChanged() { writeStateToUrl(); renderChips(); state.conversationsPage = 1; loadAll(); }
+function onFiltersChanged() {
+  $("#f-category").value = state.categoryId;
+  $("#agents-category-filter").value = state.categoryId;
+  writeStateToUrl(); renderChips(); state.conversationsPage = 1; loadAll();
+}
 
 // ---------------------------------------------------------------------
 // KPIs
@@ -169,7 +177,7 @@ const QUALITY_KPI_DEFS = [
   ["firstResponseAvgSeconds", "1ª resposta média", "duration"], ["responseAvgSeconds", "Tempo médio de resposta", "duration"],
   ["resolutionAvgSeconds", "Tempo médio de resolução", "duration"], ["resolutionRate", "Taxa de resolução", "percent"],
   ["responseRate", "Taxa de resposta", "percent"], ["slaMetPercent", "SLA cumprido", "percent"],
-  ["resolvedWithoutAgentResponse", "Finalizadas sem vendedor", "count"],
+  ["resolvedWithoutAgentResponse", "Finalizadas sem atendente", "count"],
 ];
 
 function kpiDeltaHtml(key, value) {
@@ -323,7 +331,7 @@ function renderRank(containerId, items, { valueKey = "count", metaFn, onClick, e
 }
 
 // ---------------------------------------------------------------------
-// Vendedores
+// Atendentes
 // ---------------------------------------------------------------------
 let agentRows = [];
 let agentSort = { field: "attended", dir: "desc" };
@@ -338,7 +346,7 @@ function renderAgentsTable() {
   $("#agents-tbody").innerHTML = sorted.map((agent) => `
     <tr data-user="${agent.userId}">
       <td><input type="checkbox" class="agent-select" data-user="${agent.userId}" ${state.selectedAgents.has(agent.userId) ? "checked" : ""}></td>
-      <td data-label="Vendedor">${escapeHtml(agent.name)}</td>
+      <td data-label="Atendente">${escapeHtml(agent.name)}</td>
       <td data-label="Atendidas">${agent.attended}</td>
       <td data-label="Assumidas">${agent.claimed}</td>
       <td data-label="Resolvidas">${agent.resolved}</td>
@@ -350,12 +358,12 @@ function renderAgentsTable() {
       <td data-label="Taxa resolução">${formatPercent(agent.resolutionRate)}</td>
       <td data-label="SLA">${formatPercent(agent.slaMetPercent)}</td>
       <td data-label="Nunca respondidas">${agent.neverAnswered}</td>
-    </tr>`).join("") || '<tr><td colspan="13" class="rp-empty">Nenhum vendedor com atividade no período.</td></tr>';
+    </tr>`).join("") || '<tr><td colspan="13" class="rp-empty">Nenhum atendente com atividade no período.</td></tr>';
 
   $$(".agent-select").forEach((box) => box.addEventListener("click", (event) => {
     event.stopPropagation();
     const id = box.dataset.user;
-    if (box.checked) { if (state.selectedAgents.size >= 3) { box.checked = false; toast("Selecione no máximo 3 vendedores para comparar.", true); return; } state.selectedAgents.add(id); }
+    if (box.checked) { if (state.selectedAgents.size >= 3) { box.checked = false; toast("Selecione no máximo 3 atendentes para comparar.", true); return; } state.selectedAgents.add(id); }
     else state.selectedAgents.delete(id);
     $("#agents-compare-btn").disabled = state.selectedAgents.size < 2;
   }));
