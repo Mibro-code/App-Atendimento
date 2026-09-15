@@ -1,9 +1,18 @@
 (() => {
-  const APP_VERSION = "0.32.2";
+  const APP_VERSION = "0.32.3";
 
 
 
   const CHANGELOG = [
+    {
+      version: "0.32.3",
+      date: "15/09/2026",
+      title: "Interface adaptada para notebooks",
+      changes: [
+        "As principais telas agora se ajustam melhor a notebooks de 1366x768, 1280x720 e resoluções menores.",
+        "Menus, formulários, painéis, tabelas e modais foram compactados ou ganharam rolagem para evitar conteúdo cortado."
+      ]
+    },
     {
       version: "0.32.2",
       date: "15/09/2026",
