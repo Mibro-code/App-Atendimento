@@ -1,9 +1,18 @@
 (() => {
-  const APP_VERSION = "0.32.3";
+  const APP_VERSION = "0.32.4";
 
 
 
   const CHANGELOG = [
+    {
+      version: "0.32.4",
+      date: "15/09/2026",
+      title: "Central sem cortes e controle visível",
+      changes: [
+        "A Central agora compacta as colunas também em janelas de até 1700 px, evitando cortes na conversa e nas mensagens.",
+        "O controle da conversa passa a exibir claramente Recolher conversas ou Mostrar conversas."
+      ]
+    },
     {
       version: "0.32.3",
       date: "15/09/2026",
