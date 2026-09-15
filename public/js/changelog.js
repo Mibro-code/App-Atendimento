@@ -1,9 +1,22 @@
 (() => {
-  const APP_VERSION = "0.31.0";
+  const APP_VERSION = "0.32.0";
 
 
 
   const CHANGELOG = [
+    {
+      version: "0.32.0",
+      date: "15/09/2026",
+      title: "Instagram e Facebook integrados à Central",
+      changes: [
+        "A Central agora permite responder mensagens do Instagram Direct e Facebook Messenger pelos canais conectados.",
+        "Respostas públicas a comentários do Instagram e Facebook passam a usar o comentário original como destino.",
+        "Mídias recebidas em Direct e Messenger podem ser visualizadas com acesso protegido dentro da conversa.",
+        "Publicações e reels podem ser associados a produtos para contextualizar comentários recebidos.",
+        "Ações compatíveis de moderação permitem ocultar, reexibir, curtir ou excluir comentários, respeitando as permissões e capacidades reais do canal.",
+        "As respostas automáticas sociais permanecem desativadas por padrão e podem ser liberadas separadamente pela conta Master."
+      ]
+    },
     {
       version: "0.31.0",
       date: "15/09/2026",
