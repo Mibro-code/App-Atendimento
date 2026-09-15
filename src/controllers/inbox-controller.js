@@ -13,6 +13,9 @@ const { Channel: ChannelEnum } = require("@prisma/client");
 const contactMerge = require("../services/contact-merge-service");
 const channelMessageService = require("../services/channels/channel-message-service");
 const { createAdapter } = require("../services/channels/channel-adapter-registry");
+const { resolveForPost } = require("../services/channels/social-content-mapping-service");
+
+const SOCIAL_COMMENT_CHANNELS = new Set(["INSTAGRAM_COMMENTS", "FACEBOOK_COMMENTS"]);
 
 const knownChannels = new Set(Object.values(ChannelEnum));
 
@@ -52,7 +55,13 @@ function createInboxController(channel) {
           : customerServiceWindowFrom(null, new Date(), false);
         const mergedDestinations = await contactMerge.getMergedDestinations(conversation.contact.id, req.user);
         const channelCaps = channelCapabilities(conversation.channel);
-        return res.json({ ...conversation, customerServiceWindow, mergedDestinations, channelCapabilities: channelCaps });
+        // Item 10 do plano Social — comentário nunca chega "pelado": quando
+        // há mapeamento manual cadastrado (Integrações > Publicações), o
+        // painel de contexto mostra a publicação/produto relacionado.
+        const postContext = SOCIAL_COMMENT_CHANNELS.has(conversation.channel) && conversation.externalConversationId
+          ? await resolveForPost(conversation.channel, conversation.externalConversationId)
+          : null;
+        return res.json({ ...conversation, customerServiceWindow, mergedDestinations, channelCapabilities: channelCaps, postContext });
       } catch (error) { return next(error); }
     },
     async mergeCandidates(req, res, next) {
