@@ -12,7 +12,7 @@ test.after(async () => {
   await prisma.$disconnect();
 });
 
-test("finaliza após 24 horas somente quando a equipe aguarda o cliente", async () => {
+test("finaliza após 24 horas com última mensagem da empresa ou do cliente", async () => {
   const now = new Date("2026-08-13T15:30:00.000Z");
   const old = new Date("2026-08-12T15:29:00.000Z");
   const support = await prisma.category.findUnique({ where: { code: "SUPORTE" } });
@@ -40,16 +40,23 @@ test("finaliza após 24 horas somente quando a equipe aguarda o cliente", async 
     { conversationId: routingConversation.id, direction: "ENVIADA", status: "ENVIADA", type: "text", text: "Encaminhamos seu atendimento", occurredAt: old, rawPayload: { system: "triage_confirmation" } },
   ] });
 
-  assert.equal(await finalizeInactiveConversations({ now }), 1);
+  assert.equal(await finalizeInactiveConversations({ now }), 2);
   const finalized = await prisma.conversation.findUnique({ where: { id: outgoingConversation.id } });
   assert.equal(finalized.status, "FINALIZADO");
   assert.equal(finalized.categoryId, null);
   assert.equal(finalized.assignedUserId, null);
   assert.ok(finalized.finalizedAt);
-  assert.equal((await prisma.conversation.findUnique({ where: { id: incomingConversation.id } })).status, "AGUARDANDO_EQUIPE");
+  const finalizedIncoming = await prisma.conversation.findUnique({ where: { id: incomingConversation.id } });
+  assert.equal(finalizedIncoming.status, "FINALIZADO");
+  assert.equal(finalizedIncoming.categoryId, null);
+  assert.equal(finalizedIncoming.assignedUserId, null);
+  assert.ok(finalizedIncoming.finalizedAt);
   assert.equal((await prisma.conversation.findUnique({ where: { id: routingConversation.id } })).status, "NOVO");
   assert.equal(await prisma.conversationActivity.count({
     where: { conversationId: outgoingConversation.id, action: "AUTO_FINALIZED_INACTIVITY" },
+  }), 1);
+  assert.equal(await prisma.conversationActivity.count({
+    where: { conversationId: incomingConversation.id, action: "AUTO_FINALIZED_INACTIVITY" },
   }), 1);
 
   // O disparo do aprendizado é fire-and-forget: aguarda a análise assíncrona

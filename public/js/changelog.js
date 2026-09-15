@@ -1,9 +1,18 @@
 (() => {
-  const APP_VERSION = "0.32.0";
+  const APP_VERSION = "0.32.1";
 
 
 
   const CHANGELOG = [
+    {
+      version: "0.32.1",
+      date: "15/09/2026",
+      title: "Finalização completa por inatividade",
+      changes: [
+        "Conversas inativas agora são finalizadas após o prazo configurado mesmo quando a última mensagem foi enviada pelo cliente.",
+        "Quando o cliente retorna, a conversa reabre sem o setor e o atendente anteriores para reiniciar a triagem automática."
+      ]
+    },
     {
       version: "0.32.0",
       date: "15/09/2026",

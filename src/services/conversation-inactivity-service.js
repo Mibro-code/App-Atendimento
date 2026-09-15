@@ -21,7 +21,11 @@ async function finalizeInactiveConversations({
   let finalized = 0;
   for (const conversation of candidates) {
     const lastMessage = conversation.messages[0];
-    if (lastMessage?.direction !== "ENVIADA") continue;
+    // A inatividade encerra a conversa independentemente de quem enviou a
+    // última mensagem. Assim, um cliente que não recebeu nova interação no
+    // prazo configurado também sai da fila antiga e volta pela triagem quando
+    // escrever novamente.
+    if (!lastMessage) continue;
     if (lastMessage.rawPayload?.system === "triage_confirmation") continue;
     let didFinalize = false;
     await client.$transaction(async (transaction) => {
