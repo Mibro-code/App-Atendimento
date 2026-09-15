@@ -1,9 +1,18 @@
 (() => {
-  const APP_VERSION = "0.32.1";
+  const APP_VERSION = "0.32.2";
 
 
 
   const CHANGELOG = [
+    {
+      version: "0.32.2",
+      date: "15/09/2026",
+      title: "Preparação do teste social",
+      changes: [
+        "A validação inicial do webhook da Meta agora funciona para os canais de Instagram e Facebook.",
+        "Contas sociais podem ser adicionadas com ID e token de teste pelo formulário avançado, sem depender do OAuth público."
+      ]
+    },
     {
       version: "0.32.1",
       date: "15/09/2026",

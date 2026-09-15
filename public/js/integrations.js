@@ -165,6 +165,7 @@ function renderCards() {
   const container = $("#channel-cards");
   container.innerHTML = state.overview.map((entry) => {
     const isMeta = entry.channel === "META";
+    const allowManualMetaTest = ["INSTAGRAM_DIRECT", "INSTAGRAM_COMMENTS", "FACEBOOK_MESSENGER", "FACEBOOK_COMMENTS"].includes(entry.channel);
     const accounts = entry.accounts || [];
     const capabilities = entry.capabilities || {};
     const capBadges = Object.entries(capabilities)
@@ -202,9 +203,10 @@ function renderCards() {
         <div class="cap-badges">${capBadges || '<span class="cap-badge cap-badge-empty">Sem capacidades ativas nesta fase</span>'}</div>
         ${isMeta ? '<p class="meta-note">O número principal atual continua ativo pelas variáveis ENV. Números adicionais ficam isolados por conta abaixo.</p>' : ""}
         <div class="account-list">${accountsHtml}</div>
-        ${oauthButtons(entry)
-          ? `<div class="oauth-actions">${oauthButtons(entry)}</div>`
-          : `<details class="advanced-config"><summary>Configuração avançada</summary><button type="button" class="add-account" data-channel="${escapeHtml(entry.channel)}">${isMeta ? "Adicionar número WhatsApp" : "Adicionar manualmente"}</button></details>`}      </section>
+        ${oauthButtons(entry) ? `<div class="oauth-actions">${oauthButtons(entry)}</div>` : ""}
+        ${!oauthButtons(entry) || allowManualMetaTest
+          ? `<details class="advanced-config"><summary>Configuração avançada</summary><button type="button" class="add-account" data-channel="${escapeHtml(entry.channel)}">${isMeta ? "Adicionar número WhatsApp" : (allowManualMetaTest ? "Adicionar com token de teste" : "Adicionar manualmente")}</button></details>`
+          : ""}      </section>
     `;
   }).join("");
 

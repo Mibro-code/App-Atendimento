@@ -33,7 +33,7 @@ const pushController = require("./controllers/push-controller");
 const pushService = require("./services/push-service");
 const campaignReplyService = require("./services/campaign-reply-service");
 const { createCampaignController } = require("./controllers/campaign-controller");
-const { NEW_CHANNELS } = require("./services/channels/channel-constants");
+const { NEW_CHANNELS, SOCIAL_META_CHANNELS } = require("./services/channels/channel-constants");
 const { createAdapter } = require("./services/channels/channel-adapter-registry");
 const { decryptSecrets } = require("./services/channels/integration-secret-service");
 const externalEventService = require("./services/channels/external-event-service");
@@ -218,6 +218,18 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
     }
   });
 
+  // A Meta valida o endpoint com GET antes de entregar eventos por POST.
+  // A verificação independe de já existir ChannelAccount, pois ela ocorre
+  // justamente durante a configuração inicial do produto no painel Meta.
+  app.get("/webhooks/channels/:channel", webhookLimiter, (req, res) => {
+    if (!SOCIAL_META_CHANNELS.includes(req.params.channel)) return res.sendStatus(404);
+    if (req.query["hub.mode"] === "subscribe"
+      && req.query["hub.verify_token"] === process.env.VERIFY_TOKEN
+      && typeof req.query["hub.challenge"] === "string") {
+      return res.status(200).send(req.query["hub.challenge"]);
+    }
+    return res.sendStatus(403);
+  });
   // Webhook genérico dos canais novos (item 8/16) — Meta continua com sua
   // rota própria acima, intocada. Só canais com supportsWebhook real
   // processam algo; os demais respondem 404 sem vazar detalhe interno.

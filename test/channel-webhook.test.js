@@ -155,3 +155,21 @@ test("WhatsApp/Meta continua com sua rota própria intocada (verify token) mesmo
     assert.ok([200, 403].includes(response.status));
   } finally { server.close(); }
 });
+
+test("webhook social aceita a verificação inicial da Meta", async () => {
+  const previous = process.env.VERIFY_TOKEN;
+  process.env.VERIFY_TOKEN = "social-token-de-teste";
+  const { server, base } = await startServer();
+  try {
+    const valid = await fetch(`${base}/webhooks/channels/INSTAGRAM_DIRECT?hub.mode=subscribe&hub.verify_token=social-token-de-teste&hub.challenge=instagram-ok`);
+    assert.equal(valid.status, 200);
+    assert.equal(await valid.text(), "instagram-ok");
+    const invalid = await fetch(`${base}/webhooks/channels/INSTAGRAM_DIRECT?hub.mode=subscribe&hub.verify_token=errado&hub.challenge=x`);
+    assert.equal(invalid.status, 403);
+    const nonMeta = await fetch(`${base}/webhooks/channels/MERCADO_LIVRE?hub.mode=subscribe&hub.verify_token=social-token-de-teste&hub.challenge=x`);
+    assert.equal(nonMeta.status, 404);
+  } finally {
+    server.close();
+    process.env.VERIFY_TOKEN = previous;
+  }
+});
