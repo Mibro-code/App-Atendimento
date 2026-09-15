@@ -1,9 +1,20 @@
 (() => {
-  const APP_VERSION = "0.30.3";
+  const APP_VERSION = "0.31.0";
 
 
 
   const CHANGELOG = [
+    {
+      version: "0.31.0",
+      date: "15/09/2026",
+      title: "Novo dashboard de relatórios",
+      changes: [
+        "A conta Master ganhou uma área dedicada de Relatórios, acessível pela aba superior das Configurações.",
+        "O dashboard permite consultar hoje, períodos recentes, todo o histórico ou datas personalizadas.",
+        "Novos indicadores mostram volume, tempos de resposta, SLA, canais, categorias e desempenho dos vendedores.",
+        "Filtros globais, comparação de períodos, detalhes das conversas e exportações CSV facilitam a análise operacional."
+      ]
+    },
     {
       version: "0.30.3",
       date: "14/09/2026",
