@@ -1,0 +1,81 @@
+/* Notebook and compact-screen safeguards */
+html,body{max-width:100%}img,svg,video,canvas{max-width:100%}
+@media(max-width:1440px){
+ body:not(.rp-body) .topbar{padding-inline:14px;gap:10px}
+ body:not(.rp-body) .topbar .brand{min-width:0}
+ body:not(.rp-body) .topbar .brand small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .bots-shell{grid-template-columns:clamp(230px,20vw,280px) minmax(0,1fr)}
+ .bots-sidebar,.bots-workspace,.editor-grid,.editor-grid>*,.card{min-width:0}
+ .editor-grid{padding:14px;gap:12px}
+ .integrations-shell{max-width:100%;padding:16px}
+ .channel-cards{grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr))}
+ .settings-shell{max-width:min(920px,100%);padding-inline:16px}
+ .rp-shell{max-width:100%;padding:16px 18px 64px}
+ .rp-kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+ .rp-kpi-grid.compact{grid-template-columns:repeat(4,minmax(0,1fr))}
+ .rp-grid-2{grid-template-columns:minmax(0,1fr)}
+}
+@media(max-width:1366px){
+ body:not(.rp-body) .topbar{height:64px}
+ body:not(.rp-body) .phase-badge{display:none}
+ .bots-shell{height:calc(100dvh - 64px);grid-template-columns:clamp(220px,19vw,260px) minmax(0,1fr)}
+ .editor-grid:not([data-active-config-section]){grid-template-columns:minmax(0,1fr)}
+ .basic-card{grid-row:auto}.editor-heading{padding:14px 18px}.card{padding:15px}
+ .config-section-tabs,.settings-tabs{overflow-x:auto;scrollbar-width:thin}
+ .config-section-tab,.settings-tab{flex:0 0 auto;white-space:nowrap}
+ .integrations-shell{height:calc(100dvh - 64px);overflow-y:auto}
+ .template-catalog-card{margin:14px}
+ .workspace{height:calc(100dvh - 64px);grid-template-columns:var(--sidebar-w) minmax(180px,14vw) minmax(300px,24vw) minmax(0,1fr) var(--context-w-collapsed)}
+ .workspace.filters-collapsed{grid-template-columns:var(--sidebar-w) 0 minmax(300px,28vw) minmax(0,1fr) var(--context-w-collapsed)}
+ .workspace.conversation-list-collapsed{grid-template-columns:var(--sidebar-w) 0 0 minmax(0,1fr) var(--context-w-collapsed)}
+ .workspace>*,.chat-panel,.chat-content,.chat-header,.chat-actions{min-width:0}
+ .chat-header,.chat-actions,.conversation-meta{flex-wrap:wrap}.chat-actions{row-gap:6px}
+ .chat-actions select{max-width:min(170px,32vw)}
+ .messages{padding:16px 18px}.composer{padding:10px 12px;gap:8px}.composer button{padding-inline:16px}
+}
+@media(max-width:1180px){
+ .workspace{grid-template-columns:var(--sidebar-w) minmax(155px,17vw) minmax(270px,30vw) minmax(0,1fr) var(--context-w-collapsed)}
+ .workspace.filters-collapsed{grid-template-columns:var(--sidebar-w) 0 minmax(270px,32vw) minmax(0,1fr) var(--context-w-collapsed)}
+ .topbar-navigation{min-width:0}
+ .two-columns,.personality-toolbar{grid-template-columns:minmax(0,1fr)}
+ .fields .full{grid-column:auto}.personality-toolbar button{width:100%}
+ .integrations-toolbar{align-items:stretch}.global-switch{max-width:100%}
+ .rp-card{padding:14px}.rp-card-head .rp-head-controls{width:100%;margin-left:0}
+}
+@media(max-height:800px) and (min-width:721px){
+ body:not(.rp-body){height:100dvh}
+ .bots-sidebar,.bots-workspace{min-height:0;overflow-y:auto}
+ dialog,.modal-content,.account-dialog,.category-dialog,.template-dialog,.quick-reply-dialog,.devices-dialog,.audit-dialog,.merge-contact-dialog{max-height:calc(100dvh - 24px)}
+ .modal-content,.account-dialog form{overflow-y:auto}
+ .empty-state{min-height:420px;padding-block:20px}
+}
+@media(max-width:900px) and (min-width:701px){
+ .workspace{grid-template-columns:var(--sidebar-w) minmax(140px,18vw) minmax(250px,32vw) minmax(0,1fr) var(--context-w-collapsed)}
+ .workspace.filters-collapsed{grid-template-columns:var(--sidebar-w) 0 minmax(250px,34vw) minmax(0,1fr) var(--context-w-collapsed)}
+ .conversation-card{grid-template-columns:6px 36px minmax(0,1fr)}
+ .conversation-card .card-side{grid-column:2/-1;flex-direction:row;justify-content:flex-end}
+}
+@media(max-width:720px){
+ body:not(.rp-body){width:100%;min-height:100dvh}
+ body:not(.rp-body) .topbar{min-height:60px;height:auto;padding:8px 10px;overflow-x:auto;flex-wrap:nowrap}
+ body:not(.rp-body) .topbar .brand img{width:82px}
+ body:not(.rp-body) .topbar .brand small,body:not(.rp-body) .user-button span{display:none}
+ .bots-shell{height:auto;min-height:calc(100dvh - 60px);grid-template-columns:minmax(0,1fr)}
+ .bots-sidebar,.bots-workspace{width:100%;max-width:100%}
+ .editor-heading{padding:12px}
+ .editor-grid,.integrations-shell,.settings-shell,.rp-shell{padding:10px}
+ .schedule-row{grid-template-columns:22px minmax(70px,1fr) 70px 70px}
+ .template-toolbar,.campaign-template-row,.social-mapping-form{align-items:stretch;flex-direction:column}
+ .template-toolbar select,.campaign-template-row select,.social-mapping-form input,.social-mapping-form select,.social-mapping-form button{width:100%;min-width:0}
+ .account-dialog,.category-dialog,.template-dialog,.quick-reply-dialog,.devices-dialog,.audit-dialog,.merge-contact-dialog,.modal-content{width:calc(100vw - 16px);max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px)}
+ .rp-topbar{height:56px;padding-inline:10px;gap:8px}.rp-brand img{width:78px}.rp-brand small{display:none}
+ .rp-back{padding:7px 9px;font-size:9px}.rp-filters{top:56px;padding:10px}
+ .rp-filters select,.rp-filter-clear{flex:1 1 140px}
+ .rp-kpi-grid,.rp-kpi-grid.compact{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .rp-card-head .rp-head-controls,.rp-seg{max-width:100%}.rp-seg{overflow-x:auto}
+ .rp-seg button{flex:0 0 auto;white-space:nowrap}.rp-table-wrap{max-width:100%;overflow-x:auto}
+}
+@media(max-width:480px){
+ .rp-kpi-grid,.rp-kpi-grid.compact{grid-template-columns:minmax(0,1fr)}
+ .schedule-row{grid-template-columns:20px minmax(64px,1fr) 64px 64px;gap:5px}
+}

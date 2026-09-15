@@ -9,6 +9,7 @@ const STATIC_ASSETS = [
 
   "/css/app.css",
   "/css/bots.css",
+  "/css/responsive.css",
   "/css/login.css",
   "/css/skeleton.css",
   "/css/knowledge-base.css",
