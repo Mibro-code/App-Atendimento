@@ -70,5 +70,8 @@ html[data-theme=dark] .personality-toolbar button{background:var(--orange)}
 .global-settings-toggle.active span{transform:rotate(180deg)}
 #global-settings-body{padding-top:8px}#global-settings-body[hidden]{display:none}
 @media(max-width:720px){.config-section-tabs{margin:10px;padding:5px}.config-section-tab{padding:8px 10px}.editor-grid[data-active-config-section]{padding-top:10px}.personality-fields>label:nth-child(6),.personality-fields>label:nth-child(7){grid-column:auto}}
+
+/* Preserve paragraphs and lists in simulator answers. */
+.simulator-result>b,.transcript-bubble{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55}
 .bot-card>small{display:-webkit-box;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-height:1.45}
 .safety-note{padding:9px 11px}.safety-note p{margin-top:3px;display:-webkit-box;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:1}
