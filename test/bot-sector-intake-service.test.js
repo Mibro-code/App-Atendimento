@@ -17,6 +17,30 @@ const commercial = { id: "commercial", code: "COMERCIAL", name: "Comercial" };
 const partnerships = { id: "partnerships", code: "PARCERIAS", name: "Parcerias" };
 const noKnowledge = { async search() { return []; } };
 
+test("saudacao generica usa abertura neutra em qualquer setor", async () => {
+  for (const category of [support, attendance, commercial, partnerships]) {
+    const result = await runSectorIntake({
+      bot, category, message: "Olá", caseState: {}, knowledgeProvider: noKnowledge,
+    });
+    assert.equal(result.decision.flowResponseText, "Olá! Como posso ajudar?");
+  }
+});
+
+test("responde pela base antes de iniciar coleta e handoff", async () => {
+  const knowledge = {
+    async search() {
+      return [{ id: "kb-pareamento", title: "Pareamento Bluetooth", content: "Abra o Mibro Fit e selecione Adicionar dispositivo.", score: 0.94 }];
+    },
+  };
+  const result = await runSectorIntake({
+    bot, category: support, message: "Como faço para parear?", caseState: {}, knowledgeProvider: knowledge,
+  });
+  assert.equal(result.decision.action, "RESPOND");
+  assert.equal(result.caseState.pendingField, "none");
+  assert.match(result.decision.flowResponseText, /Adicionar dispositivo/);
+  assert.equal(result.knowledgeSource.id, "kb-pareamento");
+});
+
 test("reconhece setor pela categoria pai", () => {
   assert.equal(categoryFamily({ name: "Tecnico", parent: support }), "SUPORTE");
 });

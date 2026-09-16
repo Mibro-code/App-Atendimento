@@ -1,9 +1,19 @@
 (() => {
-  const APP_VERSION = "0.32.5";
+  const APP_VERSION = "0.32.6";
 
 
 
   const CHANGELOG = [
+    {
+      version: "0.32.6",
+      date: "16/09/2026",
+      title: "Assistente mais natural por setor",
+      changes: [
+        "Mensagens genéricas agora recebem a abertura neutra Olá! Como posso ajudar?, independentemente do setor.",
+        "O Assistente consulta primeiro a Knowledge e responde diretamente quando encontra uma orientação segura.",
+        "Perguntas de coleta e encaminhamento ficam reservados para casos sem resposta confiável ou que realmente precisam de atendimento humano."
+      ]
+    },
     {
       version: "0.32.5",
       date: "16/09/2026",

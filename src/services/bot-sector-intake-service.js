@@ -247,11 +247,27 @@ async function runSectorIntake({
           "Vou encaminhar você a um atendente para entender melhor o seu caso.", "Assunto não classificado com segurança."),
       };
     }
-    const question = "Claro. O que está acontecendo com seu Mibro?";
+    const question = "Olá! Como posso ajudar?";
     caseState = recordQuestionAsked(mergeCaseState(caseState, {
       intakeQuestionCount: count, pendingField: "objective",
     }), question);
     return { interpretation, caseState, decision: decisionFor(category, "ASK_CLARIFICATION", question, "Aguardando descricao do problema.") };
+  }
+
+  // Antes de transformar a conversa em coleta de dados, tenta responder com
+  // conhecimento aprovado. Assim o assistente resolve quando ja existe uma
+  // orientacao segura e usa a coleta apenas quando ainda falta contexto.
+  const directOrientation = await knowledgeOrientation({
+    bot, category, issue, caseState, message, provider: knowledgeProvider,
+  });
+  if (directOrientation) {
+    caseState = mergeCaseState(caseState, {
+      pendingField: "none", lastResult: "Orientacao consultada: " + directOrientation.title,
+    });
+    return {
+      interpretation, caseState, knowledgeSource: directOrientation,
+      decision: decisionFor(category, "RESPOND", directOrientation.text.trim(), issue + " - resposta encontrada na base."),
+    };
   }
 
   const field = missingField(caseState, requiredFields(sector, issue));
@@ -266,19 +282,12 @@ async function runSectorIntake({
     };
   }
 
-  const orientation = await knowledgeOrientation({ bot, category, issue, caseState, message, provider: knowledgeProvider });
-  const response = orientation
-    ? `${orientation.text}\n\nVou encaminhar seu caso com essas informações para o setor ${category.name}.`
-    : `Obrigado pelas informações. Vou encaminhar seu caso para o setor ${category.name} com o contexto coletado.`;
-  caseState = mergeCaseState(caseState, {
-    pendingField: "none",
-    ...(orientation ? { lastResult: `Orientacao consultada: ${orientation.title}` } : {}),
-  });
+  const response = "Obrigado pelas informações. Vou encaminhar seu caso para o setor " + category.name + " com o contexto coletado.";
+  caseState = mergeCaseState(caseState, { pendingField: "none" });
   return {
     interpretation,
     caseState,
-    knowledgeSource: orientation,
-    decision: decisionFor(category, "HANDOFF_HUMAN", response, `${issue} - coleta concluida.`),
+    decision: decisionFor(category, "HANDOFF_HUMAN", response, issue + " - coleta concluida."),
   };
 }
 
