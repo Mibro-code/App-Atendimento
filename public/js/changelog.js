@@ -1,9 +1,20 @@
 (() => {
-  const APP_VERSION = "0.32.6";
+  const APP_VERSION = "0.32.7";
 
 
 
   const CHANGELOG = [
+    {
+      version: "0.32.7",
+      date: "16/09/2026",
+      title: "Atendimento comercial mais guiado",
+      changes: [
+        "Parcerias agora coleta redes sociais, seguidores e links antes de encaminhar para a equipe.",
+        "Atacado coleta dados da loja e interesse de compra, encaminhando pedidos de preços e condições ao atendente.",
+        "Varejo consulta a base cadastrada para responder dúvidas sobre modelos e orienta a compra pelo site oficial com o cupom de primeira compra.",
+        "Atendimento pode reclassificar o setor pela descrição do cliente sem repetir a mensagem inicial, e os encaminhamentos usam uma mensagem mais neutra."
+      ]
+    },
     {
       version: "0.32.6",
       date: "16/09/2026",
