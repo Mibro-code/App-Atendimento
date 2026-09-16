@@ -23,6 +23,7 @@ const RULES = Object.freeze({
     ["TROCA", /\b(troca|trocar|devolu|reembolso|estorno)\w*/],
   ],
   COMERCIAL: [
+    ["REVENDA", /\b(revender|revenda|revendedor|distribuidor|tenho (uma )?loja|lojista|atacado|comprar em quantidade)\b/],
     ["ESCOLHA_PRODUTO", /\b(qual (relogio|modelo)|recomenda|melhor modelo|escolher|comparar)\b/],
     ["GPS", /\b(gps|localizacao|rota)\b/],
     ["COMPRA", /\b(comprar|preco|valor|disponivel|estoque|onde compra)\b/],
@@ -43,6 +44,11 @@ const QUESTIONS = Object.freeze({
   socialNetworks: "Quais redes sociais você utiliza?",
   followerCount: "Quantos seguidores você possui em cada rede?",
   socialLinks: "Pode enviar os links dos seus perfis?",
+  businessStores: "Qual é o nome da sua loja ou quais lojas você possui?",
+  businessLocation: "Em qual cidade e estado sua loja atua?",
+  storeType: "Sua operação é física, online ou trabalha das duas formas?",
+  productInterest: "Em quais produtos você tem interesse e qual quantidade aproximada pretende comprar?",
+  retailQuestion: "Você tem alguma dúvida sobre esse relógio? Pode perguntar sobre GPS, bateria, tela ou outra função.",
 });
 
 function isSectorIntakeBot(bot) {
@@ -54,7 +60,7 @@ function categoryFamily(category) {
   const value = normalizeText(raw).toUpperCase();
   if (value.includes("SUPORTE")) return "SUPORTE";
   if (value.includes("ATENDIMENTO")) return "ATENDIMENTO";
-  if (value.includes("COMERCIAL")) return "COMERCIAL";
+  if (value.includes("COMERCIAL") || value.includes("ATACADO") || value.includes("VAREJO")) return "COMERCIAL";
   if (value.includes("PARCER")) return "PARCERIAS";
   return null;
 }
@@ -121,6 +127,12 @@ function extractPatch(message, current) {
   if (current.pendingField === "socialNetworks") patch.socialNetworks = message.trim();
   if (current.pendingField === "followerCount") patch.followerCount = message.trim();
   if (current.pendingField === "socialLinks") patch.socialLinks = message.trim();
+  if (current.pendingField === "businessStores") patch.businessStores = message.trim();
+  if (current.pendingField === "businessLocation") patch.businessLocation = message.trim();
+  if (current.pendingField === "storeType") patch.storeType = message.trim();
+  if (current.pendingField === "productInterest") patch.productInterest = message.trim();
+  if (current.pendingField === "retailQuestion") patch.retailQuestion = message.trim();
+  if (patch.product && (/\?|\b(gps|gnss|bateria|tela|display|nfc|ligacao|chamada|musica|agua|atm|sensor|compatib|strava)\w*/.test(text))) patch.retailQuestion = message.trim();
   if (current.pendingField === "appOs") {
     if (!patch.app && /\bmibro\b/.test(text)) patch.app = message.trim();
     if (!patch.os) patch.phone = message.trim();
@@ -137,6 +149,10 @@ function requiredFields(sector, issue) {
     return ["product", "purchase", "purchaseDateApprox"];
   }
   if (sector === "ATENDIMENTO") return issue === "PEDIDO" ? ["orderNumber"] : ["objective"];
+  if (sector === "COMERCIAL") {
+    if (issue === "REVENDA") return ["objective", "businessStores", "businessLocation", "storeType", "productInterest"];
+    return ["product", "retailQuestion"];
+  }
   if (sector === "PARCERIAS" && issue === "PARCERIA") {
     return ["objective", "socialNetworks", "followerCount", "socialLinks"];
   }
@@ -152,6 +168,7 @@ function missingField(caseState, fields) {
 }
 
 function questionFor(field, caseState) {
+  if (field === "product" && caseState.sector === "COMERCIAL") return "Qual relógio Mibro você tem interesse?";
   if (field === "purchase") {
     if (caseState.hasInvoice != null && !caseState.purchaseChannel) return "Por qual loja ou canal a compra foi feita?";
     if (caseState.purchaseChannel && caseState.hasInvoice == null) return "Você possui a nota fiscal da compra?";
@@ -194,6 +211,45 @@ function decisionFor(category, action, responseText, summary) {
   };
 }
 
+const STORE_URL = "https://mibrobrasil.com.br/collections/todos-os-produtos";
+
+function isGreeting(message) {
+  return /^(ola|oi|bom dia|boa tarde|boa noite|opa|e ai)[!. ]*$/.test(normalizeText(message));
+}
+
+function commercialMode(category) {
+  const value = normalizeText(`${category?.code || ""} ${category?.name || ""}`).toUpperCase();
+  if (value.includes("ATACADO")) return "ATACADO";
+  if (value.includes("VAREJO")) return "VAREJO";
+  return null;
+}
+
+function wantsPricing(message) {
+  return /\b(preco|precos|valor|valores|tabela|orcamento|quanto custa|condicao comercial)\b/.test(normalizeText(message));
+}
+
+function hasNoMoreRetailQuestions(message) {
+  return /\b(nao tenho|nenhuma duvida|sem duvida|era so isso|so isso|nao,? obrigado|nao,? obrigada)\b/.test(normalizeText(message));
+}
+
+function retailCheckoutText() {
+  return `Perfeito! Vendemos nossos relógios somente pelo site oficial: ${STORE_URL}\n\nVocê também pode aproveitar o cupom de primeira compra disponível no site.`;
+}
+
+async function retailKnowledgeOrientation({ bot, category, caseState, message, provider }) {
+  const results = await provider.search(`${caseState.product || ""} ${message}`.trim(), {
+    botId: bot.id, category: category.name, product: caseState.product,
+    domains: ["PRODUCT", "FAQ", "MANUAL"], limit: 5, minScore: 0.15,
+  });
+  if (!results.length || results.conflict) return null;
+  const productTokens = normalizeText(caseState.product || "").split(/\s+/).filter(Boolean);
+  const best = results.find((item) => {
+    const searchable = normalizeText(`${item.title || ""} ${item.content || ""}`);
+    return productTokens.length && productTokens.every((token) => searchable.includes(token));
+  });
+  if (!best?.content || best.score < 0.3) return null;
+  return { text: best.content.trim(), title: best.title, id: best.id, source: best.source };
+}
 async function knowledgeOrientation({ bot, category, issue, caseState, message, provider }) {
   const query = [issue, caseState.product, caseState.symptom, message].filter(Boolean).join(" ");
   const results = await provider.search(query, {
@@ -229,9 +285,15 @@ async function runSectorIntake({
   if (!caseState.objective && ["COMERCIAL", "PARCERIAS"].includes(sector)) {
     messagePatch.objective = message.trim();
   }
+  const selectedCommercialMode = sector === "COMERCIAL" ? commercialMode(category) : null;
+  const defaultCommercialIssue = !isGreeting(message)
+    ? (selectedCommercialMode === "ATACADO" ? "REVENDA" : selectedCommercialMode === "VAREJO" ? "COMPRA" : null)
+    : null;
   const classification = caseState.issue
     ? { issue: caseState.issue, confidence: 1, provider: "CASE_STATE", raw: null }
-    : await classifyWithFallback({ bot, message, context, state, flags, sector });
+    : defaultCommercialIssue
+      ? { issue: defaultCommercialIssue, confidence: 1, provider: "CATEGORY_ROUTE", raw: null }
+      : await classifyWithFallback({ bot, message, context, state, flags, sector });
   const issue = classification.issue;
   caseState = mergeCaseState(caseState, {
     ...messagePatch, sector, ...(issue ? { issue } : {}),
@@ -263,6 +325,59 @@ async function runSectorIntake({
     return { interpretation, caseState, decision: decisionFor(category, "ASK_CLARIFICATION", question, "Aguardando descricao do problema.") };
   }
 
+  if (sector === "COMERCIAL" && issue === "REVENDA" && wantsPricing(message)) {
+    caseState = mergeCaseState(caseState, { pendingField: "none" });
+    return {
+      interpretation, caseState,
+      decision: decisionFor(category, "HANDOFF_HUMAN",
+        "Vou encaminhar você a um atendente comercial para consultar valores e condições de atacado.",
+        "Revenda - solicitacao de valores."),
+    };
+  }
+
+  if (sector === "COMERCIAL" && issue !== "REVENDA") {
+    if (hasNoMoreRetailQuestions(message)) {
+      caseState = mergeCaseState(caseState, { pendingField: "none", lastResult: "Cliente sem novas duvidas de produto." });
+      return {
+        interpretation, caseState,
+        decision: decisionFor(category, "RESPOND", retailCheckoutText(), "Varejo - direcionado para a loja oficial."),
+      };
+    }
+
+    const retailField = missingField(caseState, requiredFields(sector, issue));
+    if (retailField && caseState.intakeQuestionCount < MAX_QUESTIONS) {
+      const question = questionFor(retailField, caseState);
+      caseState = recordQuestionAsked(mergeCaseState(caseState, {
+        intakeQuestionCount: caseState.intakeQuestionCount + 1, pendingField: retailField,
+      }), question);
+      return {
+        interpretation, caseState,
+        decision: decisionFor(category, "ASK_CLARIFICATION", question, `Coletando ${retailField} para o atendimento de varejo.`),
+      };
+    }
+
+    const productOrientation = await retailKnowledgeOrientation({
+      bot, category, caseState, message, provider: knowledgeProvider,
+    });
+    if (productOrientation) {
+      const response = `${productOrientation.text}\n\nSe não tiver mais dúvidas, vendemos nossos relógios somente pelo site oficial: ${STORE_URL}. Você também pode aproveitar o cupom de primeira compra disponível no site.`;
+      caseState = mergeCaseState(caseState, {
+        pendingField: "none", lastResult: "Informacao de produto consultada: " + productOrientation.title,
+      });
+      return {
+        interpretation, caseState, knowledgeSource: productOrientation,
+        decision: decisionFor(category, "RESPOND", response, `${caseState.product} - resposta encontrada na base.`),
+      };
+    }
+
+    caseState = mergeCaseState(caseState, { pendingField: "none" });
+    return {
+      interpretation, caseState,
+      decision: decisionFor(category, "HANDOFF_HUMAN",
+        "Vou encaminhar sua dúvida para um atendente confirmar essa informação sobre o relógio.",
+        "Varejo - informacao nao encontrada com seguranca na base."),
+    };
+  }
   // Antes de transformar a conversa em coleta de dados, tenta responder com
   // conhecimento aprovado. Assim o assistente resolve quando ja existe uma
   // orientacao segura e usa a coleta apenas quando ainda falta contexto.

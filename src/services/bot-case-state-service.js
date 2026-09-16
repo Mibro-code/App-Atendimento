@@ -28,6 +28,11 @@ function emptyCaseState() {
     socialNetworks: null,
     followerCount: null,
     socialLinks: null,
+    businessStores: null,
+    businessLocation: null,
+    storeType: null,
+    productInterest: null,
+    retailQuestion: null,
     providedInfo: null,
     lastResult: null,
     orderNumber: null,
@@ -63,6 +68,11 @@ function normalizeCaseState(raw) {
     socialNetworks: typeof raw.socialNetworks === "string" ? raw.socialNetworks : null,
     followerCount: typeof raw.followerCount === "string" ? raw.followerCount : null,
     socialLinks: typeof raw.socialLinks === "string" ? raw.socialLinks : null,
+    businessStores: typeof raw.businessStores === "string" ? raw.businessStores : null,
+    businessLocation: typeof raw.businessLocation === "string" ? raw.businessLocation : null,
+    storeType: typeof raw.storeType === "string" ? raw.storeType : null,
+    productInterest: typeof raw.productInterest === "string" ? raw.productInterest : null,
+    retailQuestion: typeof raw.retailQuestion === "string" ? raw.retailQuestion : null,
     providedInfo: typeof raw.providedInfo === "string" ? raw.providedInfo : null,
     lastResult: typeof raw.lastResult === "string" ? raw.lastResult : null,
     orderNumber: typeof raw.orderNumber === "string" ? raw.orderNumber : null,
@@ -99,7 +109,7 @@ function mergeCaseState(existing, patch = {}) {
   const base = normalizeCaseState(existing);
   const merged = { ...base };
 
-  for (const key of ["symptom", "product", "app", "os", "phone", "objective", "socialNetworks", "followerCount", "socialLinks", "providedInfo", "lastResult", "orderNumber", "purchaseChannel", "topic", "sector", "issue", "purchaseDateApprox", "pendingField"]) {
+  for (const key of ["symptom", "product", "app", "os", "phone", "objective", "socialNetworks", "followerCount", "socialLinks", "businessStores", "businessLocation", "storeType", "productInterest", "retailQuestion", "providedInfo", "lastResult", "orderNumber", "purchaseChannel", "topic", "sector", "issue", "purchaseDateApprox", "pendingField"]) {
     if (typeof patch[key] === "string" && patch[key].trim()) merged[key] = patch[key].trim();
   }
   if (typeof patch.hasInvoice === "boolean") merged.hasInvoice = patch.hasInvoice;

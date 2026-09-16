@@ -15,6 +15,8 @@ const support = { id: "support", code: "SUPORTE", name: "Suporte" };
 const attendance = { id: "attendance", code: "ATENDIMENTO", name: "Atendimento" };
 const commercial = { id: "commercial", code: "COMERCIAL", name: "Comercial" };
 const partnerships = { id: "partnerships", code: "PARCERIAS", name: "Parcerias" };
+const wholesale = { id: "wholesale", code: "ATACADO", name: "Atacado", parent: commercial };
+const retail = { id: "retail", code: "VAREJO", name: "Varejo", parent: commercial };
 const noKnowledge = { async search() { return []; } };
 
 test("saudacao generica usa abertura neutra em qualquer setor", async () => {
@@ -94,7 +96,8 @@ test("perfis de atendimento, comercial e parcerias usam o setor escolhido", asyn
   });
   assert.equal(sale.interpretation.issue, "GPS");
   assert.equal(sale.caseState.objective, "quero saber qual tem gps");
-  assert.equal(sale.decision.action, "HANDOFF_HUMAN");
+  assert.equal(sale.decision.action, "ASK_CLARIFICATION");
+  assert.equal(sale.caseState.pendingField, "product");
 
   const reseller = await runSectorIntake({
     bot, category: partnerships, message: "tenho uma loja e queria revender mibro",
@@ -104,6 +107,82 @@ test("perfis de atendimento, comercial e parcerias usam o setor escolhido", asyn
   assert.equal(reseller.decision.action, "HANDOFF_HUMAN");
 });
 
+test("atacado coleta dados da loja e encaminha ao comercial", async () => {
+  const one = await runSectorIntake({
+    bot, category: wholesale, message: "Tenho uma loja e quero revender Mibro",
+    caseState: {}, knowledgeProvider: noKnowledge,
+  });
+  assert.equal(one.interpretation.issue, "REVENDA");
+  assert.equal(one.caseState.pendingField, "businessStores");
+
+  const two = await runSectorIntake({
+    bot, category: wholesale, message: "Loja Relógios Centro",
+    caseState: one.caseState, knowledgeProvider: noKnowledge,
+  });
+  assert.equal(two.caseState.pendingField, "businessLocation");
+
+  const three = await runSectorIntake({
+    bot, category: wholesale, message: "Curitiba, Paraná",
+    caseState: two.caseState, knowledgeProvider: noKnowledge,
+  });
+  assert.equal(three.caseState.pendingField, "storeType");
+
+  const four = await runSectorIntake({
+    bot, category: wholesale, message: "Loja física e online",
+    caseState: three.caseState, knowledgeProvider: noKnowledge,
+  });
+  assert.equal(four.caseState.pendingField, "productInterest");
+
+  const five = await runSectorIntake({
+    bot, category: wholesale, message: "20 unidades entre GS Pro 2 e Lite 3",
+    caseState: four.caseState, knowledgeProvider: noKnowledge,
+  });
+  assert.equal(five.decision.action, "HANDOFF_HUMAN");
+  assert.match(five.caseState.productInterest, /20 unidades/);
+});
+
+test("atacado encaminha imediatamente quando cliente pede valores", async () => {
+  const result = await runSectorIntake({
+    bot, category: wholesale, message: "Quero saber os valores para revenda",
+    caseState: {}, knowledgeProvider: noKnowledge,
+  });
+  assert.equal(result.interpretation.issue, "REVENDA");
+  assert.equal(result.decision.action, "HANDOFF_HUMAN");
+  assert.match(result.decision.flowResponseText, /valores e condições de atacado/);
+});
+
+test("varejo consulta conhecimento do modelo e direciona para a loja", async () => {
+  const productKnowledge = {
+    async search() {
+      return [{
+        id: "produto-gs-pro-2", title: "Mibro GS Pro 2",
+        content: "O GS Pro 2 possui GNSS de dupla frequência GPS L1+L5.",
+        source: "https://mibrobrasil.com.br/products/mibro-gs-pro-2", score: 0.95,
+      }];
+    },
+  };
+  const one = await runSectorIntake({
+    bot, category: retail, message: "Tenho interesse no GS Pro 2",
+    caseState: {}, knowledgeProvider: productKnowledge,
+  });
+  assert.equal(one.caseState.product, "GS Pro 2");
+  assert.equal(one.caseState.pendingField, "retailQuestion");
+
+  const two = await runSectorIntake({
+    bot, category: retail, message: "Ele tem GPS?",
+    caseState: one.caseState, knowledgeProvider: productKnowledge,
+  });
+  assert.equal(two.decision.action, "RESPOND");
+  assert.match(two.decision.flowResponseText, /GPS L1\+L5/);
+  assert.match(two.decision.flowResponseText, /todos-os-produtos/);
+
+  const three = await runSectorIntake({
+    bot, category: retail, message: "Não tenho mais dúvidas",
+    caseState: two.caseState, knowledgeProvider: productKnowledge,
+  });
+  assert.equal(three.decision.action, "RESPOND");
+  assert.match(three.decision.flowResponseText, /cupom de primeira compra/);
+});
 test("parceria coleta redes, seguidores e links antes do encaminhamento", async () => {
   const one = await runSectorIntake({
     bot, category: partnerships, message: "Tenho um Instagram e gostaria de fazer vídeos para vocês",

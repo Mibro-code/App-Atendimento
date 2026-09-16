@@ -9,7 +9,9 @@ test("caseState vazio nunca lança e tem o shape completo", () => {
   const empty = emptyCaseState();
   assert.deepEqual(empty, {
     symptom: null, product: null, app: null, os: null,
-    phone: null, objective: null, providedInfo: null, lastResult: null,
+    phone: null, objective: null, socialNetworks: null, followerCount: null,
+    socialLinks: null, businessStores: null, businessLocation: null, storeType: null,
+    productInterest: null, retailQuestion: null, providedInfo: null, lastResult: null,
     orderNumber: null, purchaseChannel: null, topic: null,
     sector: null, issue: null, hasInvoice: null, purchaseDateApprox: null,
     pendingField: null, intakeQuestionCount: 0,
