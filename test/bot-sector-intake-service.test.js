@@ -129,6 +129,7 @@ test("coleta apenas os campos faltantes e conclui o handoff em poucos passos", a
     caseState: two.caseState, knowledgeProvider: noKnowledge,
   });
   assert.equal(three.decision.action, "HANDOFF_HUMAN");
+  assert.equal(three.decision.flowResponseText, "Ok! Vou encaminhar seu caso para um atendente. Em breve, alguém da nossa equipe continuará o atendimento por aqui.");
   assert.equal(three.caseState.purchaseDateApprox, "ha 2 meses");
   assert.equal(three.caseState.questionsAsked.length, 2);
 });

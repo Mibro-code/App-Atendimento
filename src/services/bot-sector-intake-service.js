@@ -282,7 +282,7 @@ async function runSectorIntake({
     };
   }
 
-  const response = "Obrigado pelas informações. Vou encaminhar seu caso para o setor " + category.name + " com o contexto coletado.";
+  const response = "Ok! Vou encaminhar seu caso para um atendente. Em breve, alguém da nossa equipe continuará o atendimento por aqui.";
   caseState = mergeCaseState(caseState, { pendingField: "none" });
   return {
     interpretation,
