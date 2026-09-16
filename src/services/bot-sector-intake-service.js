@@ -29,7 +29,7 @@ const RULES = Object.freeze({
   ],
   PARCERIAS: [
     ["REVENDA", /\b(revender|revenda|distribuidor|tenho (uma )?loja|lojista|atacado)\b/],
-    ["PARCERIA", /\b(parceria|influenciador|afiliado|representante|creator)\b/],
+    ["PARCERIA", /\b(parceria|influenciador|influencer|afiliado|representante|creator|instagram|tiktok|youtube|kwai|conteudo|videos?|divulga|publi|redes? sociais?)\w*/],
   ],
 });
 
@@ -40,6 +40,9 @@ const QUESTIONS = Object.freeze({
   appOs: "Qual aplicativo e celular você usa: Mibro Fit em Android ou iPhone?",
   orderNumber: "Pode informar o número do pedido?",
   objective: "Conte em uma frase o que você precisa para eu encaminhar com o contexto certo.",
+  socialNetworks: "Quais redes sociais você utiliza?",
+  followerCount: "Quantos seguidores você possui em cada rede?",
+  socialLinks: "Pode enviar os links dos seus perfis?",
 });
 
 function isSectorIntakeBot(bot) {
@@ -115,6 +118,9 @@ function extractPatch(message, current) {
   if (current.pendingField === "purchaseDateApprox" && !patch.purchaseDateApprox) patch.purchaseDateApprox = message.trim();
   if (current.pendingField === "orderNumber" && !patch.orderNumber) patch.orderNumber = message.trim();
   if (current.pendingField === "objective") patch.objective = message.trim();
+  if (current.pendingField === "socialNetworks") patch.socialNetworks = message.trim();
+  if (current.pendingField === "followerCount") patch.followerCount = message.trim();
+  if (current.pendingField === "socialLinks") patch.socialLinks = message.trim();
   if (current.pendingField === "appOs") {
     if (!patch.app && /\bmibro\b/.test(text)) patch.app = message.trim();
     if (!patch.os) patch.phone = message.trim();
@@ -131,6 +137,9 @@ function requiredFields(sector, issue) {
     return ["product", "purchase", "purchaseDateApprox"];
   }
   if (sector === "ATENDIMENTO") return issue === "PEDIDO" ? ["orderNumber"] : ["objective"];
+  if (sector === "PARCERIAS" && issue === "PARCERIA") {
+    return ["objective", "socialNetworks", "followerCount", "socialLinks"];
+  }
   return ["objective"];
 }
 

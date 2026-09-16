@@ -25,6 +25,9 @@ function emptyCaseState() {
     os: null,
     phone: null,
     objective: null,
+    socialNetworks: null,
+    followerCount: null,
+    socialLinks: null,
     providedInfo: null,
     lastResult: null,
     orderNumber: null,
@@ -57,6 +60,9 @@ function normalizeCaseState(raw) {
     os: typeof raw.os === "string" ? raw.os : null,
     phone: typeof raw.phone === "string" ? raw.phone : null,
     objective: typeof raw.objective === "string" ? raw.objective : null,
+    socialNetworks: typeof raw.socialNetworks === "string" ? raw.socialNetworks : null,
+    followerCount: typeof raw.followerCount === "string" ? raw.followerCount : null,
+    socialLinks: typeof raw.socialLinks === "string" ? raw.socialLinks : null,
     providedInfo: typeof raw.providedInfo === "string" ? raw.providedInfo : null,
     lastResult: typeof raw.lastResult === "string" ? raw.lastResult : null,
     orderNumber: typeof raw.orderNumber === "string" ? raw.orderNumber : null,
@@ -93,7 +99,7 @@ function mergeCaseState(existing, patch = {}) {
   const base = normalizeCaseState(existing);
   const merged = { ...base };
 
-  for (const key of ["symptom", "product", "app", "os", "phone", "objective", "providedInfo", "lastResult", "orderNumber", "purchaseChannel", "topic", "sector", "issue", "purchaseDateApprox", "pendingField"]) {
+  for (const key of ["symptom", "product", "app", "os", "phone", "objective", "socialNetworks", "followerCount", "socialLinks", "providedInfo", "lastResult", "orderNumber", "purchaseChannel", "topic", "sector", "issue", "purchaseDateApprox", "pendingField"]) {
     if (typeof patch[key] === "string" && patch[key].trim()) merged[key] = patch[key].trim();
   }
   if (typeof patch.hasInvoice === "boolean") merged.hasInvoice = patch.hasInvoice;

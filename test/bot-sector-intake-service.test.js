@@ -104,6 +104,36 @@ test("perfis de atendimento, comercial e parcerias usam o setor escolhido", asyn
   assert.equal(reseller.decision.action, "HANDOFF_HUMAN");
 });
 
+test("parceria coleta redes, seguidores e links antes do encaminhamento", async () => {
+  const one = await runSectorIntake({
+    bot, category: partnerships, message: "Tenho um Instagram e gostaria de fazer vídeos para vocês",
+    caseState: {}, knowledgeProvider: noKnowledge,
+  });
+  assert.equal(one.interpretation.issue, "PARCERIA");
+  assert.equal(one.caseState.pendingField, "socialNetworks");
+  assert.equal(one.decision.flowResponseText, "Quais redes sociais você utiliza?");
+
+  const two = await runSectorIntake({
+    bot, category: partnerships, message: "Instagram e TikTok",
+    caseState: one.caseState, knowledgeProvider: noKnowledge,
+  });
+  assert.equal(two.caseState.socialNetworks, "Instagram e TikTok");
+  assert.equal(two.caseState.pendingField, "followerCount");
+
+  const three = await runSectorIntake({
+    bot, category: partnerships, message: "20 mil no Instagram e 8 mil no TikTok",
+    caseState: two.caseState, knowledgeProvider: noKnowledge,
+  });
+  assert.equal(three.caseState.followerCount, "20 mil no Instagram e 8 mil no TikTok");
+  assert.equal(three.caseState.pendingField, "socialLinks");
+
+  const four = await runSectorIntake({
+    bot, category: partnerships, message: "https://instagram.com/exemplo e https://tiktok.com/@exemplo",
+    caseState: three.caseState, knowledgeProvider: noKnowledge,
+  });
+  assert.equal(four.caseState.socialLinks, "https://instagram.com/exemplo e https://tiktok.com/@exemplo");
+  assert.equal(four.decision.action, "HANDOFF_HUMAN");
+});
 test("nao executa antes da triagem definir categoria", async () => {
   assert.equal(await runSectorIntake({
     bot, category: null, message: "nao carrega", caseState: {}, knowledgeProvider: noKnowledge,
