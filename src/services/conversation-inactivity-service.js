@@ -32,7 +32,7 @@ async function finalizeInactiveConversations({
       const updated = await transaction.conversation.updateMany({
         where: { id: conversation.id, status: { not: "FINALIZADO" }, lastMessageAt: { lte: cutoff } },
         data: {
-          status: "FINALIZADO", categoryId: null, assignedUserId: null,
+          status: "FINALIZADO", assignedUserId: null,
           unreadCount: 0, finalizedAt: now,
         },
       });

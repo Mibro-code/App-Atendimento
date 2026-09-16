@@ -1,9 +1,19 @@
 (() => {
-  const APP_VERSION = "0.32.4";
+  const APP_VERSION = "0.32.5";
 
 
 
   const CHANGELOG = [
+    {
+      version: "0.32.5",
+      date: "16/09/2026",
+      title: "Nova triagem após inatividade",
+      changes: [
+        "Conversas passam a ser finalizadas após 1 minuto de inatividade.",
+        "A finalização automática mantém a categoria enquanto a conversa estiver em Finalizados.",
+        "Quando o cliente envia uma nova mensagem, a categoria e o responsável são removidos para iniciar novamente pelo Bot de triagem."
+      ]
+    },
     {
       version: "0.32.4",
       date: "15/09/2026",

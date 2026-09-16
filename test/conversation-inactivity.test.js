@@ -43,12 +43,12 @@ test("finaliza após 24 horas com última mensagem da empresa ou do cliente", as
   assert.equal(await finalizeInactiveConversations({ now }), 2);
   const finalized = await prisma.conversation.findUnique({ where: { id: outgoingConversation.id } });
   assert.equal(finalized.status, "FINALIZADO");
-  assert.equal(finalized.categoryId, null);
+  assert.equal(finalized.categoryId, support.id);
   assert.equal(finalized.assignedUserId, null);
   assert.ok(finalized.finalizedAt);
   const finalizedIncoming = await prisma.conversation.findUnique({ where: { id: incomingConversation.id } });
   assert.equal(finalizedIncoming.status, "FINALIZADO");
-  assert.equal(finalizedIncoming.categoryId, null);
+  assert.equal(finalizedIncoming.categoryId, support.id);
   assert.equal(finalizedIncoming.assignedUserId, null);
   assert.ok(finalizedIncoming.finalizedAt);
   assert.equal((await prisma.conversation.findUnique({ where: { id: routingConversation.id } })).status, "NOVO");
