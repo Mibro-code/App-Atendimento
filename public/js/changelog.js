@@ -1,9 +1,19 @@
 (() => {
-  const APP_VERSION = "0.32.7";
+  const APP_VERSION = "0.33.0";
 
 
 
   const CHANGELOG = [
+    {
+      version: "0.33.0",
+      date: "18/09/2026",
+      title: "IA local em modo de observa‡Æo",
+      changes: [
+        "Adicionada integra‡Æo global com Qwen via Ollama para an lise local.",
+        "O Assistente Mibro pode avaliar mensagens em modo shadow sem responder ao cliente.",
+        "Status, fila, valida‡Æo estruturada e bloqueios seguros evitam respostas sem conhecimento ou com a IA offline."
+      ]
+    },
     {
       version: "0.32.7",
       date: "16/09/2026",
