@@ -9,6 +9,8 @@ const MetaCloudChannel = require("./channels/meta-cloud-channel");
 const { saveIncoming, updateStatus, sendTextToPhone } = require("./services/message-service");
 const { handleIncomingTriage } = require("./services/triage-bot-service");
 const { observeIncomingMessage } = require("./services/bot-observation-service");
+const { shadowIncomingMessage } = require("./services/bot-ai-shadow-service");
+const localAiController = require("./controllers/local-ai-controller");
 const { createInboxController } = require("./controllers/inbox-controller");
 const authController = require("./controllers/auth-controller");
 const {
@@ -187,6 +189,7 @@ function createApp({ channel = new MetaCloudChannel() } = {}) {
                 } else {
                   await handleIncomingTriage(event, result.message, eventChannel);
                   observeIncomingMessage(event, result.message).catch(() => {});
+                  shadowIncomingMessage(event, result.message).catch(() => {});
                 }
                 // Notificação e opt-out são baratos e críticos: continuam
                 // mesmo quando Bot/IA está temporariamente limitado.
@@ -483,6 +486,10 @@ app.post(
   app.put("/api/bots/:botId/schedules", botController.schedules);
   app.put("/api/bots/:botId/holidays", botController.holidays);
   app.put("/api/bots/:botId/triage-options", botController.triageOptions);
+  app.get("/api/local-ai/status", localAiController.getStatus);
+  app.get("/api/local-ai/settings", localAiController.getSettings);
+  app.put("/api/local-ai/settings", localAiController.updateSettings);
+  app.post("/api/local-ai/check", localAiController.checkNow);
   app.post("/api/bots/:botId/intents", botController.createIntent);
   app.patch("/api/bots/:botId/intents/:intentId", botController.updateIntent);
   app.delete("/api/bots/:botId/intents/:intentId", botController.deleteIntent);
