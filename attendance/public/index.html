@@ -1,0 +1,724 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
+  <meta name="theme-color" content="#16171a">
+  <meta name="application-name" content="Mibro">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" type="image/svg+xml" href="/assets/central-favicon.svg">
+  <link rel="apple-touch-icon" href="/assets/central-app-icon-192-v2.png">
+  <title>Central de Atendimento</title>
+  <script>try{const saved=localStorage.getItem("mibro-theme");document.documentElement.dataset.theme=saved||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch{}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/skeleton.css?v=0.37.11-security-performance-20261026">
+  <link rel="stylesheet" href="/css/app.css?v=0.37.11-security-performance-20261026">
+  <script src="/js/feature-flags.js?v=0.37.11-security-performance-20261026"></script>
+  <link rel="stylesheet" href="/css/responsive.css?v=0.37.11-security-performance-20261026">
+  <link rel="stylesheet" href="/css/whatsapp-send.css?v=0.37.11-security-performance-20261026">
+  <link rel="stylesheet" href="/css/supervision.css?v=0.37.11-security-performance-20261026">
+  <link rel="stylesheet" href="/css/layout-fit.css?v=0.37.11-security-performance-20261026">
+  <link rel="stylesheet" href="/css/follow-ups.css?v=0.37.11-security-performance-20261026">
+  <link rel="stylesheet" href="/css/category-manager.css?v=0.37.11-security-performance-20261026">
+</head>
+<body>
+  <header class="topbar">
+    <button id="sidebar-toggle" type="button" title="Abrir menu" aria-label="Abrir menu"><span aria-hidden="true">☰</span></button>
+    <div class="brand"><img class="brand-logo" src="/assets/central-mark.svg" alt="Central de Atendimento"><span class="brand-divider"></span><small>Central de Atendimento</small></div>
+    <div id="workspace-switcher" class="workspace-switcher" role="tablist" aria-label="Área de trabalho (empresa)" hidden></div>
+    <span id="workspace-announcer" class="visually-hidden" aria-live="polite"></span>
+    <button id="command-palette-trigger" class="cmdk-trigger" type="button" aria-haspopup="dialog"><span aria-hidden="true">⌕</span><span>Buscar conversas ou executar uma ação...</span><kbd>Ctrl K</kbd></button>
+    <button id="faq-button" class="faq-button" type="button" title="Ajuda e perguntas frequentes"><span aria-hidden="true">?</span><b>Ajuda</b></button>
+    <div id="connection-indicator" class="connection" data-state="online" role="status" aria-live="polite"><span class="connection-dot"></span><span id="connection-label">WhatsApp conectado</span></div>
+    <button id="install-app" class="install-app" type="button" hidden>Instalar aplicativo</button>
+    <div class="app-version-actions">
+  <button id="changelog-button" class="changelog-button" type="button" title="Ver novidades e histórico de versões">
+    <span class="changelog-icon" aria-hidden="true">▤</span>
+          <span id="app-version-label">v0.37.7 · prévia local</span>
+    <span id="changelog-unread-dot" class="changelog-unread-dot" hidden></span>
+  </button>
+
+  <button id="check-update" class="check-update check-update-round" type="button" hidden title="Verificar atualizações" aria-label="Verificar atualizações">
+    <span class="check-update-icon" aria-hidden="true">↻</span>
+    <span class="check-update-text" hidden></span>
+  </button>
+</div>
+    <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Usar tema escuro" title="Usar tema escuro"><span id="theme-icon" aria-hidden="true">☾</span></button>
+    <button id="user-button" class="user-button" type="button"><span id="current-user">Usuário</span> • Sair</button>
+  </header>
+
+  <main class="workspace">
+    <nav id="app-sidebar" class="app-sidebar" aria-label="Navegação principal">
+      <div class="mobile-panel-heading"><strong>Menu</strong><button id="close-mobile-menu" type="button" aria-label="Fechar menu">×</button></div>
+      <button id="sidebar-collapse-toggle" class="sidebar-collapse-toggle" type="button" title="Expandir menu" aria-label="Expandir menu" aria-expanded="false"><span aria-hidden="true">»</span></button>
+      <div class="sidebar-scroll">
+        <div class="sidebar-group">
+          <p class="sidebar-group-label">Atendimento</p>
+          <button class="sidebar-item channel-workspace-item active" type="button" data-channel-view="" aria-current="page"><span class="sidebar-item-icon" aria-hidden="true">◉</span><span class="sidebar-item-label">Visão geral</span></button>
+          <button id="agenda-button" class="sidebar-item" type="button" hidden title="Agenda e follow-ups"><span class="sidebar-item-icon" aria-hidden="true">📅</span><span class="sidebar-item-label">Agenda</span><span id="agenda-badge" class="agenda-badge" hidden></span></button>
+          <button id="operations-button" class="sidebar-item" type="button" hidden title="Central de Operação (Supervisor/Master)"><span class="sidebar-item-icon" aria-hidden="true">📊</span><span class="sidebar-item-label">Operação</span></button>
+          <button id="productivity-button" class="sidebar-item" type="button" hidden title="Produtividade e Qualidade"><span class="sidebar-item-icon" aria-hidden="true">📈</span><span class="sidebar-item-label">Produtividade</span></button>
+          <button id="enable-notifications" class="sidebar-item" type="button" hidden title="Ativar notificações do atendimento"><span class="sidebar-item-icon" aria-hidden="true">🔔</span><span class="sidebar-item-label">Ativar alertas</span></button>
+          <button id="manage-devices" class="sidebar-item" type="button" hidden title="Dispositivos com notificações"><span class="sidebar-item-icon" aria-hidden="true">📱</span><span class="sidebar-item-label">Dispositivos</span></button>
+        </div>
+        <div class="sidebar-group">
+          <p class="sidebar-group-label">Automação</p>
+          <button id="bots-button" class="sidebar-item" type="button" hidden><span class="sidebar-item-icon" aria-hidden="true">🤖</span><span class="sidebar-item-label">Bots</span></button>
+          <button id="quick-replies-admin-button" class="sidebar-item" type="button" hidden><span class="sidebar-item-icon" aria-hidden="true">⚡</span><span class="sidebar-item-label">Respostas rápidas</span></button>
+        </div>
+        <div class="sidebar-group">
+          <p class="sidebar-group-label">Canais</p>
+          <button class="sidebar-item channel-workspace-item" type="button" data-channel-view="META"><span class="sidebar-item-icon channel-icon whatsapp" aria-hidden="true">W</span><span class="sidebar-item-label">WhatsApp</span></button>
+          <button class="sidebar-item channel-workspace-item" type="button" data-channel-view="EMAIL"><span class="sidebar-item-icon channel-icon email" aria-hidden="true">E</span><span class="sidebar-item-label">E-mail</span></button>
+          <button class="sidebar-item channel-workspace-item" type="button" data-channel-view="INSTAGRAM_DIRECT,INSTAGRAM_COMMENTS,FACEBOOK_MESSENGER,FACEBOOK_COMMENTS"><span class="sidebar-item-icon channel-icon meta" aria-hidden="true">M</span><span class="sidebar-item-label">Instagram + Facebook</span></button>
+          <button class="sidebar-item channel-workspace-item" type="button" data-marketplace-feature hidden data-channel-view="MERCADO_LIVRE,TIKTOK_SHOP,AMAZON_MARKETPLACE,SHOPEE,SHEIN_MARKETPLACE"><span class="sidebar-item-icon channel-icon stores" aria-hidden="true">L</span><span class="sidebar-item-label">Plataformas de venda</span></button>
+          <button id="integrations-button" class="sidebar-item" type="button" hidden><span class="sidebar-item-icon" aria-hidden="true">🔌</span><span class="sidebar-item-label">Integrações</span></button>
+        </div>
+        <div class="sidebar-group">
+          <p class="sidebar-group-label">Campanhas</p>
+          <button id="meta-costs-button" class="sidebar-item" type="button" hidden title="Custos estimados da Meta (Master)"><span class="sidebar-item-icon" aria-hidden="true">💲</span><span class="sidebar-item-label">Custos Meta</span></button>
+          <button id="campaigns-button" class="sidebar-item" type="button" hidden><span class="sidebar-item-icon" aria-hidden="true">📣</span><span class="sidebar-item-label">Campanhas</span></button>
+          <button id="templates-library-button" class="sidebar-item" type="button" hidden title="Templates do WhatsApp e destinos automáticos"><span class="sidebar-item-icon" aria-hidden="true">📚</span><span class="sidebar-item-label">Templates</span></button>
+        </div>
+        <div class="sidebar-group">
+          <p class="sidebar-group-label">Gestão</p>
+          <button id="conversation-settings-button" class="sidebar-item" type="button" hidden><span class="sidebar-item-icon" aria-hidden="true">⚙</span><span class="sidebar-item-label">Configurações</span></button>
+          <button id="team-button" class="sidebar-item" type="button" hidden><span class="sidebar-item-icon" aria-hidden="true">👥</span><span class="sidebar-item-label">Equipe</span></button>
+          <button id="supervision-button" class="sidebar-item" type="button" hidden><span class="sidebar-item-icon" aria-hidden="true">🧭</span><span id="supervision-button-label" class="sidebar-item-label">Minha equipe</span></button>
+        </div>
+      </div>
+    </nav>
+    <aside id="filters-panel" class="filters-panel">
+      <div class="mobile-panel-heading"><strong>Filtros e categorias</strong><button id="close-mobile-filters" type="button" aria-label="Fechar filtros e voltar à lista">×</button></div>
+      <label class="search"><span>⌕</span><input id="search" type="search" placeholder="Buscar nome ou telefone"></label>
+      <select id="channel-filter" class="channel-filter" aria-label="Filtrar por canal">
+        <option value="">Todos os canais da empresa</option>
+        <option value="META">WhatsApp</option>
+        <option value="INSTAGRAM_DIRECT,INSTAGRAM_COMMENTS">Instagram</option>
+        <option value="FACEBOOK_MESSENGER,FACEBOOK_COMMENTS">Facebook</option>
+        <option value="INSTAGRAM_DIRECT,INSTAGRAM_COMMENTS,FACEBOOK_MESSENGER,FACEBOOK_COMMENTS">Instagram + Facebook</option>
+        <option value="EMAIL">Email</option>
+        <option data-marketplace-feature hidden value="MERCADO_LIVRE">Mercado Livre</option>
+        <option data-marketplace-feature hidden value="TIKTOK_SHOP">TikTok</option>
+        <option data-marketplace-feature hidden value="AMAZON_MARKETPLACE">Amazon</option>
+        <option data-marketplace-feature hidden value="MERCADO_LIVRE,TIKTOK_SHOP,AMAZON_MARKETPLACE,SHOPEE,SHEIN_MARKETPLACE">Plataformas de venda</option>
+      </select>
+      <nav id="email-mailboxes" class="email-mailboxes" aria-label="Pastas do e-mail" hidden>
+        <p class="email-mailboxes-title"><span>CAIXA DE E-MAIL</span><small>Gmail</small></p>
+        <button class="email-mailbox active" type="button" data-email-mailbox="GENERAL"><span class="email-mailbox-icon">▣</span><span>Caixa geral</span></button>
+        <button class="email-mailbox" type="button" data-email-mailbox="PROMOTIONS"><span class="email-mailbox-icon">◇</span><span>Promoções</span></button>
+        <button class="email-mailbox" type="button" data-email-mailbox="SPAM"><span class="email-mailbox-icon">!</span><span>Spam</span></button>
+      </nav>
+      <nav>
+        <p class="nav-title">ATENDIMENTO</p>
+        <button class="filter active" data-status=""><span>Todos</span><strong id="count-all">0</strong></button>
+        <button class="filter" type="button" data-status="MINE" title="Conversas em que você é o responsável atual"><span>Minhas</span></button>
+        <button class="filter" data-status="NOVO"><span>Novos</span><strong id="count-new">0</strong></button>
+        <button class="filter" data-status="EM_ATENDIMENTO"><span>Em atendimento</span><strong id="count-in-progress">0</strong></button>
+        <button class="filter" data-status="AGUARDANDO_EQUIPE"><span>Aguardando equipe</span><strong id="count-waiting">0</strong></button>
+        <button class="filter" data-status="BOT"><span>Bot</span><strong id="count-bot">0</strong></button>
+        <button class="filter" data-status="FINALIZADO"><span>Finalizados</span><strong id="count-finalized">0</strong></button>
+        <details id="quick-filters-tray" class="filter-tray" open>
+          <summary>FILTROS RÁPIDOS <span aria-hidden="true">⌄</span></summary>
+          <div class="toggle-filters">
+            <button class="toggle-filter" type="button" data-toggle-filter="slaBreached:true"><span>SLA atrasado</span><strong id="count-overdue">0</strong></button>
+            <button class="toggle-filter" type="button" data-toggle-filter="unassigned:true"><span>Sem responsável</span><strong id="count-unassigned">0</strong></button>
+            <button class="toggle-filter" type="button" data-toggle-filter="priority:URGENTE"><span>Urgente</span><strong id="count-urgent">0</strong></button>
+            <button class="toggle-filter" type="button" data-toggle-filter="priority:ALTA"><span>Alta prioridade</span></button>
+            <button class="toggle-filter" type="button" data-toggle-filter="status:AGUARDANDO_CLIENTE"><span>Aguardando cliente</span></button>
+            <button class="toggle-filter" type="button" data-toggle-filter="status:HANDOFF_BOT"><span>Bot transferiu</span></button>
+          </div>
+          <label class="preferred-assignee-filter"><select id="preferred-assignee-filter" aria-label="Filtrar por atendente fixo"><option value="">Atendente fixo: todos</option></select></label>
+        </details>
+        <div class="categories-heading"><p class="nav-title categories-title">CATEGORIAS</p><span><button id="toggle-hidden-categories" type="button" title="Mostrar categorias ocultas" aria-label="Mostrar categorias ocultas">◉</button><button id="manage-categories" type="button" title="Criar e editar categorias" aria-label="Gerenciar categorias">+</button></span></div>
+        <div id="category-filters"></div>
+<div class="internal-chat-nav">
+  <p class="nav-title">COMUNICAÇÃO</p>
+
+  <button id="internal-chat-button" class="internal-chat-button" type="button">
+    <span>💬 Chat interno</span>
+    <strong id="internal-chat-unread" hidden>0</strong>
+  </button>
+</div>
+      </nav>
+    </aside>
+
+    <section class="conversation-list-panel">
+      <div class="list-heading"><div><span id="workspace-channel-eyebrow" class="workspace-channel-eyebrow">TODOS OS CANAIS DA EMPRESA</span><h1><span id="workspace-channel-title">Conversas</span><span id="workspace-company-label" class="workspace-company-label" hidden></span></h1><p id="list-summary">Carregando...</p><div id="company-filter-mobile" class="workspace-switcher workspace-switcher-mobile" role="tablist" aria-label="Área de trabalho (empresa)" hidden></div></div><div class="list-heading-actions"><button id="toggle-filters-panel" type="button" title="Recolher filtros e categorias" aria-label="Recolher filtros e categorias" aria-controls="filters-panel" aria-expanded="true">&lsaquo;</button><button id="density-toggle" type="button" title="Alternar densidade da lista" aria-label="Alternar densidade da lista" aria-pressed="false">≡</button><button id="new-conversation" class="new-conversation" type="button" title="Iniciar nova conversa">+ Nova</button><button id="clear-team-filter" title="Remover filtro de atendente" hidden>×</button><button id="refresh" title="Atualizar">↻</button></div></div>
+      <div id="conversation-list" class="conversation-list"><div class="skeleton-list"><div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div></div></div>
+    </section>
+
+    <section id="chat-panel" class="chat-panel empty">
+      <div id="empty-state" class="empty-state"><div class="empty-icon">◌</div><h2>Selecione uma conversa</h2><p>Escolha um atendimento na lista para visualizar o histórico e responder.</p></div>
+      <div id="chat-content" class="chat-content" hidden>
+        <header class="chat-header">
+          <button id="toggle-conversation-list" class="panel-collapse-button" type="button" title="Recolher lista de conversas" aria-label="Recolher lista de conversas" aria-expanded="true">&lsaquo;</button>
+          <div class="contact-avatar" id="contact-avatar"></div>
+         <div class="contact-info-wrap">
+  <button id="contact-details" class="contact-info" type="button" title="Ver arquivos e links desta conversa">
+    <h2 id="contact-name"></h2>
+    <p id="contact-phone"></p>
+    <p id="conversation-sender" class="sender-account-badge" hidden></p>
+  </button>
+  <span id="contact-company" class="company-badge company-badge-header" hidden></span>
+
+  <button id="edit-contact-name" class="contact-name-edit" type="button" title="Editar nome do contato">✎</button>
+  <button id="merge-contact" class="contact-merge-button" type="button" title="Fundir com outro contato" hidden>Fundir</button>
+  <button id="crm-contact-open" class="contact-merge-button" type="button" title="Consultar ficha comercial no CRM" hidden>CRM</button>
+</div>
+          <button id="mobile-chat-tools" type="button" aria-expanded="false" aria-controls="mobile-chat-controls">Opções</button>
+          <div id="mobile-chat-controls" class="chat-actions">
+            <div id="chat-secondary-actions" class="chat-secondary-actions">
+            <button id="pin-conversation" class="secondary-action" type="button" title="Fixar esta conversa somente para minha conta">☆ Fixar</button>
+            <button id="context-panel-toggle" class="secondary-action" type="button" title="Detalhes da conversa">Detalhes</button>
+            <button id="notes-toggle" class="secondary-action" type="button">Notas</button>
+            <button id="history-toggle" class="secondary-action" type="button">Histórico</button>
+            <button id="assignment-timeline" class="secondary-action" type="button" title="Quem atendeu e quando (supervisão)" hidden>Atendimento</button>
+            <button id="schedule-follow-up" class="secondary-action" type="button" title="Agendar retorno com este cliente (lembrete interno)">📅 Agendar retorno</button>
+            </div>
+            <span id="category-missing-hint" class="category-missing-hint" role="status" title="Esta conversa ainda não possui categoria definida." hidden>⚠ Sem categoria</span>
+            <select id="category-select" aria-label="Categoria principal"></select>
+            <select id="subcategory-select" aria-label="Subcategoria" hidden></select>
+            <button id="confirm-category" class="category-confirm" type="button" disabled>OK</button>
+            <div class="chat-overflow">
+              <button id="chat-overflow-toggle" class="chat-overflow-toggle" type="button" title="Mais ações" aria-label="Mais ações" aria-haspopup="true">⋯</button>
+              <div class="chat-overflow-panel" role="menu">
+                <button id="signal-transfer" class="secondary-action" type="button" role="menuitem">Sinalizar envio</button>
+                <button id="toggle-finalized" class="secondary-action" role="menuitem"></button>
+                <button id="toggle-email-spam" class="secondary-action" type="button" hidden role="menuitem">Marcar como spam</button>
+                <button id="delete-conversation" class="danger-action" type="button" hidden role="menuitem">Apagar</button>
+              </div>
+            </div>
+          </div>
+        </header>
+        <div class="conversation-meta">
+          <span id="status-badge"></span>
+          <button id="follow-up-chip" class="follow-up-chip" type="button" hidden title="Ver retornos deste cliente"></button>
+          <label class="assignee-control"><span>Responsável</span><select id="assignee-select" aria-label="Atendente responsável"><option value="">Sem responsável</option></select></label>
+          <label class="assignee-control"><span>Prioridade</span><select id="priority-select" aria-label="Prioridade da conversa"><option value="NORMAL">Normal</option><option value="ALTA">Alta</option><option value="URGENTE">Urgente</option></select></label>
+          <button id="claim-conversation" class="claim-action" type="button">Assumir conversa</button>
+          <label id="merged-channel-control" class="merged-channel-control" hidden><span>Enviar por</span><select id="merged-channel-select" aria-label="Canal de envio"></select></label>
+        </div>
+        <div id="messages" class="messages"></div>
+        <div id="service-window-notice" class="service-window-notice" hidden>
+          <span><b id="service-window-title">Janela de 24 horas encerrada</b><small id="service-window-description">A Meta permite retomar este contato somente com um template aprovado.</small><div id="pinned-transfer-templates" class="pinned-transfer-templates"></div></span>
+          <button id="open-required-template" type="button">Usar template</button>
+        </div>
+        <div id="social-reply-mode-notice" class="social-reply-mode-notice" hidden>
+          <span id="social-reply-mode-icon" class="social-reply-mode-icon" aria-hidden="true"></span>
+          <span id="social-reply-mode-text"></span>
+        </div>
+        <div id="composer-sender" class="composer-sender" aria-live="polite" hidden></div>
+        <div id="cross-company-contact-warning" class="cross-company-contact-warning" role="status" hidden></div>
+        <div id="crm-proposal-draft-notice" class="cross-company-contact-warning" hidden>Resumo de proposta preparado para revisão. O vínculo é temporário. <button type="button" id="clear-crm-proposal-draft">Desvincular proposta</button></div>
+        <form id="composer" class="composer">
+          <div class="composer-tools">
+            <div class="composer-attach">
+              <button id="open-attachments" class="attach-image" type="button" title="Arquivos e áudios" aria-label="Arquivos e áudios" aria-expanded="false" aria-controls="attachment-menu"><span aria-hidden="true">+</span></button>
+              <div id="attachment-menu" class="attachment-menu" hidden role="group" aria-label="Arquivos e áudios">
+                <button id="choose-attachment" type="button"><span aria-hidden="true">📎</span>Enviar arquivo</button>
+                <button id="record-audio" type="button" title="Gravar áudio" aria-label="Gravar áudio"><span aria-hidden="true">🎙️</span>Gravar áudio</button>
+                <button id="choose-audio" type="button"><span aria-hidden="true">🎵</span>Enviar áudio</button>
+              </div>
+              <input id="attachment-input" type="file" hidden accept=".heic,.heif,.heics,.tif,.tiff,image/heic,image/heif,image/tiff,image/jpeg,image/png,image/bmp,image/webp,image/gif,.bmp,.webp,.gif,.mov,.avi,video/quicktime,video/x-msvideo,video/mp4,video/3gpp,video/3gp,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,audio/*,.ogg,.opus,.mp3,.m4a,.aac,.amr,.wav,.flac">
+              <input id="audio-file-input" type="file" accept="audio/*,.ogg,.opus,.mp3,.m4a,.aac,.amr,.wav,.flac" hidden>
+            </div>
+            <input id="audio-capture-input" type="file" accept="audio/*" capture hidden>
+            <button id="open-templates" class="template-shortcut" type="button" title="Enviar template aprovado pela Meta" hidden>Templates</button>
+            <button id="open-quick-replies" class="quick-reply-shortcut" type="button" title="Respostas rápidas" aria-label="Respostas rápidas"><svg viewBox="0 0 32 32" aria-hidden="true" focusable="false"><defs><linearGradient id="quick-bolt-gradient" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".5" stop-color="#c9c9c9"/><stop offset="1" stop-color="#555b63"/></linearGradient></defs><path d="M18.5 2.5 7 17h8l-1.5 12.5L25 14h-8.2l1.7-11.5Z"/></svg></button>
+          </div>
+          <div id="attachment-preview" class="attachment-preview" hidden><img id="attachment-thumb" alt="Prévia da imagem"><span id="attachment-type" class="attachment-type" hidden>DOC</span><span id="attachment-name"></span><button id="remove-attachment" type="button" aria-label="Remover anexo">×</button></div>
+          <div id="audio-composer" class="audio-composer" hidden aria-live="polite">
+            <div class="audio-recording" data-audio-recording>
+              <span class="audio-rec-dot" aria-hidden="true"></span>
+              <span id="audio-timer" class="audio-timer">00:00</span>
+              <span id="audio-rec-label" class="audio-rec-label">Gravando…</span>
+              <button id="audio-pause" type="button" class="audio-action">Pausar</button>
+              <button id="audio-stop" type="button" class="audio-action primary">Concluir</button>
+              <button id="audio-cancel" type="button" class="audio-action danger">Cancelar</button>
+            </div>
+            <div class="audio-preview" data-audio-preview hidden>
+              <span id="audio-source-label" class="audio-source-label">🎤</span>
+              <audio id="audio-preview-player" class="audio-preview-player" controls preload="metadata"></audio>
+              <span id="audio-preview-duration" class="audio-timer">00:00</span>
+              <button id="audio-save-quick-reply" type="button" class="audio-action">Salvar como resposta rápida</button>
+              <button id="audio-rerecord" type="button" class="audio-action">Regravar</button>
+              <button id="audio-discard" type="button" class="audio-action danger" title="Excluir áudio" aria-label="Excluir áudio">Excluir</button>
+            </div>
+          </div>
+          <div class="composer-input-wrap">
+            <div class="composer-format-tools" role="toolbar" aria-label="Formatação da mensagem">
+              <button type="button" data-message-format="*" title="Negrito (*texto*)" aria-label="Negrito"><b>B</b></button>
+              <button type="button" data-message-format="_" title="Itálico (_texto_)" aria-label="Itálico"><i>I</i></button>
+              <button type="button" data-message-format="~" title="Riscado (~texto~)" aria-label="Riscado"><s>S</s></button>
+              <button type="button" data-message-format="```" title="Monoespaçado (```texto```)" aria-label="Monoespaçado">&lt;/&gt;</button>
+            </div>
+            <textarea id="message-input" rows="1" maxlength="4096" placeholder="Digite uma mensagem... (use / para respostas rápidas)"></textarea>
+            <div id="slash-suggestions" class="slash-suggestions" hidden></div>
+          </div>
+          <button id="send-button" type="submit">Enviar</button>
+        </form>
+      </div>
+    </section>
+
+    <aside id="context-panel" class="context-panel" aria-label="Painel de contexto da conversa">
+      <div class="context-panel-header">
+        <nav class="context-panel-tabs" role="tablist" aria-label="Abas do painel de contexto">
+          <button type="button" class="context-tab active" data-context-tab="details" role="tab">Detalhes</button>
+          <button type="button" class="context-tab" data-context-tab="crm" role="tab" hidden>CRM</button>
+          <button type="button" class="context-tab" data-context-tab="notes" role="tab">Notas</button>
+          <button type="button" class="context-tab" data-context-tab="agenda" role="tab">Agenda</button>
+          <button type="button" id="history-tab-button" class="context-tab" data-context-tab="history" role="tab">Histórico</button>
+          <button type="button" class="context-tab" data-context-tab="bot" role="tab">Bot</button>
+          <button type="button" class="context-tab" data-context-tab="sla" role="tab">SLA</button>
+          <button type="button" class="context-tab" data-context-tab="files" role="tab">Arquivos</button>
+        </nav>
+        <button id="context-panel-close" class="context-panel-close" type="button" aria-label="Fechar painel">×</button>
+      </div>
+      <div class="context-panel-body">
+        <section data-context-panel="details" class="context-pane">
+          <button id="open-contact-profile" class="contact-profile-open" type="button">👤 Perfil 360° do cliente</button>
+          <div id="context-details-summary"></div>
+        </section>
+        <section data-context-panel="crm" class="context-pane crm-context-pane" hidden><p id="crm-context-status" role="status">Selecione uma conversa para consultar o CRM.</p><div id="crm-context-frame"></div></section>
+        <section data-context-panel="notes" class="context-pane" hidden>
+          <aside id="notes-panel" class="notes-panel" aria-label="Notas do contato">
+            <div class="notes-header"><div><span>CONTATO</span><h3>Notas internas</h3></div><button id="notes-close" type="button">×</button></div>
+            <p class="notes-help">Informações visíveis apenas para a equipe.</p>
+            <form id="note-form"><textarea id="note-input" maxlength="2000" placeholder="Ex.: Cliente prefere contato à tarde" required></textarea><button type="submit">Adicionar nota</button></form>
+            <div id="notes-list" class="notes-list"></div>
+          </aside>
+        </section>
+        <section data-context-panel="agenda" class="context-pane" hidden>
+          <div id="context-followups" class="context-followups"><div class="fu-empty">Abra uma conversa.</div></div>
+        </section>
+        <section data-context-panel="history" class="context-pane" hidden>
+          <aside id="history-panel" class="history-panel" aria-label="Histórico de ações da conversa">
+            <div class="notes-header"><div><span>AUDITORIA</span><h3>Histórico de ações</h3></div><button id="history-close" type="button">×</button></div>
+            <p class="notes-help">Registro de alterações realizadas pela equipe nesta conversa.</p>
+            <div id="history-list" class="history-list"></div>
+          </aside>
+        </section>
+        <section data-context-panel="bot" class="context-pane" hidden>
+          <p id="bot-tab-empty" class="context-empty">Nenhuma sugestão do bot no momento.</p>
+          <section id="bot-suggestion-card" class="bot-suggestion-card" hidden aria-live="polite">
+            <div class="bot-suggestion-head"><span>SUGESTÃO DO BOT</span><small id="bot-suggestion-meta"></small></div>
+            <p id="bot-suggestion-text"></p>
+            <div class="bot-suggestion-actions">
+              <button id="use-bot-suggestion" type="button">Usar</button>
+              <button id="edit-bot-suggestion" type="button">Editar</button>
+              <button id="ignore-bot-suggestion" type="button">Ignorar</button>
+              <button id="like-bot-suggestion" type="button" aria-label="Sugestão útil">👍</button>
+              <button id="dislike-bot-suggestion" type="button" aria-label="Sugestão não útil">👎</button>
+            </div>
+          </section>
+        </section>
+        <section data-context-panel="sla" class="context-pane" hidden>
+          <div id="context-tab-sla-body" class="context-info-list"></div>
+        </section>
+        <section data-context-panel="files" class="context-pane" hidden>
+          <div class="context-files-summary">
+            <div class="context-files-counts">
+              <span>Imagens e vídeos <strong id="context-files-media-count">0</strong></span>
+              <span>Documentos <strong id="context-files-doc-count">0</strong></span>
+              <span>Links <strong id="context-files-link-count">0</strong></span>
+            </div>
+            <button id="context-files-open-all" type="button" class="secondary-action">Ver tudo</button>
+          </div>
+        </section>
+      </div>
+    </aside>
+  </main>
+  <dialog id="quick-reply-dialog" class="quick-reply-dialog">
+    <div class="dialog-header"><div><span>RESPOSTAS RÁPIDAS</span><h2>Selecionar resposta</h2><p>O texto é inserido no campo de mensagem — você revisa e envia manualmente.</p></div><button id="close-quick-replies" type="button" aria-label="Fechar">×</button></div>
+    <label class="quick-reply-search"><span>⌕</span><input id="quick-reply-search" type="search" placeholder="Buscar por nome, atalho, texto, categoria ou tipo"></label>
+    <div class="quick-reply-type-row"><div id="quick-reply-types" class="quick-reply-types" role="tablist" aria-label="Tipo de resposta"><button type="button" data-quick-reply-type="" class="active">Todas</button><button type="button" data-quick-reply-type="TEXT">Texto</button><button type="button" data-quick-reply-type="AUDIO">🎤 Áudio</button></div><button id="new-audio-quick-reply" class="quick-reply-new-audio" type="button">+ Meu áudio</button></div>
+    <div id="quick-reply-categories" class="quick-reply-categories"></div>
+    <div id="quick-reply-list" class="quick-reply-list"></div>
+  </dialog>
+  <dialog id="audio-quick-reply-dialog" class="category-dialog audio-quick-reply-dialog">
+    <div class="dialog-header"><div><span>RESPOSTA RÁPIDA PESSOAL</span><h2 id="aqr-title">Salvar áudio</h2><p>Só você vê e usa esta resposta. Ao selecionar, o áudio vai para o composer — nada é enviado sem você clicar em Enviar.</p></div><button id="close-audio-quick-reply" type="button" aria-label="Fechar">×</button></div>
+    <form id="audio-quick-reply-form" class="audio-quick-reply-form">
+      <label><span>Nome</span><input id="aqr-name" maxlength="100" placeholder="Ex.: Saudação" required></label>
+      <label><span>Comando</span><input id="aqr-shortcut" maxlength="31" placeholder="/saudacao_audio" pattern="/[a-z0-9_]{1,30}" title="/ seguido de letras minúsculas, números ou _" required autocomplete="off"></label>
+      <label id="aqr-company-field" hidden><span>Vale para</span><select id="aqr-company"></select></label>
+      <label><span>Categoria</span><select id="aqr-category"><option value="">Sem categoria</option></select></label>
+      <div class="aqr-audio"><span>Áudio</span>
+        <div class="aqr-player-row"><audio id="aqr-player" controls preload="metadata"></audio><small id="aqr-duration"></small></div>
+        <div class="aqr-audio-actions"><label class="aqr-file"><input id="aqr-file" type="file" accept="audio/*,.ogg,.opus,.mp3,.m4a,.aac,.amr"><span id="aqr-file-label">Escolher arquivo de áudio</span></label><button id="aqr-use-composer" type="button" hidden>Usar áudio do composer</button></div>
+        <small class="aqr-hint">OGG (Opus), MP3, M4A, AAC ou AMR — até 16 MB e 10 minutos.</small>
+      </div>
+      <div class="transfer-actions"><button id="aqr-delete" type="button" class="danger" hidden>Excluir</button><button id="aqr-cancel" type="button">Cancelar</button><button id="aqr-submit" type="submit">Salvar</button></div>
+    </form>
+  </dialog>
+  <dialog id="outbound-channel-dialog" class="template-dialog outbound-channel-dialog">
+    <div class="dialog-header"><div><span>NOVA CONVERSA</span><h2>Escolher canal</h2><p>Somente integrações conectadas e liberadas podem iniciar conversas.</p></div><button id="close-outbound-channels" type="button" aria-label="Fechar">×</button></div>
+    <div id="outbound-channel-list" class="outbound-channel-list"></div>
+  </dialog>
+  <dialog id="outbound-dialog" class="template-dialog email-outbound-dialog">
+    <div class="dialog-header"><div><span>E-MAIL • NOVA MENSAGEM</span><h2>Enviar e-mail</h2><p>A mensagem será enviada pela conta Gmail selecionada.</p></div><button id="close-outbound" type="button" aria-label="Fechar">×</button></div>
+    <form id="outbound-form" class="email-outbound-form">
+      <label><span>Conta remetente</span><select id="outbound-account" required></select></label>
+      <label><span>Nome do contato</span><input id="outbound-name" maxlength="160" autocomplete="off" placeholder="Ex.: João Silva" required></label>
+      <label><span>E-mail do destinatário</span><input id="outbound-email" type="email" maxlength="254" autocomplete="email" placeholder="cliente@empresa.com" required></label>
+      <label><span>Assunto</span><input id="outbound-subject" maxlength="240" placeholder="Assunto do e-mail" required></label>
+      <label class="email-outbound-message"><span>Mensagem</span><textarea id="outbound-message" maxlength="20000" placeholder="Digite a mensagem" required></textarea></label>
+      <label class="email-outbound-message"><span>Documentos (opcional, até 10 arquivos e 20 MB no total)</span><input id="outbound-documents" type="file" multiple accept=".pdf,.txt,.doc,.docx,.xls,.xlsx,.ppt,.pptx,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"><small id="outbound-documents-summary">Nenhum documento selecionado.</small></label>
+      <button id="send-outbound" type="submit">Enviar e-mail</button>
+    </form>
+  </dialog>
+  <dialog id="outbound-meta-dialog" class="template-dialog">
+    <div class="dialog-header"><div><span>WHATSAPP • NOVA CONVERSA</span><h2>Enviar template aprovado</h2><p>A Meta exige um template aprovado para iniciar o contato.</p></div><button id="close-outbound-meta" type="button" aria-label="Fechar">×</button></div>
+    <div class="template-billing-warning"><b>Atenção à cobrança</b><span>A tarifa exibida é uma estimativa por mensagem entregue e pode variar por categoria, país e volume.</span></div>
+    <form id="outbound-meta-form" class="outbound-layout">
+      <section class="outbound-contact-fields">
+        <label><span>Número de atendimento</span><select id="outbound-meta-account" required></select></label>
+        <label><span>Nome do contato</span><input id="outbound-meta-name" maxlength="160" required placeholder="Ex.: João Silva"></label>
+        <label><span>Telefone com DDD</span><input id="outbound-meta-phone" inputmode="tel" required placeholder="(11) 90000-0000"><small>O código do Brasil (55) será incluído automaticamente.</small></label>
+        <div class="outbound-template-heading"><b>Template aprovado</b><small>Selecione a mensagem inicial.</small></div>
+        <label class="template-search"><span>Buscar template</span><input id="outbound-meta-template-search" type="search" placeholder="Nome, idioma ou categoria"></label>
+        <div id="outbound-meta-template-list" class="template-list"></div>
+      </section>
+      <section class="outbound-template-editor">
+        <div id="outbound-meta-template-empty" class="template-empty">Selecione um template para preencher e enviar.</div>
+        <div id="outbound-meta-template-editor" hidden>
+          <div class="template-selected-meta"><strong id="outbound-meta-template-name"></strong><span id="outbound-meta-template-details"></span></div>
+          <pre id="outbound-meta-template-preview" class="template-preview"></pre>
+          <div id="outbound-meta-template-variables" class="template-variables"></div>
+          <button id="send-outbound-meta" type="submit">Iniciar conversa pelo WhatsApp</button>
+        </div>
+      </section>
+    </form>
+  </dialog>
+  <dialog id="template-dialog" class="template-dialog">
+    <div class="dialog-header"><div><span>WHATSAPP • META</span><h2>Templates aprovados</h2><p>Use uma mensagem previamente aprovada para iniciar ou retomar o atendimento.</p></div><button id="close-templates" type="button" aria-label="Fechar">×</button></div>
+    <div class="template-billing-warning"><b>Atenção à cobrança</b><span>A tarifa exibida é uma estimativa por mensagem entregue e pode variar por categoria, país e volume.</span></div>
+    <div class="template-layout">
+      <section class="template-picker">
+        <label class="template-search"><span>Buscar template</span><input id="template-search" type="search" placeholder="Nome, idioma ou categoria"></label>
+        <div id="template-list" class="template-list"></div>
+      </section>
+      <form id="template-form" class="template-form">
+        <div id="template-empty" class="template-empty">Selecione um template para visualizar e preencher.</div>
+        <div id="template-editor" hidden>
+          <div class="template-selected-meta"><strong id="template-selected-name"></strong><span id="template-selected-details"></span></div>
+          <pre id="template-preview" class="template-preview"></pre>
+          <div id="template-variables" class="template-variables"></div>
+          <button id="send-template" type="submit">Enviar template</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+  <dialog id="merge-contact-dialog" class="merge-contact-dialog">
+    <div class="dialog-header"><div><span>CONTATO ÚNICO</span><h2>Fundir contatos</h2><p>Os históricos continuam separados. Depois, escolha o canal diretamente na conversa.</p></div><button id="close-merge-contact" type="button" aria-label="Fechar">×</button></div>
+    <label class="merge-contact-search"><span>Buscar contato</span><input id="merge-contact-search" type="search" maxlength="120" placeholder="Nome, telefone ou e-mail"></label>
+    <div id="merge-contact-results" class="merge-contact-results"></div>
+  </dialog>
+  <dialog id="contact-files-dialog" class="contact-files-dialog">
+    <div class="dialog-header"><div><span>CONTEÚDO COMPARTILHADO</span><h2 id="contact-files-title">Arquivos da conversa</h2><p>Somente o conteúdo que sua conta pode visualizar nesta conversa.</p><div class="conversation-id-row"><span class="conversation-id-label">ID: <code id="contact-files-conversation-id"></code></span><button id="copy-conversation-id" type="button" class="conversation-id-copy">Copiar ID</button><button id="analyze-conversation-learning" type="button" class="conversation-id-analyze" hidden>Analisar para aprendizado</button></div></div><button id="close-contact-files" type="button" aria-label="Fechar">×</button></div>
+    <nav class="contact-files-tabs" aria-label="Tipos de conteúdo">
+      <button type="button" data-files-tab="media">Imagens e vídeos <span id="media-files-count">0</span></button>
+      <button type="button" data-files-tab="documents">Documentos <span id="document-files-count">0</span></button>
+      <button type="button" data-files-tab="links">Links <span id="link-files-count">0</span></button>
+      <button type="button" data-files-tab="crm" hidden>Dados e CRM</button>
+    </nav>
+    <div id="contact-files-content" class="contact-files-content"></div>
+  </dialog>
+  <dialog id="transfer-dialog" class="category-dialog transfer-dialog">
+    <div class="dialog-header"><div><span>ENCAMINHAMENTO</span><h2>Transferir conversa</h2><p id="transfer-destination">Confirme o novo setor deste atendimento.</p></div><button id="close-transfer" type="button" aria-label="Fechar">×</button></div>
+    <form id="transfer-form" class="transfer-form">
+      <label class="transfer-history-option"><input id="transfer-limit-history" type="checkbox"><span><b>Ocultar histórico anterior para o novo setor</b><small>Marque somente quando o novo setor não puder visualizar o histórico. Sem marcar, permanece a regra de recuperação do histórico permitido.</small></span></label>
+      <label class="transfer-text-field"><span>Motivo (opcional)</span><input id="transfer-reason" maxlength="500" placeholder="Ex.: cliente pediu segunda via de boleto"></label>
+      <p id="transfer-error" class="dialog-error" role="alert" hidden></p>
+      <div class="transfer-actions"><button id="cancel-transfer" type="button">Cancelar</button><button type="submit">Confirmar transferência</button></div>
+    </form>
+  </dialog>
+  <dialog id="user-transfer-dialog" class="category-dialog transfer-dialog">
+    <div class="dialog-header"><div><span>ENCAMINHAMENTO</span><h2>Transferir para outro atendente</h2><p id="user-transfer-destination">Confirme o novo responsável.</p></div><button id="close-user-transfer" type="button" aria-label="Fechar">×</button></div>
+    <form id="user-transfer-form" class="transfer-form">
+      <label class="transfer-history-option"><input id="user-transfer-share-history" type="checkbox" checked><span><b>Compartilhar histórico com o novo atendente</b><small>Desmarcado, o novo atendente começa sem o histórico anterior (ele continua salvo e volta a aparecer se a conversa retornar a você; o Master sempre vê tudo).</small></span></label>
+      <label class="transfer-text-field"><span>Motivo (opcional)</span><input id="user-transfer-reason" maxlength="500" placeholder="Ex.: assunto financeiro"></label>
+      <label class="transfer-text-field"><span>Resumo para o novo atendente (opcional)</span><textarea id="user-transfer-summary" maxlength="2000" rows="3" placeholder="Contexto que o próximo atendente precisa saber"></textarea></label>
+      <p id="user-transfer-error" class="dialog-error" role="alert" hidden></p>
+      <div class="transfer-actions"><button id="cancel-user-transfer" type="button">Cancelar</button><button type="submit">Transferir</button></div>
+    </form>
+  </dialog>
+  <dialog id="contact-profile-dialog" class="category-dialog contact-profile-dialog" aria-labelledby="contact-profile-title">
+    <div class="dialog-header"><div><span>PERFIL 360°</span><h2 id="contact-profile-title">Cliente</h2><p id="contact-profile-subtitle"></p></div><button id="close-contact-profile" type="button" aria-label="Fechar">×</button></div>
+    <div id="contact-profile-body" class="contact-profile-body"></div>
+  </dialog>
+  <dialog id="follow-up-dialog" class="category-dialog transfer-dialog" aria-labelledby="follow-up-title">
+    <div class="dialog-header"><div><span>AGENDA</span><h2 id="follow-up-title">Agendar retorno</h2><p id="follow-up-contact"></p></div><button id="close-follow-up" type="button" aria-label="Fechar">×</button></div>
+    <form id="follow-up-form" class="transfer-form follow-up-form">
+      <p class="follow-up-help">Lembrete interno para a equipe. Nada é enviado ao cliente automaticamente; para falar com ele pelo WhatsApp, valem as regras da janela de 24h do número.</p>
+      <div class="follow-up-grid">
+        <label class="transfer-text-field"><span>Data</span><input id="follow-up-date" type="date" required></label>
+        <label class="transfer-text-field"><span>Horário (Brasília)</span><input id="follow-up-time" type="time" required></label>
+        <label class="transfer-text-field"><span>Motivo</span><select id="follow-up-reason" required></select></label>
+        <label class="transfer-text-field"><span>Prioridade</span><select id="follow-up-priority"><option value="NORMAL">Normal</option><option value="ALTA">Alta</option><option value="URGENTE">Urgente</option></select></label>
+      </div>
+      <label class="transfer-text-field"><span>Responsável</span><select id="follow-up-assignee" required></select></label>
+      <small id="follow-up-preferred-hint" class="follow-up-hint" hidden>★ Este cliente tem atendente fixo — sugerido como responsável. Agendar não altera o atendente fixo.</small>
+      <label class="transfer-text-field"><span>Observação (opcional)</span><textarea id="follow-up-note" rows="3" maxlength="2000" placeholder="Ex.: enviar cotação do modelo GS Pro"></textarea></label>
+      <p id="follow-up-feedback" class="follow-up-feedback" role="alert"></p>
+      <div class="transfer-actions"><button id="cancel-follow-up" type="button">Cancelar</button><button type="submit">Agendar</button></div>
+    </form>
+  </dialog>
+  <dialog id="preferred-assignee-dialog" class="category-dialog transfer-dialog">
+    <div class="dialog-header"><div><span>CLIENTE</span><h2>Atendente fixo</h2><p id="preferred-assignee-contact">Novos atendimentos deste cliente vão direto para o atendente escolhido.</p></div><button id="close-preferred-assignee" type="button" aria-label="Fechar">×</button></div>
+    <form id="preferred-assignee-form" class="transfer-form">
+      <p id="preferred-assignee-feedback" role="status" aria-live="polite"></p>
+      <label class="transfer-text-field"><span>Atendente fixo</span><select id="preferred-assignee-user" required></select></label>
+      <label class="transfer-history-option"><input id="preferred-assignee-enabled" type="checkbox" checked><span><b>Direcionar automaticamente novos atendimentos</b><small>O cliente não passa pela triagem do Bot e vai direto para este atendente, mesmo que ele esteja ausente. Não altera o responsável da conversa atual.</small></span></label>
+      <label class="transfer-text-field"><span>Motivo (opcional)</span><input id="preferred-assignee-reason" maxlength="500" placeholder="Ex.: cliente da carteira do vendedor"></label>
+      <div class="transfer-actions"><button id="cancel-preferred-assignee" type="button">Cancelar</button><button type="submit">Salvar</button></div>
+    </form>
+  </dialog>
+  <dialog id="category-dialog" class="category-dialog" aria-labelledby="category-dialog-title">
+    <div class="dialog-header"><div><span>ORGANIZAÇÃO</span><h2 id="category-dialog-title">Categorias</h2><p>Organize os setores e as subcategorias do atendimento.</p></div><button id="close-categories" type="button" aria-label="Fechar categorias">×</button></div>
+    <form id="category-form" class="category-create-form">
+      <label id="category-company-field" hidden><span>Empresa</span><select id="category-company" aria-label="Empresa da categoria"></select></label>
+      <label><span>Nome</span><input id="category-name" maxlength="60" placeholder="Ex.: Suporte" required></label>
+      <label><span>Categoria principal</span><select id="category-parent" aria-label="Categoria principal"><option value="">Categoria principal</option></select></label>
+      <label class="color-field"><span>Cor</span><input id="category-color" type="color" value="#ef5b2a"></label>
+      <label id="category-master-only-field" class="master-only-field" hidden><span>Visibilidade</span><span class="inline-check"><input id="category-master-only" type="checkbox"> Somente Master</span></label>
+      <button type="submit">Criar categoria</button>
+    </form>
+    <div class="category-manager-title"><strong>Categorias cadastradas</strong><small>Edite os campos e salve cada categoria.</small></div>
+    <div id="category-manager-list" class="category-manager-list"></div>
+  </dialog>
+  <dialog id="team-dialog" class="team-dialog">
+    <div class="dialog-header"><div><span>ADMINISTRAÇÃO</span><h2>Equipe</h2><p>Crie contas e defina exatamente quais atendimentos cada pessoa pode acessar.</p></div><div class="dialog-header-actions"><button id="open-audit" class="audit-entry" type="button" title="Auditoria" aria-label="Abrir auditoria geral" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.75h7.5L19 8.25v12H7z"></path><path d="M14.5 3.75v4.5H19M10 12h6M10 15.5h6"></path></svg></button><button id="close-team" type="button" aria-label="Fechar">×</button></div></div>
+    <div class="team-layout">
+      <section class="team-members">
+        <div class="team-section-title"><div><strong>Membros</strong><small id="team-count"></small></div><button id="new-team-user" type="button">+ Nova conta</button></div>
+        <div id="team-user-list" class="team-user-list"></div>
+      </section>
+      <form id="team-form" class="team-form">
+        <div class="team-form-heading"><div><span id="team-form-eyebrow">NOVA CONTA</span><h3 id="team-form-title">Adicionar membro</h3></div></div>
+        <div class="team-fields">
+          <label><span>Nome</span><input id="team-name" maxlength="100" required></label>
+          <label><span>E-mail</span><input id="team-email" type="email" autocomplete="off" required></label>
+          <label><span>Perfil</span><select id="team-role"><option value="ATENDENTE">Atendente</option><option value="SUPERVISOR">Supervisor</option><option value="ADMIN">Master</option></select></label>
+          <label><span id="team-password-label">Senha inicial</span><input id="team-password" type="password" minlength="8" autocomplete="new-password" placeholder="Mínimo de 8 caracteres"></label>
+        </div>
+        <label id="team-active-field" class="team-check single" hidden><input id="team-active" type="checkbox" checked><span>Conta ativa</span></label>
+        <fieldset class="team-permissions"><legend>Permissões adicionais</legend>
+          <label class="team-check"><input id="permission-categories" type="checkbox"><span><b>Gerenciar categorias</b><small>Criar, editar e desativar categorias.</small></span></label>
+          <label class="team-check"><input id="permission-transfer" type="checkbox"><span><b>Alterar responsável</b><small>Transferir a conversa para outro atendente.</small></span></label>
+          <label class="team-check"><input id="permission-history" type="checkbox"><span><b>Visualizar histórico</b><small>Consultar as ações registradas nas conversas permitidas.</small></span></label>
+          <label class="team-check"><input id="permission-previous-messages" type="checkbox"><span><b>Ver mensagens anteriores</b><small>Ao receber um encaminhamento, visualizar também as mensagens anteriores.</small></span></label>
+          <label class="team-check"><input id="permission-priority" type="checkbox"><span><b>Definir prioridade da conversa</b><small>Marcar atendimentos como Alta ou Urgente.</small></span></label>
+          <label class="team-check"><input id="permission-start-email-conversations" type="checkbox"><span><b>Iniciar conversas por e-mail</b><small>Permite iniciar e-mails pelas contas liberadas para a pessoa.</small></span></label>
+          <label class="team-check"><input id="permission-start-whatsapp-conversations" type="checkbox"><span><b>Iniciar conversas por WhatsApp</b><small>Permite iniciar conversas individuais com template aprovado pelos números liberados.</small></span></label>
+          <label class="team-check"><input id="permission-merge-contacts" type="checkbox"><span><b>Fundir contatos</b><small>Permite vincular telefone, e-mail e outros canais da mesma pessoa.</small></span></label>
+          <label class="team-check"><input id="permission-manage-campaigns" type="checkbox"><span><b>Campanhas e templates</b><small>Permite envio em massa pelo painel Nova conversa, acessar Campanhas e usar templates nas conversas.</small></span></label>
+          <label class="team-check"><input id="permission-own-productivity" type="checkbox"><span><b>Ver minha produtividade</b><small>Libera ao Atendente o painel com os próprios números (nunca os de outras pessoas). Supervisor e Master já têm acesso pelo cargo.</small></span></label>
+          <label class="team-check"><input id="permission-after-hours" type="checkbox"><span><b>Editar regras fora do expediente</b><small>Vale só para Supervisor: altera horário, feriados e lembretes da própria empresa. Regras globais continuam só com o Master.</small></span></label>
+        </fieldset>
+        <fieldset class="team-companies"><legend>Acompanhar conversas de outros atendentes</legend><p>Somente leitura. Escolha quem esta pessoa pode acompanhar, sem alterar seu cargo. Para responder a um chat assumido por outra pessoa, ela precisa receber a transferência. Empresas, categorias e números liberados continuam valendo.</p><button id="configure-conversation-observers" type="button" disabled>Escolher atendentes permitidos</button><small id="conversation-observers-help">Salve a conta primeiro. Os vínculos são salvos ao adicionar ou remover cada pessoa.</small></fieldset>
+        <fieldset class="team-companies"><legend>Empresas e cargo por empresa</legend><p>Sem empresa marcada, a pessoa não vê nada dela. O cargo pode variar por empresa (ex.: Supervisor na Mibro, Atendente na Sincrofit). Master vê todas.</p><div id="team-company-access"></div></fieldset>
+        <fieldset class="team-categories"><legend>Categorias liberadas</legend><p>“Sem categoria”, cada categoria e cada subcategoria devem ser liberadas separadamente.</p><div id="team-category-access"></div></fieldset>
+        <fieldset class="team-companies" id="team-crm-access"><legend>Acesso ao CRM</legend>
+          <p>A conta CRM mantém seu cargo e sua carteira. Ao vincular, o login passa a usar o e-mail e a senha do Atendimento nos dois sistemas. Representantes continuam somente no CRM.</p>
+          <p id="team-crm-access-status" role="status" aria-live="polite">Salve a conta e selecione Editar para conferir o acesso.</p>
+          <div class="team-form-actions"><button id="team-crm-access-refresh" type="button" disabled>Conferir vínculo</button><button id="team-crm-access-toggle" type="button" disabled>Permitir acesso ao CRM</button></div>
+          <small>Este controle é salvo separadamente. Desativar bloqueia o acesso compartilhado e os logins do CRM dessa identidade vinculada; não apaga a conta nem recupera a senha antiga do CRM.</small>
+        </fieldset>
+        <div class="team-form-actions"><button id="cancel-team-edit" type="button">Limpar</button><button type="submit">Salvar conta</button></div>
+      </form>
+    </div>
+  </dialog>
+  <dialog id="audit-dialog" class="audit-dialog">
+    <div class="dialog-header"><div><span>ACESSO MASTER</span><h2>Auditoria geral</h2><p>Registro permanente das ações administrativas e alterações de maior impacto.</p></div><button id="close-audit" type="button" aria-label="Fechar">×</button></div>
+    <form id="audit-filter-form" class="audit-filters">
+      <input id="audit-search" type="search" maxlength="120" placeholder="Buscar pessoa ou ação">
+      <select id="audit-entity" aria-label="Tipo de registro">
+        <option value="">Todos os registros</option>
+        <option value="USER">Contas e acessos</option>
+        <option value="CONVERSATION">Conversas</option>
+        <option value="CATEGORY">Categorias</option>
+        <option value="NOTE">Notas</option>
+        <option value="BOT">Bots</option>
+        <option value="CAMPAIGN_SETTINGS">Configurações de Campanhas</option>
+        <option value="CONVERSATION_SETTINGS">Configurações de Conversas</option>
+        <option value="INTERNAL_CHAT">Grupos do chat interno</option>
+        <option value="TEMPLATE_ROUTING">Destino dos templates</option>
+      </select>
+      <button type="submit">Filtrar</button>
+    </form>
+    <div class="audit-summary"><strong id="audit-count">0 registros</strong><small>São exibidos os 200 registros mais recentes do filtro.</small></div>
+    <div id="audit-list" class="audit-list"></div>
+  </dialog>
+  <dialog id="devices-dialog" class="devices-dialog">
+    <div class="dialog-header"><div><span>NOTIFICAÇÕES</span><h2>Dispositivos autorizados</h2><p>Navegadores e aparelhos que recebem notificações push desta conta, mesmo com o app fechado.</p></div><button id="close-devices" type="button" aria-label="Fechar">×</button></div>
+    <div class="devices-body">
+      <button id="add-this-device" class="team-button" type="button">Ativar notificações neste dispositivo</button>
+      <div id="devices-list" class="devices-list"></div>
+    </div>
+  </dialog>
+<dialog id="changelog-dialog" class="changelog-dialog">
+  <div class="changelog-header">
+    <div>
+      <span>ATUALIZAÇÕES</span>
+      <h2>Novidades do aplicativo</h2>
+      <p>Veja o que mudou nas versões recentes da Central de Atendimento.</p>
+    </div>
+
+    <button id="close-changelog" type="button" aria-label="Fechar">×</button>
+  </div>
+
+  <div class="changelog-current">
+    <div>
+      <small>VERSÃO ATUAL</small>
+      <strong id="changelog-current-version">v0.37.7</strong>
+    </div>
+    <span id="changelog-current-date"></span>
+  </div>
+
+  <div id="changelog-list" class="changelog-list"></div>
+</dialog>
+<dialog id="faq-dialog" class="faq-dialog">
+  <div class="dialog-header"><div><span>AJUDA DO APLICATIVO</span><h2>Como podemos ajudar?</h2><p id="faq-role-label"></p></div><button id="close-faq" type="button" aria-label="Fechar">×</button></div>
+  <div class="faq-layout">
+    <aside class="faq-summary">
+      <strong id="faq-profile-name"></strong>
+      <p>As orientações abaixo consideram seu perfil e suas permissões atuais.</p>
+      <div id="faq-permissions"></div>
+    </aside>
+    <section id="faq-content" class="faq-content"></section>
+  </div>
+</dialog>
+<dialog id="internal-chat-dialog" class="internal-chat-dialog">
+  <div class="internal-chat-shell">
+    <aside class="internal-chat-sidebar">
+      <div class="internal-chat-sidebar-header">
+  <div>
+    <span>COMUNICAÇÃO INTERNA</span>
+    <h2>Chat interno <b id="internal-chat-company" class="internal-chat-company" hidden></b></h2>
+  </div>
+
+  <button id="close-internal-chat" type="button" aria-label="Fechar" autofocus>×</button>
+</div>
+
+      <div id="internal-chat-other" class="internal-chat-workspaces" hidden></div>
+
+      <div class="internal-chat-search">
+        <input id="internal-chat-search" type="search" maxlength="100" placeholder="Buscar conversas, pessoas ou mensagens" aria-label="Buscar no chat interno desta empresa" autocomplete="off">
+      </div>
+      <div id="internal-chat-search-results" class="internal-chat-search-results" hidden></div>
+
+      <div class="internal-chat-new-group-row">
+        <button id="internal-chat-new-group" type="button">+ Novo grupo</button>
+      </div>
+
+      <div id="internal-chat-list" class="internal-chat-list"></div>
+
+      <div class="internal-chat-direct">
+        <label for="internal-chat-user-select">Conversa direta (qualquer pessoa da equipe)</label>
+
+        <div>
+          <select id="internal-chat-user-select">
+            <option value="">Selecionar usuário</option>
+          </select>
+
+          <button id="open-direct-chat" type="button">Abrir</button>
+        </div>
+      </div>
+    </aside>
+
+    <section class="internal-chat-main">
+     <header class="internal-chat-header">
+  <div>
+    <span id="internal-chat-type">CHAT INTERNO</span>
+    <h3 id="internal-chat-title">Selecione uma conversa</h3>
+    <small id="internal-chat-subtitle" class="internal-chat-subtitle" hidden></small>
+  </div>
+  <button id="internal-chat-participants" class="internal-chat-participants-button" type="button" hidden>Participantes</button>
+</header>
+
+      <div id="internal-chat-messages" class="internal-chat-messages">
+        <div class="internal-chat-empty">
+          Selecione o chat Geral, um setor ou uma conversa direta.
+        </div>
+      </div>
+
+      <form id="internal-chat-form" class="internal-chat-composer">
+        <div id="internal-chat-image-preview" class="internal-chat-image-preview" hidden>
+          <img id="internal-chat-image-thumb" alt="Imagem pronta para envio">
+
+          <span class="internal-chat-file-info"><b id="internal-chat-file-name"></b><small id="internal-chat-file-size"></small></span>
+  <button
+    id="internal-chat-remove-image"
+    type="button"
+    title="Remover arquivo"
+    aria-label="Remover arquivo"
+  >×</button>
+        </div>
+        <label class="internal-chat-attach" title="Anexar arquivo de até 100 MB"><input id="internal-chat-file-input" type="file" disabled><span>📎</span></label>
+        <textarea
+          id="internal-chat-input"
+          maxlength="4000"
+          placeholder="Digite uma mensagem interna..."
+          disabled
+        ></textarea>
+
+        <button id="internal-chat-send" type="submit" disabled>Enviar</button>
+      </form>
+    </section>
+  </div>
+  <dialog id="internal-group-dialog" class="internal-group-dialog">
+    <form id="internal-group-form" class="internal-group-panel">
+      <header><div><span>CHAT INTERNO</span><h3>Novo grupo</h3></div><button id="close-internal-group" type="button" aria-label="Fechar">×</button></header>
+      <p id="internal-group-company" class="internal-group-company"></p>
+      <label class="internal-group-field"><span>Nome do grupo</span><input id="internal-group-name" maxlength="60" placeholder="Ex.: Lançamentos" required></label>
+      <label class="internal-group-field"><span>Descrição (opcional)</span><textarea id="internal-group-description" maxlength="280" rows="2" placeholder="Para que serve este grupo"></textarea></label>
+      <label class="internal-group-field"><span>Participantes (além de você)</span><input id="internal-group-user-search" type="search" placeholder="Buscar pessoa"></label>
+      <div id="internal-group-company-filter" class="internal-picker-filter" role="group" aria-label="Filtrar participantes por empresa" hidden></div>
+      <div id="internal-group-user-list" class="internal-group-user-list"></div>
+      <footer><button id="cancel-internal-group" type="button">Cancelar</button><button type="submit">Criar grupo</button></footer>
+    </form>
+  </dialog>
+  <dialog id="internal-members-dialog" class="internal-group-dialog">
+    <div class="internal-group-panel">
+      <header><div><span>GRUPO</span><h3 id="internal-members-title">Participantes</h3><small id="internal-members-count"></small><p id="internal-members-description" class="internal-members-description" hidden></p></div><button id="close-internal-members" type="button" aria-label="Fechar">×</button></header>
+      <form id="internal-rename-form" class="internal-group-inline" hidden>
+        <input id="internal-rename-input" maxlength="60" aria-label="Nome do grupo" required>
+        <textarea id="internal-description-input" maxlength="280" rows="2" aria-label="Descrição do grupo" placeholder="Descrição (opcional)"></textarea>
+        <button type="submit">Salvar</button>
+      </form>
+      <div id="internal-members-list" class="internal-group-user-list"></div>
+      <div id="internal-add-members" class="internal-group-add" hidden>
+        <label class="internal-group-field"><span>Adicionar participantes</span><input id="internal-add-search" type="search" placeholder="Buscar pessoa"></label>
+        <div id="internal-add-company-filter" class="internal-picker-filter" role="group" aria-label="Filtrar por empresa" hidden></div>
+        <div id="internal-add-list" class="internal-group-user-list"></div>
+        <button id="internal-add-submit" type="button">Adicionar selecionados</button>
+      </div>
+      <footer>
+        <button id="internal-archive-group" type="button" class="danger" hidden>Encerrar grupo</button>
+        <button id="internal-leave-group" type="button" class="danger">Sair do grupo</button>
+      </footer>
+    </div>
+  </dialog>
+</dialog>
+  <aside id="update-banner" class="update-banner" hidden><span><b>Nova versão disponível</b><small>Atualize para receber as melhorias do atendimento.</small></span><button id="update-later" type="button">Depois</button><button id="apply-update" type="button">Atualizar agora</button></aside>
+  <div id="toast" class="toast" role="status"></div>
+  <script src="/js/optional-panels.js?v=0.37.11-security-performance-20261026"></script>
+  <script src="/js/central-session-state.js?v=0.37.11-security-performance-20261026"></script>
+  <script src="/js/app.js?v=0.37.11-security-performance-20261026"></script>
+  <script src="/js/whatsapp-send-wizard.js?v=0.37.11-security-performance-20261026"></script>
+  <script src="/js/follow-ups-ui.js?v=0.37.11-security-performance-20261026"></script>
+  <script src="/js/release-loader.js?v=0.37.11-security-performance-20261026"></script>
+  <script src="/js/internal-chat.js?v=0.37.11-security-performance-20261026"></script>
+  <script src="/js/pwa.js?v=0.37.11-security-performance-20261026"></script>
+  <script src="/js/command-palette.js?v=0.37.11-security-performance-20261026"></script>
+  <script src="/js/layout-fit.js?v=0.37.11-security-performance-20261026"></script>
+  <script src="/js/crm-context.js?v=0.37.11-security-performance-20261026" defer></script>
+  <script src="/js/contact-warning.js?v=0.37.11-security-performance-20261026" defer></script>
+  <script src="/js/crm-proposal-draft.js?v=0.37.11-security-performance-20261026" defer></script>
+  <script src="/js/central-navigation.js?v=0.37.11-security-performance-20261026" defer></script>
+  <script src="/js/crm-access-admin.js?v=0.37.11-security-performance-20261026" defer></script>
+</body>
+</html>

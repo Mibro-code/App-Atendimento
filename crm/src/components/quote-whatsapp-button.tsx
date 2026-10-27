@@ -1,0 +1,7 @@
+'use client';
+import {useState} from 'react';
+export function QuoteWhatsappButton({quoteId}:{quoteId:string}){
+ const [busy,setBusy]=useState(false),[error,setError]=useState(''),[phoneField,setPhoneField]=useState('phoneDigits');
+ async function prepare(){setBusy(true);setError('');try{const response=await fetch('/api/quote-whatsapp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({quoteId,phoneField})}),body=await response.json();if(!response.ok)throw Error(body.error);if(window.top)window.top.location.href=body.nextUrl;}catch(e){setError(e instanceof Error?e.message:'Não foi possível preparar o resumo.');setBusy(false);}}
+ return <section className="card p-4 space-y-3"><h2 className="text-sm font-medium">Enviar pelo Atendimento</h2><p className="text-xs text-gray-500">Prepare um resumo para revisão na Central. Nada é enviado agora. O envio respeita a empresa, o responsável pelo chat e a janela do WhatsApp. Não é um PDF da proposta.</p><label className="block text-sm">Telefone do cliente<select className="input-field mt-1" value={phoneField} onChange={e=>setPhoneField(e.target.value)}><option value="phoneDigits">Principal</option><option value="phone2Digits">Segundo telefone</option><option value="phone3Digits">Terceiro telefone</option></select></label><button type="button" className="btn-secondary" onClick={prepare} disabled={busy}>{busy?'Preparando…':'Revisar resumo no WhatsApp'}</button>{error?<p role="alert" className="text-sm text-red-600">{error}</p>:null}</section>;
+}

@@ -1,0 +1,21 @@
+node_modules
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+backups
+storage
+test
+npm-debug.log*
+public/**/*.br
+public/**/*.gz
+public/.compressed-assets.json
+# Ferramentas locais continuam no repositório, mas não no servidor de produção.
+scripts/check-*
+scripts/local-*
+scripts/audit-*
+scripts/adapt-company-test-fixtures.cjs
+scripts/generate-central-app-icons.cjs
+scripts/release-bots-local-preview.js
+scripts/run-tests.js

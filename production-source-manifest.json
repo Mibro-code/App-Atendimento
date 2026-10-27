@@ -1,0 +1,3814 @@
+{
+  "at": "2026-10-27T13:18:07.342Z",
+  "version": "0.37.11",
+  "sourceRevision": "security-performance-20261026",
+  "scope": "Deployed runtime sources verified against the tested release. No local unpublished work, secrets, databases, media or generated compressed assets.",
+  "files": [
+    {
+      "path": "attendance/.dockerignore",
+      "sha256": "cb3fb99def4b2aff488dca600fd7c76f0ad2461da3f146dbaf8ec46c408f5788",
+      "bytes": 443
+    },
+    {
+      "path": "attendance/Dockerfile",
+      "sha256": "96bc9926a25adf2a704e8ee774d77b5861ae78b5be0813666b41f4257f57d7e8",
+      "bytes": 1044
+    },
+    {
+      "path": "attendance/package-lock.json",
+      "sha256": "c71724715d41ca7285ab6e6a89cafd731129e8192c87b0b948df338841775502",
+      "bytes": 66330
+    },
+    {
+      "path": "attendance/package.json",
+      "sha256": "5f8e0456bcd6a1c8a4bf0a6afb47dd305e950a1a48bcf27ba3b10f2f5087f1a4",
+      "bytes": 1023
+    },
+    {
+      "path": "attendance/prisma/migrations/20260810160704_init/migration.sql",
+      "sha256": "f6b38b49cf356831da003a9a6260af3f8cfa19302ad855b73215153381aab13f",
+      "bytes": 4667
+    },
+    {
+      "path": "attendance/prisma/migrations/20260810173634_contact_notes/migration.sql",
+      "sha256": "171a6df48079ef979d991d40a6a7a7c73317f69892aecd01c0053faef2154779",
+      "bytes": 859
+    },
+    {
+      "path": "attendance/prisma/migrations/20260810175405_session_version/migration.sql",
+      "sha256": "3b75897963298677f4857b0a94abd54d0c40d9000878d89774b50eba3a50e9de",
+      "bytes": 93
+    },
+    {
+      "path": "attendance/prisma/migrations/20260811130000_add_message_media/migration.sql",
+      "sha256": "0a28bedf4f867566c6e26b353fa55aeaf6d643526734abb1eccbd177751c9d4a",
+      "bytes": 155
+    },
+    {
+      "path": "attendance/prisma/migrations/20260811152000_category_hierarchy/migration.sql",
+      "sha256": "35275b68bb6777edcd6665c601aa0c8fe7cc553588f39adb033cdc618b719a49",
+      "bytes": 300
+    },
+    {
+      "path": "attendance/prisma/migrations/20260811173000_pin_contact_notes/migration.sql",
+      "sha256": "325deaf179bbe621f341e83f1289a4045ad97cc8567efaa43fdf1086fec19b1e",
+      "bytes": 78
+    },
+    {
+      "path": "attendance/prisma/migrations/20260811174500_waiting_for_reply_status/migration.sql",
+      "sha256": "576b08893435fff018f4eb2f64396820ff425e0d6293057ae1399b07217f3c2c",
+      "bytes": 186
+    },
+    {
+      "path": "attendance/prisma/migrations/20260811182000_user_permissions/migration.sql",
+      "sha256": "03fba4073bd220a1af8b5586afc9363ce04f784f3bf42963cc4095a5e0e6e8c7",
+      "bytes": 961
+    },
+    {
+      "path": "attendance/prisma/migrations/20260812103000_conversation_pins_and_activity/migration.sql",
+      "sha256": "184c8f45dd63fbc602d76bb98403288e97a15a1499ef2a6d60e80060a22ca510",
+      "bytes": 1671
+    },
+    {
+      "path": "attendance/prisma/migrations/20260812133000_conversation_history_permission/migration.sql",
+      "sha256": "57f8bc3cf6c17a99eb79f472444933e5a5d82edf2d1f552f5da63a811c321b5d",
+      "bytes": 91
+    },
+    {
+      "path": "attendance/prisma/migrations/20260812143000_previous_messages_permission/migration.sql",
+      "sha256": "755b040780d33d71f9add8b01c73b5c0b1c790b011adead28d21572835ea36f7",
+      "bytes": 88
+    },
+    {
+      "path": "attendance/prisma/migrations/20260812170000_bot_triage_categories/migration.sql",
+      "sha256": "95b25e036652bd4e0423f2b627a8199378db30f968dee08929b24041a97a8cfa",
+      "bytes": 733
+    },
+    {
+      "path": "attendance/prisma/migrations/20260813183000_global_audit_log/migration.sql",
+      "sha256": "9e521b3d043dc6d97c6efeb60cdcecf96ff57c2982c722cc57ad8b87edebf7ce",
+      "bytes": 857
+    },
+    {
+      "path": "attendance/prisma/migrations/20260819090000_master_individual_reads/migration.sql",
+      "sha256": "c4bbdcb70780d75bb17dff97fd40a45c5c2e1bb5694acede8deac34e93139471",
+      "bytes": 737
+    },
+    {
+      "path": "attendance/prisma/migrations/20260819093000_internal_chat/migration.sql",
+      "sha256": "1b93d2de6f92bd24de40dbccfbbb61090c082c9d2794b862e8ea380bb83f6372",
+      "bytes": 2672
+    },
+    {
+      "path": "attendance/prisma/migrations/20260819181924_add_contact_custom_name/migration.sql",
+      "sha256": "c66bba80330b5483578e8f519831054cfda2ab5d8a04937a760862253adee576",
+      "bytes": 70
+    },
+    {
+      "path": "attendance/prisma/migrations/20260821150000_user_hidden_categories/migration.sql",
+      "sha256": "72c011229a311cb8edaa69f0c1f6ec0aa50989e2f566592b8d777e2e3c68248e",
+      "bytes": 758
+    },
+    {
+      "path": "attendance/prisma/migrations/20260821170000_bot_management_phase_1/migration.sql",
+      "sha256": "04b70de1cc23a4e2d1e146ee6167b78e7166376ddcf5b5292a1308c9d919b937",
+      "bytes": 3498
+    },
+    {
+      "path": "attendance/prisma/migrations/20260825121655_bot_observation_persistence/migration.sql",
+      "sha256": "a44fffaa7b5ed0f3dca6796f70d6161c5e7434e8b18856a2fa4756ba4b3680c8",
+      "bytes": 1733
+    },
+    {
+      "path": "attendance/prisma/migrations/20260825134000_expand_bot_channels/migration.sql",
+      "sha256": "f7c48cf28f3dc1f8bf6150b748ab7ca8512bc9b28adc05bcaae79af991714563",
+      "bytes": 899
+    },
+    {
+      "path": "attendance/prisma/migrations/20260825150000_bot_intelligence_engine/migration.sql",
+      "sha256": "2a827e6a2119b989e1538b557a48f4a30490913c7b6cea08bcc6f6d2ef98a85d",
+      "bytes": 2246
+    },
+    {
+      "path": "attendance/prisma/migrations/20260825151634_bot_governance_ratings/migration.sql",
+      "sha256": "526b932acbff22775079ebc3d9a399612e2f5de1a2e39054dee6947f6063e586",
+      "bytes": 6261
+    },
+    {
+      "path": "attendance/prisma/migrations/20260825153000_bot_observation_learning/migration.sql",
+      "sha256": "0536aceb53c5e6a86f6f97d83d3c1a2c4be5ab4c5416a62b104684d1a215c6a8",
+      "bytes": 3947
+    },
+    {
+      "path": "attendance/prisma/migrations/20260825160929_omnichannel_integrations/migration.sql",
+      "sha256": "ead5a266893dcc2d37c75960bc463528dadf90c9a483af6ddf40913fb0c7a28c",
+      "bytes": 4844
+    },
+    {
+      "path": "attendance/prisma/migrations/20260825190255_quick_replies/migration.sql",
+      "sha256": "dd181192c9f76f39ba0e1982362245c884954d0c8d46e0ea06d8aefa5be048b6",
+      "bytes": 5109
+    },
+    {
+      "path": "attendance/prisma/migrations/20260826122434_bot_knowledge_tools/migration.sql",
+      "sha256": "e67a390355eab3b5743395a583da2f98fc2ec2592d28f1bb359e75df589f72cd",
+      "bytes": 5506
+    },
+    {
+      "path": "attendance/prisma/migrations/20260826132744_push_subscriptions/migration.sql",
+      "sha256": "425d3369c46fa3957189ac03bdf00438e7c84359059a4d607ac59b0d122677f5",
+      "bytes": 843
+    },
+    {
+      "path": "attendance/prisma/migrations/20260826184500_knowledge_source_bot_access/migration.sql",
+      "sha256": "12a447c0f078097c6721436506a1750f6114167d24fa8dbfb92ec57feae4e7c7",
+      "bytes": 854
+    },
+    {
+      "path": "attendance/prisma/migrations/20260826191931_bot_flow_engine/migration.sql",
+      "sha256": "b7c3a5a247bd1e50468afd2788e6951cacb0d2269c537fa236fc5e3e77883892",
+      "bytes": 2438
+    },
+    {
+      "path": "attendance/prisma/migrations/20260827114316_bot_context_knowledge_tools/migration.sql",
+      "sha256": "bc22dfc9e35e35f1229c90eff13c2e70395212ddde312ad2c31ae9e2288edd9c",
+      "bytes": 1004
+    },
+    {
+      "path": "attendance/prisma/migrations/20260827123948_bot_supervised_handoff_quality/migration.sql",
+      "sha256": "e3a4d77830179e49deb4780e320f141c0fb980fe513eda450dca887902a7049a",
+      "bytes": 2248
+    },
+    {
+      "path": "attendance/prisma/migrations/20260827125112_bot_suggestion_feedback_action/migration.sql",
+      "sha256": "a9340fa6007b1529f3fd773eef7ec8f5e9a8fd3ce1d7235aaad8a211c341a84b",
+      "bytes": 118
+    },
+    {
+      "path": "attendance/prisma/migrations/20260827133919_whatsapp_campaigns/migration.sql",
+      "sha256": "cb20075bdadf12ccec5b90c3090e4ff044ed3bb87ae47df7208029895cdbcaa1",
+      "bytes": 7965
+    },
+    {
+      "path": "attendance/prisma/migrations/20260827150000_ai_provider_credentials/migration.sql",
+      "sha256": "bca251a76000c074d8b980ae0b2535157e25415bdaacd2fefdd91ea067b3c323",
+      "bytes": 658
+    },
+    {
+      "path": "attendance/prisma/migrations/20260831170000_conversation_settings_sla/migration.sql",
+      "sha256": "e9a3d5f1089f04a87af2b464d85238e331c3b2f471c465d67e7b05d4005af86a",
+      "bytes": 1415
+    },
+    {
+      "path": "attendance/prisma/migrations/20260831180000_add_channel_status_approval_contract/migration.sql",
+      "sha256": "3931c9847e2e0b5dd02171bcd51ff42a8ce5279a2aed3e3b525e8122b2228026",
+      "bytes": 601
+    },
+    {
+      "path": "attendance/prisma/migrations/20260831190000_conversation_status_priority_sla/migration.sql",
+      "sha256": "6b78839e18ef47f0dfde570d4fb92b4253be049bada43f6767fb8f4b58777273",
+      "bytes": 1684
+    },
+    {
+      "path": "attendance/prisma/migrations/20260901153000_channel_oauth_credentials/migration.sql",
+      "sha256": "90dae87f550a70b696d3aa14445ce92138f5c9dec2d0bdddbbbffe8908d824e7",
+      "bytes": 317
+    },
+    {
+      "path": "attendance/prisma/migrations/20260901183000_contact_identity_merge/migration.sql",
+      "sha256": "1f390e1cac8b1daf8b366e8f742cc1257180536759d47ebe8cc6343bfa447d2c",
+      "bytes": 663
+    },
+    {
+      "path": "attendance/prisma/migrations/20260901184000_email_attachments_access/migration.sql",
+      "sha256": "29371cdce2f59bade316c61a6faa0bd56a5c1893db433bd12ebefb750f04dc00",
+      "bytes": 958
+    },
+    {
+      "path": "attendance/prisma/migrations/20260901193000_can_start_conversations/migration.sql",
+      "sha256": "9fde987db31d480abf913734c520925bb7e326954c192824b8409d5567114033",
+      "bytes": 86
+    },
+    {
+      "path": "attendance/prisma/migrations/20260902170000_bot_system_triage/migration.sql",
+      "sha256": "7a61440c889086e4a2a843d2403c4bd8bb463cd993d635690da9544d6db7934f",
+      "bytes": 6457
+    },
+    {
+      "path": "attendance/prisma/migrations/20260903100000_bot_holidays/migration.sql",
+      "sha256": "2a357ff57a3b07141d9661492ad8423b4ca7958febfc0d52d53f7a88c0d78e14",
+      "bytes": 777
+    },
+    {
+      "path": "attendance/prisma/migrations/20260903120000_bot_personality/migration.sql",
+      "sha256": "64addbb6f27ee06077694ef3b265c8f4d68e781582a326d50dd6a668aa050dba",
+      "bytes": 1570
+    },
+    {
+      "path": "attendance/prisma/migrations/20260903150000_bot_case_state/migration.sql",
+      "sha256": "9627d681840d9d51b31adf049802e0c52d8b93a2ea3b39fc5ad0a93953f66a93",
+      "bytes": 532
+    },
+    {
+      "path": "attendance/prisma/migrations/20260903170000_category_master_only/migration.sql",
+      "sha256": "ccc790f0262b0dfe08c3a2a9a4a14351401d5c29fff0561285dacb38bc827a14",
+      "bytes": 563
+    },
+    {
+      "path": "attendance/prisma/migrations/20260904190000_bot_holiday_message/migration.sql",
+      "sha256": "35f56659bedc8aa53af783ecffa40458233ce584656afcd13d7b5d8977de879c",
+      "bytes": 52
+    },
+    {
+      "path": "attendance/prisma/migrations/20260909120000_mibro_assistant_observer/migration.sql",
+      "sha256": "4380e62f601198b755ecf40396fc4352d069a8f5d855fc893eb6c8f8a2d0e2eb",
+      "bytes": 20255
+    },
+    {
+      "path": "attendance/prisma/migrations/20260911150000_bot_hybrid_guided_schema/migration.sql",
+      "sha256": "350d9e65f98068f19462e8c9f2cefabd580829c02fc19097f3e22413ced45125",
+      "bytes": 3151
+    },
+    {
+      "path": "attendance/prisma/migrations/20260911151000_mibro_assistant_guided_seed/migration.sql",
+      "sha256": "d3ccfbb38bbd8e696b14a1fd9e7912ca6931fb991e42101c2984ba0f491816f7",
+      "bytes": 16573
+    },
+    {
+      "path": "attendance/prisma/migrations/20260914100000_mibro_assistant_enable_ai_fallback/migration.sql",
+      "sha256": "8bf109c7c480dcd0697ceba140c15db6b21273b3257170b5ee605c376f7af459",
+      "bytes": 1362
+    },
+    {
+      "path": "attendance/prisma/migrations/20260914110000_mibro_assistant_enable_agent_planner/migration.sql",
+      "sha256": "f5af870001c94f3d88b4f9df130c4bfd92fd061a0d3d3322df1401f7754a9de6",
+      "bytes": 1255
+    },
+    {
+      "path": "attendance/prisma/migrations/20260914120000_message_media_suspicious/migration.sql",
+      "sha256": "398fb8f62e6c2f448e3a8d832b2eefdf67811b6cbcfc5f443024a7ba1e1c0d47",
+      "bytes": 689
+    },
+    {
+      "path": "attendance/prisma/migrations/20260914123000_mibro_sector_intake/migration.sql",
+      "sha256": "4d42aeeadd31a3235b32363f2971ea501c99d03ae67624c1a2cb87f971f3f372",
+      "bytes": 1200
+    },
+    {
+      "path": "attendance/prisma/migrations/20260915090000_social_reply_flags/migration.sql",
+      "sha256": "d1d177b1a6700d88ec1667f62626ae8390de25b8d71f9f49443a1bbe0712f522",
+      "bytes": 719
+    },
+    {
+      "path": "attendance/prisma/migrations/20260915100000_social_content_mapping/migration.sql",
+      "sha256": "f0b33fcabc15fb9a3274033df884dd82bdf37f6f463ed744f845151b0ca8fb56",
+      "bytes": 983
+    },
+    {
+      "path": "attendance/prisma/migrations/20260918090000_local_ai_provider/migration.sql",
+      "sha256": "8f8e178b9754e27643611f5a808915dca4ba291c40a90de394287e653baa53de",
+      "bytes": 1829
+    },
+    {
+      "path": "attendance/prisma/migrations/20260918091000_mibro_assistant_baseline/migration.sql",
+      "sha256": "cc13922f898dc1ded41d9137e0b5497c4e25556672358116562dadb1154abbb7",
+      "bytes": 20905
+    },
+    {
+      "path": "attendance/prisma/migrations/20260918092000_mibro_assistant_enable_local_ai_shadow/migration.sql",
+      "sha256": "515e39e80e0b68cf1701bd555872810d5cda5d08c592ec498109fb4b443ae1bb",
+      "bytes": 962
+    },
+    {
+      "path": "attendance/prisma/migrations/20260925120000_internal_chat_groups/migration.sql",
+      "sha256": "4b4a3b1ab1880a4752c6496be90efccdcba8c30a2f748ec7c02ccf5ad88e4ab0",
+      "bytes": 868
+    },
+    {
+      "path": "attendance/prisma/migrations/20260925150000_bot_visual_flow_builder/migration.sql",
+      "sha256": "d4b58cba6fc40f36156aa295c0eb1eee303629221471005a02ed077444785c36",
+      "bytes": 4669
+    },
+    {
+      "path": "attendance/prisma/migrations/20260925180000_quick_reply_categories/migration.sql",
+      "sha256": "e7135866769136b3e87435df357a80db659f6e56f3b4bf69fd4dcf0f0d5ce7e0",
+      "bytes": 994
+    },
+    {
+      "path": "attendance/prisma/migrations/20260929130000_email_spam_override/migration.sql",
+      "sha256": "7e2c3ca5439f56092b47490128aca6679969640275cf7962b167a750f4ad7229",
+      "bytes": 183
+    },
+    {
+      "path": "attendance/prisma/migrations/20260930150000_panel_bulk_send/migration.sql",
+      "sha256": "8e7dc4d1aa436f4f62df3e9b69893cf180a8d6baa674d04be8fa8da0d77bbce4",
+      "bytes": 630
+    },
+    {
+      "path": "attendance/prisma/migrations/20260930200000_supervisor_teams_assignment_periods/migration.sql",
+      "sha256": "f20da6a2fd1ec9eb746a98897eb0403c11161a821ffe417aa0112726fab0f02d",
+      "bytes": 2922
+    },
+    {
+      "path": "attendance/prisma/migrations/20261001120000_audio_messages_personal_quick_replies/migration.sql",
+      "sha256": "a81099e89f60b0ac5f3305c25bda0dae3461f10975c03afcea5e8977c56a28b8",
+      "bytes": 1278
+    },
+    {
+      "path": "attendance/prisma/migrations/20261001150000_unified_whatsapp_inbox/migration.sql",
+      "sha256": "905aa0df22aaca67be54ca4fce336ffb9dafd23cb188a9b1d767af6421be5d09",
+      "bytes": 453
+    },
+    {
+      "path": "attendance/prisma/migrations/20261001180000_personal_quick_reply_shortcuts/migration.sql",
+      "sha256": "ee10d58ca4ab5cefd71e2b31cf65861f69345c67d5675627d846b771adcafc92",
+      "bytes": 516
+    },
+    {
+      "path": "attendance/prisma/migrations/20261005130000_bots_question_answer_release/migration.sql",
+      "sha256": "a4b0dc413744121221dbea0ce09cd8bdbdc5ce1854f33e7a800b1e4064157fc5",
+      "bytes": 907
+    },
+    {
+      "path": "attendance/prisma/migrations/20261006100000_multiempresa_quick_reply_scope/migration.sql",
+      "sha256": "41e98ed59fabbc35d94d1a83135ebd2edac94f4ead84141559ad2821f34c91ba",
+      "bytes": 324
+    },
+    {
+      "path": "attendance/prisma/migrations/20261006100100_multiempresa_company/migration.sql",
+      "sha256": "6ebb0f14cc8c0c3528317e060038ac6df52c52e11b000ecc10555b9651a989f4",
+      "bytes": 9230
+    },
+    {
+      "path": "attendance/prisma/migrations/20261006100200_multiempresa_constraints/migration.sql",
+      "sha256": "e45e86d1d43a65df9af2a7717d87833435e3553eec857ea6655d4d007a47ff5a",
+      "bytes": 3330
+    },
+    {
+      "path": "attendance/prisma/migrations/20261006100300_multiempresa_company_permissions/migration.sql",
+      "sha256": "2a87eac12a5c97c68c734a069ab78251206a8acf1d2281d7610461f60037061c",
+      "bytes": 209
+    },
+    {
+      "path": "attendance/prisma/migrations/20261006194000_split_outbound_permissions/migration.sql",
+      "sha256": "808a9606e8f74b7a894a56e43e7d8c0888fe8b46f992a12cffa5eeced32a7e99",
+      "bytes": 400
+    },
+    {
+      "path": "attendance/prisma/migrations/20261007120000_private_sector_and_preferred_assignee/migration.sql",
+      "sha256": "873dca1e6d67f099b124cf85e8d0db11abf0fb1b9e8303d65b75dc8b26a30417",
+      "bytes": 2931
+    },
+    {
+      "path": "attendance/prisma/migrations/20261007140000_meta_cost_control/migration.sql",
+      "sha256": "285402125e4bfe7771b41b4bce62ce091d852211419aae32f3b088461de4c204",
+      "bytes": 3743
+    },
+    {
+      "path": "attendance/prisma/migrations/20261009120000_productivity_own_view/migration.sql",
+      "sha256": "b2cf5e48653978a993c23b866452c935d93c06466b5292c83fab68dd302b79d0",
+      "bytes": 236
+    },
+    {
+      "path": "attendance/prisma/migrations/20261010120000_follow_up_agenda/migration.sql",
+      "sha256": "d947b6b13f1318afd22707208e905f84f78a8e6fcc481f2f1dc64f390d4cf334",
+      "bytes": 3102
+    },
+    {
+      "path": "attendance/prisma/migrations/20261014120000_template_routing_configuration/migration.sql",
+      "sha256": "bac2b8b6716f269cd0f2bd885c064b4c16237ab914a01a3c53f53bd0f48e95bf",
+      "bytes": 2033
+    },
+    {
+      "path": "attendance/prisma/migrations/20261014150000_after_hours_reminders/migration.sql",
+      "sha256": "f7040e71c00768cc6bd35f14279c6de63c6f4dad15bc39c786b2a2f673efa5db",
+      "bytes": 5153
+    },
+    {
+      "path": "attendance/prisma/migrations/20261019180000_internal_chat_company/migration.sql",
+      "sha256": "e3ccda2bece0eae62a43a513c7443d683e264386db393eca6a4bd357c472108a",
+      "bytes": 1142
+    },
+    {
+      "path": "attendance/prisma/migrations/20261020180000_central_identity_bridge/migration.sql",
+      "sha256": "75947fe34f2d0e22e3993dea5ad42a6261feabaf6b8e12c477f790806e74f7d3",
+      "bytes": 1547
+    },
+    {
+      "path": "attendance/prisma/migrations/20261020200000_crm_contact_selection/migration.sql",
+      "sha256": "77fdec61454ba429e03894755483968e8b6bfb15b9a645f565ba8075961fbf6e",
+      "bytes": 725
+    },
+    {
+      "path": "attendance/prisma/migrations/migration_lock.toml",
+      "sha256": "99836963713b4f5b269ad49af0ed3d7b0b2e336115c2f92dc9ac683d139d0900",
+      "bytes": 128
+    },
+    {
+      "path": "attendance/prisma/schema.prisma",
+      "sha256": "32f6f07eee0bde6db62aeda9ec03be900f345d90d8f93130c22365336fb4d18b",
+      "bytes": 119714
+    },
+    {
+      "path": "attendance/prisma/seed.js",
+      "sha256": "448e94dfbb103126e5b1bdf52ea3e8e628c17e4452c6470867cd2e5ce414c5e4",
+      "bytes": 15337
+    },
+    {
+      "path": "attendance/public/agenda.html",
+      "sha256": "c384e317bd69b8f92de64ecc648dc92b3e5284235fa3a5bd7002d702f25cd2ca",
+      "bytes": 4027
+    },
+    {
+      "path": "attendance/public/assets/app-icon-192.png",
+      "sha256": "9b1929d1c4f0325850aec89a5552d49c65407aab8ab8dea392ba14090783332c",
+      "bytes": 5493
+    },
+    {
+      "path": "attendance/public/assets/app-icon-512.png",
+      "sha256": "db978c672635a6a32a4af56525f4916ac3ff638ed9eb4b911d1d4573b91305eb",
+      "bytes": 26692
+    },
+    {
+      "path": "attendance/public/assets/central-app-icon-192-v2.png",
+      "sha256": "fdb871abcfb0fe42974473c59bdde7f7225c67abaf85df7c80525ace4a7f73d5",
+      "bytes": 4576
+    },
+    {
+      "path": "attendance/public/assets/central-app-icon-512-v2.png",
+      "sha256": "d677cc4e544174fe0f0b301cd6b8dbc40cb425354e5bf616bdd08217045a5a88",
+      "bytes": 18370
+    },
+    {
+      "path": "attendance/public/assets/central-favicon.svg",
+      "sha256": "4b19d27f748583d39dcfb65f7fff75c6af6fc265c38736664a3fc20a6e2ca1da",
+      "bytes": 422
+    },
+    {
+      "path": "attendance/public/assets/central-mark.svg",
+      "sha256": "6c780244a0f40a253f08a99d3857240ab188eb0f93df1ca5e6c77dd8345ec961",
+      "bytes": 654
+    },
+    {
+      "path": "attendance/public/assets/mibro-logo.png",
+      "sha256": "953ce3fe7344091f1489c755551e4b5a7608ced120a208550d8a7a65c6ebb124",
+      "bytes": 137823
+    },
+    {
+      "path": "attendance/public/bots.html",
+      "sha256": "19d57b9c1b42285b7eec78597e86698417313df8f34de95333a69272c9f666fe",
+      "bytes": 14266
+    },
+    {
+      "path": "attendance/public/campaigns.html",
+      "sha256": "347523d2461b796b11967ae8fd07fe9112e0cf7110ce72562458f04d203ba221",
+      "bytes": 19633
+    },
+    {
+      "path": "attendance/public/configuracoes.html",
+      "sha256": "4ff9d3275e79f064b6893026b36262dde6a84223bba8c4963c1addb4afb84b35",
+      "bytes": 8782
+    },
+    {
+      "path": "attendance/public/css/admin-ux.css",
+      "sha256": "0aac7988044d98f170d7f797367833afd3ea2d6d3b5db0aabd0b7a1b826936c8",
+      "bytes": 4469
+    },
+    {
+      "path": "attendance/public/css/agenda.css",
+      "sha256": "fc95a60fe0dcb4ae397c4d19a86f634c37c35908fd481d3a7997f0dc856305cd",
+      "bytes": 11053
+    },
+    {
+      "path": "attendance/public/css/app.css",
+      "sha256": "aa2b356ed7e0b3fe3885eb8268195631ebbdd4d55fe7e252ff0fb7edfbb7cf75",
+      "bytes": 195404
+    },
+    {
+      "path": "attendance/public/css/bot-question-answer.css",
+      "sha256": "4fd1ee04f7d8ea4a3d8cb3894f8529666a5471bc14ace6d0baf0837fe1d15385",
+      "bytes": 276
+    },
+    {
+      "path": "attendance/public/css/bots.css",
+      "sha256": "de67fec9d8dd43d1e7e58f916b2a96c64b730038cbd714805a91994cb973ad79",
+      "bytes": 18475
+    },
+    {
+      "path": "attendance/public/css/campaigns.css",
+      "sha256": "aa3fd481181a7bb1b5871d86b7e66a6752e4e09053bd1e2b2895a86d93bc4f51",
+      "bytes": 19946
+    },
+    {
+      "path": "attendance/public/css/category-manager.css",
+      "sha256": "95ffba2554e673a85542ca3cf77c009e0ba6e52027e4c91f68bf97cd4dedcb9f",
+      "bytes": 7680
+    },
+    {
+      "path": "attendance/public/css/configuracoes.css",
+      "sha256": "5eea8a5a075b772d4968880f2805b689093714333181e53af265b0a5ba21062a",
+      "bytes": 3465
+    },
+    {
+      "path": "attendance/public/css/crm-shell.css",
+      "sha256": "afba3c4522648c8173b85e9bf0efa25c03aedb568fe493319db7b1659d22c85a",
+      "bytes": 744
+    },
+    {
+      "path": "attendance/public/css/flow-builder.css",
+      "sha256": "3d7c26fc9f8e8e217952eed036a71de91fdee8f8b6715a1838fc2c7b25ed669f",
+      "bytes": 17031
+    },
+    {
+      "path": "attendance/public/css/follow-ups.css",
+      "sha256": "d0589a8e118abea09fd96b3de7bac77b7079d5b34ec87da3c22768a2407351d9",
+      "bytes": 6364
+    },
+    {
+      "path": "attendance/public/css/fora-do-expediente.css",
+      "sha256": "b7b7f04151655989670a02fd4e8dfd3c8d64a294683ec75c16ce9a1ab66e1523",
+      "bytes": 4410
+    },
+    {
+      "path": "attendance/public/css/form-controls.css",
+      "sha256": "4e26676ceb2bc64705e6411f6009f9fad2bdc359b4551558dca53a3151ee2b93",
+      "bytes": 1916
+    },
+    {
+      "path": "attendance/public/css/integrations.css",
+      "sha256": "49660ee91b1249689a28e328b62c13dda69492414fd8cba286e44d8d708229c9",
+      "bytes": 7893
+    },
+    {
+      "path": "attendance/public/css/knowledge-base.css",
+      "sha256": "78ef61721be5615c08eb585238dc114e3a620bc613b9c1bc89801a40b5c86f7c",
+      "bytes": 2257
+    },
+    {
+      "path": "attendance/public/css/layout-fit.css",
+      "sha256": "d4fe49320764484abb42cac1c5d7e5002f1c6effffd259c99161ceea945b6f2d",
+      "bytes": 8147
+    },
+    {
+      "path": "attendance/public/css/login.css",
+      "sha256": "f26c514736e0e9f81e4bd54f3bd5c0cd7e7d28ec736adb49d65555cc035bb5fb",
+      "bytes": 3274
+    },
+    {
+      "path": "attendance/public/css/operacao.css",
+      "sha256": "9929f9e2e380c731d167c9b32de55f86ae8aae2b4a2c0a47cd4b8a88aa8b44d9",
+      "bytes": 8562
+    },
+    {
+      "path": "attendance/public/css/quick-replies.css",
+      "sha256": "5db2957053a508cebdee5d0be0c50c0eaa9311462bf79f5b7f9b203178ebbed6",
+      "bytes": 3111
+    },
+    {
+      "path": "attendance/public/css/relatorio-conversas.css",
+      "sha256": "99b002f7ecd70171eb7e91b24d55897c5de7f5a2ba5b202352c954bd819ddbc2",
+      "bytes": 19008
+    },
+    {
+      "path": "attendance/public/css/responsive.css",
+      "sha256": "395936b928f23beacde99decdcdd07b5b6ef04f491a744d4e7039c16fc227bd2",
+      "bytes": 6876
+    },
+    {
+      "path": "attendance/public/css/skeleton.css",
+      "sha256": "a622016b390203b6cefb7438815956accde643e019724e884ba0c091206bb119",
+      "bytes": 1584
+    },
+    {
+      "path": "attendance/public/css/supervision.css",
+      "sha256": "f7120e158890be05810f656cce911557c20b7d16732d1d818c6cfa68ae3966f6",
+      "bytes": 8012
+    },
+    {
+      "path": "attendance/public/css/whatsapp-send.css",
+      "sha256": "2ada8007adf4944357855f7a0f3d100c8de98f843c4cdf5001c59ee9d82216ee",
+      "bytes": 19045
+    },
+    {
+      "path": "attendance/public/custos-meta.html",
+      "sha256": "fdd59e282450c33c25f36abeeaa5118d66d4ac480861e2e8bd46f8e0b71cb062",
+      "bytes": 20977
+    },
+    {
+      "path": "attendance/public/flow-builder.html",
+      "sha256": "3eec9f5a7c322315bf258a44e93c10d895cde89fac85a8662f91978bb90c8925",
+      "bytes": 6524
+    },
+    {
+      "path": "attendance/public/fora-do-expediente.html",
+      "sha256": "11c7aa127e6542d64276a4d92c299b049e2d2f937df47559653ab0fb9bb932d5",
+      "bytes": 12057
+    },
+    {
+      "path": "attendance/public/index.html",
+      "sha256": "60308b51318c300db7d455d4bbbfeac41f65811e4a363eecdadad39873b93aa6",
+      "bytes": 68737
+    },
+    {
+      "path": "attendance/public/integrations.html",
+      "sha256": "95b3ecf69f188c7b190d3bc55b36692fa1c29429443f03ca0022ee918be0c063",
+      "bytes": 7168
+    },
+    {
+      "path": "attendance/public/js/agenda.js",
+      "sha256": "153baecc7cd8c301859bd4c940fa0ef9ff7739e60b6c0bc30024898be281ee60",
+      "bytes": 22772
+    },
+    {
+      "path": "attendance/public/js/app.js",
+      "sha256": "67924db5d5d402d356b894617696cebe37846b8e5645accdc3eab3f013041bac",
+      "bytes": 275771
+    },
+    {
+      "path": "attendance/public/js/bots.js",
+      "sha256": "e7435c008972092c9315bd747cb237e090d5efc3bc70d1a3c519eed2af97ee9f",
+      "bytes": 27624
+    },
+    {
+      "path": "attendance/public/js/campaigns.js",
+      "sha256": "22c66ca2751c33f4dee57431ed974fd1702ac25bb8514f0db223ba05de5e844e",
+      "bytes": 73074
+    },
+    {
+      "path": "attendance/public/js/central-navigation.js",
+      "sha256": "3cdb3848e1ed35428b647cc15834521e827ce9c1e0fb60b8fb0461c31722862c",
+      "bytes": 4223
+    },
+    {
+      "path": "attendance/public/js/central-session-state.js",
+      "sha256": "1f627cdd2143a743cefda660687a9c8be71a585e89929bad28dbcc7a1789a7bf",
+      "bytes": 1458
+    },
+    {
+      "path": "attendance/public/js/changelog.js",
+      "sha256": "c368d3fe7b4504dd87b5bd110aa5a69cef3ddf5ac45322f6dd8ab81d6dae9868",
+      "bytes": 73894
+    },
+    {
+      "path": "attendance/public/js/command-palette.js",
+      "sha256": "bc4b3427d660412e2186a466cf640eb1ae2c902936e3739a51d76c22974c1301",
+      "bytes": 10194
+    },
+    {
+      "path": "attendance/public/js/company-context.js",
+      "sha256": "42b9a621f4335e0f3ecc203432ceb2a8d8b0e63d70d9ffb8a23c788cebbcf23d",
+      "bytes": 4626
+    },
+    {
+      "path": "attendance/public/js/configuracoes.js",
+      "sha256": "3466e4c700e7fb14ac5d6c5dbbbdc6bf802408d8efd6d34f709463cc1b3f813f",
+      "bytes": 9015
+    },
+    {
+      "path": "attendance/public/js/contact-profile-ui.js",
+      "sha256": "2b367849ff564bf5d699ec7601e7d12c0e0f997a92e421248c85d74635a4ec67",
+      "bytes": 7803
+    },
+    {
+      "path": "attendance/public/js/contact-warning.js",
+      "sha256": "50ec83ceb8fcb483a4db02b795533bb4f7069639971de9ed34a2a5b9c9989bb7",
+      "bytes": 2456
+    },
+    {
+      "path": "attendance/public/js/crm-access-admin.js",
+      "sha256": "5e0c252fa4f8cd63d34c9e4009b2b14aae6108b3c725281cb6f2d8eb9c715b85",
+      "bytes": 3033
+    },
+    {
+      "path": "attendance/public/js/crm-context.js",
+      "sha256": "303c315443f1fa8036328ee630c9efd3b1c0ace4026af81502a3478af0844238",
+      "bytes": 2799
+    },
+    {
+      "path": "attendance/public/js/crm-proposal-draft.js",
+      "sha256": "fa3aedb630dfb3d239bffcf807f329fca718ec537c8fa19c0f785c95ed3f4040",
+      "bytes": 3396
+    },
+    {
+      "path": "attendance/public/js/crm-shell.js",
+      "sha256": "17182b50e0e069f9c6e185eacf036ac2d4b44509edf861f944ab811313134e26",
+      "bytes": 336
+    },
+    {
+      "path": "attendance/public/js/custos-meta.js",
+      "sha256": "78f6772a260c8c5148141912fe2cff77f80b62e6cd161657d1cc7167897c331b",
+      "bytes": 14926
+    },
+    {
+      "path": "attendance/public/js/feature-flags.js",
+      "sha256": "d784bb0bef7ff1455cd6a6cdccbc5517ab6bb0f04c861c7f2096d8e98bd9a113",
+      "bytes": 459
+    },
+    {
+      "path": "attendance/public/js/flow-builder.js",
+      "sha256": "9efc2515a86b317b5b718e0e0660bc0f2f9b130263a7ac6fd0f80304068e5ec5",
+      "bytes": 84433
+    },
+    {
+      "path": "attendance/public/js/follow-ups-ui.js",
+      "sha256": "b1ebf472475cd9f470450c52b5b4e78b57b99b32272dc7bcd04ab97e17a270ac",
+      "bytes": 9333
+    },
+    {
+      "path": "attendance/public/js/fora-do-expediente.js",
+      "sha256": "dffe6598ecc6e15026706839414b79711f3866c250acedcadbde350484ffccb6",
+      "bytes": 24927
+    },
+    {
+      "path": "attendance/public/js/integrations.js",
+      "sha256": "42cacd15f8f27cf77cd380f17337fc0dfdf92e2e04e48848cfe7e52ca503894c",
+      "bytes": 32352
+    },
+    {
+      "path": "attendance/public/js/internal-chat.js",
+      "sha256": "2888e2ee063c1e31b2ffc727670ffcea4b0acf1af19eb177c4e300c027314d95",
+      "bytes": 57314
+    },
+    {
+      "path": "attendance/public/js/knowledge-base.js",
+      "sha256": "41b8b18dd510b4efedaf46f0f34e4cc106369b4d35e9442e76ea89d3665504ff",
+      "bytes": 11746
+    },
+    {
+      "path": "attendance/public/js/layout-fit.js",
+      "sha256": "d578ce433e2b7e2a356cecb23c86d1c5f959a26af7fbaa51c41f9b6a239660b6",
+      "bytes": 1630
+    },
+    {
+      "path": "attendance/public/js/login.js",
+      "sha256": "42f4e75934570e50b0d03179546134ce93444b60b4ea719fd029d6af42ab33e7",
+      "bytes": 2493
+    },
+    {
+      "path": "attendance/public/js/operacao.js",
+      "sha256": "79ed7b3fae200a6de6a7de972b28ad4413a1fd028ba033ee7b168b95545028b7",
+      "bytes": 16431
+    },
+    {
+      "path": "attendance/public/js/optional-panels.js",
+      "sha256": "1325728fc4fa3c960a962f56f1d6c790345a9f5322e119cdc9a738547c0d3919",
+      "bytes": 1478
+    },
+    {
+      "path": "attendance/public/js/pwa.js",
+      "sha256": "80d41e611ac690536f687a37f959eb0a5c959de29cb329704d698e30a217aeb9",
+      "bytes": 9016
+    },
+    {
+      "path": "attendance/public/js/quick-replies.js",
+      "sha256": "5c047731bc0c5f8707a2cd4063c9e6c4bfe966a51e9687b6dcffebf3a6be29ca",
+      "bytes": 21546
+    },
+    {
+      "path": "attendance/public/js/relatorio-conversas.js",
+      "sha256": "859bbb9ae0c32bbbaaf90e0a16807b81bd17ba9b74bd537087a36a46b0547f0b",
+      "bytes": 63063
+    },
+    {
+      "path": "attendance/public/js/release-loader.js",
+      "sha256": "eb992243fe6c343c21cd9262c742c505408714f662a8ece35eeff796c80d2fe7",
+      "bytes": 1261
+    },
+    {
+      "path": "attendance/public/js/supervision.js",
+      "sha256": "93672373527f3e1319e42f7e3a0a386ff07cf45e56cd69144ca895971523e1b7",
+      "bytes": 18648
+    },
+    {
+      "path": "attendance/public/js/template-ranking.js",
+      "sha256": "575233f17eb1ab2a77bbe0a875ea18ab7a6ec4550ad0b75ad2e5d8d740638530",
+      "bytes": 17900
+    },
+    {
+      "path": "attendance/public/js/whatsapp-send-wizard.js",
+      "sha256": "85762bd35386742d0af2a3f1fef76d49b025338c4b87eb44a08000293db2e20a",
+      "bytes": 73065
+    },
+    {
+      "path": "attendance/public/knowledge-base.html",
+      "sha256": "73dc8f70afa5fe2e6960de4727510764e0668fc91c41295c09dcb434526fa376",
+      "bytes": 7132
+    },
+    {
+      "path": "attendance/public/login.html",
+      "sha256": "f8a60a118a9c8ce2aa6de567289bb05eee9a82b1fc809077fc2e36366f94d612",
+      "bytes": 1761
+    },
+    {
+      "path": "attendance/public/manifest.webmanifest",
+      "sha256": "a67a431f5570720d812acb9083d07dc8c1f8decfa71deb7e9a0f3bedcb95bac7",
+      "bytes": 637
+    },
+    {
+      "path": "attendance/public/modelos/envio-em-massa.csv",
+      "sha256": "63d6853b2cfe85b8a29c4a0c6af3760dd9395ad056861f05c0bb274809dd88bc",
+      "bytes": 90
+    },
+    {
+      "path": "attendance/public/oauth-callback.html",
+      "sha256": "97226d92d6e3c5912da34e29b2dbeed5dd65c68632337d3142278105dcd1a3f4",
+      "bytes": 2393
+    },
+    {
+      "path": "attendance/public/operacao.html",
+      "sha256": "184edcbbae540f198347f7d636988ad22a3380726e90c4d9b4d16bd1fa074330",
+      "bytes": 4862
+    },
+    {
+      "path": "attendance/public/quick-replies.html",
+      "sha256": "68162097888743747cacb07235eda4916b723c4ae95e683b1373765dfbc22c9c",
+      "bytes": 7779
+    },
+    {
+      "path": "attendance/public/relatorio-conversas.html",
+      "sha256": "4384bd54756edb45b822c23c0b7a3b61fa5755c0557c0d104bd82f2185b7cf3d",
+      "bytes": 12867
+    },
+    {
+      "path": "attendance/public/service-worker.js",
+      "sha256": "95dc8dd3fc5991444424eca215ab53c4bd64aa81589ee006e18bcde21f6d7787",
+      "bytes": 5478
+    },
+    {
+      "path": "attendance/scripts/adapt-company-test-fixtures.cjs",
+      "sha256": "6ef2f0298daa6c44ecda75fcd0774d28915c386b8cc510e0a4f26a3bdfb9affd",
+      "bytes": 1547
+    },
+    {
+      "path": "attendance/scripts/backfill-assignment-periods.js",
+      "sha256": "f1065a3e3a7f5d10c583d3999d910ae5ab090ea5ac897742a4b0f8c2a9630094",
+      "bytes": 4455
+    },
+    {
+      "path": "attendance/scripts/backfill-private-segments.js",
+      "sha256": "225d7dac6e5b9286edef8e1238df3583b91de9255caf4a47715d2002ed999187",
+      "bytes": 5985
+    },
+    {
+      "path": "attendance/scripts/backup-database.ps1",
+      "sha256": "450479e31aaa3c91258bf5bfb018b89d1b496db54a4564e9beef712c75a448d3",
+      "bytes": 691
+    },
+    {
+      "path": "attendance/scripts/backup-vps-snapshot.sh",
+      "sha256": "826459ed354798b7441422015640881abcb15a32b0c4ffe485c2e4f057b374b6",
+      "bytes": 1957
+    },
+    {
+      "path": "attendance/scripts/build-static-assets.js",
+      "sha256": "e991a48e61702fef9f5dd2384a924375eae412d51851df12fc5dcf19bd9a12b4",
+      "bytes": 1675
+    },
+    {
+      "path": "attendance/scripts/check-integration-mobile.cjs",
+      "sha256": "b6f71fe4c608c8ad86a27053ce65c8d9fc705b3794d3c568d87f116120cdd982",
+      "bytes": 4518
+    },
+    {
+      "path": "attendance/scripts/check-layout.cjs",
+      "sha256": "251f587c10cd7406b9e385b7725ffc8d653770f0a637393b0c6a5c32feff6312",
+      "bytes": 6485
+    },
+    {
+      "path": "attendance/scripts/check-local-category-borders.js",
+      "sha256": "131a4a1851d5ceca0ae5f5665159238b5eb9e839b9c603b6617abcab692793bf",
+      "bytes": 2584
+    },
+    {
+      "path": "attendance/scripts/check-local-company-activation.js",
+      "sha256": "b0b58af491113e9c9acfe7809631059c16cf19855cf46a0f03e3b73058bffc17",
+      "bytes": 3750
+    },
+    {
+      "path": "attendance/scripts/check-local-financeiro-preview.js",
+      "sha256": "5994c9b54c18fbbf5b5a5e004d62407cfad42adc1693ba51f095dfffdfae8e15",
+      "bytes": 3830
+    },
+    {
+      "path": "attendance/scripts/check-local-integrations-scroll.js",
+      "sha256": "6b0f9182661a221b7bd8f5c489fd9586dd67b8feea9031111d5e5de9cfd933cf",
+      "bytes": 1803
+    },
+    {
+      "path": "attendance/scripts/check-local-layout-preview.js",
+      "sha256": "16c28fbc8aa6bfc56e0c813024fbf394b3bd3f7909401e64266ad189c98335ab",
+      "bytes": 3147
+    },
+    {
+      "path": "attendance/scripts/check-local-menus.js",
+      "sha256": "f447f239c192a886f99a6125859d68f1d895ec4db884851d5ee70fd65442d2b2",
+      "bytes": 2548
+    },
+    {
+      "path": "attendance/scripts/check-local-multiempresa-preview.js",
+      "sha256": "e8d6b0e8243ee80ab6cdba31c917031118a05b2a1ed7414eb58733022e98dafe",
+      "bytes": 2484
+    },
+    {
+      "path": "attendance/scripts/check-local-three-commits.js",
+      "sha256": "fc6c411e1ef15d74992ab0e0f86d75a6bf75c4c0408e906850b3196a749716e2",
+      "bytes": 2442
+    },
+    {
+      "path": "attendance/scripts/check-preferred-assignee-clicks.js",
+      "sha256": "309a28ed10018b4433a357342aa2ac50564fe9f7b315b0fc1c8b469415cdf8bf",
+      "bytes": 4647
+    },
+    {
+      "path": "attendance/scripts/check-release-bots-ui.js",
+      "sha256": "d9d96cdecb9bbd17240c2e55f577a4dd72e1e3acc1a805c41ae0f97baa58a340",
+      "bytes": 3801
+    },
+    {
+      "path": "attendance/scripts/check-split-permissions-ui.js",
+      "sha256": "e61751df84bf60b54cc251f1a0416873d3a3e81d7dbdf166ac2633d54f173d7e",
+      "bytes": 3179
+    },
+    {
+      "path": "attendance/scripts/deploy-bots-v03413.sh",
+      "sha256": "71e437e7bfd9888d51fdccfd3173b58b7856c72b135ece509257fc1f471912df",
+      "bytes": 2447
+    },
+    {
+      "path": "attendance/scripts/generate-central-app-icons.cjs",
+      "sha256": "52954a2644b9d9c8631f53b3563738028bbc8670c620b7a2aa7c3a76cdc7eb5a",
+      "bytes": 977
+    },
+    {
+      "path": "attendance/scripts/initialize-unified-whatsapp.js",
+      "sha256": "b6ef8333206b12a47dbf77e43435a7b325f5c103f0a75102d56a2d4a918dfe6d",
+      "bytes": 4220
+    },
+    {
+      "path": "attendance/scripts/internal-chat-company-report.js",
+      "sha256": "c5b52cd33adfaf3e5dd033e62d8b0194798464da9900c452d38477078545111d",
+      "bytes": 2437
+    },
+    {
+      "path": "attendance/scripts/local-knowledge-server.js",
+      "sha256": "7e5c6c23a4df60bd3593d0f679d28216e2606c45b2289adce0083b0b473974f5",
+      "bytes": 3891
+    },
+    {
+      "path": "attendance/scripts/multiempresa-backfill-messages.js",
+      "sha256": "a05b593140dffef4697428596b9d1d5221daf9571c41392d31e18a61c6febcb6",
+      "bytes": 2149
+    },
+    {
+      "path": "attendance/scripts/multiempresa-report.js",
+      "sha256": "708c0b1050bb5ce089b044ea989b6102fedcb8cbf99d8ef2a00ac124f6131e9d",
+      "bytes": 6892
+    },
+    {
+      "path": "attendance/scripts/recover-meta-template-costs.js",
+      "sha256": "5fcddf2e2f799ff5278a675cb827650cacf28c5892162daad77ddf6dd2dba8e5",
+      "bytes": 708
+    },
+    {
+      "path": "attendance/scripts/run-tests.js",
+      "sha256": "bccbb1c2b311b01663c04f539f3ac5de666b4ed44dd1f178b6b948ff45af1e4e",
+      "bytes": 1299
+    },
+    {
+      "path": "attendance/scripts/send-decision-regression-live.js",
+      "sha256": "aee39413b66036d5505633b699f26f8f311ad70ea47893fe30d0f33b8c4ea7f4",
+      "bytes": 6893
+    },
+    {
+      "path": "attendance/scripts/setup-commercial-welcome-bot.js",
+      "sha256": "2fc61d5c0cbde9004e7dba24bd90870190b8baf31bc80bd6558be9c03c9e721b",
+      "bytes": 3962
+    },
+    {
+      "path": "attendance/scripts/start-production.js",
+      "sha256": "ba4724ed3cd5ddb8150b645105845e94ddff34dfc87217965999d9e7168c20c0",
+      "bytes": 362
+    },
+    {
+      "path": "attendance/scripts/template-ranking-check.js",
+      "sha256": "72d18fbf5eaeb711602d6ea2ffa3b4eb0c1302aa44a62767233661fa2802e614",
+      "bytes": 3035
+    },
+    {
+      "path": "attendance/server.js",
+      "sha256": "a7d8d729252da2c9371a9765a92cb8432928dae76d6661d9de5190808c019d19",
+      "bytes": 3587
+    },
+    {
+      "path": "attendance/src/app.js",
+      "sha256": "e52d05030c000241483fe329ff4c0317e01ff13bfd84c27a243ab600413d5a0d",
+      "bytes": 55990
+    },
+    {
+      "path": "attendance/src/channels/meta-cloud-channel.js",
+      "sha256": "ae45c644f003a99470a3e29ecb7ca9a3bda307e15cc0ee4fa2f26342bc750b44",
+      "bytes": 19379
+    },
+    {
+      "path": "attendance/src/channels/meta-graph-messaging.js",
+      "sha256": "fd09aaedd7b4b2f1ec2cb8ccc97efa17f8eed9c2e41093d8d44377c79d5a61cd",
+      "bytes": 13227
+    },
+    {
+      "path": "attendance/src/config/validate-environment.js",
+      "sha256": "5281dd7105aaddb8efa0360992b9bf58fbeb10f487ecac3b8a2efa1348a4ca82",
+      "bytes": 972
+    },
+    {
+      "path": "attendance/src/controllers/after-hours-controller.js",
+      "sha256": "a2b4e383d7e29ecc87ab8c48e4b504dba5efb4b721e08e3a7ec7bcf17e41d8cd",
+      "bytes": 1535
+    },
+    {
+      "path": "attendance/src/controllers/audit-controller.js",
+      "sha256": "172b7c6a3f381fd59ca49b54c80768f046dda4d317dfdd59fff50308bd9dfaa2",
+      "bytes": 230
+    },
+    {
+      "path": "attendance/src/controllers/auth-controller.js",
+      "sha256": "f90624121c75906dcf20a6fb314348d03bf72d966b28d32771ff8f04db549616",
+      "bytes": 2230
+    },
+    {
+      "path": "attendance/src/controllers/bot-controller.js",
+      "sha256": "54fa9ece7a6259f9af2c63de6d2641abb7999b1a1d5257828e08c503b5945d46",
+      "bytes": 2626
+    },
+    {
+      "path": "attendance/src/controllers/bot-visual-flow-controller.js",
+      "sha256": "7c90676e0b140cc8f59c38314ef918dc411692c375dec5a06670bc88ea204690",
+      "bytes": 2810
+    },
+    {
+      "path": "attendance/src/controllers/campaign-controller.js",
+      "sha256": "532ad8040f29a4861bda6be6941a819b582d14c41cc5d7b70207093e3176a3a6",
+      "bytes": 9240
+    },
+    {
+      "path": "attendance/src/controllers/company-controller.js",
+      "sha256": "c3d1034ae18b181601af8a732a3cf814b266bf6866c693d074f901d6e5427a79",
+      "bytes": 2488
+    },
+    {
+      "path": "attendance/src/controllers/conversation-report-controller.js",
+      "sha256": "4a95c9165cee748fefb23e41ea66baa915cc44c1bda8dab4626885a1425d3f74",
+      "bytes": 8469
+    },
+    {
+      "path": "attendance/src/controllers/conversation-settings-controller.js",
+      "sha256": "2b2e7c1a4b31532a4a3ca3730a93e0b06e45eff81c8ebea32d4d077c5b261798",
+      "bytes": 1052
+    },
+    {
+      "path": "attendance/src/controllers/follow-up-controller.js",
+      "sha256": "2d58444fc859aec50ae1c26fe26eb6ad19d87f0ce9d0a3769de3ae7de946f3d0",
+      "bytes": 1388
+    },
+    {
+      "path": "attendance/src/controllers/inbox-controller.js",
+      "sha256": "d86e0271ad66c1d3079fed167534b8fc60539ddeda1b4e311a8e6b3cad12c177",
+      "bytes": 23945
+    },
+    {
+      "path": "attendance/src/controllers/integrations-controller.js",
+      "sha256": "bbd8c80c654b34169b8fb28abe2313dc479aeb8fca999704db22ee429552eb6b",
+      "bytes": 6767
+    },
+    {
+      "path": "attendance/src/controllers/internal-chat-controller.js",
+      "sha256": "6c93ce12cd3336d54d1241bab154eb439f6af664a4aca6b822b7cee96eb01fdb",
+      "bytes": 7419
+    },
+    {
+      "path": "attendance/src/controllers/local-ai-controller.js",
+      "sha256": "fccaf52b0d3bf0b11ae77b4d77e5085fb6bf1775f210d9d77b11efa0a36837c2",
+      "bytes": 1528
+    },
+    {
+      "path": "attendance/src/controllers/outbound-bulk-controller.js",
+      "sha256": "b4dac03a9cccee32fe7c2242a0657c03e85017d078b48a49cc2918ee24677640",
+      "bytes": 7914
+    },
+    {
+      "path": "attendance/src/controllers/push-controller.js",
+      "sha256": "f90981fef6d07fedf8838506644492a68be996b037845bf3e7c6c0375632616d",
+      "bytes": 915
+    },
+    {
+      "path": "attendance/src/controllers/quick-reply-controller.js",
+      "sha256": "cb17a1763cf43b5c94d7c07a637a9abe8a3900be1921e9f50803442db5bbf32f",
+      "bytes": 3533
+    },
+    {
+      "path": "attendance/src/controllers/social-content-mapping-controller.js",
+      "sha256": "edde8cc417ae6465274e52f24598325e7091d1ba9a0242c95311fccac3c840d3",
+      "bytes": 1024
+    },
+    {
+      "path": "attendance/src/controllers/supervision-controller.js",
+      "sha256": "552fc010cf61ddde09b070ae749f28875b2f74fbd7ccac45162c2842843dc3b6",
+      "bytes": 968
+    },
+    {
+      "path": "attendance/src/controllers/user-management-controller.js",
+      "sha256": "6ca985dc7885d8129244b12722ecb9148be5d96e0c9c4d4ab8a07be0e404206e",
+      "bytes": 1117
+    },
+    {
+      "path": "attendance/src/database/prisma.js",
+      "sha256": "f3c484fea3d1d032dae820efbcaa59a70094a583f645771c2673251cf440f974",
+      "bytes": 1938
+    },
+    {
+      "path": "attendance/src/middleware/auth.js",
+      "sha256": "87de6638ab94bcdd36f02a394c8dcfc82727e7ac0a717f4ba50434f48e4ba8da",
+      "bytes": 5007
+    },
+    {
+      "path": "attendance/src/middleware/integration-auth.js",
+      "sha256": "ffb38fdd5e816bc9e1b89b6d48fbc224d5c0d609dd9242cdcac8e1d3d67e7696",
+      "bytes": 676
+    },
+    {
+      "path": "attendance/src/middleware/meta-account-webhook.js",
+      "sha256": "3c5034f25dddef5934416650b73e36a2c72a318db72bc9f2f6cbc59df14b07cd",
+      "bytes": 3637
+    },
+    {
+      "path": "attendance/src/middleware/meta-signature.js",
+      "sha256": "e37cfa4196a6e7d0260cbedb06899cbf8d2ddfe105d200c5592da064f068f8af",
+      "bytes": 848
+    },
+    {
+      "path": "attendance/src/middleware/precompressed-static.js",
+      "sha256": "503190bd05108d33eae1b2da4bfd09c60eb5eff1720e6824f1ae193f81d19e45",
+      "bytes": 2696
+    },
+    {
+      "path": "attendance/src/realtime/inbox-events.js",
+      "sha256": "20392aa933beb1b6aaf3126e2e8f3e58166181b722c78c93c05a91bf478a696b",
+      "bytes": 4391
+    },
+    {
+      "path": "attendance/src/routes/central-identity.js",
+      "sha256": "ad1dd26db55a62c56238896f0df5bb94f28c98249443e3c338244348d4313b54",
+      "bytes": 16528
+    },
+    {
+      "path": "attendance/src/services/activity-feed-service.js",
+      "sha256": "7360f4163b281351fdd957957efe06a0909a62f936366b9053702a57f550efb0",
+      "bytes": 4238
+    },
+    {
+      "path": "attendance/src/services/after-hours-reminder-service.js",
+      "sha256": "242d3b610932abb26e20e4a053626a63b7cfe9eb74a7cbc69e9bdcab357daf1e",
+      "bytes": 31189
+    },
+    {
+      "path": "attendance/src/services/after-hours-settings-service.js",
+      "sha256": "5095939a4bb71e362518d4b834cc4f6c2adc13d1f4f8606438bcd0149128907f",
+      "bytes": 18314
+    },
+    {
+      "path": "attendance/src/services/ai/ai-credential-service.js",
+      "sha256": "c4b8b77cfd36bffe95f4a374de2aa93be3b8ada998b86f59e97bebe27adc0c7c",
+      "bytes": 7031
+    },
+    {
+      "path": "attendance/src/services/ai/ai-provider.js",
+      "sha256": "9089b22a14b6d21b7c606c16f2998ceb9dbe7c528040ed81016d585794c63fd7",
+      "bytes": 1262
+    },
+    {
+      "path": "attendance/src/services/ai/anthropic-provider.js",
+      "sha256": "9c00d4d7a5701cb05b15d5020c954bd4c7b1604f6ec311ee817722e77630542a",
+      "bytes": 6572
+    },
+    {
+      "path": "attendance/src/services/ai/classification-utils.js",
+      "sha256": "2ec9686930bf677a42117bce95b1b6a480fcc55b49f009019dc6fc8223bf0f7a",
+      "bytes": 2063
+    },
+    {
+      "path": "attendance/src/services/ai/dry-run-sender.js",
+      "sha256": "6fc7f535cd710cd00132598456332be2d22a8d5c9560702606874376768e4068",
+      "bytes": 1082
+    },
+    {
+      "path": "attendance/src/services/ai/gemini-provider.js",
+      "sha256": "292aac109e483d5312bea6d566a1915c32a08bbfc2aa002927c31bbfe617293f",
+      "bytes": 7028
+    },
+    {
+      "path": "attendance/src/services/ai/get-ai-provider.js",
+      "sha256": "a8e3cf4f984f9a0787d492618389300a1818124f06bb840b76e3d4f47d934c05",
+      "bytes": 6612
+    },
+    {
+      "path": "attendance/src/services/ai/local-fallback-provider.js",
+      "sha256": "656ed7f204a83a46e35fe8fe256af244f06e809c85141fa36fe6d11c1d3245aa",
+      "bytes": 3424
+    },
+    {
+      "path": "attendance/src/services/ai/local-qwen-provider.js",
+      "sha256": "614f054a046e02ab551103ae34dab6018667e857e01b0410e09df2f34f48d564",
+      "bytes": 5776
+    },
+    {
+      "path": "attendance/src/services/ai/openai-provider.js",
+      "sha256": "78511cc4930027da7b92ef6bef101d5ebe9124246a09cd2108da3152d66df0eb",
+      "bytes": 5049
+    },
+    {
+      "path": "attendance/src/services/ai/planner-hint-service.js",
+      "sha256": "dbbd3876ae3608f5165372ed92f926c75b5c31094c81e50f60396c5e2fdca7a4",
+      "bytes": 9444
+    },
+    {
+      "path": "attendance/src/services/ai/planner-output-guard.js",
+      "sha256": "8a275f72a4c8cea83076b41efb44976878c1bd8fc30dcd9cef3debd5c60f8bbc",
+      "bytes": 7939
+    },
+    {
+      "path": "attendance/src/services/ai/send-mode-service.js",
+      "sha256": "7c0d77f3f51ea0b34c87354cc7c883d615fc0437091f35d93694d24eac70e25e",
+      "bytes": 2133
+    },
+    {
+      "path": "attendance/src/services/assignment-period-service.js",
+      "sha256": "11dc780067b8fd718f872e29ae252fb929b04f5060b9f88c03ba607a8161a643",
+      "bytes": 7732
+    },
+    {
+      "path": "attendance/src/services/audio-normalization-service.js",
+      "sha256": "3a97aade5499db4f2cb56cb1dab6d2ee5d76b9e0ec7361ba456de6573baf43f5",
+      "bytes": 14378
+    },
+    {
+      "path": "attendance/src/services/audit-service.js",
+      "sha256": "6843cf768395767a1fb9e1f75e9f6389141ed45051a3e770afb53fa876a23c7e",
+      "bytes": 2237
+    },
+    {
+      "path": "attendance/src/services/auth-service.js",
+      "sha256": "d4a4d67c0e8b544bd96c71d6fd2f63dc59201a0aed45503b1c86471997334433",
+      "bytes": 5435
+    },
+    {
+      "path": "attendance/src/services/authorization-service.js",
+      "sha256": "24260b69599bf175250c312bd97c9422615497bd17579629e050e8895e4c69ba",
+      "bytes": 16694
+    },
+    {
+      "path": "attendance/src/services/bot-agent-feedback-service.js",
+      "sha256": "0226a3905000586ec3a781bd25594cba24b04e2b3652f51832ab47b9cfd37862",
+      "bytes": 1434
+    },
+    {
+      "path": "attendance/src/services/bot-agent-planner-service.js",
+      "sha256": "e0ecd530f3408e679662b8cf2728bf4e46706934b483e815f64e11216ebd52af",
+      "bytes": 6424
+    },
+    {
+      "path": "attendance/src/services/bot-ai-gate-service.js",
+      "sha256": "a38e918d96e767d2a5e84bd64deaf022b96e7c51ae1fd264bc2f6bb6284eaa5a",
+      "bytes": 3838
+    },
+    {
+      "path": "attendance/src/services/bot-ai-prompt-service.js",
+      "sha256": "d63b56f26e7f98a39f34c21bfcfdaf754021fc64b1a1a1287effe3b017c198dc",
+      "bytes": 4469
+    },
+    {
+      "path": "attendance/src/services/bot-ai-schema-service.js",
+      "sha256": "cd9cba0a173fce13e6e2d8ac5af3f9aabe8ca9fc45f081a43bd555cf442f74c9",
+      "bytes": 4525
+    },
+    {
+      "path": "attendance/src/services/bot-ai-shadow-service.js",
+      "sha256": "a4a92dc382d095dd905d8d3986f8ec118d29b15a92a5dc7c0f1abd96ea145bab",
+      "bytes": 16243
+    },
+    {
+      "path": "attendance/src/services/bot-ai-simulator-service.js",
+      "sha256": "6e199eceb0c085c38f6ae2b8c698d8cbcce0a9bacf126309611032a188a7ab14",
+      "bytes": 4739
+    },
+    {
+      "path": "attendance/src/services/bot-ai-usage-service.js",
+      "sha256": "fafa0619a154d6c176180ec2ccdfff9eed1c0eea10a6c5cfb4593bd7f2cf3331",
+      "bytes": 1814
+    },
+    {
+      "path": "attendance/src/services/bot-case-state-service.js",
+      "sha256": "2ce69c77226933512dbf40cd3c687a1735e7c66a37bd89d1462733bd1a04197a",
+      "bytes": 11531
+    },
+    {
+      "path": "attendance/src/services/bot-constants.js",
+      "sha256": "1e0c780bcacda4024a2ec5b7986b7a059f0d444f7bbe977581fd95a1fab90014",
+      "bytes": 14200
+    },
+    {
+      "path": "attendance/src/services/bot-conversation-state-service.js",
+      "sha256": "53f91410339418b747ddc341f5f60bc5865abd73b23af4ecdf8b0d610712d7ef",
+      "bytes": 4137
+    },
+    {
+      "path": "attendance/src/services/bot-decision-service.js",
+      "sha256": "ef34c3e2c5d7658c0a8acd3d88ae0689da03f20909a24189ad115187d33adaf8",
+      "bytes": 6008
+    },
+    {
+      "path": "attendance/src/services/bot-entity-extractor.js",
+      "sha256": "0b6def82862999ab1880ba4a887af3c9be3dd1730de7652d793ee041be13ffaa",
+      "bytes": 2356
+    },
+    {
+      "path": "attendance/src/services/bot-flow-service.js",
+      "sha256": "438e1c0cae8ce67477269d68ee24c46056f1109049b0dd868946644bb41a1d9e",
+      "bytes": 45598
+    },
+    {
+      "path": "attendance/src/services/bot-governance-service.js",
+      "sha256": "6b3c2a9a3a639f213e00251aa660d146c09dd198f0d5179db53475520800a34f",
+      "bytes": 2820
+    },
+    {
+      "path": "attendance/src/services/bot-guided-config-service.js",
+      "sha256": "0505c86081d99f4cae0617022e6e63c6ff8c435c6364f49890d1dc65490b09c0",
+      "bytes": 4588
+    },
+    {
+      "path": "attendance/src/services/bot-handoff-service.js",
+      "sha256": "234171c8f247d25ce40565d38cd6c87888f8778ccb4006a095edbc3983efe27f",
+      "bytes": 7814
+    },
+    {
+      "path": "attendance/src/services/bot-intent-ranking-service.js",
+      "sha256": "35977a83342d89a43ccead0f4ad65b62113ea312547856a063b0f220c69adf16",
+      "bytes": 4344
+    },
+    {
+      "path": "attendance/src/services/bot-interpreter-service.js",
+      "sha256": "f8fdb48958ed7836df55dbe56282fa7684514856eafd275f9013342fa11f7846",
+      "bytes": 8941
+    },
+    {
+      "path": "attendance/src/services/bot-knowledge/knowledge-provider.js",
+      "sha256": "fd5cedd1e4361fa181dca0db25a6f0aa1658ac29be078a1fb06443f044cb1b7c",
+      "bytes": 7249
+    },
+    {
+      "path": "attendance/src/services/bot-knowledge/local-folder-knowledge-provider.js",
+      "sha256": "ad2a938e8c65c401c6e83fc162abaa74971d1a999990b5e5ccb64853396c068c",
+      "bytes": 653
+    },
+    {
+      "path": "attendance/src/services/bot-knowledge-response-service.js",
+      "sha256": "91624516eddcdab3242589c87774ba90545747c6d51b71b15187e7462ee622f3",
+      "bytes": 3163
+    },
+    {
+      "path": "attendance/src/services/bot-knowledge-source-service.js",
+      "sha256": "82da9c0eba255c51b78104b4181ad3ee35e39e0daa32c2813435dc233174b555",
+      "bytes": 9085
+    },
+    {
+      "path": "attendance/src/services/bot-learning-sanitizer.js",
+      "sha256": "9e647dfa13a28e1a77654c9c6e065b15fd6706fa3e085a167f775ebe6205ace5",
+      "bytes": 3361
+    },
+    {
+      "path": "attendance/src/services/bot-learning-service.js",
+      "sha256": "c0fd619545ee2947d43eef0eb2f3616e3e146757f4bf36e6345be28456e8de30",
+      "bytes": 30582
+    },
+    {
+      "path": "attendance/src/services/bot-loop-guard-service.js",
+      "sha256": "fbb808feda337a866f0e3414a33bb786c4d2034f3f06f31232166c6a8e88993a",
+      "bytes": 1816
+    },
+    {
+      "path": "attendance/src/services/bot-observation-service.js",
+      "sha256": "c2d8576449f49cb2eea42851db7ea6c6b29460c762a07b46c61f25f7bd8ef099",
+      "bytes": 5370
+    },
+    {
+      "path": "attendance/src/services/bot-orchestrator-service.js",
+      "sha256": "80050f374aabef5b0d375d0ce55d0c9adfe99e75e2a0218d88f05214273ce16e",
+      "bytes": 46715
+    },
+    {
+      "path": "attendance/src/services/bot-pause-service.js",
+      "sha256": "b0355bb1551b758d3cb6fb140ed0e062be7f0d07e6cbf8bcf6177d0362302e99",
+      "bytes": 1135
+    },
+    {
+      "path": "attendance/src/services/bot-personality-constants.js",
+      "sha256": "cecfc61ffde939f6c33aa6e60da40ac205f372e90fdde5ccb53374bdc043f623",
+      "bytes": 6063
+    },
+    {
+      "path": "attendance/src/services/bot-personality-service.js",
+      "sha256": "c165dfda9425655e322f3bd8056e3d9fb4d5a1bfd3ddcd5227de2f09736de32c",
+      "bytes": 14942
+    },
+    {
+      "path": "attendance/src/services/bot-quality-service.js",
+      "sha256": "6f4bde7837040eecf1ed5f5a09f763035d4f09ee17d55371c80fc0f58a120818",
+      "bytes": 5690
+    },
+    {
+      "path": "attendance/src/services/bot-question-answer-observation.js",
+      "sha256": "f74742b468a2edd4d693978af1cbeaed5ed8470c0592e90024d277cc791ca502",
+      "bytes": 4353
+    },
+    {
+      "path": "attendance/src/services/bot-rating-service.js",
+      "sha256": "0b2d4a8a6dc4e61a0433f4add8491c93944ac2a339c47b5fcbcabbddb3e861f9",
+      "bytes": 17082
+    },
+    {
+      "path": "attendance/src/services/bot-response-library-service.js",
+      "sha256": "ae21bc2766c09d78534440e21b6d8863c11c6347c44f089742e4beacb029b024",
+      "bytes": 6689
+    },
+    {
+      "path": "attendance/src/services/bot-response-service.js",
+      "sha256": "ababee6775772f46df47caebc781a4fdf1d7923100974aeb22edb8662c947818",
+      "bytes": 6793
+    },
+    {
+      "path": "attendance/src/services/bot-schedule-utils.js",
+      "sha256": "80338a21748a768beb12fd1f2aa09db86af42494cc2dde96deb011cef973a450",
+      "bytes": 4338
+    },
+    {
+      "path": "attendance/src/services/bot-sector-intake-service.js",
+      "sha256": "6d454a4ba4515481f1f22e7367f806ab67d3f493223221fa97d623fb53343066",
+      "bytes": 20927
+    },
+    {
+      "path": "attendance/src/services/bot-semantic-normalizer.js",
+      "sha256": "3bd39a70cb1eff864672e379540034a397377405275ec8ca97b109b8149d7da7",
+      "bytes": 6486
+    },
+    {
+      "path": "attendance/src/services/bot-service.js",
+      "sha256": "3b7ecca8b6d40930af0be03c3581f90e63dd9761093e5ecbf0d8fb041b462720",
+      "bytes": 16861
+    },
+    {
+      "path": "attendance/src/services/bot-simulator-service.js",
+      "sha256": "5475c4a8c9b8ca11f40c71c97a218040a6e0009776d11ca0c1316dab6d470a7d",
+      "bytes": 4423
+    },
+    {
+      "path": "attendance/src/services/bot-social-behavior-service.js",
+      "sha256": "5f8c135b67c3e5ffd22a155268737a0065555c6611cc60d8301ff533e707b0f2",
+      "bytes": 2130
+    },
+    {
+      "path": "attendance/src/services/bot-suggestion-service.js",
+      "sha256": "9a905283f0427af21c331c64ea803dd42dfb358fe1334a3c415bba05e72911f4",
+      "bytes": 5055
+    },
+    {
+      "path": "attendance/src/services/bot-tool-orchestrator-service.js",
+      "sha256": "2a2c743e2fddd9e96d14b746f0bf5dd29caae03cda5a50549832714ef61b0483",
+      "bytes": 4757
+    },
+    {
+      "path": "attendance/src/services/bot-tools/bot-tool.js",
+      "sha256": "b88ef8d3ffd0de205acb9fb1d43dc5fc1311df831d790420bf31107f87ee83df",
+      "bytes": 3723
+    },
+    {
+      "path": "attendance/src/services/bot-tools/tool-registry.js",
+      "sha256": "8e203df9fc5a057046e90662687c99761c34bad349bdb50f0014acdffe1f9d32",
+      "bytes": 1942
+    },
+    {
+      "path": "attendance/src/services/bot-tools/tools/invoice-tool.js",
+      "sha256": "39ab98d01dce6c40796bad721531a5d6d5f8f441cebf18c5ad170df3256f7f79",
+      "bytes": 447
+    },
+    {
+      "path": "attendance/src/services/bot-tools/tools/order-tool.js",
+      "sha256": "9209fe9b0bb65ebd514c379827b8ff9d147ce22be95633d67d4a316c7f9b9989",
+      "bytes": 611
+    },
+    {
+      "path": "attendance/src/services/bot-tools/tools/payment-tool.js",
+      "sha256": "26a10433426a9f24e140e1cff03566fffd2a47076fd9649809787f1ae14d1472",
+      "bytes": 607
+    },
+    {
+      "path": "attendance/src/services/bot-tools/tools/product-tool.js",
+      "sha256": "e4e61429f5df1484f6d93624eb223ce334aa2bdea1d123345eec3bc38aa4dfec",
+      "bytes": 473
+    },
+    {
+      "path": "attendance/src/services/bot-tools/tools/serial-number-tool.js",
+      "sha256": "954084817a613b4d4e7f22dfa2de9b8e6843166cacf7510e200470f9634c0151",
+      "bytes": 464
+    },
+    {
+      "path": "attendance/src/services/bot-tools/tools/tracking-tool.js",
+      "sha256": "c7d5709c2d74f9b73ba22c9104748ae1d357fb87861326d81fe76a32e5a48445",
+      "bytes": 683
+    },
+    {
+      "path": "attendance/src/services/bot-tools/tools/warranty-tool.js",
+      "sha256": "92d0eb112aaff8d5ccec48eeb8a2331fde5e848a171f7bd518b38b23ef133e69",
+      "bytes": 477
+    },
+    {
+      "path": "attendance/src/services/bot-version-service.js",
+      "sha256": "212b2092d67962ed360accdc33e6db33855524e11a587cf817abee70e818f6ff",
+      "bytes": 7966
+    },
+    {
+      "path": "attendance/src/services/bot-visual-flow-engine.js",
+      "sha256": "e2d2af984b1dfbdb0e0d473dcfb1ec6f1ea9de233b4d4fb22a0660226f9d84dd",
+      "bytes": 34403
+    },
+    {
+      "path": "attendance/src/services/bot-visual-flow-graph.js",
+      "sha256": "1324cd51ee1dbad25b7e5dcaefe3cccade0afbd7b264c5e76c059f5e05e477dc",
+      "bytes": 30203
+    },
+    {
+      "path": "attendance/src/services/bot-visual-flow-service.js",
+      "sha256": "fdfb9e550ca35919ea83b8c7f393751a448f835eed32841a37e14663f636f921",
+      "bytes": 63216
+    },
+    {
+      "path": "attendance/src/services/bulk-send-rules.js",
+      "sha256": "aedeb38ec955bc570b960e3397e04bf51d330ede9680cb727ab4d6e9b790a573",
+      "bytes": 13566
+    },
+    {
+      "path": "attendance/src/services/business-hours-service.js",
+      "sha256": "e01d4a1f9f69a08f653b9be6dbbef75a2089aa0bfd9bc437da5760a071e762f5",
+      "bytes": 7722
+    },
+    {
+      "path": "attendance/src/services/campaign-constants.js",
+      "sha256": "9798a1b532fee0dfa1994202612fdf7ac53d2e0988e2687fc7867ccff618c8ff",
+      "bytes": 2371
+    },
+    {
+      "path": "attendance/src/services/campaign-csv-service.js",
+      "sha256": "ccca5e39d854d938488551e6a055a88168a8a15a0f12346fd5aceeab8d545eba",
+      "bytes": 2377
+    },
+    {
+      "path": "attendance/src/services/campaign-export-service.js",
+      "sha256": "7b057602b486c936dbf7bcd23e7dc55dc1b5ba4cfb6d1811313f23f328e63c48",
+      "bytes": 2520
+    },
+    {
+      "path": "attendance/src/services/campaign-import-service.js",
+      "sha256": "611bf0929384d16f97d67fdfcb2afee994316426877a4423e235cee4bb2730a9",
+      "bytes": 7934
+    },
+    {
+      "path": "attendance/src/services/campaign-metrics-service.js",
+      "sha256": "f7ed48acf424dc450e8911d434ef98e6695544e351aae892b5f9e19786347656",
+      "bytes": 1925
+    },
+    {
+      "path": "attendance/src/services/campaign-optout-service.js",
+      "sha256": "fa9a07b7341e1defac79cd7ad86c4b2668438a51b822a621efca7bcf3e5eaa03",
+      "bytes": 4772
+    },
+    {
+      "path": "attendance/src/services/campaign-phone-service.js",
+      "sha256": "44ebd3699e33456b8dec5920b1cae3aa1efcc068a48173c2767eecf0feeb368f",
+      "bytes": 780
+    },
+    {
+      "path": "attendance/src/services/campaign-reply-service.js",
+      "sha256": "2e1a5439637f3634b657ab5ff818ee06878a1ccf0d1e1cd43fdafab8e9d2156e",
+      "bytes": 5426
+    },
+    {
+      "path": "attendance/src/services/campaign-service.js",
+      "sha256": "83717a87e20603a1b19c921e578d7c813f974b394d5a71c540ba0c1293d2a561",
+      "bytes": 21500
+    },
+    {
+      "path": "attendance/src/services/campaign-settings-service.js",
+      "sha256": "9741de70bdbc013fbb8e5898cb6bba71afa26b8791099fd70b87fc6c4aa08db8",
+      "bytes": 2982
+    },
+    {
+      "path": "attendance/src/services/campaign-worker-service.js",
+      "sha256": "777a0beead46283e818f37d506f16e0bfe8ae3fdf41c3baaee72d9a21937d7aa",
+      "bytes": 15771
+    },
+    {
+      "path": "attendance/src/services/central-identity-crypto.js",
+      "sha256": "8b06c0abd543ecdf404a38f0887b0e3e5f1e7676fd4c3197df1d4e653907d78c",
+      "bytes": 2810
+    },
+    {
+      "path": "attendance/src/services/central-identity-grants.js",
+      "sha256": "ea67d1b9aee03585dc71f8cf02cb5f473763d211776a127fd74b7509a3dc9971",
+      "bytes": 2437
+    },
+    {
+      "path": "attendance/src/services/central-password-service.js",
+      "sha256": "91b140ead093e3c88a129e67de8d21edc56d2380b70c1ba7539c0e483412fb03",
+      "bytes": 2381
+    },
+    {
+      "path": "attendance/src/services/channels/amazon-adapter.js",
+      "sha256": "59d1b1567a708d70fd52dabb8790f95f3932cb8cc5d0bac2a363d578c9ba2ecd",
+      "bytes": 2225
+    },
+    {
+      "path": "attendance/src/services/channels/channel-account-service.js",
+      "sha256": "28cf2c113787f3605c79f04e8d53ae4110f793267580416ab420eb46c412afe4",
+      "bytes": 24961
+    },
+    {
+      "path": "attendance/src/services/channels/channel-adapter-registry.js",
+      "sha256": "3e1cf6b060cd320ae6f3fce22a3a3c1ca75646ac72e05f13f062371b23cd5fc8",
+      "bytes": 1957
+    },
+    {
+      "path": "attendance/src/services/channels/channel-adapter.js",
+      "sha256": "01df8879a9514ca0b92f3a8d84f2bc1c6e58acae4d7f5394b619f80c3274ae8b",
+      "bytes": 3237
+    },
+    {
+      "path": "attendance/src/services/channels/channel-constants.js",
+      "sha256": "9af4ad3b056068c075e7691bf894828363464368966f675f0a124eac5303f08c",
+      "bytes": 4131
+    },
+    {
+      "path": "attendance/src/services/channels/channel-event-normalizer.js",
+      "sha256": "4b0b2421cfa31d10a4482501b71d0e80f574b3cfe306129fedeea151211587bc",
+      "bytes": 1193
+    },
+    {
+      "path": "attendance/src/services/channels/channel-message-service.js",
+      "sha256": "0104f901b45db6d7f41fce2841ccccc7ec223ddb901da94fa51d630e2c3a949b",
+      "bytes": 5386
+    },
+    {
+      "path": "attendance/src/services/channels/email-adapter.js",
+      "sha256": "b83e997b8a49081fcb651c449e842979b2f6315ddba850fd15e8406222c0ea3b",
+      "bytes": 16281
+    },
+    {
+      "path": "attendance/src/services/channels/external-event-service.js",
+      "sha256": "5a425e37c263328b8e3bf4b9341cdb76b52b0ea1141d317cef2495fb8b07f20a",
+      "bytes": 1754
+    },
+    {
+      "path": "attendance/src/services/channels/gmail-sync-service.js",
+      "sha256": "ae1771d11f2484d1a70903165b9eebfa334c92761a5948a810e01e79522527ef",
+      "bytes": 9923
+    },
+    {
+      "path": "attendance/src/services/channels/google-reviews-adapter.js",
+      "sha256": "c3b8d5e509fb59ca168f5da143aafabede0d3230f2df23b35327921a1f8ca5d9",
+      "bytes": 2306
+    },
+    {
+      "path": "attendance/src/services/channels/integration-global-settings-service.js",
+      "sha256": "cf10b693b9456c7721b53c0b04d810e8217ffc122ae0403714542cc41786d3db",
+      "bytes": 4262
+    },
+    {
+      "path": "attendance/src/services/channels/integration-oauth-service.js",
+      "sha256": "aa4b68189baa67ed43832d4dca279f8d0034d547456bc072f3f7c7fd03973310",
+      "bytes": 9653
+    },
+    {
+      "path": "attendance/src/services/channels/integration-secret-service.js",
+      "sha256": "b587dcd29271df4a0d83f905fc0eceea5f743c298e1bdcc2d90c80d6de4ea436",
+      "bytes": 952
+    },
+    {
+      "path": "attendance/src/services/channels/mercado-livre-adapter.js",
+      "sha256": "c42318aaaaa2a362de7250846c6cf81e465d6670099a7365ac0d6e8a9401dbb7",
+      "bytes": 7881
+    },
+    {
+      "path": "attendance/src/services/channels/meta-adapter.js",
+      "sha256": "a45a2eed1ce0aaf80b8ef19db2017cf10eb871bb7f4a22b11f756ef3afb7a866",
+      "bytes": 3911
+    },
+    {
+      "path": "attendance/src/services/channels/meta-messaging-adapter.js",
+      "sha256": "7563b2ef65410e991248cfeb71d3cea4118e63b4531e4aed5a7fe124444a5315",
+      "bytes": 14711
+    },
+    {
+      "path": "attendance/src/services/channels/oauth-providers.js",
+      "sha256": "3123648e4be4305e969a303e2038c9b6dfc25922d9e129cdbf83b11e6029ba89",
+      "bytes": 3620
+    },
+    {
+      "path": "attendance/src/services/channels/omnichannel-message-service.js",
+      "sha256": "fd8af519d5ae00500cdd5d83b3e8146d160f15dd8b30be4621da4ee69f0b683c",
+      "bytes": 6565
+    },
+    {
+      "path": "attendance/src/services/channels/reclame-aqui-adapter.js",
+      "sha256": "a6a628ea02531efdce5ec09a6d598c141ac4649c5bfc9f4aa1b9162d36ce0143",
+      "bytes": 1548
+    },
+    {
+      "path": "attendance/src/services/channels/shopee-adapter.js",
+      "sha256": "86f5b94066601025d7ebdc4aad1a31bd403676504f0b3002aa008fb9ba1623ba",
+      "bytes": 1086
+    },
+    {
+      "path": "attendance/src/services/channels/social-content-mapping-service.js",
+      "sha256": "c3fced56b2fb2a48c63a95116cf19a4d0dd99961367bb4bf4bb67e2cf6e24b0a",
+      "bytes": 4008
+    },
+    {
+      "path": "attendance/src/services/channels/social-media-link-service.js",
+      "sha256": "979c08fda00253cf490d4fdb28b26974de7d93668583787e1a429fa5a16b57b0",
+      "bytes": 2725
+    },
+    {
+      "path": "attendance/src/services/channels/social-moderation-service.js",
+      "sha256": "e1e17d63cc9db58acc8b48558cb68e1457e32f5754d58148dfc3ed97f230c543",
+      "bytes": 3979
+    },
+    {
+      "path": "attendance/src/services/channels/social-webhook-routing.js",
+      "sha256": "c2d5568cbce3fbf81022efcf062802e6beffaec5c841c93d25c0e8733d9e7714",
+      "bytes": 1540
+    },
+    {
+      "path": "attendance/src/services/channels/tiktok-shop-adapter.js",
+      "sha256": "e5e24c66424d8457947e3a071a59ab7fd88afa28dd138819931a82a2e8dc7656",
+      "bytes": 1854
+    },
+    {
+      "path": "attendance/src/services/commercial-template-owner-service.js",
+      "sha256": "3abfdd07db7b26faee1753cf2f1c1285c5eaf413517721876336583f57bc88f5",
+      "bytes": 8228
+    },
+    {
+      "path": "attendance/src/services/company-service.js",
+      "sha256": "412e31f3d56e11bce0c3b3a24364b5f8c5f3f90c30f6b1a73463a32dbe33a04d",
+      "bytes": 13553
+    },
+    {
+      "path": "attendance/src/services/contact-merge-service.js",
+      "sha256": "414f1c0254b9dc12be0ba8fcf47c385919badb453ceda0b3c0c2441bc752bf6f",
+      "bytes": 5309
+    },
+    {
+      "path": "attendance/src/services/contact-profile-service.js",
+      "sha256": "c87d64f914a4790a8dc177ed2bb7bbacef0c58c65a7f24bc716770ed245d982a",
+      "bytes": 16678
+    },
+    {
+      "path": "attendance/src/services/conversation-analytics-service.js",
+      "sha256": "2147334a1ddc1b2d463ffcaead380b78dad28c877fd19787034468da746c2a74",
+      "bytes": 41439
+    },
+    {
+      "path": "attendance/src/services/conversation-inactivity-service.js",
+      "sha256": "780b30523141bb7ac66bbd58f96eaa1f5b3718a9085bc72464e52aec6cd9efef",
+      "bytes": 3910
+    },
+    {
+      "path": "attendance/src/services/conversation-report-constants.js",
+      "sha256": "6da14a23f3126bf4be90d1a1b0686d9875fb6fc07a0ec98fe66a5d59207e3ec7",
+      "bytes": 1439
+    },
+    {
+      "path": "attendance/src/services/conversation-report-filters-service.js",
+      "sha256": "2907b3a8566e331b9f5eeb28648913a71abec5b25f7d8a27f30ada783a696779",
+      "bytes": 4578
+    },
+    {
+      "path": "attendance/src/services/conversation-service.js",
+      "sha256": "9736122a11ad14880803a6f637040b75241b304473ca0e22b77a58d1f970227a",
+      "bytes": 4640
+    },
+    {
+      "path": "attendance/src/services/conversation-settings-service.js",
+      "sha256": "91eb9e7e999fedba7f05dfef2b1b5d20061872782146a2212fb780a8f1b54c23",
+      "bytes": 9918
+    },
+    {
+      "path": "attendance/src/services/conversation-sla-service.js",
+      "sha256": "ebc598738e9eb8a63d852aa61fc2a87a8e03f6884f37e0a98073e38d41983e87",
+      "bytes": 12017
+    },
+    {
+      "path": "attendance/src/services/crm-access-service.js",
+      "sha256": "a4e66498f9615f794991363337b4c07138718bd15958312e6e0e6e30420de709",
+      "bytes": 4431
+    },
+    {
+      "path": "attendance/src/services/crm-contact-service.js",
+      "sha256": "7a4ef0be0d7928edfd392613b34c7b7b8717afb38d20c5e16ec95d877ea16926",
+      "bytes": 9404
+    },
+    {
+      "path": "attendance/src/services/crm-conversation-context.js",
+      "sha256": "53495eadcd522e74d686b33c364df787a85f6d51c24f58cbaa4cc1d15211c571",
+      "bytes": 2235
+    },
+    {
+      "path": "attendance/src/services/crm-proposal-service.js",
+      "sha256": "6cf44cc80c4770819b631d573fce2fca8c3e36bc2466e78b322c06d5b536cf2e",
+      "bytes": 3403
+    },
+    {
+      "path": "attendance/src/services/crm-timeline-service.js",
+      "sha256": "de1d8f00be16cd4a1744489ec9d769e943570ec16ed2a8a3de050f7dc028af38",
+      "bytes": 1672
+    },
+    {
+      "path": "attendance/src/services/cross-company-contact-warning.js",
+      "sha256": "e15ec0699f4eac685d98d817cda817b5ccb303a533d2ad7b7a794c4a3dd7d561",
+      "bytes": 3126
+    },
+    {
+      "path": "attendance/src/services/crypto/secret-vault-service.js",
+      "sha256": "5330392a8c69ec77e617c4bcb123c0108cbda01974f6167464255f6d434247fb",
+      "bytes": 2824
+    },
+    {
+      "path": "attendance/src/services/email-mailbox-query.js",
+      "sha256": "d89093154d7eaf10387f34320340d249870ed1c71c4b340187c9deac4b50ebbc",
+      "bytes": 826
+    },
+    {
+      "path": "attendance/src/services/external-lead-service.js",
+      "sha256": "2e938a4f700dab1227a0b20d5739e5e8153a52abd2d853c2da14859d0f7b3085",
+      "bytes": 2903
+    },
+    {
+      "path": "attendance/src/services/file-risk-service.js",
+      "sha256": "22b8736382304a719fbd47f8608e7e5ea568a786b75112dd74a1f3ef437cd8c1",
+      "bytes": 4693
+    },
+    {
+      "path": "attendance/src/services/flow-builder-migration-service.js",
+      "sha256": "bd731218dae5327d8b857ddb343f5776a69a96a1d70e5cb268cb418b088d50f7",
+      "bytes": 13852
+    },
+    {
+      "path": "attendance/src/services/follow-up-service.js",
+      "sha256": "0aab221db8d6e7e63161bca76ae444ec5e67bc561f91cf69dd151415421ed529",
+      "bytes": 39244
+    },
+    {
+      "path": "attendance/src/services/global-intent-service.js",
+      "sha256": "e55d733e4e1bbe615bb2e526e66eeef2a4a37825dc2f8de55cd22b4151cd0415",
+      "bytes": 10219
+    },
+    {
+      "path": "attendance/src/services/inbound-category-service.js",
+      "sha256": "f2cdac96b7a05e57eaba1bb103913645a966a6c352eafee1f0e463239c86dbc7",
+      "bytes": 1286
+    },
+    {
+      "path": "attendance/src/services/inbound-flood-guard-service.js",
+      "sha256": "439237e31f9c145718091d30a8b43c50a5137eec87babba7788abbd324803ec4",
+      "bytes": 2457
+    },
+    {
+      "path": "attendance/src/services/inbox-pagination.js",
+      "sha256": "ff4ba580f9f2d4706815d9c68108d2dd301d478544598a3d7f7e07ae7349a4ed",
+      "bytes": 2301
+    },
+    {
+      "path": "attendance/src/services/inbox-service.js",
+      "sha256": "572d3b7f4c0d27a00df20bbf3f14a98b4846a93a4420f2bcd4a8bf4d80490f06",
+      "bytes": 97529
+    },
+    {
+      "path": "attendance/src/services/internal-chat-service.js",
+      "sha256": "7f4831723ef55ff91d4a1227ecad533b5bb1de4fe445272fcf9753548a1183ab",
+      "bytes": 37337
+    },
+    {
+      "path": "attendance/src/services/internal-message-page-service.js",
+      "sha256": "279ef2f1012f06b6f94a3e2ef030b16ae2555418bf30b03bb97571eff6fcf41b",
+      "bytes": 1962
+    },
+    {
+      "path": "attendance/src/services/jpeg-pages-pdf.js",
+      "sha256": "628e516ebbe049d581ffc6c8a33fa49e6552751641ac865552db99bdbce0d93f",
+      "bytes": 2671
+    },
+    {
+      "path": "attendance/src/services/local-ai-queue.js",
+      "sha256": "4b9713736a559816475c2cf7fc7a09ff2601be70b2a286673fb893fa7b31e9af",
+      "bytes": 2012
+    },
+    {
+      "path": "attendance/src/services/local-ai-settings-service.js",
+      "sha256": "2952b64f5d722b779b14c5f9dd435d832e8c3a3c21dc606e90804df4538bc67d",
+      "bytes": 3380
+    },
+    {
+      "path": "attendance/src/services/local-ai-status-service.js",
+      "sha256": "ea4e56d52b03484dbcc825884c805e7323b385930b33b00a47ef6986a0c26b6c",
+      "bytes": 3543
+    },
+    {
+      "path": "attendance/src/services/master-unread-service.js",
+      "sha256": "030fc31606e91ffa9107bb4f9ac5574685e7549b338930f10f4f4c64986c4195",
+      "bytes": 1420
+    },
+    {
+      "path": "attendance/src/services/media-conversion-service.js",
+      "sha256": "57022f91383f0e189174e8bf74e74ca5083f31b8c6d985338152670ec4da9680",
+      "bytes": 11328
+    },
+    {
+      "path": "attendance/src/services/media-storage-service.js",
+      "sha256": "495b35c44405279909de6ecd7c715280741a399de40cd1c6fe29a8564df5fe24",
+      "bytes": 11772
+    },
+    {
+      "path": "attendance/src/services/message-service.js",
+      "sha256": "f72d58f0c2c6d032f06965fef6981de0c63fb31632a9e1025148d6aee92b3e04",
+      "bytes": 33508
+    },
+    {
+      "path": "attendance/src/services/meta-cost-service.js",
+      "sha256": "c2a7651cdb4778b187bd536cb2e5f5bcd225e5f6ad8ce1dcaf911139f7710949",
+      "bytes": 23576
+    },
+    {
+      "path": "attendance/src/services/meta-template-service.js",
+      "sha256": "04e69a724e403fcdfdc9e27e1c3f32cc7717320c6ec9c71aec58f87cd59aefca",
+      "bytes": 17408
+    },
+    {
+      "path": "attendance/src/services/meta-webhook-routing-service.js",
+      "sha256": "e6aa466c35e922962d16a0112df4b3a859b36243df6cc3f021576897eea9e0b4",
+      "bytes": 1193
+    },
+    {
+      "path": "attendance/src/services/mibro-assistant-question-answer.js",
+      "sha256": "d382ddfb231ce9eed1932505f86a28601933ec684b813785d0ca2787b285074c",
+      "bytes": 11976
+    },
+    {
+      "path": "attendance/src/services/operation-time.js",
+      "sha256": "dacdd2aae77da20b8d880b38e469d3cf04374418893d7bcb5cd6367ddd711645",
+      "bytes": 3463
+    },
+    {
+      "path": "attendance/src/services/operational-health-service.js",
+      "sha256": "a55fda921ac7ede54790345068b514ab0bd7887f4bf6e62049aacd98240408b2",
+      "bytes": 9316
+    },
+    {
+      "path": "attendance/src/services/operations-panel-service.js",
+      "sha256": "b798d87ddd9d358336fb809c4b5e36ce0024d4b521d10214488fa5288262c181",
+      "bytes": 21365
+    },
+    {
+      "path": "attendance/src/services/outbound-bulk-service.js",
+      "sha256": "bf7e7a1ab76ae2d8d6ed2bd9bb7f28eb2c0f0c2373d9966477e1cb6bf37c6960",
+      "bytes": 32069
+    },
+    {
+      "path": "attendance/src/services/outbound-conversation-service.js",
+      "sha256": "4cea44d5c35a278686b6dd14c97f60f3c6a32727cd9300eca24194baae028239",
+      "bytes": 18443
+    },
+    {
+      "path": "attendance/src/services/post-triage-assistant-policy.js",
+      "sha256": "fb332e39908bb99c4ec63d08de828328ada09fc5af96aa1ba37695250caca5f8",
+      "bytes": 326
+    },
+    {
+      "path": "attendance/src/services/post-triage-release-migration.js",
+      "sha256": "016cce62da3b67af48525a8cbcb10d6b805721bfd8bdd0023046b2beb575aff2",
+      "bytes": 3853
+    },
+    {
+      "path": "attendance/src/services/preferred-assignee-routing-service.js",
+      "sha256": "ced0df1926d8177846c12b04f06efe585a5cb09de36e785c0273426cd7693d09",
+      "bytes": 5881
+    },
+    {
+      "path": "attendance/src/services/preferred-assignee-service.js",
+      "sha256": "fded7c5c0302e83aaf2e51edac7916cbf616c77394c93787673e369bb23ce8b8",
+      "bytes": 8584
+    },
+    {
+      "path": "attendance/src/services/private-segment-service.js",
+      "sha256": "46e173928adb69cc10e906bcc52c5b37d4b176a7c73040f71d2904acdf66febe",
+      "bytes": 6550
+    },
+    {
+      "path": "attendance/src/services/productivity-service.js",
+      "sha256": "b2e35542e2e087d7785f557e21ce27718c7ab6cb81b7e8ee4119ed3155e3731a",
+      "bytes": 31050
+    },
+    {
+      "path": "attendance/src/services/push-endpoint-policy.js",
+      "sha256": "9e2d135243f55ea15c91a2f9c2ccd122464085233d5c4723f591e9f3352ad874",
+      "bytes": 884
+    },
+    {
+      "path": "attendance/src/services/push-service.js",
+      "sha256": "a104aab8282ed07ee6704acba7d199b0c72aa2344880289982160d49a3b1c272",
+      "bytes": 6872
+    },
+    {
+      "path": "attendance/src/services/quick-reply-service.js",
+      "sha256": "50dc3b24121bcb865994d338f6035315469da9729f15b55cf191688b4e24b72e",
+      "bytes": 39275
+    },
+    {
+      "path": "attendance/src/services/quick-reply-template-service.js",
+      "sha256": "6b4e467791c62b2a0612cb61fd2a536d1f10927768c57fcb07b05deda95d1b4b",
+      "bytes": 2045
+    },
+    {
+      "path": "attendance/src/services/report-access-service.js",
+      "sha256": "755890b03ea427b312a4bb10211b18e8e71c206880369811b814b64dd2a05de8",
+      "bytes": 5104
+    },
+    {
+      "path": "attendance/src/services/report-business-time-service.js",
+      "sha256": "e5db634fb3288d490d4376519891a56811d79c1e7ffd0d15a5ca3c601582c9ca",
+      "bytes": 3832
+    },
+    {
+      "path": "attendance/src/services/sincrofit-entry-patterns.js",
+      "sha256": "1b9af040c38628a32d8aed98bb04bd1d94a2a23781f5503744d8958696cb8858",
+      "bytes": 3122
+    },
+    {
+      "path": "attendance/src/services/sincrofit-entry-report-service.js",
+      "sha256": "7f38c0370e390f34b3b9ba26c0a9d870a7ddfa636f7644c8aa7938b1f3066f8d",
+      "bytes": 2660
+    },
+    {
+      "path": "attendance/src/services/supervision-service.js",
+      "sha256": "aa1252528af085468cda70592cce2af5627de8597d94733756345f4638ee6f44",
+      "bytes": 20682
+    },
+    {
+      "path": "attendance/src/services/supervision-window-batch-service.js",
+      "sha256": "bfe3cf3a976c6144ee67307f92deb6599217c73662d559b5d5c5da372e51d6f1",
+      "bytes": 1964
+    },
+    {
+      "path": "attendance/src/services/team-message-formatter.js",
+      "sha256": "28759f950058c02fdcca8d6372337bf7cbd6c6c09263817f9438f7b9ba1ea665",
+      "bytes": 595
+    },
+    {
+      "path": "attendance/src/services/technical-assistance-intake.js",
+      "sha256": "f47fadae2984fda6d2e654562e4a9e27457e7b758608c13faab7ef94a3568df9",
+      "bytes": 2556
+    },
+    {
+      "path": "attendance/src/services/template-initial-category-service.js",
+      "sha256": "ec9c098a87c90f0cd8db4fa088e5cc831565f7410d91185aa15f108bc033005d",
+      "bytes": 10030
+    },
+    {
+      "path": "attendance/src/services/template-performance-service.js",
+      "sha256": "61365851027b90214072dcdd0430da86043aa93a1ce20fd8674631ffaf5f20bf",
+      "bytes": 15734
+    },
+    {
+      "path": "attendance/src/services/template-routing-service.js",
+      "sha256": "c595970f15878f173d84ab7bcc871fab184da4f0a35d6ac8f28cc0efdb7acf2c",
+      "bytes": 13154
+    },
+    {
+      "path": "attendance/src/services/triage-bot-service.js",
+      "sha256": "89b6bf61b54e83bb8591cf19a5d2f6a525f496758d04fef8900cc01feae27b2c",
+      "bytes": 26402
+    },
+    {
+      "path": "attendance/src/services/user-management-service.js",
+      "sha256": "2dfa4c41bf11b7531f604e5cef0e2e3e247639b02229c5abc8244c89f7897e72",
+      "bytes": 15201
+    },
+    {
+      "path": "attendance/src/services/whatsapp-account-service.js",
+      "sha256": "84bf4395d40636709a83ed94cb5141a810244dd9d5ba10e8b06fd2fd735a0a59",
+      "bytes": 8664
+    },
+    {
+      "path": "attendance/src/services/whatsapp-inbox-service.js",
+      "sha256": "96d65d9227122c24e276cd09b8547d299ab408a31a505d5ec8b07d5e560bdd32",
+      "bytes": 6484
+    },
+    {
+      "path": "crm/.dockerignore",
+      "sha256": "d99fd9093b20d255cf32b88a9dc936e14e7db916df61055628ec9315a01687f3",
+      "bytes": 191
+    },
+    {
+      "path": "crm/next-env.d.ts",
+      "sha256": "f4e8976c19fc926644d72610bf1058bd6bf52add97e46a02bc0b912a751625c0",
+      "bytes": 268
+    },
+    {
+      "path": "crm/next.config.mjs",
+      "sha256": "487da9e71b41f9405582c3cdfdc4774ec46824579ed6e3b05598f1983a262159",
+      "bytes": 981
+    },
+    {
+      "path": "crm/package-lock.json",
+      "sha256": "15c644dc2d2f2deb8fbb0e65c91fd6e5c8dcf20226e655ba7884177fc06b26f3",
+      "bytes": 367852
+    },
+    {
+      "path": "crm/package.json",
+      "sha256": "bc32c3605281866d9081277fc26e1c58f85cf7278f2ee36f588783e255b00bb7",
+      "bytes": 2317
+    },
+    {
+      "path": "crm/postcss.config.mjs",
+      "sha256": "2f6c0dbf91ffd04b282b3b75010352ef17889858c7d435abd8f98555890bdaab",
+      "bytes": 113
+    },
+    {
+      "path": "crm/prisma/bootstrap-admin.ts",
+      "sha256": "3c37c6eba3aff0045a59ca7661dc315a40322270f4a156d317136a0599d946e0",
+      "bytes": 1029
+    },
+    {
+      "path": "crm/prisma/migrations/20260828120458_init/migration.sql",
+      "sha256": "0f2a26053a5de596c3ed2f6a2ddb3ede0e59fe05bddc84f5a5c77b327ff55912",
+      "bytes": 12671
+    },
+    {
+      "path": "crm/prisma/migrations/20260828123048_add_crm_session_token/migration.sql",
+      "sha256": "2880846ae65f3df307f29f19e2b797715b8e5b27413821f904558d0b2f9322fd",
+      "bytes": 1323
+    },
+    {
+      "path": "crm/prisma/migrations/20260828130000_split_user_seller_profile_and_location/migration.sql",
+      "sha256": "f88c3e171db03d6330667b9b4952b28303fa65e6108837cd5c3a7e17576a2607",
+      "bytes": 3323
+    },
+    {
+      "path": "crm/prisma/migrations/20260831122758_add_proposal_mode/migration.sql",
+      "sha256": "b537d38b3f86ba276f3f573d82f188abcb3b326f1520b247576666502e993a90",
+      "bytes": 1609
+    },
+    {
+      "path": "crm/prisma/migrations/20260831200000_location_capture_quote_unique/migration.sql",
+      "sha256": "2d5d80af5544b1e1910cbeb0d9c9395b982d50570f568f5ffe66663aa3055cab",
+      "bytes": 634
+    },
+    {
+      "path": "crm/prisma/migrations/20260831210000_team_followup_transfer/migration.sql",
+      "sha256": "4979eb25ff266a362602f03395082fc29acb9ac4ed07c1631f064dcab4eea612",
+      "bytes": 1987
+    },
+    {
+      "path": "crm/prisma/migrations/20260901090000_time_clock/migration.sql",
+      "sha256": "44ba20191f82c54afa0867d747c6d41e4e19b2e9793a4d5e01e733d2d11343cd",
+      "bytes": 1234
+    },
+    {
+      "path": "crm/prisma/migrations/20260902141733_time_clock_occurrences_documents_corrections/migration.sql",
+      "sha256": "8bb58ea3352cef2a17254a26c3ce4ed2d4239702e5e470ef181675b39efacb90",
+      "bytes": 4336
+    },
+    {
+      "path": "crm/prisma/migrations/20260903113922_sales_goals_notifications/migration.sql",
+      "sha256": "42f5bfe703d9e6a5d6a1af627abaae5efc5549cbb9d2aa3e24841631075209a9",
+      "bytes": 2465
+    },
+    {
+      "path": "crm/prisma/migrations/20260908113000_multi_brand_proposals/migration.sql",
+      "sha256": "61c96f14a1997ec910bce0530906b3f6110bd694e16e98988c3d6438bde4ccfa",
+      "bytes": 958
+    },
+    {
+      "path": "crm/prisma/migrations/20260909092000_individual_customer_transfer_permission/migration.sql",
+      "sha256": "22fe04c764216e80a8a3f2b8cc6239720c776c40cabb5dac60389bb14bfd40a4",
+      "bytes": 90
+    },
+    {
+      "path": "crm/prisma/migrations/20260909100000_customer_creation_location/migration.sql",
+      "sha256": "d56f51730d7afc92c47edf086e17b96fcc567c364b7ea420a459b70f87821e2c",
+      "bytes": 72
+    },
+    {
+      "path": "crm/prisma/migrations/20260909110000_representative_role/migration.sql",
+      "sha256": "04b6151984d1071e587a16e32b5a8122deac56ef16ef348de933c7854965c099",
+      "bytes": 59
+    },
+    {
+      "path": "crm/prisma/migrations/20260909123000_supervisor_create_team_users/migration.sql",
+      "sha256": "223dfab8a0660b904c7356863e78779a6f2d249cebfe03ef5f3b74c5bb6ad526",
+      "bytes": 83
+    },
+    {
+      "path": "crm/prisma/migrations/20260910100000_user_history_passkeys/migration.sql",
+      "sha256": "01b32f4a1c664368df6939c991eeb8d18482e3c0db5a517a9dd8d7f7c7d34cc1",
+      "bytes": 896
+    },
+    {
+      "path": "crm/prisma/migrations/20260910183000_customer_commercial_profile/migration.sql",
+      "sha256": "e1ff2f5a6da49f026b5979070475ea163a609a49068fdfd5534107875971a737",
+      "bytes": 800
+    },
+    {
+      "path": "crm/prisma/migrations/20260917100000_customer_interest_both_brands/migration.sql",
+      "sha256": "b0bdf76091bbc239eda3c4fa142da4929fca2663dad1e7a6cdf544c4ffe7305e",
+      "bytes": 229
+    },
+    {
+      "path": "crm/prisma/migrations/20260918100000_sales_ops_reminders_commissions/migration.sql",
+      "sha256": "f8e97d8e0f45b196fa8ecb73f043e32868f4294a48df2a9fe33fae2fc1989f3c",
+      "bytes": 2770
+    },
+    {
+      "path": "crm/prisma/migrations/20260921120000_customer_sp_region/migration.sql",
+      "sha256": "8dff809fcc49d271f4af56107e45d05ad9f3aadead20cd0a118db1869e849e66",
+      "bytes": 116
+    },
+    {
+      "path": "crm/prisma/migrations/20260930120000_pipeline_funnel_rca_commission/migration.sql",
+      "sha256": "b577026092ea401433cb764270d4f394fe735c8c9184026b1464370ca1524a66",
+      "bytes": 7294
+    },
+    {
+      "path": "crm/prisma/migrations/20261002140000_customer_additional_phones/migration.sql",
+      "sha256": "0d1987e1dd4c73016351672cee565e047bc926931be01720373ebdce1f2f58ed",
+      "bytes": 195
+    },
+    {
+      "path": "crm/prisma/migrations/20261005150000_agenda_appointments/migration.sql",
+      "sha256": "d5010dba9125a1028d319a7747115f6671267c5bc2797fded66e0db06ba93229",
+      "bytes": 2420
+    },
+    {
+      "path": "crm/prisma/migrations/20261005180000_simulation_quote_trash/migration.sql",
+      "sha256": "8f0bfc4f14b31bc963e2a87116a667548baae71ce98b7d664b4800380c1d8ba3",
+      "bytes": 224
+    },
+    {
+      "path": "crm/prisma/migrations/20261005190000_agenda_color_participants/migration.sql",
+      "sha256": "387c4d15c5ae1a133d86eb99e58a463f0b12e0ce02e02bc2adf0c5391267e6a0",
+      "bytes": 844
+    },
+    {
+      "path": "crm/prisma/migrations/20261008144106_commercial_price_tables/migration.sql",
+      "sha256": "039812f36e5804b2d37ef128bea6cedca97de56af6b64f97045ed6525384da85",
+      "bytes": 7198
+    },
+    {
+      "path": "crm/prisma/migrations/20261008155712_quote_created_notifications/migration.sql",
+      "sha256": "3b7872e827415ef2e6082c4a91e260efc353aae8887c6ca820727ec2a4bac5fe",
+      "bytes": 404
+    },
+    {
+      "path": "crm/prisma/migrations/20261008173609_olist_sync_attempts/migration.sql",
+      "sha256": "94b9a888528d97d35d0c35dbf1ac20cf51272e26947500178944dec17f74dc6c",
+      "bytes": 1232
+    },
+    {
+      "path": "crm/prisma/migrations/20261020160000_central_contact_link/migration.sql",
+      "sha256": "16d135ca5eacaa3f10c726cc1aca49acc2fe7d8d9fe50a05b8dcfc5440db9bae",
+      "bytes": 757
+    },
+    {
+      "path": "crm/prisma/migrations/20261020180000_central_identity_bridge/migration.sql",
+      "sha256": "1e8be1f46f962266d5ed2d7d5fcd8317937d1265e1486a22e3ee117bce7c7a21",
+      "bytes": 926
+    },
+    {
+      "path": "crm/prisma/migrations/migration_lock.toml",
+      "sha256": "99836963713b4f5b269ad49af0ed3d7b0b2e336115c2f92dc9ac683d139d0900",
+      "bytes": 128
+    },
+    {
+      "path": "crm/prisma/schema.prisma",
+      "sha256": "45d96a5532210ffcbe6aadb401b776160c49717a1ccbd248430fe00ceef2b169",
+      "bytes": 53686
+    },
+    {
+      "path": "crm/prisma/seed-pricing.ts",
+      "sha256": "96b7274e22815c4f6ab7bd045aa385e1c5f8228c4106ea78dd277e0316ed0bc5",
+      "bytes": 3924
+    },
+    {
+      "path": "crm/prisma/seed.ts",
+      "sha256": "44688dff97f1d7bbca4f98b64803e63fe3ff10bea4727b9d03346085df04fa4b",
+      "bytes": 9924
+    },
+    {
+      "path": "crm/public/.gitkeep",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "crm/public/modelo-importacao-clientes.csv",
+      "sha256": "3f3a3cd42071eff946b67cfbb0cd64bb0050ff28532c3b7a419eab61d13e8e47",
+      "bytes": 588
+    },
+    {
+      "path": "crm/src/app/(app)/admin/clientes/page.tsx",
+      "sha256": "640187feadf9b614e5c02bf0e54b7f2da87743fb477b741b1ce8221b0cfc266e",
+      "bytes": 3035
+    },
+    {
+      "path": "crm/src/app/(app)/admin/commission-defaults-form.tsx",
+      "sha256": "9f75c1b5c1b4a8a8f99b9bee76a9ee916b1a719d7d4d1487cfab83822036bb63",
+      "bytes": 2584
+    },
+    {
+      "path": "crm/src/app/(app)/admin/configuracoes/page.tsx",
+      "sha256": "d3a3557cef5f1b829b823714e6e59cec093ed0efdb029eced50dc937030496a5",
+      "bytes": 333
+    },
+    {
+      "path": "crm/src/app/(app)/admin/layout.tsx",
+      "sha256": "b7742e60f1952f3c0f01271a049a6ea6cb7cabed7e47d562c3bafa544c9940bd",
+      "bytes": 527
+    },
+    {
+      "path": "crm/src/app/(app)/admin/mapa/map-view.tsx",
+      "sha256": "a7658b1f0ed64bd229750f9e39f18761f8ee468297fc647549d6c2571ef9367b",
+      "bytes": 4997
+    },
+    {
+      "path": "crm/src/app/(app)/admin/mapa/mapa-client.tsx",
+      "sha256": "3b13f7b242d5c8b4d3d2e337493a0592c70edaf0cdfdf8f6cfa24d8c2ab928b6",
+      "bytes": 12653
+    },
+    {
+      "path": "crm/src/app/(app)/admin/mapa/page.tsx",
+      "sha256": "974129a026d90735f19c22d4dc7b3b31a1c78ce37b91f0e1ea25778739b51a34",
+      "bytes": 425
+    },
+    {
+      "path": "crm/src/app/(app)/admin/mapa/types.ts",
+      "sha256": "5848463407d08bee691d79bcaa511ce01b99900377beef4864e14bf43f83e27b",
+      "bytes": 916
+    },
+    {
+      "path": "crm/src/app/(app)/admin/page.tsx",
+      "sha256": "aa40bfad82c2b972bbe140248035f04bfc338c2417763f048bfabf3b270d52d0",
+      "bytes": 4500
+    },
+    {
+      "path": "crm/src/app/(app)/admin/ponto/page.tsx",
+      "sha256": "09929c03eb5b6e4d83c2e2d232e53be54bc17d86cebc6497ab95bdd6aabab83c",
+      "bytes": 816
+    },
+    {
+      "path": "crm/src/app/(app)/admin/relatorios/page.tsx",
+      "sha256": "a03ab2ad3639e05bb3d359616afe7d74b47f937839672ec693577ea2801ceed9",
+      "bytes": 319
+    },
+    {
+      "path": "crm/src/app/(app)/admin/vendas/page.tsx",
+      "sha256": "7a58449734a920e94a2904b75f12a7028227aa61afe4881e7e712922785a7cc0",
+      "bytes": 2214
+    },
+    {
+      "path": "crm/src/app/(app)/admin/vendedores/new-seller-form.tsx",
+      "sha256": "0ae80f0cb60f1016d1d4ef7f8a22b622685139923e1cb4010316f40431653dc3",
+      "bytes": 3738
+    },
+    {
+      "path": "crm/src/app/(app)/admin/vendedores/page.tsx",
+      "sha256": "251d687548c71f4b8ca2230981e1a0713414a98ff2ad359f7eafd65fda0b6a8f",
+      "bytes": 2594
+    },
+    {
+      "path": "crm/src/app/(app)/admin/vendedores/[id]/delete-user-button.tsx",
+      "sha256": "769265252aae108feb1eeaf59c63bbc05477e7d4dfc6a0d74e6a6b8a97ede2fc",
+      "bytes": 1147
+    },
+    {
+      "path": "crm/src/app/(app)/admin/vendedores/[id]/edit-seller-form.tsx",
+      "sha256": "1269038e033cd748112354bd18178888e7147bc3d21596828a330a11ab694e46",
+      "bytes": 14363
+    },
+    {
+      "path": "crm/src/app/(app)/admin/vendedores/[id]/page.tsx",
+      "sha256": "e6aa569a42be70c42d7e124201c553d199cac21bc6966f2d80960b2c4091ef9b",
+      "bytes": 8166
+    },
+    {
+      "path": "crm/src/app/(app)/admin/vendedores/[id]/seller-locations-map.tsx",
+      "sha256": "7ed2755a00f4a595348d4a46329e8b79712aa57cf4ef0807e0fd39a66506bf2e",
+      "bytes": 726
+    },
+    {
+      "path": "crm/src/app/(app)/agenda/agenda-client.tsx",
+      "sha256": "a7469a02aa006a21c8b2650e7c159da96aef475381f78001d0cedbcdeb9933b0",
+      "bytes": 20864
+    },
+    {
+      "path": "crm/src/app/(app)/agenda/loading.tsx",
+      "sha256": "2934fe11d25e4fa402ac77d39807b627b842d38acae7f79e43dea99e7a7b2b14",
+      "bytes": 355
+    },
+    {
+      "path": "crm/src/app/(app)/agenda/page.tsx",
+      "sha256": "07be40c6a75d32f4b66579077bd6a5adc112222dced6a040ce9ed4f1ed77d9cc",
+      "bytes": 2597
+    },
+    {
+      "path": "crm/src/app/(app)/atendimento/page.tsx",
+      "sha256": "b569b393b167bdcc0c61803272d7f339f5670d90bf622c1d94eb6aa67ce44132",
+      "bytes": 351
+    },
+    {
+      "path": "crm/src/app/(app)/atividades/page.tsx",
+      "sha256": "62703784b6393b5cb87b993bb9139e3264679f0543a55e89713926a92dbeaca0",
+      "bytes": 382
+    },
+    {
+      "path": "crm/src/app/(app)/clientes/bulk-transfer-controls.tsx",
+      "sha256": "f84532d718f713c32a9810aaa111274a6ab588b83f05182ca63619277b32cfcc",
+      "bytes": 3684
+    },
+    {
+      "path": "crm/src/app/(app)/clientes/funil/page.tsx",
+      "sha256": "2a009160401913536fc38f2e1ab35632a5754f632284ab2b71aba26582b16fa0",
+      "bytes": 394
+    },
+    {
+      "path": "crm/src/app/(app)/clientes/loading.tsx",
+      "sha256": "55430326579aa136f03f8fb70aff0f751175d71ef9815f372fe201dd4f92a466",
+      "bytes": 500
+    },
+    {
+      "path": "crm/src/app/(app)/clientes/novo/import-customers-form.tsx",
+      "sha256": "c12106a4caa4335b057941203e27f8c758556bb2dee9ae3c717ea95a29d47e32",
+      "bytes": 10815
+    },
+    {
+      "path": "crm/src/app/(app)/clientes/novo/new-customer-form.tsx",
+      "sha256": "bca1078ad7acb653e0342f1a781cab596f7478b2a33543dc222b27ebc91d662b",
+      "bytes": 20047
+    },
+    {
+      "path": "crm/src/app/(app)/clientes/novo/page.tsx",
+      "sha256": "ceb64230cd168adc259d7a10ea5cf390e17170b1a0ab0d1ff28b6c927fb332a1",
+      "bytes": 2122
+    },
+    {
+      "path": "crm/src/app/(app)/clientes/page.tsx",
+      "sha256": "84449ebc4dbdf62caed64b2e2ad2227e6234c1bd1c7ce14087464b72054a9df4",
+      "bytes": 24838
+    },
+    {
+      "path": "crm/src/app/(app)/clientes/pipeline-board.tsx",
+      "sha256": "51b67403b93b41b3cbc923f2429b52a45790762e574cf24ba093a66d884d8033",
+      "bytes": 33952
+    },
+    {
+      "path": "crm/src/app/(app)/clientes/[id]/activity-form.tsx",
+      "sha256": "549018dbba2546f91f3c40ff10865e0b61f310060900c9b0a8b2783f7d6f1a85",
+      "bytes": 3411
+    },
+    {
+      "path": "crm/src/app/(app)/clientes/[id]/customer-pipeline-panel.tsx",
+      "sha256": "4114fbbb3d869ae1a625f515637bf163319c087b64e71c82f0dc71f4212a030c",
+      "bytes": 4766
+    },
+    {
+      "path": "crm/src/app/(app)/clientes/[id]/customer-transfer-form.tsx",
+      "sha256": "2b2ad613141e5bb1479e00d037ae7c98df0906d1fe885c3fc79872c814c8b57c",
+      "bytes": 2062
+    },
+    {
+      "path": "crm/src/app/(app)/clientes/[id]/delete-customer-button.tsx",
+      "sha256": "db1a5d1ecd90ea868be5961dfd652d04f5d0d95ecfb1d92a32fc1cafb439f0a7",
+      "bytes": 1681
+    },
+    {
+      "path": "crm/src/app/(app)/clientes/[id]/edit-customer-form.tsx",
+      "sha256": "c5db952daa251eee8016d3d32f5cc58362b0eed114bdbbf6aed7924c8fbff7ad",
+      "bytes": 10016
+    },
+    {
+      "path": "crm/src/app/(app)/clientes/[id]/page.tsx",
+      "sha256": "b9c0f2244acf8dad3ce08172067cf829aee6622a86bc7d2baefe229fedded959",
+      "bytes": 28735
+    },
+    {
+      "path": "crm/src/app/(app)/clientes/[id]/quote-session-button.tsx",
+      "sha256": "6e48fd188333e2d8d3bb6dbe172592eb6335f15680bef7de418569f7fafc7d00",
+      "bytes": 8331
+    },
+    {
+      "path": "crm/src/app/(app)/clientes/[id]/schedule-appointment-button.tsx",
+      "sha256": "d743ff73c9d74499df5219f10d0772487129e308a05c2d3ad50b02b1fc73e1df",
+      "bytes": 1785
+    },
+    {
+      "path": "crm/src/app/(app)/clientes/[id]/status-editor.tsx",
+      "sha256": "d1cf7de3af31f5adc4a8c3abb234623de2aa6e1d8044462d06544a5b86344e80",
+      "bytes": 1653
+    },
+    {
+      "path": "crm/src/app/(app)/contas/[id]/historico/page.tsx",
+      "sha256": "4500602fe66ae47dac9d59fead49ea5942803d910b4b35e7650567fc0a7f0f13",
+      "bytes": 4414
+    },
+    {
+      "path": "crm/src/app/(app)/cotacoes/excluidas/page.tsx",
+      "sha256": "7e0383195507c4f48ac13043f04db82b0d89272255df00897a39b9637b6ac087",
+      "bytes": 2485
+    },
+    {
+      "path": "crm/src/app/(app)/cotacoes/nova/page.tsx",
+      "sha256": "383469050810ae0f1220c65a6147e80692564b18f9117451f57d1b00983742ea",
+      "bytes": 3454
+    },
+    {
+      "path": "crm/src/app/(app)/cotacoes/nova/quick-customer-form.tsx",
+      "sha256": "0370ce3332804e6f7b92357d2766124684e71d901b5847969aa02840ce7285e0",
+      "bytes": 4981
+    },
+    {
+      "path": "crm/src/app/(app)/cotacoes/nova/quote-builder.tsx",
+      "sha256": "49fcbf1c6a99af38ae102285eb19d096ee8f770239cc2d73d2f5f57d0c0bb55e",
+      "bytes": 33762
+    },
+    {
+      "path": "crm/src/app/(app)/cotacoes/page.tsx",
+      "sha256": "b7599790034385c6da49f8e88f9457e289ab12ab0cbb778ccb33f74a95802f2c",
+      "bytes": 11999
+    },
+    {
+      "path": "crm/src/app/(app)/cotacoes/quote-trash-button.tsx",
+      "sha256": "f06b195d7cef4a50503e2443ec9952d274c5aa6ef3f33532e17c6f1278c3feac",
+      "bytes": 1405
+    },
+    {
+      "path": "crm/src/app/(app)/cotacoes/[id]/page.tsx",
+      "sha256": "a4dd0741202e5de5009c3fcb4b1c323f3554a1f05eccfd406a55be9fcd47035e",
+      "bytes": 21428
+    },
+    {
+      "path": "crm/src/app/(app)/cotacoes/[id]/real-order-panel.tsx",
+      "sha256": "2f73931de9853f7b3e197b6d6a6cf038220767ffc7d51c66ba4a6ebbc8f5b887",
+      "bytes": 9377
+    },
+    {
+      "path": "crm/src/app/(app)/dashboard/employee-dashboard.tsx",
+      "sha256": "d098f32eca5fc655a711cec769d02cf7949fa1fcc791580be8a4f12aea357667",
+      "bytes": 5590
+    },
+    {
+      "path": "crm/src/app/(app)/dashboard/page.tsx",
+      "sha256": "46df2852912ddd26d1e9ddc395cbdb09e9cbb949f5bd421106566485c45fc929",
+      "bytes": 1726
+    },
+    {
+      "path": "crm/src/app/(app)/dashboard/supervisor-dashboard.tsx",
+      "sha256": "8ab9aeab56201d2d3322cbebfd5bea640c1b793f1320469ac8373c261fdfab2e",
+      "bytes": 14725
+    },
+    {
+      "path": "crm/src/app/(app)/dashboard/time-clock-reminder.tsx",
+      "sha256": "56abff88a99a03c482b0150bef52fa32b09d8743857fc836f803aa53bfaceb42",
+      "bytes": 2446
+    },
+    {
+      "path": "crm/src/app/(app)/envios-whatsapp/page.tsx",
+      "sha256": "e398f96dfc46e4993b2ce89432f1c3535926925e24186ffa9ce135ebec0f8016",
+      "bytes": 401
+    },
+    {
+      "path": "crm/src/app/(app)/envios-whatsapp/whatsapp-contacts.tsx",
+      "sha256": "2fc2b36d2e4c8d047235d071778821caaa0a38b4f51560d5950ae035bdd8c913",
+      "bytes": 11868
+    },
+    {
+      "path": "crm/src/app/(app)/equipe/page.tsx",
+      "sha256": "28b140845ca5ce62d93557324d336c89a1294fff27fa1293ba65b5159196728f",
+      "bytes": 10081
+    },
+    {
+      "path": "crm/src/app/(app)/equipe/ponto/page.tsx",
+      "sha256": "e0c6fc42f65fe0ff1e54f22bf6d4bf110424c86674426f4f652cf3feb1aa5353",
+      "bytes": 823
+    },
+    {
+      "path": "crm/src/app/(app)/equipe/team-member-form.tsx",
+      "sha256": "062443991d20ad3ad8c229fea18d2641801f83e09e7aeb8274a19750c185fced",
+      "bytes": 2672
+    },
+    {
+      "path": "crm/src/app/(app)/equipe/team-settings-form.tsx",
+      "sha256": "f93200c8fbb8c8566be08870503b44e5a3ffa41140bf85a7a911db3dc247c15f",
+      "bytes": 16718
+    },
+    {
+      "path": "crm/src/app/(app)/equipe/[id]/page.tsx",
+      "sha256": "ebca629b11cb05df74af1b69d97dbfc13ce69e2187617a13aeef4e8bb7794328",
+      "bytes": 642
+    },
+    {
+      "path": "crm/src/app/(app)/equipe/[id]/team-member-dashboard.tsx",
+      "sha256": "ddff4bb331d071bc9ea0ffa3d4df1c3fd1b72f17fe6a922361e0df675b0f02b5",
+      "bytes": 7471
+    },
+    {
+      "path": "crm/src/app/(app)/follow-ups/followup-actions.tsx",
+      "sha256": "ff0043ac0c552507526b1e90f55054f70afd7d87bd67e50ce63e5cdd3b0a67fd",
+      "bytes": 1323
+    },
+    {
+      "path": "crm/src/app/(app)/follow-ups/page.tsx",
+      "sha256": "16debf0185d59e4ded12cf7c9ecdbc7d0decbabc3261529fb9f89b6c570e822c",
+      "bytes": 5274
+    },
+    {
+      "path": "crm/src/app/(app)/gestao-comercial/layout.tsx",
+      "sha256": "d7aafd3a6d8ead5c7d24aa75aa066e4b09fdbfa3f6f216e137acb45eaaca4df7",
+      "bytes": 555
+    },
+    {
+      "path": "crm/src/app/(app)/gestao-comercial/precos/page.tsx",
+      "sha256": "643d31771e7a7321a8c01145f142df710bc69288b3c6234c1bd78c9667e84c6c",
+      "bytes": 12645
+    },
+    {
+      "path": "crm/src/app/(app)/gestao-comercial/precos/price-draft-editor.tsx",
+      "sha256": "ef1251bebe365f37cb08e572163c5db6709afb7ff65c75e3c71acf2c5011ec81",
+      "bytes": 11863
+    },
+    {
+      "path": "crm/src/app/(app)/gestao-comercial/precos/product-admin-list.tsx",
+      "sha256": "f84a70257fef837909b77bd3cd1eedca9d7a57f8b720e7b3b96efaf70b324eb8",
+      "bytes": 5679
+    },
+    {
+      "path": "crm/src/app/(app)/layout.tsx",
+      "sha256": "3a5902920d8091757f624090b46909c46d0b06ca463b441041eb0cd34d7c7d63",
+      "bytes": 1437
+    },
+    {
+      "path": "crm/src/app/(app)/loading.tsx",
+      "sha256": "d0dabd38e05adfc18e97b3758ce0545db30e0a8e2a94d36ea67f1551eac09870",
+      "bytes": 597
+    },
+    {
+      "path": "crm/src/app/(app)/metas/goal-form.tsx",
+      "sha256": "79a9d5e3a8c36ea8711ea6cf0429fbb3660b0d93b8141e34d60f4b1296f017f8",
+      "bytes": 4628
+    },
+    {
+      "path": "crm/src/app/(app)/metas/goal-history-list.tsx",
+      "sha256": "02a8d180a043b91056942cbd0d50906cf4af446b11a4e41ccb746af8e535530f",
+      "bytes": 1365
+    },
+    {
+      "path": "crm/src/app/(app)/metas/goal-progress-card.tsx",
+      "sha256": "f285216f0c36753548546f11fdb9cb7e1f9c77c46323ffd6438c8d1ee3f464b8",
+      "bytes": 2619
+    },
+    {
+      "path": "crm/src/app/(app)/metas/goal-row-actions.tsx",
+      "sha256": "91afffc35b430eae7c3cb408836a722bb448748f02ab2060ad205be573dbf2f6",
+      "bytes": 1707
+    },
+    {
+      "path": "crm/src/app/(app)/metas/notifications-panel.tsx",
+      "sha256": "a0c3f0a2f6a090bd55fca7f75294c3f77a000dfd98dd0fb5d6958ae0d961f06f",
+      "bytes": 1199
+    },
+    {
+      "path": "crm/src/app/(app)/metas/page.tsx",
+      "sha256": "7b275d4219dda3724fb898dce95e83361c67c3c232561a20fa98f1748307dbf4",
+      "bytes": 4355
+    },
+    {
+      "path": "crm/src/app/(app)/metas/team-goals-table.tsx",
+      "sha256": "d1fb68fbbdf88a78d1102083da352312a2881c90f70091fc9f6c74428a59cb40",
+      "bytes": 2940
+    },
+    {
+      "path": "crm/src/app/(app)/perfil/change-password-form.tsx",
+      "sha256": "5575307fc492c0107a6d5e579c8cbece041b6112d551d6811a818898d1c46a64",
+      "bytes": 3682
+    },
+    {
+      "path": "crm/src/app/(app)/perfil/page.tsx",
+      "sha256": "3d17120a5355c032be90d01a55eaa72524f06c09f1d0083fe4eed16c463d760b",
+      "bytes": 5936
+    },
+    {
+      "path": "crm/src/app/(app)/perfil/passkey-setup-card.tsx",
+      "sha256": "aff1f4af70eaf597d0ce0764d838582288e1d6a2b82181fb5a571e77b423a115",
+      "bytes": 2314
+    },
+    {
+      "path": "crm/src/app/(app)/perfil/profile-form.tsx",
+      "sha256": "10c69402e8259c0f4f6e86a38b1ba8df4f17e7a57bf71e61f82a9c5e89080fbe",
+      "bytes": 1748
+    },
+    {
+      "path": "crm/src/app/(app)/perfil/time-clock-card.tsx",
+      "sha256": "d3cb7aaa94db9b34efdc3b8115a1ca5af438bd3e91c816eb0f76b931630294a0",
+      "bytes": 14542
+    },
+    {
+      "path": "crm/src/app/(app)/perfil/tutorial-modal.tsx",
+      "sha256": "095ccc036b0ad77a0e349b6675600c7d0efce9330635aff074fd19262f0c30e5",
+      "bytes": 13926
+    },
+    {
+      "path": "crm/src/app/(app)/ponto/occurrences-panel.tsx",
+      "sha256": "5de634adb8fe04f839375b7d34ef45ce1f043d4f7a23226f2327d12309c5ba3a",
+      "bytes": 6332
+    },
+    {
+      "path": "crm/src/app/(app)/ponto/page.tsx",
+      "sha256": "62914581cb331b7a4ba68b958a18b604396d7ff7ec7438a2d3eb14d06599613a",
+      "bytes": 3779
+    },
+    {
+      "path": "crm/src/app/(app)/ponto/ponto-history.tsx",
+      "sha256": "699768e4010711c139e0b178c47948c7105581d2e43a581ca14f53fea059069c",
+      "bytes": 5989
+    },
+    {
+      "path": "crm/src/app/(app)/tabela-precos/page.tsx",
+      "sha256": "758fc25178cff8e4500ac2940c48d092faa241d8b23765d8a575fa06e13bf2ba",
+      "bytes": 5236
+    },
+    {
+      "path": "crm/src/app/(app)/vendas/page.tsx",
+      "sha256": "7d236304c3742e3453191ba45246d03b84c2d2b4bba9fdaa567c0b89d6eec2cb",
+      "bytes": 5732
+    },
+    {
+      "path": "crm/src/app/(app)/vendas/sale-commission-editor.tsx",
+      "sha256": "b379218fb0ccb7e23d4b34d01bbb221dea7b56064579cdcb9a7cdbed6b3b2c89",
+      "bytes": 2094
+    },
+    {
+      "path": "crm/src/app/api/activity-center/route.ts",
+      "sha256": "9bb58eb32528a27766d248d5f89410f7791c4a3c55e6e3ea23c5e75c5d5ce7f0",
+      "bytes": 3232
+    },
+    {
+      "path": "crm/src/app/api/admin/commission-defaults/route.ts",
+      "sha256": "2580b45e2d82d9a0eafd2e3a9c7b3de1697a39dd88f542cdfe7c7c2ab85a9fc6",
+      "bytes": 2088
+    },
+    {
+      "path": "crm/src/app/api/admin/location-captures/route.ts",
+      "sha256": "297710fcd4356ac85bfdf8967c08c16d8feefbc7accd5e309fabdfc21a9ebd77",
+      "bytes": 8702
+    },
+    {
+      "path": "crm/src/app/api/admin/time-clock/entries/[id]/route.ts",
+      "sha256": "185480a06f940378610338102789acac6740e0b047d50f9deb85c574d5a4a9c2",
+      "bytes": 2579
+    },
+    {
+      "path": "crm/src/app/api/admin/time-clock/occurrences/[id]/route.ts",
+      "sha256": "b8448f76e6038d672d99c57ce86e3389bde2b0cea2cf964a491ee9d50f3c44ef",
+      "bytes": 1699
+    },
+    {
+      "path": "crm/src/app/api/admin/time-clock/route.ts",
+      "sha256": "ae3e4316d29a29dfa5467b3d129011576f9b27b2571599b758a8c2ab3a993ca8",
+      "bytes": 2558
+    },
+    {
+      "path": "crm/src/app/api/agenda/customers/route.ts",
+      "sha256": "37c0529af1ec258a7c169640347f79078365f2905c2779c6f4c4a58d67521ddc",
+      "bytes": 1651
+    },
+    {
+      "path": "crm/src/app/api/agenda/reminders/route.ts",
+      "sha256": "8fd45ea04c98c1c9a1e7252d2fcf02689fd922e5c6c5dab21accfb7404a0ba84",
+      "bytes": 1244
+    },
+    {
+      "path": "crm/src/app/api/agenda/route.ts",
+      "sha256": "d1552c9e1e35af38a0fd0dfc1a7b5eca02e97f581ee7b41634741680f0a14f99",
+      "bytes": 7669
+    },
+    {
+      "path": "crm/src/app/api/agenda/[id]/route.ts",
+      "sha256": "51c103be24047f529e6fa699c7fc5c11f2000182b110ded60f26f79164641d22",
+      "bytes": 9093
+    },
+    {
+      "path": "crm/src/app/api/attendance-context/route.ts",
+      "sha256": "27bb1360c01a2936f0a0e1d628fdd561e05f665761146850f7ea1ed02801c9fc",
+      "bytes": 5502
+    },
+    {
+      "path": "crm/src/app/api/attendance-documents/[id]/route.ts",
+      "sha256": "653547639cf895b22c843b99431347d273b9b48e7aa1b9939ae8fefb4ff2f26d",
+      "bytes": 1625
+    },
+    {
+      "path": "crm/src/app/api/auth/[...nextauth]/route.ts",
+      "sha256": "c3e8185d66af3fe7019dd236a463365cce7e1e8dcaea2a7c3b8f0b103e930ce4",
+      "bytes": 75
+    },
+    {
+      "path": "crm/src/app/api/central/[action]/route.ts",
+      "sha256": "d2a6b8b56ac151883c2511b987848bd907be3a3c479fa20cbe2d05f7299777ea",
+      "bytes": 7017
+    },
+    {
+      "path": "crm/src/app/api/central-center/route.ts",
+      "sha256": "a0c8de1fac33dff8bc0a9e02b5e2302a62db2f6ffd6822b826a9a9125646616c",
+      "bytes": 6297
+    },
+    {
+      "path": "crm/src/app/api/central-contact-link/route.ts",
+      "sha256": "bed149ec53323ce91c1d483a692c5be1803fef2aee6877a39790072e4f57732c",
+      "bytes": 1954
+    },
+    {
+      "path": "crm/src/app/api/commercial/price-tables/route.ts",
+      "sha256": "99668c0564120e2b8592ffb528edd685dbe03ba1f88e718fad5d83d58c34630f",
+      "bytes": 1651
+    },
+    {
+      "path": "crm/src/app/api/commercial/price-tables/[id]/archive/route.ts",
+      "sha256": "c2995bfdfb7bfa90e120b4e4e104f5c6329eee4939eb3028954b40abe5a7a3ec",
+      "bytes": 1097
+    },
+    {
+      "path": "crm/src/app/api/commercial/price-tables/[id]/entries/route.ts",
+      "sha256": "b8cda65fcf84a258906f48f44c7b11ad08aa2f4135df84658cda9199a8770055",
+      "bytes": 1262
+    },
+    {
+      "path": "crm/src/app/api/commercial/price-tables/[id]/publish/route.ts",
+      "sha256": "4e4211d86905d42dcede6d5bc0ff24b38255accce9bbb15391a3a8e6695075d8",
+      "bytes": 1370
+    },
+    {
+      "path": "crm/src/app/api/commercial/products/[id]/route.ts",
+      "sha256": "622984a2425ae68f6b60015fcef9c4fdc4e93d3d1272a07b84045f14d64248fa",
+      "bytes": 1510
+    },
+    {
+      "path": "crm/src/app/api/customer-timeline/route.ts",
+      "sha256": "07df1180e61dae725159fa7fe3211720165fa9ad21e09906116e55e377fac81d",
+      "bytes": 3350
+    },
+    {
+      "path": "crm/src/app/api/customers/bulk-transfer/route.ts",
+      "sha256": "f755af4db142bef003d21923c0d1c0dc01bfa647b0009dca5ab4f903a54e6c31",
+      "bytes": 2667
+    },
+    {
+      "path": "crm/src/app/api/customers/check-duplicate/route.ts",
+      "sha256": "48dfa45f83b24c5cd04e982122423174725dddf12b123b6ced7ca814e2f84507",
+      "bytes": 737
+    },
+    {
+      "path": "crm/src/app/api/customers/export/route.ts",
+      "sha256": "cae86055d968b960623e595a86938f4ea9ac2e4173eecb9c6074e17fcbdccae2",
+      "bytes": 7045
+    },
+    {
+      "path": "crm/src/app/api/customers/import/route.ts",
+      "sha256": "24e96a44c106d3783d105a15c6e1605618d4afd2c25c28ad33a57e769a30d9a3",
+      "bytes": 11946
+    },
+    {
+      "path": "crm/src/app/api/customers/route.ts",
+      "sha256": "2f53aa87530313929046460a5e9f260309e56e80244952b5f6e587755956757d",
+      "bytes": 9553
+    },
+    {
+      "path": "crm/src/app/api/customers/[id]/activities/route.ts",
+      "sha256": "c71d6fb65e05368ea40b4b28c40d6cef83a63db065742edf14aa92cc6e47658d",
+      "bytes": 5546
+    },
+    {
+      "path": "crm/src/app/api/customers/[id]/contact-attempts/route.ts",
+      "sha256": "7c27d4de94f8038581f341ae70961a283be7c0421e4ce03828cda1bf266eddbe",
+      "bytes": 2761
+    },
+    {
+      "path": "crm/src/app/api/customers/[id]/quote-session/route.ts",
+      "sha256": "9ea4070e01a4d0758c4cfacde15e85147db038a75d3e41ddb92797076ae18d4d",
+      "bytes": 5494
+    },
+    {
+      "path": "crm/src/app/api/customers/[id]/route.ts",
+      "sha256": "d72b07402692c7629d2b4d63e2cd5cff1ec3e6511429de60f1ca19755a1e4b90",
+      "bytes": 10451
+    },
+    {
+      "path": "crm/src/app/api/customers/[id]/stage/route.ts",
+      "sha256": "7c73660619b12e8c5eca9e25f3d1df4c1460804b7969cb5103cf890a221a3be2",
+      "bytes": 4262
+    },
+    {
+      "path": "crm/src/app/api/customers/[id]/status/route.ts",
+      "sha256": "e68f67d46eefecb274289c2cd9575559b04066c9d06a18a13b2cbcf7f58e9d04",
+      "bytes": 3773
+    },
+    {
+      "path": "crm/src/app/api/customers/[id]/transfer/route.ts",
+      "sha256": "1dffc119fb9b5b39d5764cbd3bdcb4e9a148cf71538d40eb1008025bcc51aa08",
+      "bytes": 1022
+    },
+    {
+      "path": "crm/src/app/api/followups/route.ts",
+      "sha256": "f408c86b7a1b5a9687ac1f2ca0477a186198e0720937094ea07128a82f0e6764",
+      "bytes": 1966
+    },
+    {
+      "path": "crm/src/app/api/followups/[id]/route.ts",
+      "sha256": "238c9972ddde2b09a65ab3a680ae0b7a81688e958a50efc93e310446fcc9e0a7",
+      "bytes": 2491
+    },
+    {
+      "path": "crm/src/app/api/goals/route.ts",
+      "sha256": "5745df1609a617567b2c7450ccedc6002807d3f02f3ead97a494796a52a5bd92",
+      "bytes": 4433
+    },
+    {
+      "path": "crm/src/app/api/goals/[id]/route.ts",
+      "sha256": "e555ea2aeae5718f95c51871881487e5657b11081d28bf0592314dbca4660378",
+      "bytes": 4078
+    },
+    {
+      "path": "crm/src/app/api/health/route.ts",
+      "sha256": "86486ffc69d3af0327e01de58a4a58b20415e080bdc7f2c6c04f8d346f9dbc75",
+      "bytes": 377
+    },
+    {
+      "path": "crm/src/app/api/integrations/olist/orders/status/route.ts",
+      "sha256": "ef4b6b32761524ac0eb5197ee159dc0839662faa89c496802cece0dfe39fca0a",
+      "bytes": 1285
+    },
+    {
+      "path": "crm/src/app/api/integrations/shopify/quotes/upsert/route.ts",
+      "sha256": "cd95cb70938c21a2468643197e30503c7ceec96ddaff03c32c0448f271426f7c",
+      "bytes": 12429
+    },
+    {
+      "path": "crm/src/app/api/integrations/shopify/session/resolve/route.ts",
+      "sha256": "bc2dc9e0814b42e193a82b1d97f24e6d7fc9c1a0507f22addf3a752e85421d17",
+      "bytes": 2351
+    },
+    {
+      "path": "crm/src/app/api/notifications/route.ts",
+      "sha256": "8437dcbe3c6c886775a27c2baae7816a292a579e9f2fe90a5bcd47989644da9c",
+      "bytes": 952
+    },
+    {
+      "path": "crm/src/app/api/notifications/[id]/route.ts",
+      "sha256": "02c26a90b78fd4efe77aaceb7c7f1dfa3f50fd10c99a69bd177b274a5f4e0c9a",
+      "bytes": 783
+    },
+    {
+      "path": "crm/src/app/api/pipeline/cards/route.ts",
+      "sha256": "a187b4905f217e576773407dc568a42be4cd639301bdf72deaf17ce5166896b4",
+      "bytes": 1509
+    },
+    {
+      "path": "crm/src/app/api/pricing/catalog/route.ts",
+      "sha256": "58aff714a7236afd069254fe5d1e7cb626515aa19fc09de0a148ed68ce7a439d",
+      "bytes": 2204
+    },
+    {
+      "path": "crm/src/app/api/profile/passkeys/register/options/route.ts",
+      "sha256": "22d62cfa25b98165e398034a78711be5884d3447485a7987ea5becc2ac3c3fdf",
+      "bytes": 1588
+    },
+    {
+      "path": "crm/src/app/api/profile/passkeys/register/verify/route.ts",
+      "sha256": "831f18999ac69dd3dcf6bb1d81227b6a38424daa456bed0e97ebe016a4bfec3d",
+      "bytes": 2409
+    },
+    {
+      "path": "crm/src/app/api/profile/password/route.ts",
+      "sha256": "fb180b2925a2bccf64d1c7474bf4fc481db4760f1446de06e11442eecfd28d76",
+      "bytes": 4340
+    },
+    {
+      "path": "crm/src/app/api/profile/route.ts",
+      "sha256": "61b99e64d9b94e91aff61e13b986001d439236db3a1d5cd4ac68438b89940b7c",
+      "bytes": 2586
+    },
+    {
+      "path": "crm/src/app/api/profile/time-clock/auth/options/route.ts",
+      "sha256": "8cffcb785b9bf5e0667ff7ca857f258c755b0d082c536c7690ff49fe4619a946",
+      "bytes": 1705
+    },
+    {
+      "path": "crm/src/app/api/profile/time-clock/occurrences/route.ts",
+      "sha256": "7bf704dfd9ea4b21d5256d2e86e22b994c78223df2d48ed924a70a86c0d7231e",
+      "bytes": 2691
+    },
+    {
+      "path": "crm/src/app/api/profile/time-clock/occurrences/[id]/documents/route.ts",
+      "sha256": "80996f9cc9e489926ea2da611a1a9c4737ae5a4418c288ef79f3e206e95d8ba0",
+      "bytes": 2413
+    },
+    {
+      "path": "crm/src/app/api/profile/time-clock/route.ts",
+      "sha256": "fe81ec6b313d9923aa8dfccaa79f23a84870328a50e7cccfb40de7408ecbebf8",
+      "bytes": 9560
+    },
+    {
+      "path": "crm/src/app/api/quote-whatsapp/route.ts",
+      "sha256": "9a3d619aa4e3c3c38de3e31e582fee8f970e25491440e71685d76ec3c60799b7",
+      "bytes": 2932
+    },
+    {
+      "path": "crm/src/app/api/quotes/native/route.ts",
+      "sha256": "e2f42b4ee29b3fc3c73323710b92f0f6c450d4c57cf70e6653d512d35b5a84ae",
+      "bytes": 1836
+    },
+    {
+      "path": "crm/src/app/api/quotes/route.ts",
+      "sha256": "906d78f7afd0c2fd6afbd155c51128bffa71864d566128156c13ebd762efa3dc",
+      "bytes": 1121
+    },
+    {
+      "path": "crm/src/app/api/quotes/[id]/email/route.ts",
+      "sha256": "472ce9cffefba716eab4f69ed555bc6b8f05a8b444d026ddc572e3f527d43ba4",
+      "bytes": 915
+    },
+    {
+      "path": "crm/src/app/api/quotes/[id]/olist/calculate/route.ts",
+      "sha256": "1d0fe371f4fa4a0928c1b86b29f9c92793a5bf4a78be7f16d732e7db368f1b2b",
+      "bytes": 621
+    },
+    {
+      "path": "crm/src/app/api/quotes/[id]/olist/confirm/route.ts",
+      "sha256": "8327bc5988e59d85992b2a5313420acfdb58d20cec9740bd2e02f0358596066d",
+      "bytes": 607
+    },
+    {
+      "path": "crm/src/app/api/quotes/[id]/real-order/route.ts",
+      "sha256": "e22c4c6409960fc8229d424c9d6c546c1de04b7aa4c7baaa5ad6554f4a40bc31",
+      "bytes": 629
+    },
+    {
+      "path": "crm/src/app/api/quotes/[id]/route.ts",
+      "sha256": "593f7300d489c4f94efff4d58be0c784791b30c240c96e8c15df03edf5a7ac46",
+      "bytes": 1356
+    },
+    {
+      "path": "crm/src/app/api/sales/route.ts",
+      "sha256": "376f5e50fa7c2639a4a6c1c8e0432e0cedbcc9ca479fee2f8b5ee722c8b0b58e",
+      "bytes": 790
+    },
+    {
+      "path": "crm/src/app/api/sales/[id]/commission/route.ts",
+      "sha256": "3f8b13866bfb0d15f7aef4cc43b1113c1fc67030e9ad489932f18225be806f8a",
+      "bytes": 3065
+    },
+    {
+      "path": "crm/src/app/api/sales/[id]/route.ts",
+      "sha256": "05a456146c1d292ddc8e942dedd598bc35df1acc21ade575ad49ce5f6528eea0",
+      "bytes": 1818
+    },
+    {
+      "path": "crm/src/app/api/supervisor/dashboard/route.ts",
+      "sha256": "a0bb36644551f7b458c9229b44c5e0f88f01d1b91774e5dae92efd85acc625e3",
+      "bytes": 785
+    },
+    {
+      "path": "crm/src/app/api/supervisor/orders/[id]/follow-up/route.ts",
+      "sha256": "6c4bddbdcb51a6d1acec3f0c20ca0f66e650705b65b7a801c4a41fb4bc1ea0db",
+      "bytes": 1883
+    },
+    {
+      "path": "crm/src/app/api/supervisor/team/[id]/route.ts",
+      "sha256": "7052cf821a806c2c47f6eaf5331c7654ca90584b9e29ad9778dbbf6768b111a4",
+      "bytes": 1064
+    },
+    {
+      "path": "crm/src/app/api/team/settings/route.ts",
+      "sha256": "b2df051c5ff23fb2c38896c00851ffb491b3556b79f6d5be712fad6f525b48f4",
+      "bytes": 8959
+    },
+    {
+      "path": "crm/src/app/api/team/time-clock/entries/[id]/route.ts",
+      "sha256": "b11475c40c5e7ebcf8b8ecaa727fc1314b01a20de283e18f0c1e9ef0b1f41a41",
+      "bytes": 2671
+    },
+    {
+      "path": "crm/src/app/api/team/time-clock/occurrences/[id]/route.ts",
+      "sha256": "c8c3b3b3b0a56bb3be21b797e9118c58a09d915a51946c862c284788f45ad184",
+      "bytes": 2014
+    },
+    {
+      "path": "crm/src/app/api/team/time-clock/route.ts",
+      "sha256": "2e90e2177f724a4a45f1118acb24c4b1f79f16f29c821d5cfbc1e6d88d601e8c",
+      "bytes": 2406
+    },
+    {
+      "path": "crm/src/app/api/team/users/[id]/status/route.ts",
+      "sha256": "757a3846a9f1bbb0bfbc6b274706083255159ce1752048abea8493a667ca6310",
+      "bytes": 1407
+    },
+    {
+      "path": "crm/src/app/api/users/route.ts",
+      "sha256": "fb64f33f02d3dd85805d0587ea649ef18e102b7daa9117f4281decbcaf4319e7",
+      "bytes": 6184
+    },
+    {
+      "path": "crm/src/app/api/users/search/route.ts",
+      "sha256": "ec90ea8adfedcdcee8f87cac895deda0eb2db41f2a5a090acdeb4c2c4e059176",
+      "bytes": 3755
+    },
+    {
+      "path": "crm/src/app/api/users/[id]/representative/route.ts",
+      "sha256": "3a4080825c428d1629f7e0dc0f67a908fd3036cde2625a39de7377b50ca440a1",
+      "bytes": 3389
+    },
+    {
+      "path": "crm/src/app/api/users/[id]/route.ts",
+      "sha256": "c1112fe3b0545c0bca722e38ccc206585464b450e9cd13df042bcbc6039e2998",
+      "bytes": 12765
+    },
+    {
+      "path": "crm/src/app/api/whatsapp-contacts/route.ts",
+      "sha256": "7cc37d714e374e85c55518ce66179d0f28ea7a1d5bd795a1ba05d5e0fc13f11d",
+      "bytes": 6022
+    },
+    {
+      "path": "crm/src/app/central-activities/page.tsx",
+      "sha256": "8a172e5d2c49c999fc90fe66afc521a90660d31901b7dd1695bd7170050ed3e8",
+      "bytes": 520
+    },
+    {
+      "path": "crm/src/app/central-center/page.tsx",
+      "sha256": "947714413866661ab5ea7a6d341e54e6310e1c7857fa80faa3098a2dff1712a0",
+      "bytes": 321
+    },
+    {
+      "path": "crm/src/app/central-context/page.tsx",
+      "sha256": "551cc7d49f7f9b7b2f652d2326dcb584bd4cbbb5b8355df84107d3fd348217df",
+      "bytes": 657
+    },
+    {
+      "path": "crm/src/app/central-import/page.tsx",
+      "sha256": "af8d4a57baa745c6b14b7506f5c155640ca66e301a212eae493a9f7cbdf8e107",
+      "bytes": 298
+    },
+    {
+      "path": "crm/src/app/central-resume/page.tsx",
+      "sha256": "264717810e2f736f549da0561458b0ccb6c47e4ee505b076abe3e17184da415a",
+      "bytes": 405
+    },
+    {
+      "path": "crm/src/app/globals.css",
+      "sha256": "b998865c8c9cee4cfa160bb3ac4de9133f73a4a82a242f94e57103f27b8a891d",
+      "bytes": 5163
+    },
+    {
+      "path": "crm/src/app/layout.tsx",
+      "sha256": "53cddef7527f549b1ece3109108053d5cf5f9ec873e46af4ddde2031c2d95c15",
+      "bytes": 775
+    },
+    {
+      "path": "crm/src/app/login/login-form.tsx",
+      "sha256": "bc395c3eb8697fa67a4261482c60a8c24d2c333fac14e72b5ad6f5b2e6ae798e",
+      "bytes": 1940
+    },
+    {
+      "path": "crm/src/app/login/page.tsx",
+      "sha256": "a0e27594987b92adbf29749012eb4a1138aae337a0a71ad4aa700146d416eaf7",
+      "bytes": 820
+    },
+    {
+      "path": "crm/src/app/page.tsx",
+      "sha256": "524a7f5383b40d8ffdd8fa4beb6c60d521d6743256970a5609a0317f6465b89f",
+      "bytes": 220
+    },
+    {
+      "path": "crm/src/auth.config.ts",
+      "sha256": "96d3214976957c6de4a7a69ad509fb2c0cf303356fd61a9a14ced5ca5a6c8450",
+      "bytes": 475
+    },
+    {
+      "path": "crm/src/auth.ts",
+      "sha256": "15010fa46987f94da5af150788892eb8d95bc01f0fe108cc57cd07291355cfcb",
+      "bytes": 5940
+    },
+    {
+      "path": "crm/src/components/activity-center.tsx",
+      "sha256": "c1ecf65d5b8a06ab4723c4da001f23cc4376a655615611d218ebe4066a23b8c0",
+      "bytes": 21548
+    },
+    {
+      "path": "crm/src/components/agenda/agenda-reminders.tsx",
+      "sha256": "4c90bb43269a86ac2e2b1f7ad8793fd823983d623cac5e943fb0d2fbe371e33a",
+      "bytes": 2654
+    },
+    {
+      "path": "crm/src/components/agenda/agenda-ui.tsx",
+      "sha256": "04b3daea92e67bf285eb403d423dfc65b9ab23f7ed0f99e175392e9e95e3b241",
+      "bytes": 6102
+    },
+    {
+      "path": "crm/src/components/agenda/agenda-views.tsx",
+      "sha256": "f6b7a5ee3bf52e747927abb02b2ee2de7b0c37e207435709b84f2b453e54dc4e",
+      "bytes": 19513
+    },
+    {
+      "path": "crm/src/components/agenda/appointment-detail.tsx",
+      "sha256": "a94c0b245735d72a95e695881e2c1b902e355550274ade0fde6f1ecd2529c77b",
+      "bytes": 7586
+    },
+    {
+      "path": "crm/src/components/agenda/appointment-form.tsx",
+      "sha256": "bc84c3b7c22cc2e98c0b570e6c7539d54adcf6fb0336326ee27a4e237835d4cd",
+      "bytes": 20560
+    },
+    {
+      "path": "crm/src/components/agenda/customer-autocomplete.tsx",
+      "sha256": "458b301eb6688c87cfdeab67aef4959c84c3ad0a986a0b9ae2bf2e11bf07e3b0",
+      "bytes": 4927
+    },
+    {
+      "path": "crm/src/components/app-shell.tsx",
+      "sha256": "3162d36495918a9f99d17029de4c346f4137a170eb360d4a996d931f884ea06a",
+      "bytes": 10703
+    },
+    {
+      "path": "crm/src/components/attendance-context.tsx",
+      "sha256": "81e2d1c7bfdbcea47cd2f40b6e261c739ab6a82f3e99192f11626cdb8775a8e2",
+      "bytes": 8847
+    },
+    {
+      "path": "crm/src/components/badges.tsx",
+      "sha256": "c6d4ddb069c94a59430552f32a9b7681a27437f1bd2d2963aba8bf73e2db6e28",
+      "bytes": 4259
+    },
+    {
+      "path": "crm/src/components/central-center.tsx",
+      "sha256": "42f5f4b6819123759eedcdc377d3f18feaa40f6d51b4981fd026f06123b892f5",
+      "bytes": 3730
+    },
+    {
+      "path": "crm/src/components/central-contact-import.tsx",
+      "sha256": "bd7009f5817888c124525e210e318b03d57a7a7e998946befdbca6363e3360a0",
+      "bytes": 6046
+    },
+    {
+      "path": "crm/src/components/central-customer-actions.tsx",
+      "sha256": "53a13f62bac2b7498c89b33121e2cad91947e8b074514e07d4854977207b0cd0",
+      "bytes": 703
+    },
+    {
+      "path": "crm/src/components/central-view-state.tsx",
+      "sha256": "02eff72660c53456b8bcfd4336cdec59671aeea1d85cc9ac29b85bf0c34701eb",
+      "bytes": 1677
+    },
+    {
+      "path": "crm/src/components/customer-phone-field.tsx",
+      "sha256": "c66db057c7c054aa1d833d0a072f1e2b5e819f80b046aceba47787b6549dc8a6",
+      "bytes": 657
+    },
+    {
+      "path": "crm/src/components/customer-timeline.tsx",
+      "sha256": "1301c81d46b7b403279d395869e1f7b495848bdef64339e93d85b04904d90879",
+      "bytes": 1608
+    },
+    {
+      "path": "crm/src/components/dashboard-charts.tsx",
+      "sha256": "a411a7c22b96bc2ea00ec393ac5e2dd6b66ec625fd2c7b6b832a95d1c06ac24d",
+      "bytes": 3115
+    },
+    {
+      "path": "crm/src/components/quote-alerts.tsx",
+      "sha256": "1b71a8df71a144b9c9ffdcbcad8978a47fbcf0d2c8f50fb037e49c18ea8f3edd",
+      "bytes": 2905
+    },
+    {
+      "path": "crm/src/components/quote-whatsapp-button.tsx",
+      "sha256": "116db900057ea06f46881c56006f20b6424f13caea56c2385a90bc3deceda09c",
+      "bytes": 1543
+    },
+    {
+      "path": "crm/src/components/representative-profile-editor.tsx",
+      "sha256": "bb45d7f5a06163d77e3fae0f8b39e73a71d5c34aef1e7af458e03c7b049a4915",
+      "bytes": 4611
+    },
+    {
+      "path": "crm/src/components/theme-toggle.tsx",
+      "sha256": "77bd0956330af743b098355900a49b89a4fe0272d37a37577165d26e49b631ff",
+      "bytes": 738
+    },
+    {
+      "path": "crm/src/components/time-clock-location-map-dynamic.tsx",
+      "sha256": "3e717654d43a4767b444b7a88036c7ac5310b6beab3d610aa047e95f77c188ad",
+      "bytes": 429
+    },
+    {
+      "path": "crm/src/components/time-clock-location-map.tsx",
+      "sha256": "0574b832bbd818bb77a9d1068bbb1911a76d9dc091b40f2ddbe5c5ada6c5d1ec",
+      "bytes": 2203
+    },
+    {
+      "path": "crm/src/components/time-clock-team-view.tsx",
+      "sha256": "b48c8003459fbdb3a2db0a84648a03ea3f30bd0ffdb59ddbb36739211b29abf7",
+      "bytes": 16684
+    },
+    {
+      "path": "crm/src/components/user-combobox.tsx",
+      "sha256": "d0ad1339241421faefef805085311d222786676762de1d77a3f4204b2a10588d",
+      "bytes": 5501
+    },
+    {
+      "path": "crm/src/lib/activity-center-actions.ts",
+      "sha256": "5932e29d25c7df2f8d340d65e7326f8539557723aac6ea8ca53ce298c7fb5355",
+      "bytes": 1844
+    },
+    {
+      "path": "crm/src/lib/activity-center-page.ts",
+      "sha256": "dc94151d7f24b9910d59e93b099b517e505fa768c454f3b24c62c37906216b72",
+      "bytes": 1155
+    },
+    {
+      "path": "crm/src/lib/activity-center-rules.ts",
+      "sha256": "d90d1766c3f383b181fe1caf3577ad6b8cab748c8f80be7db01b3b2cabb4d30b",
+      "bytes": 4564
+    },
+    {
+      "path": "crm/src/lib/activity-center.ts",
+      "sha256": "a7cf3f617382c68770a33144774b3594469aad92aa2f1ba3e6c931ff22c2e829",
+      "bytes": 9134
+    },
+    {
+      "path": "crm/src/lib/agenda-rules.ts",
+      "sha256": "20810b80e97e720f611bba3f5a10e60c2076ad17c99d9fd3f5184e743991fa3f",
+      "bytes": 16904
+    },
+    {
+      "path": "crm/src/lib/agenda-validation.ts",
+      "sha256": "cf590ac98259f8bce6167af8e4284d29ef2c443a05cddb4408ae955b2c9c1b00",
+      "bytes": 5861
+    },
+    {
+      "path": "crm/src/lib/agenda.ts",
+      "sha256": "6a101438c9ef517a87ecb1ebac9147bcd2dfb224c7e4cc3a39d14d5c61504d01",
+      "bytes": 8722
+    },
+    {
+      "path": "crm/src/lib/api-auth.ts",
+      "sha256": "ff65af664cc168a5132c8a3b5778f833ac1b7afb974e2c886e2c903b609db4de",
+      "bytes": 6129
+    },
+    {
+      "path": "crm/src/lib/attendance-document-validation.ts",
+      "sha256": "474fba5c857af49daa61be222bceae31eb6b30ddd3a95d539b77833cdc79d9a2",
+      "bytes": 2250
+    },
+    {
+      "path": "crm/src/lib/attendance-storage.ts",
+      "sha256": "c525581159814d48864d8e2ca4906ce095f3da729b13dfafcdbfde02c205431b",
+      "bytes": 2213
+    },
+    {
+      "path": "crm/src/lib/audit.ts",
+      "sha256": "1b6ca5e3b1ce590ff67bd4c9902ae8d5042eafb6b98474a1946a23d2f90643ea",
+      "bytes": 2822
+    },
+    {
+      "path": "crm/src/lib/authz.ts",
+      "sha256": "dfc8286b2baa19b695f8e0e1148f47aa675ba949e9f67b05fd37db983ba743f5",
+      "bytes": 10587
+    },
+    {
+      "path": "crm/src/lib/automatic-followups.ts",
+      "sha256": "8ba72eb8372b2841ce1a676ed1d23dfcdcb22f645af9389584ed1ebe847ae63a",
+      "bytes": 8001
+    },
+    {
+      "path": "crm/src/lib/brazil-states.ts",
+      "sha256": "86e78421b2ffde231150b2b0e1e93e0003b7b48645726bd6dca273e628d0ffc9",
+      "bytes": 209
+    },
+    {
+      "path": "crm/src/lib/central-account-link.ts",
+      "sha256": "4d34f0e2df24d56c35d389b90f17aa228a5117dc249c8e020eab4de52e18f85f",
+      "bytes": 2524
+    },
+    {
+      "path": "crm/src/lib/central-contact-source.ts",
+      "sha256": "ee777a0cad2a860ce51f1040bd9c8ab5f36a2116cc44d0aa4dbb3cb235fb6657",
+      "bytes": 1405
+    },
+    {
+      "path": "crm/src/lib/central-identity.ts",
+      "sha256": "d354376b030a81fa2d4690a4310e60e3a6ccd74bf03f4f60519168a0dcceb692",
+      "bytes": 2503
+    },
+    {
+      "path": "crm/src/lib/central-navigation.ts",
+      "sha256": "fa28f8efcd2272a7f272c8f5eb3e9487c982eea26ecf1aa115eda8400f0c665f",
+      "bytes": 1073
+    },
+    {
+      "path": "crm/src/lib/central-session.ts",
+      "sha256": "6ce19a954f454268551e811fd1ba7b0e14e414fe7f594f3494223512a3864285",
+      "bytes": 783
+    },
+    {
+      "path": "crm/src/lib/central-view-path.ts",
+      "sha256": "1b9506389c4f24f25c5bfc939ae4a6e652f49b0af06a6a7531a98d4b95e79b6d",
+      "bytes": 709
+    },
+    {
+      "path": "crm/src/lib/config.ts",
+      "sha256": "3515f9bc8a861c8210b2ebf01c65aea466d814e3d03830c3fdcc3850e6c9c37b",
+      "bytes": 3101
+    },
+    {
+      "path": "crm/src/lib/crm-session.ts",
+      "sha256": "96ef963189b2bf5667cefd0bc81f8057689849bf7e966a0b9ad46de1f6203f1b",
+      "bytes": 9560
+    },
+    {
+      "path": "crm/src/lib/csv.ts",
+      "sha256": "1847806f077e9fffadfd01b02c03b6f9e8407b47aa60936555d17a707ffa34b6",
+      "bytes": 436
+    },
+    {
+      "path": "crm/src/lib/customer-fields.ts",
+      "sha256": "f32b77c30e75588433b799c38c590e74df208c3ceb81254271665859afa70d04",
+      "bytes": 890
+    },
+    {
+      "path": "crm/src/lib/customer-import.ts",
+      "sha256": "bcfd870e9cbc6c39cb1866f478925ab62327c67fd41cd9702e9386b5dc3011ec",
+      "bytes": 16761
+    },
+    {
+      "path": "crm/src/lib/customer-list.ts",
+      "sha256": "343e95d9b215cb065e68a7e56b8833c40ddae7b8c2ff021def285706a51222a7",
+      "bytes": 11494
+    },
+    {
+      "path": "crm/src/lib/customer-phones.ts",
+      "sha256": "deb61f2953491187a2950460197e118b621f6c0715bc8288c59c8bea99812001",
+      "bytes": 942
+    },
+    {
+      "path": "crm/src/lib/customer-pipeline.ts",
+      "sha256": "afa51dfdd74e01785ffae11d4db188d40198499fe164beda886f500259605273",
+      "bytes": 2018
+    },
+    {
+      "path": "crm/src/lib/customer-transfer.ts",
+      "sha256": "2b1124788c02d9fbd889a5c56aa748138fad4015a02dd2912f31c87cc9af48fd",
+      "bytes": 7063
+    },
+    {
+      "path": "crm/src/lib/customer-validation.ts",
+      "sha256": "4ffc5a46e28dd8292b090a3b42ed26808a25195c40583faf52e22258eb396958",
+      "bytes": 4164
+    },
+    {
+      "path": "crm/src/lib/duplicates.ts",
+      "sha256": "391eef2d4e2d4261670d8cda83f83600166ee3f1fa4df92dd27fbee6970b25cc",
+      "bytes": 1659
+    },
+    {
+      "path": "crm/src/lib/followup-rules.ts",
+      "sha256": "c167ce4d5ef84c7f88a5068224b01af8f4c578c2de965ad17e388f7fca022804",
+      "bytes": 1391
+    },
+    {
+      "path": "crm/src/lib/followups.ts",
+      "sha256": "721545ffceb0e5a2a3fa652203e7b576bbe116661e1616a28232173d23eba0d9",
+      "bytes": 526
+    },
+    {
+      "path": "crm/src/lib/format.ts",
+      "sha256": "3aa99aeff3fae64b1bba00569d89c11a29107f1f9db463e3aa91cb9be6a4a12c",
+      "bytes": 4828
+    },
+    {
+      "path": "crm/src/lib/geolocation-client.ts",
+      "sha256": "fa26abfdb3e8c90c1ca0515385dc061d1d1305458f5d8f2cfbf220c2dd4be987",
+      "bytes": 3761
+    },
+    {
+      "path": "crm/src/lib/goal-alerts.ts",
+      "sha256": "a9251db264c85f2e98c6376b032421a226e402b700bc7e5cd83c75f82be62557",
+      "bytes": 4685
+    },
+    {
+      "path": "crm/src/lib/goal-rules.ts",
+      "sha256": "d2a261446b0b32b765f4947f76e8524621928a5afd4288a43db32e7c33aed1dc",
+      "bytes": 4116
+    },
+    {
+      "path": "crm/src/lib/goals.ts",
+      "sha256": "30b6206cfcd2b1a06ed3df6e5b451ab7107c1f31242abc75cf0dda74f946b035",
+      "bytes": 2647
+    },
+    {
+      "path": "crm/src/lib/labels.ts",
+      "sha256": "90ff0fa8f0821dce085040f17f4d10e3750527154799b9f741193e2dc54f8de0",
+      "bytes": 3486
+    },
+    {
+      "path": "crm/src/lib/local-credential-proof.ts",
+      "sha256": "3dabab9cf5c3269323502a94792aa0be878a94535483a36774df08fe7c988e8d",
+      "bytes": 827
+    },
+    {
+      "path": "crm/src/lib/location.ts",
+      "sha256": "b18bdc17a8cca637e2051381041eb398d0e64e45f436cc0df25920c87821d3c2",
+      "bytes": 3476
+    },
+    {
+      "path": "crm/src/lib/notifications.ts",
+      "sha256": "f0291711cb647ffb4130645e4b995268f7701d765a843a60ffe7941d4a1d193b",
+      "bytes": 1151
+    },
+    {
+      "path": "crm/src/lib/olist/bridge-client.ts",
+      "sha256": "46511f28277233b3180266ba7e5f94c0beda7457982bc497ff669d3b6bba60e8",
+      "bytes": 2837
+    },
+    {
+      "path": "crm/src/lib/olist/real-order-rules.ts",
+      "sha256": "504215cf480ad4a3bf9b3079904988b40dd5131ae7e59461b4a53bc0cec4b7fa",
+      "bytes": 8062
+    },
+    {
+      "path": "crm/src/lib/olist/real-order.ts",
+      "sha256": "704a65f927ab71596621bde100bcb65794f8ddc525574b252e26f5ef78fff14d",
+      "bytes": 22521
+    },
+    {
+      "path": "crm/src/lib/olist-order-status.ts",
+      "sha256": "b79f41514ceea59d668fecef7af07578ad25397318ccb70dd2b9b39234d32a4e",
+      "bytes": 4640
+    },
+    {
+      "path": "crm/src/lib/olist-status-rules.ts",
+      "sha256": "7d81f6b956f2c06621dddf6635d755f061c5acdc6f7b103c3589a0f8b4a92f65",
+      "bytes": 473
+    },
+    {
+      "path": "crm/src/lib/pipeline-board.ts",
+      "sha256": "9804a59bf998214f4faf0e2f3405c707d8038223d241878f56a5cc9b90964395",
+      "bytes": 6521
+    },
+    {
+      "path": "crm/src/lib/pipeline-rules.ts",
+      "sha256": "4769535b567912a4f66abf63692ef79db4344fdcbf0e2bc3fbf8ce94a5a559ac",
+      "bytes": 10846
+    },
+    {
+      "path": "crm/src/lib/pipeline.ts",
+      "sha256": "be667c94bbc33fa438aabec6f0c1e8c670c6e24831f77cff110ddf37f44c4a06",
+      "bytes": 13723
+    },
+    {
+      "path": "crm/src/lib/pricing/api-errors.ts",
+      "sha256": "097182596af3789d56fc02f93d5c92f8763bea447dfffe2d08aa9143d5968a4b",
+      "bytes": 1157
+    },
+    {
+      "path": "crm/src/lib/pricing/catalog-seed-data.ts",
+      "sha256": "43c9cb9072fe2b22ae99f9809ac3f53db061d794d546df6596f87eb89227a7b3",
+      "bytes": 4946
+    },
+    {
+      "path": "crm/src/lib/pricing/price-admin-rules.ts",
+      "sha256": "aa125a0a805ac4ff2f6e1927af369b3109f7f682fa4ad0df39d061c23c105eaf",
+      "bytes": 6446
+    },
+    {
+      "path": "crm/src/lib/pricing/price-admin.ts",
+      "sha256": "ce09f9fabe15b0c36500e815f3e05025b8948d731fdf15e0974f1f227d7e6704",
+      "bytes": 13539
+    },
+    {
+      "path": "crm/src/lib/pricing/pricing-rules.ts",
+      "sha256": "3ac2d47df87fb89ec4d53ffbfa8d909f72436671dbd80fb93479d04ea8fb6864",
+      "bytes": 10065
+    },
+    {
+      "path": "crm/src/lib/pricing/pricing.ts",
+      "sha256": "5ab1b4ddd1373336d435228d9d299f53cb654c450019e187ad3fc93f982d25ca",
+      "bytes": 11044
+    },
+    {
+      "path": "crm/src/lib/primary-password.ts",
+      "sha256": "e3ca8b3faec019f638ae6f022198def74d802755aced068ea04af25f085ce0ac",
+      "bytes": 1199
+    },
+    {
+      "path": "crm/src/lib/prisma.ts",
+      "sha256": "1c9427e6169d4f283ab7814253a8cf8c17b1c5b167430843a838bec192661b5c",
+      "bytes": 454
+    },
+    {
+      "path": "crm/src/lib/quote-trash-rules.ts",
+      "sha256": "3992433f34da2ba1bb6ece00ff62d3f678ee54f88315dfe6c673e8e277410ca4",
+      "bytes": 633
+    },
+    {
+      "path": "crm/src/lib/quote-trash.ts",
+      "sha256": "017e96012a057d8097c3d5fe8bfea5c1e6b3c949cb8756da21c3b24f8caa94d8",
+      "bytes": 4100
+    },
+    {
+      "path": "crm/src/lib/quotes/native-quote-rules.ts",
+      "sha256": "5915dc5f2206a7ae23530687e5b07a856e27c0c57d93a251c3b26581dfc7e5b6",
+      "bytes": 3120
+    },
+    {
+      "path": "crm/src/lib/quotes/native-quote.ts",
+      "sha256": "95017e84685a8a583685794a6cd5dd54944bc25ee3b0c49c792ee6ffdfef3600",
+      "bytes": 8893
+    },
+    {
+      "path": "crm/src/lib/quotes/quote-alert-rules.ts",
+      "sha256": "673af1b73d56106e6c035c07f97114ba0ad88e1e68bddc7a902d95b34d633070",
+      "bytes": 1652
+    },
+    {
+      "path": "crm/src/lib/quotes/quote-alerts.ts",
+      "sha256": "f91c78e3502d797aff623eaffd64e00edcc06ae581eff508c269e3511fa97ee4",
+      "bytes": 2076
+    },
+    {
+      "path": "crm/src/lib/quotes/quote-filters.ts",
+      "sha256": "e5484857eec7e9942e1e144e2e3c94ba9841183c9eda8e77f9e0bd194daf03b7",
+      "bytes": 4323
+    },
+    {
+      "path": "crm/src/lib/rca-server.ts",
+      "sha256": "b1e87cf6a57bb2c7e83d3578879801117ca01ed92d419efadbc8523dd79ca0cc",
+      "bytes": 775
+    },
+    {
+      "path": "crm/src/lib/rca.ts",
+      "sha256": "d14ea751c217a57e65a4630b3d1f16c684401e7d923d957394ddc8f0503db65f",
+      "bytes": 1398
+    },
+    {
+      "path": "crm/src/lib/representative-commission.ts",
+      "sha256": "25eb2ec98c37addbd1126436838ad982a6964497e4819c4a166ed4079116ef2e",
+      "bytes": 4942
+    },
+    {
+      "path": "crm/src/lib/representative-regions.ts",
+      "sha256": "949f0084d85161d5883b9857040de14d4a5e3e252dd7eb3f54b981928a0774ce",
+      "bytes": 2248
+    },
+    {
+      "path": "crm/src/lib/shopify-quote-sync.ts",
+      "sha256": "93352eeeff34b5c3e694c728da9089eaa4cb7e3e7c220fb8b1109639bf687c5d",
+      "bytes": 3625
+    },
+    {
+      "path": "crm/src/lib/sp-regions.ts",
+      "sha256": "94321c60df8f8dac3d561d5bd80ea7cd01c4c87bed568db9e5d14b6a2c7ba77c",
+      "bytes": 337
+    },
+    {
+      "path": "crm/src/lib/supervisor-analytics.ts",
+      "sha256": "f40bc5756c0550e9eeb92c9527e6ddaded951b06b47c78673079de2a44b973ac",
+      "bytes": 10708
+    },
+    {
+      "path": "crm/src/lib/supervisor-dashboard-rules.ts",
+      "sha256": "4577bea70ad7da55a5f5125d7ab21e9eee6e864eec858168b410d389e569260c",
+      "bytes": 2955
+    },
+    {
+      "path": "crm/src/lib/team-deactivation.ts",
+      "sha256": "83d07c2c5dc0e2e3c804fdc4847116912c1b86ab979c8e7c740a79862b8f5ed0",
+      "bytes": 3804
+    },
+    {
+      "path": "crm/src/lib/team-rules.ts",
+      "sha256": "ece22c1562cd16d2dabf1d087ff0a1554cb9ffcf5e2a4680cf0028669edc4b8d",
+      "bytes": 2934
+    },
+    {
+      "path": "crm/src/lib/time-clock-overview.ts",
+      "sha256": "19e59eadb23aa141e282786647cbad3b3de19512539629b4fad8e3e92cd96eaa",
+      "bytes": 6478
+    },
+    {
+      "path": "crm/src/lib/time-clock-rows.ts",
+      "sha256": "85cda9084d71ceb929ba7f7c20eb1b102cc963ff87cf9d85011934607d20a370",
+      "bytes": 2247
+    },
+    {
+      "path": "crm/src/lib/time-clock.ts",
+      "sha256": "df174c1f2d74ca90e9fb1e386f5952b54665215b7688338c4fd65bda3b1d7f4e",
+      "bytes": 8047
+    },
+    {
+      "path": "crm/src/lib/user-search.ts",
+      "sha256": "07d79d064bc5e73fcb922f6ad8f103fcf3dba8b1a97cbd0bc671b3c1a35d38c0",
+      "bytes": 1334
+    },
+    {
+      "path": "crm/src/lib/webauthn.ts",
+      "sha256": "f0c00ec15e26e5d984458d0c9c53ae10b87cf4f48a79a1190e8ece14fa68156d",
+      "bytes": 1205
+    },
+    {
+      "path": "crm/src/middleware.ts",
+      "sha256": "d4f24ebd7a8512c3fd8745040fac06b7371993fa0d00f67326b85b85ca77bf1a",
+      "bytes": 2348
+    },
+    {
+      "path": "crm/src/types/next-auth.d.ts",
+      "sha256": "30c80ccdb4410193f80ae4ed14ae1916f7fb7015d03994db4d223df4da28221e",
+      "bytes": 485
+    },
+    {
+      "path": "crm/tailwind.config.ts",
+      "sha256": "42178ec1689f1046e582de28956d0bef30d17777ff33de7e27aed15c426c3ef8",
+      "bytes": 597
+    },
+    {
+      "path": "crm/tsconfig.json",
+      "sha256": "d58437ca78045a2b46d4e20be43a9266be828d5843ca992f96e568ca0d8307f9",
+      "bytes": 709
+    }
+  ],
+  "excludedOperationalScripts": [
+    "attendance/scripts/local-financeiro-preview.js",
+    "attendance/scripts/local-multiempresa-preview.js",
+    "attendance/scripts/preflight-bots-v03413.js",
+    "attendance/scripts/release-bots-local-preview.js"
+  ]
+}

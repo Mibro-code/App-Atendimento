@@ -1,0 +1,229 @@
+// Contexto real da conversa ("Case State" — item 4 do plano de Inteligência
+// de Bots). Memória estruturada do CASO em nível de CONVERSA, independente
+// de qual intenção/fluxo está ativo agora: sintoma, produto, aplicativo,
+// sistema operacional, perguntas já feitas, soluções já tentadas/falhadas,
+// ferramentas usadas, pendências. Nunca decide nada sozinho — é dado que o
+// Agent Planner (bot-agent-planner-service.js) consulta antes de perguntar
+// ou agir. Persistido em ConversationBotState.caseState (JSON), mesmo ciclo
+// de vida/TTL de contextEntities (resetado junto quando a sessão expira).
+const { normalizeText } = require("./bot-simulator-service");
+
+// normalizeText (bot-simulator-service.js) não remove pontuação de propósito
+// (usada também para comparar mensagens de cliente, onde "?"/"!" às vezes
+// importa). Para comparar PERGUNTAS/TENTATIVAS já registradas — onde
+// "religou o bluetooth?" e "religou o bluetooth???" são a mesma coisa — este
+// módulo usa uma normalização própria, um pouco mais agressiva, só local.
+function normalizeForComparison(value) {
+  return normalizeText(value).replace(/[^\p{L}\p{N} ]+/gu, "").replace(/\s+/g, " ").trim();
+}
+
+function emptyCaseState() {
+  return {
+    symptom: null,
+    product: null,
+    app: null,
+    os: null,
+    phone: null,
+    objective: null,
+    socialNetworks: null,
+    followerCount: null,
+    socialLinks: null,
+    businessStores: null,
+    businessLocation: null,
+    storeType: null,
+    productInterest: null,
+    retailQuestion: null,
+    providedInfo: null,
+    lastResult: null,
+    orderNumber: null,
+    purchaseChannel: null,
+    topic: null,
+    sector: null,
+    issue: null,
+    hasInvoice: null,
+    purchaseDateApprox: null,
+    pendingField: null,
+    intakeQuestionCount: 0,
+    questionsAsked: [],
+    solutionsTried: [],
+    solutionsFailed: [],
+    toolsUsed: [],
+    pending: [],
+  };
+}
+
+// Nunca confia em JSON cru vindo do banco sem validar forma — um caseState
+// corrompido/de uma versão antiga do shape nunca derruba o motor, só volta
+// a ser tratado como vazio.
+function normalizeCaseState(raw) {
+  const empty = emptyCaseState();
+  if (!raw || typeof raw !== "object") return empty;
+  return {
+    symptom: typeof raw.symptom === "string" ? raw.symptom : null,
+    product: typeof raw.product === "string" ? raw.product : null,
+    app: typeof raw.app === "string" ? raw.app : null,
+    os: typeof raw.os === "string" ? raw.os : null,
+    phone: typeof raw.phone === "string" ? raw.phone : null,
+    objective: typeof raw.objective === "string" ? raw.objective : null,
+    socialNetworks: typeof raw.socialNetworks === "string" ? raw.socialNetworks : null,
+    followerCount: typeof raw.followerCount === "string" ? raw.followerCount : null,
+    socialLinks: typeof raw.socialLinks === "string" ? raw.socialLinks : null,
+    businessStores: typeof raw.businessStores === "string" ? raw.businessStores : null,
+    businessLocation: typeof raw.businessLocation === "string" ? raw.businessLocation : null,
+    storeType: typeof raw.storeType === "string" ? raw.storeType : null,
+    productInterest: typeof raw.productInterest === "string" ? raw.productInterest : null,
+    retailQuestion: typeof raw.retailQuestion === "string" ? raw.retailQuestion : null,
+    providedInfo: typeof raw.providedInfo === "string" ? raw.providedInfo : null,
+    lastResult: typeof raw.lastResult === "string" ? raw.lastResult : null,
+    orderNumber: typeof raw.orderNumber === "string" ? raw.orderNumber : null,
+    purchaseChannel: typeof raw.purchaseChannel === "string" ? raw.purchaseChannel : null,
+    topic: typeof raw.topic === "string" ? raw.topic : null,
+    sector: typeof raw.sector === "string" ? raw.sector : null,
+    issue: typeof raw.issue === "string" ? raw.issue : null,
+    hasInvoice: typeof raw.hasInvoice === "boolean" ? raw.hasInvoice : null,
+    purchaseDateApprox: typeof raw.purchaseDateApprox === "string" ? raw.purchaseDateApprox : null,
+    pendingField: typeof raw.pendingField === "string" ? raw.pendingField : null,
+    intakeQuestionCount: Number.isInteger(raw.intakeQuestionCount) && raw.intakeQuestionCount >= 0 ? raw.intakeQuestionCount : 0,
+    questionsAsked: Array.isArray(raw.questionsAsked) ? raw.questionsAsked.filter((item) => typeof item === "string") : [],
+    solutionsTried: Array.isArray(raw.solutionsTried) ? raw.solutionsTried.filter((item) => item && typeof item.description === "string") : [],
+    solutionsFailed: Array.isArray(raw.solutionsFailed) ? raw.solutionsFailed.filter((item) => item && typeof item.description === "string") : [],
+    toolsUsed: Array.isArray(raw.toolsUsed) ? raw.toolsUsed.filter((item) => typeof item === "string") : [],
+    pending: Array.isArray(raw.pending) ? raw.pending.filter((item) => typeof item === "string") : [],
+  };
+}
+
+function dedupeAppend(list, value, keyFn = (item) => item) {
+  const normalizedValue = normalizeForComparison(keyFn(value));
+  if (!normalizedValue) return list;
+  const exists = list.some((item) => normalizeForComparison(keyFn(item)) === normalizedValue);
+  return exists ? list : [...list, value];
+}
+
+// Mescla um patch sobre o caso já conhecido — mesma regra de
+// mergeContextEntities (bot-conversation-state-service.js): nunca sobrescreve
+// um fato já conhecido com vazio/null, e um valor novo sempre pode ATUALIZAR
+// um escalar antigo (o cliente trocou de produto/sintoma no meio da
+// conversa). Listas (perguntas/tentativas/tools) sempre ACRESCENTAM, nunca
+// substituem — são histórico, não um valor único.
+function mergeCaseState(existing, patch = {}) {
+  const base = normalizeCaseState(existing);
+  const merged = { ...base };
+
+  for (const key of ["symptom", "product", "app", "os", "phone", "objective", "socialNetworks", "followerCount", "socialLinks", "businessStores", "businessLocation", "storeType", "productInterest", "retailQuestion", "providedInfo", "lastResult", "orderNumber", "purchaseChannel", "topic", "sector", "issue", "purchaseDateApprox", "pendingField"]) {
+    if (typeof patch[key] === "string" && patch[key].trim()) merged[key] = patch[key].trim();
+  }
+  if (typeof patch.hasInvoice === "boolean") merged.hasInvoice = patch.hasInvoice;
+  if (Number.isInteger(patch.intakeQuestionCount) && patch.intakeQuestionCount >= 0) merged.intakeQuestionCount = patch.intakeQuestionCount;
+
+  for (const question of patch.questionsAsked || []) {
+    merged.questionsAsked = dedupeAppend(merged.questionsAsked, question);
+  }
+  for (const solution of patch.solutionsTried || []) {
+    merged.solutionsTried = dedupeAppend(merged.solutionsTried, solution, (item) => item.description);
+  }
+  for (const solution of patch.solutionsFailed || []) {
+    merged.solutionsFailed = dedupeAppend(merged.solutionsFailed, solution, (item) => item.description);
+  }
+  for (const tool of patch.toolsUsed || []) {
+    merged.toolsUsed = dedupeAppend(merged.toolsUsed, tool);
+  }
+  if (patch.pending) {
+    merged.pending = patch.pending.filter((item) => typeof item === "string");
+  }
+
+  return merged;
+}
+
+function recordQuestionAsked(caseState, questionText) {
+  if (!questionText) return caseState;
+  return { ...caseState, questionsAsked: dedupeAppend(caseState.questionsAsked, questionText) };
+}
+
+function recordSolutionAttempt(caseState, description, outcome, meta = {}) {
+  if (!description) return caseState;
+  const entry = { description, outcome, at: new Date().toISOString(), ...meta };
+  const next = { ...caseState, solutionsTried: dedupeAppend(caseState.solutionsTried, entry, (item) => item.description) };
+  if (outcome === "FAILURE") {
+    next.solutionsFailed = dedupeAppend(next.solutionsFailed, entry, (item) => item.description);
+  }
+  return next;
+}
+
+// Já foi tentado algo parecido com `description`? Comparação por overlap de
+// texto normalizado — tolerante o suficiente para "já desliguei o bluetooth"
+// reconhecer uma tentativa registrada como "desligar e religar o bluetooth"
+// sem exigir o texto idêntico, mas nunca "adivinha" (exige overlap real).
+function wasAlreadyTried(caseState, description) {
+  if (!description) return false;
+  const normalizedTarget = normalizeForComparison(description);
+  const targetTokens = new Set(normalizedTarget.split(/\s+/).filter(Boolean));
+  if (!targetTokens.size) return false;
+  // Só uma solução confirmada como falha deve ser pulada. Uma orientação
+  // apenas exibida (ou confirmada como bem-sucedida) continua válida em um
+  // fluxo futuro e não pode provocar encaminhamento indevido.
+  return (caseState.solutionsFailed || []).some((item) => {
+    const tokens = normalizeForComparison(item.description).split(/\s+/).filter(Boolean);
+    if (!tokens.length) return false;
+    const hits = tokens.filter((token) => targetTokens.has(token)).length;
+    // Proporção sobre o que o CLIENTE acabou de descrever (não sobre o
+    // registro salvo, que costuma ser mais longo/detalhado) — "já desliguei
+    // o bluetooth" é curto de propósito; exigir metade do registro salvo
+    // inteiro bateria não reconheceria quase nada.
+    return hits / targetTokens.size >= 0.5;
+  });
+}
+
+function wasAlreadyAsked(caseState, questionText) {
+  if (!questionText) return false;
+  const normalizedTarget = normalizeForComparison(questionText);
+  return (caseState.questionsAsked || []).some((item) => normalizeForComparison(item) === normalizedTarget);
+}
+
+async function getCaseState(conversationId, client) {
+  const state = await client.conversationBotState.findUnique({
+    where: { conversationId }, select: { caseState: true },
+  });
+  return normalizeCaseState(state?.caseState);
+}
+
+// Promove o histórico de tentativas do Flow Engine (ConversationBotState.
+// flowAttemptedSolutions, memória de UM fluxo) para o Case State (memória da
+// CONVERSA inteira, sobrevive à troca de fluxo/intenção). Só considera
+// USE_RESPONSE_BLOCK/USE_KNOWLEDGE com outcome SUCCESS como "solução
+// realmente mostrada ao cliente" (outcome FAILURE nesses dois, em
+// bot-flow-service.js, só significa "bloco/conhecimento vazio", não "não
+// resolveu" — nunca registrado aqui como tentativa). Quando a etapa de
+// confirmação seguinte (ASK_QUESTION sem entityKey, ex. "funcionou?") avalia
+// FAILURE (cliente disse que não resolveu), marca a ÚLTIMA solução mostrada
+// como falha — é isto que alimenta wasAlreadyTried() para o Flow Engine não
+// repetir a mesma instrução em uma etapa/fluxo futuro. Idempotente: pode ser
+// chamada de novo a cada turno com a lista acumulada inteira sem duplicar
+// (recordSolutionAttempt já deduplica por descrição).
+function mergeFlowAttemptsIntoCaseState(caseState, attemptedSolutions = []) {
+  let next = caseState;
+  let lastSolutionName = null;
+  for (const attempt of attemptedSolutions) {
+    if ((attempt.action === "USE_RESPONSE_BLOCK" || attempt.action === "USE_KNOWLEDGE")
+      && attempt.outcome === "SUCCESS" && !attempt.skippedAsAlreadyTried) {
+      lastSolutionName = attempt.name || null;
+      if (lastSolutionName) next = recordSolutionAttempt(next, lastSolutionName, "SUCCESS");
+      continue;
+    }
+    if (attempt.action === "ASK_QUESTION" && attempt.outcome === "FAILURE" && lastSolutionName) {
+      next = recordSolutionAttempt(next, lastSolutionName, "FAILURE");
+    }
+  }
+  return next;
+}
+
+module.exports = {
+  emptyCaseState,
+  normalizeCaseState,
+  mergeCaseState,
+  recordQuestionAsked,
+  recordSolutionAttempt,
+  wasAlreadyTried,
+  wasAlreadyAsked,
+  mergeFlowAttemptsIntoCaseState,
+  getCaseState,
+};

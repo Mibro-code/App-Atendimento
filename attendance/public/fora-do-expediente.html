@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#16171a">
+  <link rel="icon" type="image/svg+xml" href="/assets/central-favicon.svg">
+  <title>Fora do expediente &bull; Configurações &bull; Central de Atendimento</title>
+  <script>try{const saved=localStorage.getItem("mibro-theme");document.documentElement.dataset.theme=saved||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch{}</script>
+  <link rel="stylesheet" href="/css/skeleton.css">
+  <link rel="stylesheet" href="/css/bots.css">
+  <link rel="stylesheet" href="/css/configuracoes.css">
+  <link rel="stylesheet" href="/css/fora-do-expediente.css">
+  <link rel="stylesheet" href="/css/responsive.css">
+  <link rel="stylesheet" href="/css/admin-ux.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/"><img src="/assets/central-mark.svg" alt="Central de Atendimento"><span></span><small>Configurações</small></a>
+    <div class="phase-badge">CONFIGURAÇÕES &bull; FORA DO EXPEDIENTE</div>
+    <a class="back-link" href="/">&larr; Central</a>
+    <button id="theme-toggle" class="round-button" type="button" title="Alternar tema">&#9790;</button>
+    <button id="logout" class="user-button" type="button"><span id="current-user">Usuário</span> &bull; Sair</button>
+  </header>
+
+  <main class="settings-shell">
+    <nav class="settings-tabs" aria-label="Areas de configuracoes">
+      <a class="settings-tab" href="/configuracoes.html">Configura&ccedil;&otilde;es</a>
+      <a class="settings-tab active" href="/fora-do-expediente" aria-current="page">Fora do expediente</a>
+    </nav>
+
+    <div class="settings-heading">
+      <div><span>ATENDIMENTO</span><h1>Atendimento fora do expediente</h1><p>Lembrete para quem escreveu no fim de semana, em feriado ou após o expediente de sexta-feira e segue sem resposta humana. Padrão: 10 horas desde a última mensagem do cliente; se cair no silêncio, adia para o fim dele. Não renova a janela de 24 horas do WhatsApp.</p></div>
+      <div id="ah-readonly-note" class="readonly-note" hidden>Modo somente leitura.</div>
+    </div>
+
+    <div id="ah-company-bar" class="settings-company-bar" hidden>
+      <div id="ah-company-filter" class="company-filter" role="radiogroup" aria-label="Regras de qual empresa"></div>
+      <span id="ah-company-note"></span>
+      <button id="ah-company-reset" type="button" hidden>Voltar a usar a configuração global</button>
+    </div>
+
+    <div id="ah-load-error" class="ah-state ah-error" role="alert" hidden><span id="ah-load-error-text"></span><button id="ah-retry" type="button">Tentar novamente</button></div>
+    <div id="ah-loading" class="ah-state" aria-live="polite">Carregando configurações…</div>
+
+    <form id="ah-form" class="settings-grid" hidden novalidate>
+      <details class="card" open>
+        <summary><span>GERAL</span><h3>Expediente</h3></summary>
+        <div class="fields two-columns">
+          <label class="checkbox full"><input id="ah-enabled" type="checkbox"><span>Ativar lembretes automáticos fora do expediente</span></label>
+          <label><span>Horário de início</span><input id="ah-start" type="time" required></label>
+          <label><span>Horário de encerramento</span><input id="ah-end" type="time" required></label>
+          <label class="full"><span>Fuso horário</span>
+            <select id="ah-timezone">
+              <option value="America/Sao_Paulo">Brasília (America/Sao_Paulo)</option>
+              <option value="America/Manaus">Manaus (America/Manaus)</option>
+              <option value="America/Cuiaba">Cuiabá (America/Cuiaba)</option>
+              <option value="America/Fortaleza">Fortaleza (America/Fortaleza)</option>
+              <option value="America/Recife">Recife (America/Recife)</option>
+              <option value="America/Belem">Belém (America/Belem)</option>
+              <option value="America/Rio_Branco">Rio Branco (America/Rio_Branco)</option>
+              <option value="America/Noronha">Fernando de Noronha (America/Noronha)</option>
+            </select>
+          </label>
+          <fieldset class="full ah-days"><legend>Dias de funcionamento</legend><div id="ah-days"></div></fieldset>
+          <label class="checkbox full"><input id="ah-saturday" type="checkbox"><span>Enviar lembrete para contatos recebidos aos sábados</span></label>
+          <label class="checkbox full"><input id="ah-sunday" type="checkbox"><span>Enviar lembrete para contatos recebidos aos domingos</span></label>
+          <label class="checkbox full"><input id="ah-holidays" type="checkbox"><span>Enviar lembrete para contatos recebidos em feriados</span></label>
+        </div>
+        <p class="card-help">Inicialmente desligado: revise e ative antes de usar. O Bot continua recebendo conforme o fluxo atual. Lembretes não se aplicam às noites de segunda a quinta, exceto feriados. Sexta após o encerramento entra na regra de sábado. Se o expediente já recomeçou, o aviso não é enviado.</p>
+      </details>
+
+      <details class="card" open>
+        <summary><span>LEMBRETE</span><h3>Quando e o que enviar</h3></summary>
+        <div class="fields two-columns">
+          <label><span>Tempo de espera (horas)</span><input id="ah-delay" type="number" min="0.5" max="23" step="0.5" required></label>
+          <label><span>Margem de segurança da Meta (min)</span><input id="ah-margin" type="number" min="5" max="240" step="1" required></label>
+          <label class="checkbox full"><input id="ah-only-pending" type="checkbox"><span>Somente conversas pendentes (aguardando a equipe)</span></label>
+          <label class="checkbox full"><input id="ah-only-without-human" type="checkbox"><span>Somente sem atendimento humano</span></label>
+          <label><span>Máximo por ciclo de espera</span><input id="ah-max" type="number" value="1" disabled data-always-disabled="true"></label>
+          <span></span>
+          <label class="checkbox full"><input id="ah-quiet" type="checkbox"><span>Respeitar horário de silêncio (adiar para o fim do silêncio, se a janela ainda estiver aberta)</span></label>
+          <label><span>Silêncio a partir de</span><input id="ah-quiet-start" type="time"></label>
+          <label><span>Silêncio até</span><input id="ah-quiet-end" type="time"></label>
+          <label class="full"><span>Mensagem do lembrete <small id="ah-message-count" class="ah-count"></small></span><textarea id="ah-message" rows="8" maxlength="1000" required></textarea></label>
+        </div>
+        <div class="ah-preview" aria-label="Prévia da mensagem"><span class="ah-preview-label">Prévia no WhatsApp</span><div class="ah-bubble"><p id="ah-preview-text"></p><footer>Automação — Fora do expediente</footer></div></div>
+        <p class="card-help">Evite frases sobre a janela da Meta ("seu atendimento vai expirar") e promessas de atendimento imediato. O cliente recebe no máximo um lembrete por ciclo de espera — nunca uma sequência.</p>
+      </details>
+
+      <section class="card ah-rules" aria-label="Regras fixas">
+        <span class="ah-eyebrow">REGRAS FIXAS</span>
+        <ul>
+          <li><b>Fora da janela de 24 h:</b> nada é enviado como mensagem livre e nenhum template é usado no lugar.</li>
+          <li><b>Janela por número:</b> calculada pela última mensagem do cliente no número que recebeu o contato — mensagens da empresa (Bot, atendente, template, este lembrete) não renovam a janela.</li>
+          <li><b>Antes de enviar</b> o sistema reconfere: automação ativa, conversa pendente, sem atendente agindo, sem mensagem nova do cliente, número conectado e janela aberta.</li>
+          <li><b>Sem duplicidade:</b> resultado incerto (ex.: tempo esgotado na Meta) nunca é reenviado automaticamente.</li>
+          <li>Categoria, subcategoria, responsável, atendente fixo e prioridade não são alterados.</li>
+        </ul>
+      </section>
+
+      <div class="form-actions">
+        <button id="ah-save" type="submit">Salvar configurações</button>
+        <span id="ah-form-error" class="ah-inline-error" role="alert" hidden></span>
+      </div>
+    </form>
+
+    <section id="ah-holidays-card" class="card ah-section" hidden>
+      <div class="ah-section-heading">
+        <div><span class="ah-eyebrow">FERIADOS</span><h3>Feriados e datas excepcionais</h3></div>
+        <div class="ah-section-tools">
+          <label class="ah-inline"><span>Ano</span><select id="ah-year"></select></label>
+          <button id="ah-import-national" type="button" class="secondary">Cadastrar feriados nacionais do ano</button>
+        </div>
+      </div>
+      <p class="card-help">Feriados nacionais já valem automaticamente (calculados localmente). Cadastre feriados estaduais, municipais e datas da empresa; uma data da empresa prevalece sobre a global. Desativar uma data faz o dia contar como dia normal.</p>
+      <div id="ah-holiday-state" class="ah-state" hidden></div>
+      <ul id="ah-holiday-list" class="ah-holiday-list"></ul>
+      <form id="ah-holiday-form" class="ah-holiday-form" novalidate hidden>
+        <h4 id="ah-holiday-form-title">Nova data</h4>
+        <div class="fields two-columns">
+          <label><span>Data</span><input id="ah-h-date" type="date" required></label>
+          <label><span>Nome</span><input id="ah-h-name" type="text" maxlength="120" required placeholder="Ex.: Aniversário da cidade"></label>
+          <label><span>Abrangência</span><select id="ah-h-scope">
+            <option value="NACIONAL">Nacional</option><option value="ESTADUAL">Estadual</option><option value="MUNICIPAL">Municipal</option>
+            <option value="EMPRESA">Da empresa</option><option value="EXCECAO">Data excepcional</option>
+          </select></label>
+          <label><span>Região (opcional)</span><input id="ah-h-region" type="text" maxlength="80" placeholder="Ex.: SP ou São Paulo/SP"></label>
+          <label class="checkbox full"><input id="ah-h-allday" type="checkbox" checked><span>Fechado o dia inteiro</span></label>
+          <label><span>Abre às (expediente especial)</span><input id="ah-h-open" type="time" disabled></label>
+          <label><span>Fecha às (expediente especial)</span><input id="ah-h-close" type="time" disabled></label>
+        </div>
+        <div class="form-actions">
+          <button id="ah-h-save" type="submit">Salvar data</button>
+          <button id="ah-h-cancel" type="button" class="secondary">Cancelar</button>
+          <span id="ah-h-error" class="ah-inline-error" role="alert" hidden></span>
+        </div>
+      </form>
+      <button id="ah-holiday-new" type="button" class="secondary ah-new-holiday" hidden>+ Cadastrar data</button>
+    </section>
+
+    <section id="ah-monitor-card" class="card ah-section" hidden>
+      <div class="ah-section-heading">
+        <div><span class="ah-eyebrow">MONITORAMENTO</span><h3>Lembretes dos últimos 7 dias</h3></div>
+        <div class="ah-section-tools">
+          <label class="ah-inline"><span>Situação</span><select id="ah-status-filter">
+            <option value="">Todas</option><option value="PENDING">Pendentes</option><option value="SENT">Enviados</option>
+            <option value="CANCELLED">Cancelados</option><option value="SKIPPED">Ignorados</option><option value="FAILED">Falhas</option>
+            <option value="UNKNOWN">Resultado desconhecido</option><option value="PROCESSING">Em envio</option>
+          </select></label>
+          <button id="ah-monitor-refresh" type="button" class="secondary">Atualizar</button>
+        </div>
+      </div>
+      <div id="ah-counters" class="ah-counters"></div>
+      <p id="ah-next-run" class="card-help"></p>
+      <div id="ah-monitor-state" class="ah-state" hidden></div>
+      <ul id="ah-reminder-list" class="ah-reminder-list"></ul>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+  <script src="/js/company-context.js"></script>
+  <script src="/js/fora-do-expediente.js"></script>
+</body>
+</html>

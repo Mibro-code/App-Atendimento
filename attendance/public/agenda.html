@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,interactive-widget=resizes-content">
+  <meta name="theme-color" content="#16171a">
+  <link rel="icon" type="image/svg+xml" href="/assets/central-favicon.svg">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <title>Agenda &bull; Central de Atendimento</title>
+  <script>try{const saved=localStorage.getItem("mibro-theme");document.documentElement.dataset.theme=saved||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch{}</script>
+  <link rel="stylesheet" href="/css/skeleton.css">
+  <link rel="stylesheet" href="/css/bots.css">
+  <link rel="stylesheet" href="/css/agenda.css?v=1">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/"><img src="/assets/central-mark.svg" alt="Central de Atendimento"><span></span><small>Agenda</small></a>
+    <div class="phase-badge">AGENDA E FOLLOW-UPS</div>
+    <a class="back-link" href="/">&larr; Central</a>
+    <button id="theme-toggle" class="round-button" type="button" title="Alternar tema">&#9790;</button>
+    <button id="logout" class="user-button" type="button"><span id="current-user">Usuário</span> &bull; Sair</button>
+  </header>
+
+  <main class="ag-shell">
+    <div class="ag-heading">
+      <div><span>RELACIONAMENTO</span><h1>Agenda e Follow-ups</h1><p id="ag-subtitle">Seus retornos e compromissos com clientes. Para agendar, use “Agendar retorno” dentro da conversa.</p></div>
+      <div class="ag-heading-actions"><small id="ag-updated" aria-live="polite"></small><button id="ag-refresh" type="button" title="Atualizar agora">↻ Atualizar</button></div>
+    </div>
+
+    <form id="ag-filters" class="ag-filters" aria-label="Filtros da agenda" onsubmit="return false">
+      <div id="ag-company-filter" class="company-filter" role="radiogroup" aria-label="Empresa" hidden></div>
+      <label id="ag-assignee-field" hidden><span>Responsável</span><select id="ag-assignee"><option value="">Todos que acompanho</option><option value="me">Somente eu</option></select></label>
+      <label><span>Motivo</span><select id="ag-reason"><option value="">Todos</option></select></label>
+      <label><span>Prioridade</span><select id="ag-priority"><option value="">Todas</option><option value="NORMAL">Normal</option><option value="ALTA">Alta</option><option value="URGENTE">Urgente</option></select></label>
+    </form>
+
+    <div class="ag-toolbar">
+      <div class="ag-modes" role="tablist" aria-label="Visualização">
+        <button type="button" role="tab" data-mode="list" class="active">Lista</button>
+        <button type="button" role="tab" data-mode="day">Dia</button>
+        <button type="button" role="tab" data-mode="week">Semana</button>
+        <button type="button" role="tab" data-mode="month">Mês</button>
+      </div>
+      <div id="ag-nav" class="ag-nav" hidden>
+        <button id="ag-prev" type="button" aria-label="Anterior">‹</button>
+        <button id="ag-today" type="button">Hoje</button>
+        <button id="ag-next" type="button" aria-label="Próximo">›</button>
+        <strong id="ag-range-label"></strong>
+      </div>
+    </div>
+
+    <section id="ag-buckets" class="ag-buckets" aria-label="Situação dos retornos"></section>
+    <p id="ag-truncated" class="ag-note" hidden>Mostrando os primeiros 500 retornos deste filtro.</p>
+    <section id="ag-content" class="ag-content" aria-live="polite"></section>
+  </main>
+
+  <dialog id="ag-dialog" class="ag-dialog" aria-labelledby="ag-dialog-title">
+    <div class="ag-dialog-header"><div><span id="ag-dialog-kicker">RETORNO</span><h2 id="ag-dialog-title">Retorno</h2></div><button id="ag-dialog-close" type="button" aria-label="Fechar">×</button></div>
+    <div id="ag-dialog-body" class="ag-dialog-body"></div>
+  </dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="/js/company-context.js"></script>
+  <script src="/js/agenda.js?v=1"></script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+node_modules/
+.next/
+.env*
+storage/
+*.dump
+*.tgz
+*.log
+*.br
+*.gz
+
+# Operational/local configuration: retained only in private backup.
+attendance/scripts/local-financeiro-preview.js
+attendance/scripts/local-multiempresa-preview.js
+attendance/scripts/preflight-bots-v03413.js
+attendance/scripts/release-bots-local-preview.js

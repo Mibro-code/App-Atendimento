@@ -1,0 +1,81 @@
+/* Agenda dentro da Central (menu, chip do cabeçalho, aba do painel de
+   contexto e diálogo "Agendar retorno"). Tokens do app.css; cor só para
+   atraso. */
+:root { --fu-critical:#b42318; --fu-critical-soft:#fdeceb; --fu-done:#067647; }
+html[data-theme="dark"] { --fu-critical:#f97066; --fu-critical-soft:#3a1d1b; --fu-done:#47cd89; }
+
+.sidebar-item { position:relative; }
+.agenda-badge { position:absolute; top:6px; right:8px; min-width:18px; height:18px; padding:0 5px; display:inline-grid; place-items:center; border-radius:9px; color:var(--panel); background:var(--muted); font-size:10px; font-weight:800; line-height:1; }
+.agenda-badge.critical { color:#fff; background:var(--fu-critical); }
+.agenda-badge[hidden] { display:none; }
+
+.follow-up-chip { margin-left:6px; padding:3px 8px; border:1px solid var(--line); border-radius:999px; color:var(--ink); background:var(--panel); font:inherit; font-size:10px; font-weight:700; white-space:nowrap; cursor:pointer; }
+.follow-up-chip.critical { border-color:var(--fu-critical); color:var(--fu-critical); background:var(--fu-critical-soft); }
+.follow-up-chip[hidden] { display:none; }
+
+.context-followups { display:grid; gap:10px; }
+.fu-pane-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+.fu-pane-head span { color:var(--muted); font-size:9px; font-weight:900; letter-spacing:.12em; }
+.fu-pane-head h3 { margin:2px 0 0; font-size:14px; }
+.fu-new { min-height:32px; padding:0 12px; border:1px solid var(--line); border-radius:16px; color:var(--ink); background:var(--panel); font:inherit; font-size:11px; font-weight:800; cursor:pointer; white-space:nowrap; }
+.fu-help { margin:0; color:var(--muted); font-size:11px; line-height:1.45; }
+.fu-item { padding:10px 12px; display:grid; gap:4px; border:1px solid var(--line); border-radius:10px; background:var(--panel); }
+.fu-item.ATRASADO { border-color:var(--fu-critical); }
+.fu-item-head { display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:12px; }
+.fu-state { padding:2px 7px; border-radius:8px; color:var(--muted); background:color-mix(in srgb, var(--muted) 12%, transparent); font-size:10px; font-weight:800; }
+.fu-state.ATRASADO { color:var(--fu-critical); background:var(--fu-critical-soft); }
+.fu-state.CONCLUIDO { color:var(--fu-done); }
+.fu-state.CANCELADO { text-decoration:line-through; }
+.fu-item-body { display:grid; gap:2px; font-size:12px; }
+.fu-item-body small { color:var(--muted); font-size:11px; }
+.fu-note { margin:2px 0 0; color:var(--ink); font-size:12px; white-space:pre-wrap; overflow-wrap:anywhere; }
+.fu-note.restricted { color:var(--muted); font-style:italic; }
+.fu-link { justify-self:start; color:var(--muted); font-size:11px; font-weight:700; }
+.fu-empty { padding:16px 8px; color:var(--muted); text-align:center; font-size:12px; }
+.fu-history summary { cursor:pointer; color:var(--muted); font-size:11px; font-weight:800; }
+.fu-history .fu-item { margin-top:8px; opacity:.8; }
+
+.follow-up-form .follow-up-help { margin:0 0 4px; color:var(--muted); font-size:11px; line-height:1.45; }
+.follow-up-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:0 12px; }
+.follow-up-form select { width:100%; min-height:38px; padding:0 10px; border:1px solid var(--line); border-radius:10px; color:inherit; background:var(--panel); font:inherit; font-weight:400; }
+.follow-up-hint { display:block; margin-top:6px; color:var(--muted); font-size:11px; }
+.follow-up-hint[hidden] { display:none; }
+.follow-up-feedback { min-height:1em; margin:8px 0 0; color:var(--fu-critical); font-size:11px; }
+@media (max-width:560px) {
+  .follow-up-grid { grid-template-columns:minmax(0, 1fr); }
+  .follow-up-chip { margin:4px 0 0; }
+}
+
+/* Perfil 360° do cliente */
+.contact-profile-open { width:100%; min-height:36px; margin-bottom:12px; border:1px solid var(--line); border-radius:10px; color:var(--ink); background:var(--panel); font:inherit; font-size:12px; font-weight:800; cursor:pointer; }
+.contact-profile-dialog { width:min(760px, calc(100vw - 24px)); max-height:calc(100dvh - 32px); overflow:auto; }
+.contact-profile-body { padding:4px 24px 24px; display:grid; gap:14px; }
+.cp-section { padding-top:12px; border-top:1px solid var(--line); }
+.cp-section:first-child { border-top:0; }
+.cp-section h3 { margin:0 0 8px; font-size:13px; }
+.cp-section h3 small { margin-left:6px; color:var(--muted); font-size:11px; font-weight:600; }
+.cp-alert { color:var(--fu-critical); }
+.cp-rows { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:6px 18px; }
+.cp-row { display:grid; gap:1px; font-size:12px; }
+.cp-row span { color:var(--muted); font-size:11px; }
+.cp-row strong { overflow-wrap:anywhere; font-weight:700; }
+.cp-row small, .cp-list small { color:var(--muted); font-size:11px; font-weight:500; }
+.cp-list { margin:0; padding:0; display:grid; gap:6px; list-style:none; font-size:12px; }
+.cp-list li { padding:8px 10px; border-radius:9px; background:color-mix(in srgb, var(--muted) 7%, transparent); overflow-wrap:anywhere; }
+.cp-list li small { display:block; margin-top:2px; }
+.cp-state.ATRASADO { color:var(--fu-critical); font-weight:800; }
+.cp-empty { margin:0; color:var(--muted); font-size:12px; list-style:none; }
+.cp-timeline { margin:0; padding:0 0 0 14px; display:grid; gap:8px; border-left:2px solid var(--line); list-style:none; }
+.cp-timeline li { position:relative; display:grid; grid-template-columns:110px minmax(0, 1fr); gap:2px 10px; font-size:12px; }
+.cp-timeline li::before { content:""; position:absolute; left:-20px; top:4px; width:10px; height:10px; border-radius:50%; background:var(--panel); border:2px solid var(--muted); }
+.cp-timeline li.restricted span { color:var(--muted); font-style:italic; }
+.cp-timeline time { color:var(--muted); font-size:11px; }
+.cp-timeline small { grid-column:2; color:var(--muted); font-size:10px; }
+.cp-more { margin-top:10px; min-height:34px; padding:0 14px; border:1px solid var(--line); border-radius:17px; color:var(--ink); background:var(--panel); font:inherit; font-size:11px; font-weight:800; cursor:pointer; }
+.cp-more[hidden] { display:none; }
+@media (max-width:560px) {
+  .contact-profile-body { padding:4px 16px 18px; }
+  .cp-rows { grid-template-columns:minmax(0, 1fr); }
+  .cp-timeline li { grid-template-columns:minmax(0, 1fr); }
+  .cp-timeline small { grid-column:1; }
+}

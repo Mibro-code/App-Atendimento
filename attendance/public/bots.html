@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#16171a">
+  <link rel="icon" type="image/svg+xml" href="/assets/central-favicon.svg">
+  <title>Bots &bull; Central de Atendimento</title>
+  <script>try{const saved=localStorage.getItem("mibro-theme");document.documentElement.dataset.theme=saved||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch{}</script>
+  <link rel="stylesheet" href="/css/skeleton.css">
+  <link rel="stylesheet" href="/css/bots.css">
+  <link rel="stylesheet" href="/css/bot-question-answer.css">
+  <script src="/js/feature-flags.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/"><img src="/assets/central-mark.svg" alt="Central de Atendimento"><span></span><small>Bots &bull; Editor Visual</small></a>
+    <a class="back-link" href="/">&larr; Central</a>
+    <button id="theme-toggle" class="round-button" type="button" title="Alternar tema">&#9790;</button>
+    <button id="logout" class="user-button" type="button"><span id="current-user">Master</span> &bull; Sair</button>
+  </header>
+
+  <main class="bots-shell">
+    <aside class="bots-sidebar">
+      <div class="sidebar-heading">
+        <div><span>AUTOMAÇÕES</span><h1>Bots</h1><p id="bot-count">Carregando...</p></div>
+        <button id="new-bot" type="button">+ Novo Bot</button>
+      </div>
+      <div id="bot-company-filter" class="company-filter" role="radiogroup" aria-label="Filtrar Bots por empresa" hidden></div>
+      <div id="bot-list" class="bot-list"><div class="skeleton-list"><div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div></div></div>
+      <div class="global-settings-card">
+        <div class="global-settings-heading"><b>Automação dos Bots</b><span id="global-automation-status" class="global-status-pill">...</span></div>
+        <p class="card-help">Interruptor geral: desligado, nenhum Bot responde clientes (as mensagens continuam chegando normalmente para a equipe).</p>
+        <button id="kill-switch" type="button" class="kill-switch-button">DESATIVAR AUTOMAÇÃO DOS BOTS</button>
+      </div>
+    </aside>
+
+    <section class="bots-workspace">
+      <nav class="workspace-tabs">
+        <button type="button" class="tab-button active" data-tab="bot">Geral</button>
+        <button type="button" class="tab-button" data-tab="availability">Disponibilidade</button>
+        <button type="button" class="tab-button" data-tab="quality">Qualidade</button>
+        <button type="button" class="tab-button" data-tab="simulator">Simulador</button>
+        <button type="button" class="tab-button" data-tab="observation">Observação</button>
+      </nav>
+
+      <!-- ===== Bot selecionado ===== -->
+      <section data-panel="bot">
+        <div id="empty-state" class="empty-state">
+          <div>▦</div><h2>Crie seu primeiro Bot</h2>
+          <p>Cada Bot é montado no Editor Visual: Início → Mensagem → Menu → Pergunta → Condição → Transferência → Fim. Sem IA, 100% previsível.</p>
+          <button id="empty-new-bot" type="button">+ Novo Bot</button>
+        </div>
+
+        <div id="editor" hidden>
+          <header class="editor-heading">
+            <div>
+              <span>BOT SELECIONADO</span><h2 id="editor-title"></h2>
+              <span id="system-bot-badge" class="mini-status SYSTEM" hidden>Bot do sistema</span>
+              <p id="editor-description"></p>
+            </div>
+            <div class="status-actions">
+              <span id="status-badge" class="status-badge"></span>
+              <a id="open-flow-builder" class="flow-builder-link" href="/flow-builder">&#9638; Abrir Editor Visual</a>
+              <button id="toggle-status" type="button"></button>
+            </div>
+          </header>
+
+          <div class="editor-grid">
+            <div class="stack" data-config-panel="bot">
+              <section class="card autoreply-card">
+                <div class="card-heading"><div><span>CLIENTES</span><h3>Resposta automática</h3></div></div>
+                <label class="global-toggle-row big"><span id="auto-reply-label">Desligada</span><input id="auto-reply" type="checkbox"></label>
+                <p id="auto-reply-help" class="card-help"></p>
+              </section>
+
+              <section class="card">
+                <div class="card-heading"><div><span>COMPORTAMENTO</span><h3>Fluxos</h3></div><button id="new-flow" type="button">+ Fluxo</button></div>
+                <p class="card-help">O fluxo <b>padrão</b> começa as conversas novas. Outros fluxos (Suporte, Comercial, Garantia...) são chamados pelo nó <b>Ir para fluxo</b>.</p>
+                <div id="flow-list" class="flow-list"></div>
+              </section>
+
+              <section class="card">
+                <div class="card-heading"><div><span>IDENTIFICAÇÃO</span><h3>Dados do Bot</h3></div></div>
+                <form id="bot-form" class="fields">
+                  <label class="full">Nome<input id="bot-name" maxlength="100" required></label>
+                  <label class="full">Descrição<textarea id="bot-description" maxlength="500" rows="2"></textarea></label>
+                  <div class="full"><span>Canais</span><div id="bot-channels" class="bot-channels-checklist"></div></div>
+                  <label>Fuso horário<input id="bot-timezone" maxlength="100"></label>
+                  <label class="full">Mensagem inicial<textarea id="bot-initialMessage" rows="3" maxlength="4000"></textarea></label>
+                  <label class="full">Mensagem fora de horário ou dia<textarea id="bot-outsideHoursMessage" rows="3" maxlength="4000"></textarea></label>
+                  <label class="full">Mensagem de feriado<textarea id="bot-holidayMessage" rows="3" maxlength="4000" placeholder="Se vazia, usa a mensagem fora de horário"></textarea></label>
+                  <label class="full">Mensagem de encaminhamento<textarea id="bot-handoffMessage" rows="2" maxlength="4000"></textarea></label>
+                  <label class="full">Mensagem sem resposta configurada<textarea id="bot-fallbackMessage" rows="2" maxlength="4000"></textarea></label>
+                  <label class="checkbox full"><input id="bot-runOnNewConversation" type="checkbox">Executar em nova conversa</label>
+                  <label class="checkbox full"><input id="bot-runAfterReopen" type="checkbox">Executar quando o cliente reabrir uma conversa</label>
+                  <div class="form-actions full"><button id="delete-bot" type="button" class="danger">Excluir Bot</button><button type="submit">Salvar</button></div>
+                </form>
+              </section>
+            </div>
+
+            <div class="stack" data-config-panel="availability" hidden>
+              <section class="card">
+                <div class="card-heading"><div><span>HORÁRIO</span><h3>Atendimento</h3></div></div>
+                <p class="card-help">Usado pelas variáveis <code>{{bot.businessHours}}</code> e <code>bot.withinBusinessHours</code> (nó Condição). Sem horário = sempre dentro do horário.</p>
+                <div id="schedule-list" class="schedule-list"></div>
+                <div class="form-actions"><button id="save-schedules" type="button">Salvar horários</button></div>
+              </section>
+              <section class="card">
+                <div class="card-heading"><div><span>FERIADOS</span><h3>Dias sem atendimento</h3></div></div>
+                <div id="holiday-list" class="holiday-list"></div>
+                <form id="holiday-form" class="fields holiday-form">
+                  <label>Data<input id="holiday-date" type="date" required></label>
+                  <label>Nome<input id="holiday-name" maxlength="100" required></label>
+                  <div class="form-actions full"><button type="submit">+ Adicionar feriado</button></div>
+                </form>
+              </section>
+            </div>
+          </div>
+          <section class="card" data-config-panel="quality" hidden>
+            <div class="card-heading"><div><span>QUALIDADE</span><h3>Avaliação do atendimento</h3></div></div>
+            <form id="quality-form" class="fields">
+              <label class="checkbox"><input id="quality-enabled" type="checkbox">Ativar avaliação ao concluir o Bot</label>
+              <label class="checkbox"><input id="quality-comment" type="checkbox">Solicitar comentário</label>
+              <label class="full">Mensagem de avaliação<textarea id="quality-message" rows="3" maxlength="4000"></textarea></label>
+              <label class="full">Mensagem após avaliação<textarea id="quality-followup" rows="2" maxlength="4000"></textarea></label>
+              <div class="form-actions full"><button type="submit">Salvar avaliação</button></div>
+            </form>
+          </section>
+          <section class="card" data-config-panel="simulator" hidden>
+            <div class="card-heading"><div><span>SIMULADOR</span><h3>Teste sem enviar mensagens reais</h3></div><button type="button" id="simulation-reset">Reiniciar</button></div>
+            <div id="simulation-history" class="library-list" aria-live="polite"></div>
+            <form id="simulation-form" class="fields"><label class="full">Data e hora de teste (opcional, horário do seu computador)<input id="simulation-time" type="datetime-local"></label><label class="full">Sua resposta<input id="simulation-message" maxlength="2000"></label><div class="form-actions full"><button type="submit">Simular</button></div></form>
+          </section>
+          <section class="card" data-config-panel="observation" hidden>
+            <div class="card-heading"><div><span>OBSERVAÇÃO</span><h3>Métricas dos últimos 30 dias</h3></div><button type="button" id="observation-refresh">Atualizar</button></div>
+            <p class="card-help">Métricas de execução real. O simulador não gera estatísticas de clientes. Sem amostras, mostramos “Sem dados”.</p>
+            <div id="observation-metrics" class="library-list"></div>
+          </section>
+        </div>
+      </section>
+
+      <!-- ===== Biblioteca de respostas ===== -->
+      <section data-panel="responses" hidden>
+        <div class="editor-grid">
+          <section class="card">
+            <div class="card-heading"><div><span>BIBLIOTECA</span><h3>Respostas do Bot</h3></div><button id="new-response" type="button">+ Resposta</button></div>
+            <p class="card-help">Textos controlados reutilizáveis em qualquer fluxo (nó Mensagem → "Resposta da biblioteca"). Editar aqui atualiza todos os fluxos que usam a resposta.</p>
+            <div class="library-toolbar">
+              <select id="response-filter" aria-label="Categoria"><option value="">Todas as categorias</option></select>
+              <input id="response-search" type="search" placeholder="Buscar código, título ou texto">
+            </div>
+            <div id="response-list" class="library-list"></div>
+          </section>
+          <section class="card">
+            <div class="card-heading"><div><span id="response-form-kicker">NOVA RESPOSTA</span><h3 id="response-form-title">Cadastrar resposta</h3></div></div>
+            <form id="response-form" class="fields">
+              <label>Código<input id="response-key" maxlength="64" placeholder="SUPORTE_CARREGAMENTO" required></label>
+              <label>Categoria<select id="response-category"></select></label>
+              <label class="full">Título<input id="response-title" maxlength="120" placeholder="Carregamento — contatos limpos" required></label>
+              <label class="full">Texto<textarea id="response-text" rows="7" maxlength="4000" placeholder="Verifique se os contatos do relógio e do carregador estão limpos e secos..." required></textarea></label>
+              <label class="checkbox full"><input id="response-active" type="checkbox" checked><span>Ativa</span></label>
+              <p class="card-help full">Variáveis disponíveis: <code>{{contact.firstName}}</code>, <code>{{contact.greeting}}</code>, <code>{{flow.selectedOption}}</code>, <code>{{customer.orderNumber}}</code>...</p>
+              <div class="form-actions full"><button id="delete-response" type="button" class="danger" hidden>Excluir</button><button type="submit">Salvar resposta</button></div>
+            </form>
+          </section>
+        </div>
+      </section>
+
+      <!-- ===== Histórico técnico ===== -->
+      <section data-panel="legacy" hidden>
+        <div class="editor-grid single">
+          <section class="card">
+            <div class="card-heading"><div><span>SOMENTE LEITURA</span><h3>Bots do sistema antigo (arquivados)</h3></div></div>
+            <p class="card-help">Bots do modelo antigo (intenções/IA/Knowledge) que não tinham fluxo visual foram marcados como <b>ARCHIVED_LEGACY</b>: não executam e não podem ser editados. Os dados (intenções, observações, logs) continuam no banco; o código antigo está em <code>_archive/bot-legacy/</code>.</p>
+            <div id="legacy-list" class="library-list"></div>
+          </section>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <dialog id="new-bot-dialog" class="bot-dialog">
+    <form id="new-bot-form" method="dialog" class="fields">
+      <div class="full dialog-heading"><span>NOVO BOT</span><h3>Criar Bot</h3><p>Depois de criar, o Editor Visual abre direto com o fluxo principal.</p></div>
+      <div id="new-bot-company" class="full"></div>
+      <label class="full">Nome<input id="new-bot-name" maxlength="100" placeholder="Triagem Sincrofit" required></label>
+      <label class="full">Descrição<textarea id="new-bot-description" maxlength="500" rows="2" placeholder="Triagem e respostas de suporte"></textarea></label>
+      <div class="full"><span>Canal / escopo</span><div id="new-bot-channels" class="bot-channels-checklist"></div></div>
+      <div class="form-actions full"><button id="cancel-new-bot" type="button">Cancelar</button><button type="submit">Criar e abrir Editor Visual</button></div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast"></div>
+  <script src="/js/company-context.js"></script>
+  <script src="/js/bots.js"></script>
+</body>
+</html>

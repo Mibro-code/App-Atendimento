@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0a0b0d">
+  <link rel="icon" type="image/svg+xml" href="/assets/central-favicon.svg">
+  <title>Produtividade e Qualidade &bull; Central de Atendimento</title>
+  <script>try{const saved=localStorage.getItem("mibro-theme");document.documentElement.dataset.theme=saved||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch{}</script>
+  <link rel="stylesheet" href="/css/relatorio-conversas.css?v=0.37.11-security-performance-20261026">
+  <link rel="stylesheet" href="/css/responsive.css?v=0.37.11-security-performance-20261026">
+</head>
+<body class="rp-body">
+  <header class="rp-topbar">
+    <a class="rp-brand" href="/"><img src="/assets/central-mark.svg" alt="Central de Atendimento"><small>Produtividade e Qualidade</small></a>
+    <a class="rp-back" href="/">&larr; Central</a>
+    <div class="rp-topbar-right">
+      <button id="theme-toggle" class="rp-icon-btn" type="button" title="Alternar tema">&#9790;</button>
+      <button id="refresh" class="rp-icon-btn" type="button" title="Atualizar">&#8635;</button>
+    </div>
+  </header>
+
+  <main class="rp-shell">
+    <!-- Filtros -->
+    <div class="rp-page-head">
+      <div><h1>Produtividade e Qualidade</h1><p id="page-subtitle">Atendimentos por ciclo: do contato do cliente até a finalização.</p></div>
+      <button id="filters-toggle" class="rp-btn rp-filters-toggle" type="button" aria-expanded="false" aria-controls="filters-bar">Filtros</button>
+    </div>
+    <section class="rp-filters" id="filters-bar">
+      <select id="f-period">
+        <option value="today">Hoje</option>
+        <option value="yesterday">Ontem</option>
+        <option value="7d" selected>Últimos 7 dias</option>
+        <option value="30d">Últimos 30 dias</option>
+        <option value="this_month">Este mês</option>
+        <option value="last_month">Mês anterior</option>
+        <option value="all">Todo histórico</option>
+        <option value="custom">Personalizado…</option>
+      </select>
+      <input id="f-start" type="date" hidden>
+      <input id="f-end" type="date" hidden>
+      <select id="f-company"><option value="">Empresa: todas</option></select>
+      <select id="f-category" aria-label="Equipe ou categoria"><option value="">Equipe: todas</option></select>
+      <select id="f-agent" aria-label="Atendente"><option value="">Atendente: todos</option></select>
+      <select id="f-channel" aria-label="Canal"><option value="">Canal: todos</option></select>
+      <select id="f-status" aria-label="Status (seção Conversas)" title="Afeta só a seção Conversas"><option value="">Status: todos</option></select>
+      <select id="f-priority" aria-label="Prioridade (seção Conversas)" title="Afeta só a seção Conversas"><option value="">Prioridade: todas</option></select>
+      <button id="f-clear" class="rp-filter-clear" type="button">Limpar filtros</button>
+    </section>
+    <div id="filter-chips" class="rp-chips"></div>
+    <p class="rp-time-basis">Tempos de resposta e resolução contam somente o expediente configurado, no fuso da empresa, excluindo dias fechados e feriados habilitados. O volume inclui contatos fora do expediente. O histórico usa o calendário atualmente cadastrado.</p>
+
+    <!-- ============ PRODUTIVIDADE (por ciclo de atendimento) ============ -->
+    <div class="rp-notice" id="productivity-notice" hidden></div>
+    <section class="rp-kpi-grid" id="kpi-productivity" aria-label="Indicadores de produtividade"></section>
+    <section class="rp-kpi-grid compact" id="kpi-times" aria-label="Tempos e SLA"></section>
+
+    <section class="rp-card">
+      <div class="rp-card-head">
+        <div><h3>Atendimentos finalizados</h3><p id="finalized-sub">Ciclos de atendimento finalizados no período.</p></div>
+        <div class="rp-head-controls"><div class="rp-seg" id="prod-granularity" role="group" aria-label="Agrupar por"></div></div>
+      </div>
+      <div class="rp-chart-wrap"><svg class="rp-chart-svg" id="finalized-chart" role="img" aria-label="Atendimentos finalizados por período"></svg><div class="rp-chart-tooltip" id="finalized-tooltip"></div></div>
+    </section>
+
+    <section class="rp-card" id="sincrofit-entries-panel" aria-labelledby="sincrofit-entries-title">
+      <div class="rp-card-head">
+        <div><h3 id="sincrofit-entries-title">Sincrofit · Entradas por mensagem-padrão</h3><p id="sincrofit-entries-summary" role="status" aria-live="polite">Carregando…</p></div>
+        <label>Mensagem <select id="sincrofit-entry-pattern" aria-label="Filtrar mensagem de entrada"><option value="">Todas</option><option value="wholesale">Quero comprar no atacado</option><option value="information">Mais informações</option></select></label>
+      </div>
+      <div id="sincrofit-entry-bars" role="img" aria-label="Contatos únicos por mensagem-padrão"></div>
+      <p class="rp-time-basis">Cada contato conta uma vez por frase no período; pode aparecer nas duas. A contagem usa mensagens recebidas, não comprova origem em anúncio. Segue os filtros acima e as permissões; equipe, responsável e status são os atuais. Somente números Sincrofit identificados.</p>
+    </section>
+
+    <div class="rp-grid-2">
+      <section class="rp-card">
+        <div class="rp-card-head"><div><h3>SLA das respostas</h3><p>Respostas humanas dentro do prazo, próximas do limite ou fora dele (prazos de Configurações → Conversas).</p></div></div>
+        <div id="sla-chart"></div>
+      </section>
+      <section class="rp-card">
+        <div class="rp-card-head"><div><h3>Tempo da 1ª resposta humana</h3><p>Média por período — passe o mouse para ver quantas respostas compõem cada ponto.</p></div></div>
+        <div class="rp-chart-wrap"><svg class="rp-chart-svg short" id="first-response-chart" role="img" aria-label="Tempo médio da primeira resposta por período"></svg><div class="rp-chart-tooltip" id="first-response-tooltip"></div></div>
+      </section>
+    </div>
+
+    <div class="rp-grid-2">
+      <section class="rp-card">
+        <div class="rp-card-head"><div><h3>Finalizados por equipe</h3><p>Setor atual da conversa no momento da consulta.</p></div></div>
+        <div class="rp-rank" id="prod-categories"></div>
+      </section>
+      <section class="rp-card" id="prod-companies-card">
+        <div class="rp-card-head"><div><h3>Por empresa</h3><p>Cada empresa com os próprios números.</p></div></div>
+        <div class="rp-company-cards" id="prod-companies"></div>
+      </section>
+    </div>
+
+    <section class="rp-card" id="team-card">
+      <div class="rp-card-head">
+        <div><h3 id="team-title">Comparação da equipe</h3><p>Ordenado por nome — clique numa coluna para ordenar. Médias sempre com a quantidade de amostras (n). Volume sozinho não mede produtividade.</p></div>
+        <div class="rp-head-controls">
+          <button id="agents-compare-btn" class="rp-btn" type="button" disabled>Comparar selecionados</button>
+          <button id="agents-export" class="rp-btn" type="button">Exportar CSV</button>
+        </div>
+      </div>
+      <div class="rp-table-wrap">
+        <table class="rp-table" id="agents-table">
+          <thead><tr>
+            <th><span class="rp-sr">Selecionar</span></th><th data-sort="name">Atendente</th><th data-sort="finalized">Finalizados</th><th data-sort="claimed">Assumidos</th>
+            <th data-sort="activeNow">Ativos agora</th><th data-sort="transfersOut">Transferiu</th><th data-sort="transfersIn">Recebeu</th>
+            <th data-sort="reopened">Reabertos</th><th data-sort="firstResponseAvgSeconds">1ª resposta</th><th data-sort="responseAvgSeconds">Resposta</th>
+            <th data-sort="handlingAvgSeconds">Atendimento</th><th data-sort="slaMetPercent">SLA</th>
+          </tr></thead>
+          <tbody id="agents-tbody"></tbody>
+        </table>
+      </div>
+      <div id="agents-compare-result" class="rp-table-wrap" hidden></div>
+    </section>
+
+    <!-- ============ CONVERSAS (visão por conversa) ============ -->
+    <h2 class="rp-section-title">Conversas</h2>
+    <!-- KPIs principais -->
+    <section class="rp-kpi-grid" id="kpi-main"></section>
+    <!-- KPIs de qualidade -->
+    <section class="rp-kpi-grid compact" id="kpi-quality"></section>
+
+    <!-- Gráfico principal -->
+    <section class="rp-card">
+      <div class="rp-card-head">
+        <div><h3>Volume de conversas</h3><p>Recebidas, resolvidas ou mensagens — por hora, dia, semana ou mês.</p></div>
+        <div class="rp-head-controls">
+          <div class="rp-seg" id="chart-metric">
+            <button data-value="conversations_received" class="active">Recebidas</button>
+            <button data-value="resolved">Resolvidas</button>
+            <button data-value="messages_received">Msgs recebidas</button>
+            <button data-value="messages_sent">Msgs enviadas</button>
+          </div>
+          <div class="rp-seg" id="chart-granularity"></div>
+          <label class="rp-check"><input id="chart-compare" type="checkbox"> Comparar período anterior</label>
+        </div>
+      </div>
+      <div class="rp-chart-wrap"><svg class="rp-chart-svg" id="main-chart"></svg><div class="rp-chart-tooltip" id="chart-tooltip"></div></div>
+      <div class="rp-legend" id="chart-legend"></div>
+    </section>
+
+    <div class="rp-grid-2">
+      <section class="rp-card">
+        <div class="rp-card-head"><div><h3>Situação das conversas</h3><p>Clique para filtrar a tabela.</p></div></div>
+        <div class="rp-donut-wrap">
+          <svg id="status-donut" width="180" height="180" viewBox="0 0 180 180"></svg>
+          <div class="rp-donut-list" id="status-list"></div>
+        </div>
+      </section>
+      <section class="rp-card" id="company-rank-card">
+        <div class="rp-card-head"><div><h3>Conversas por empresa</h3><p>"Todas" soma as empresas; aqui a quebra por empresa (abertas · resolvidas · 1ª resposta média).</p></div></div>
+        <div class="rp-rank" id="company-rank"></div>
+      </section>
+      <section class="rp-card">
+        <div class="rp-card-head"><div><h3>Conversas por canal</h3><p>Quantidade, resolvidas e 1ª resposta média.</p></div></div>
+        <div class="rp-rank" id="channel-rank"></div>
+      </section>
+    </div>
+
+    <section class="rp-card">
+      <div class="rp-card-head"><div><h3>Categorias mais demandadas</h3><p>Tempo médio de resolução por categoria.</p></div></div>
+      <div class="rp-rank" id="category-rank"></div>
+    </section>
+
+    <div class="rp-grid-2">
+      <section class="rp-card">
+        <div class="rp-card-head"><div><h3>Horários com maior volume</h3><p>Mensagens de clientes por dia da semana e hora.</p></div></div>
+        <div id="heatmap"></div>
+      </section>
+      <section class="rp-card">
+        <div class="rp-card-head"><div><h3>Tempo útil até a 1ª resposta</h3><p>Distribuição das conversas respondidas, contando somente o expediente.</p></div></div>
+        <div class="rp-rank" id="wait-buckets"></div>
+      </section>
+    </div>
+
+    <section class="rp-card">
+      <div class="rp-card-head"><div><h3>Precisam de atenção</h3></div></div>
+      <div class="rp-alerts" id="alerts"></div>
+    </section>
+
+    <section class="rp-card">
+      <div class="rp-card-head">
+        <div><h3>Conversas do período</h3><p id="conversations-count"></p></div>
+        <div class="rp-head-controls"><button id="conversations-export" class="rp-btn primary" type="button">Exportar CSV</button></div>
+      </div>
+      <div class="rp-table-toolbar">
+        <input id="conversations-search" class="rp-search" type="search" placeholder="Buscar por nome, telefone ou e-mail…">
+        <select id="conversations-page-size"><option value="25">25 por página</option><option value="50">50 por página</option><option value="100">100 por página</option></select>
+      </div>
+      <div class="rp-table-wrap">
+        <table class="rp-table" id="conversations-table">
+          <thead><tr>
+            <th>Contato</th><th>Canal</th><th>Categoria</th><th>Última mensagem</th><th data-sort="createdAt">Início</th>
+            <th data-sort="lastMessageAt">Última atividade</th><th data-sort="status">Status</th><th>Atendente</th><th>Situação</th>
+          </tr></thead>
+          <tbody id="conversations-tbody"></tbody>
+        </table>
+      </div>
+      <div class="rp-pagination" id="conversations-pagination"></div>
+    </section>
+  </main>
+
+  <div class="rp-drawer-backdrop" id="drawer-backdrop"></div>
+  <aside class="rp-drawer" id="conversation-drawer"></aside>
+  <aside class="rp-drawer" id="agent-drawer"></aside>
+
+  <div id="toast" class="rp-toast"></div>
+  <script src="/js/relatorio-conversas.js?v=0.37.11-security-performance-20261026"></script>
+</body>
+</html>
