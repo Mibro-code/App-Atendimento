@@ -1,0 +1,39 @@
+(security_headers) {
+  header {
+    -Server
+    X-Content-Type-Options "nosniff"
+    Referrer-Policy "strict-origin-when-cross-origin"
+    Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    Strict-Transport-Security "max-age=31536000"
+  }
+}
+
+app.mibrobrasil.com.br {
+  encode zstd gzip
+
+  reverse_proxy app:3000 {
+    header_up X-Forwarded-For {http.request.remote.host}
+  }
+
+  import security_headers
+}
+
+app.sincrofit.com.br {
+  encode zstd gzip
+
+  reverse_proxy sincrofit-app:3000 {
+    header_up X-Forwarded-For {http.request.remote.host}
+  }
+
+  import security_headers
+}
+
+atendimento.mibrobrasil.com.br {
+  encode zstd gzip
+
+  reverse_proxy atendimento-app:3000 {
+    header_up X-Forwarded-For {http.request.remote.host}
+  }
+
+  import security_headers
+}

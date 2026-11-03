@@ -1,0 +1,125 @@
+<section
+  id="CnpjGlobal-{{ section.id }}"
+  class="cnpj-global"
+  data-cnpj-level="{{ section.settings.cnpj_data_level | default: 'complete' }}"
+  style="--cnpj-bg: {{ section.settings.background }}; --cnpj-text: {{ section.settings.text_color }}; --cnpj-accent: {{ section.settings.accent_color }};"
+>
+  <div class="cnpj-global__container">
+    <div class="cnpj-global__heading">
+      <span>{{ section.settings.eyebrow | escape }}</span>
+      <h2>{{ section.settings.heading | escape }}</h2>
+      {% if section.settings.text != blank %}<p>{{ section.settings.text | escape }}</p>{% endif %}
+    </div>
+
+    {% form 'contact', id: 'CnpjGlobalForm', class: 'cnpj-global__form' %}
+      {% if form.posted_successfully? %}
+        <p class="cnpj-global__message cnpj-global__message--success" role="status">
+          {{ section.settings.success_message | escape }}
+        </p>
+      {% endif %}
+      {{ form.errors | default_errors }}
+
+      <div class="cnpj-global__grid">
+        <label class="cnpj-global__field">
+          <span>Nome *</span>
+          <input type="text" name="contact[nome]" autocomplete="name" required>
+        </label>
+
+        <label class="cnpj-global__field">
+          <span>E-mail *</span>
+          <input type="email" name="contact[email]" autocomplete="email" required>
+        </label>
+
+        <label class="cnpj-global__field">
+          <span>Telefone / WhatsApp *</span>
+          <input type="tel" name="contact[telefone]" autocomplete="tel" required>
+        </label>
+
+        <label class="cnpj-global__field">
+          <span>CNPJ *</span>
+          <input
+            type="text"
+            name="contact[CNPJ]"
+            inputmode="numeric"
+            autocomplete="off"
+            maxlength="18"
+            placeholder="00.000.000/0000-00"
+            data-cnpj
+            required
+          >
+        </label>
+      </div>
+
+      {% if section.settings.show_message %}
+        <label class="cnpj-global__field cnpj-global__field--wide">
+          <span>Mensagem</span>
+          <textarea name="contact[body]" rows="4"></textarea>
+        </label>
+      {% endif %}
+
+      <button class="cnpj-global__button" type="submit">
+        {{ section.settings.button_text | escape }}
+      </button>
+    {% endform %}
+  </div>
+</section>
+
+{% style %}
+  #CnpjGlobal-{{ section.id }} { padding: 64px 20px; background: var(--cnpj-bg); color: var(--cnpj-text); }
+  #CnpjGlobal-{{ section.id }} .cnpj-global__container { width: min(920px, 100%); margin: 0 auto; }
+  #CnpjGlobal-{{ section.id }} .cnpj-global__heading { max-width: 680px; margin: 0 auto 28px; text-align: center; }
+  #CnpjGlobal-{{ section.id }} .cnpj-global__heading span { color: var(--cnpj-accent); font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+  #CnpjGlobal-{{ section.id }} .cnpj-global__heading h2 { margin: 8px 0; font-size: clamp(28px, 5vw, 44px); }
+  #CnpjGlobal-{{ section.id }} .cnpj-global__heading p { margin: 0; opacity: .72; }
+  #CnpjGlobal-{{ section.id }} .cnpj-global__form { padding: 28px; border: 1px solid color-mix(in srgb, var(--cnpj-text) 16%, transparent); border-radius: 20px; background: color-mix(in srgb, var(--cnpj-bg) 94%, white); }
+  #CnpjGlobal-{{ section.id }} .cnpj-global__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+  #CnpjGlobal-{{ section.id }} .cnpj-global__field { display: grid; gap: 7px; margin-top: 18px; font-weight: 700; }
+  #CnpjGlobal-{{ section.id }} .cnpj-global__field--wide { width: 100%; }
+  #CnpjGlobal-{{ section.id }} input,
+  #CnpjGlobal-{{ section.id }} textarea { box-sizing: border-box; width: 100%; min-height: 50px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--cnpj-text) 22%, transparent); border-radius: 10px; background: white; color: var(--cnpj-text); font: inherit; }
+  #CnpjGlobal-{{ section.id }} textarea { resize: vertical; }
+  #CnpjGlobal-{{ section.id }} input:focus,
+  #CnpjGlobal-{{ section.id }} textarea:focus { outline: 3px solid color-mix(in srgb, var(--cnpj-accent) 24%, transparent); border-color: var(--cnpj-accent); }
+  #CnpjGlobal-{{ section.id }} .cnpj-global__button { min-height: 50px; margin-top: 22px; padding: 12px 24px; border: 0; border-radius: 999px; background: var(--cnpj-accent); color: white; font: inherit; font-weight: 800; cursor: pointer; }
+  #CnpjGlobal-{{ section.id }} .cnpj-global__message { padding: 12px 14px; border-radius: 10px; }
+  #CnpjGlobal-{{ section.id }} .cnpj-global__message--success { background: #e7f7ec; color: #176b36; }
+  #CnpjGlobal-{{ section.id }} .cnpj-validator-fields { grid-column: 1 / -1; }
+  @media (max-width: 700px) {
+    #CnpjGlobal-{{ section.id }} { padding: 42px 16px; }
+    #CnpjGlobal-{{ section.id }} .cnpj-global__form { padding: 20px; }
+    #CnpjGlobal-{{ section.id }} .cnpj-global__grid { grid-template-columns: 1fr; }
+  }
+{% endstyle %}
+
+{% schema %}
+{
+  "name": "Formulário CNPJ global",
+  "tag": "section",
+  "class": "section-formulario-cnpj-global",
+  "settings": [
+    { "type": "text", "id": "eyebrow", "label": "Texto superior", "default": "CADASTRO EMPRESARIAL" },
+    { "type": "text", "id": "heading", "label": "Título", "default": "Consulte e envie seus dados" },
+    { "type": "textarea", "id": "text", "label": "Descrição", "default": "Preencha seus dados para continuar." },
+    {
+      "type": "select",
+      "id": "cnpj_data_level",
+      "label": "Dados buscados pelo CNPJ nesta página",
+      "default": "complete",
+      "options": [
+        { "value": "verify", "label": "Somente verificar o CNPJ" },
+        { "value": "essential", "label": "Dados essenciais" },
+        { "value": "complete", "label": "Todos os dados" }
+      ]
+    },
+    { "type": "text", "id": "button_text", "label": "Texto do botão", "default": "Enviar cadastro" },
+    { "type": "text", "id": "success_message", "label": "Mensagem de sucesso", "default": "Cadastro enviado com sucesso." },
+    { "type": "checkbox", "id": "show_message", "label": "Exibir campo de mensagem", "default": false },
+    { "type": "color", "id": "background", "label": "Cor de fundo", "default": "#fff8f5" },
+    { "type": "color", "id": "text_color", "label": "Cor do texto", "default": "#271710" },
+    { "type": "color", "id": "accent_color", "label": "Cor de destaque", "default": "#ff5f35" }
+  ],
+  "presets": [
+    { "name": "Formulário CNPJ global" }
+  ]
+}
+{% endschema %}

@@ -1,0 +1,21 @@
+node_modules/
+.next/
+out/
+build/
+dist/
+.env
+.env.production
+.env.local
+.env*.local
+npm-debug.log*
+.DS_Store
+*.pem
+src/generated/
+.vercel
+next-env.d.ts
+coverage/
+*.tsbuildinfo
+
+# Documentos de ocorrência do ponto (atestados) salvos em disco local —
+# nunca versionados, contêm dados pessoais/sensíveis.
+/storage/attendance-documents/

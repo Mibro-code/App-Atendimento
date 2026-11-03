@@ -1,0 +1,63 @@
+.cnpj-validator-status {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.cnpj-validator-status[data-tone="loading"] {
+  color: rgb(82, 82, 82);
+}
+
+.cnpj-validator-status[data-tone="success"] {
+  color: rgb(18, 128, 56);
+}
+
+.cnpj-validator-status[data-tone="error"] {
+  color: rgb(190, 32, 32);
+}
+
+.cnpj-validator-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  width: 100%;
+  margin-block: 1rem;
+}
+
+.cnpj-validator-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.cnpj-validator-field--wide {
+  grid-column: 1 / -1;
+}
+
+.cnpj-validator-field label {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.cnpj-validator-field input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  border-radius: 0.25rem;
+  color: inherit;
+  background: rgba(0, 0, 0, 0.035);
+}
+
+@media (max-width: 600px) {
+  .cnpj-validator-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .cnpj-validator-field--wide {
+    grid-column: auto;
+  }
+}

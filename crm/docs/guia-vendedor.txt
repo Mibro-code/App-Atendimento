@@ -1,0 +1,206 @@
+GUIA DO VENDEDOR — CRM MIBRO VENDEDORES
+========================================
+
+PRIMEIRO ACESSO, EM 6 PASSOS
+-----------------------------
+1. Entre com seu e-mail e senha
+2. Bata o ponto em Meu perfil
+3. Cadastre um cliente novo
+4. Registre uma atividade na ficha dele
+5. Acompanhe follow-ups pendentes
+6. Crie uma proposta quando fechar preço
+
+O QUE APARECE NO SEU MENU
+--------------------------
+- Painel         -> Visão geral da sua carteira: clientes, quentes, follow-ups de hoje, propostas e vendas do mês.
+- Clientes       -> Sua carteira completa, cadastro de novos clientes e o funil (Novos / Em atendimento / Vendidos).
+- Follow-ups     -> Contatos atrasados, de hoje e próximos, com opção de adiar ou marcar como feito.
+- Propostas      -> Simulações e cotações reais que você já abriu para seus clientes.
+- Vendas         -> Vendas confirmadas da sua carteira (consulta apenas).
+- Metas          -> Sua meta do mês e o progresso — só supervisor/admin define o valor.
+- Ponto          -> Histórico dos seus registros de ponto e envio de justificativas.
+- Meu perfil     -> Bater o ponto do dia, editar seus dados e trocar sua senha.
+
+
+PAINEL (/dashboard)
+--------------------
+Quem vê: todo vendedor.
+Primeira tela após o login: um retrato rápido da sua carteira, só para consulta.
+Mostra: clientes cadastrados, ativos e quentes; clientes sem interação/venda recente;
+follow-ups de hoje; propostas em rascunho; simulações enviadas; cotações reais;
+vendas confirmadas; valor vendido no mês; taxa de conversão.
+Dica: se o card de follow-ups de hoje estiver alto, comece o dia por ali.
+
+
+CLIENTES (/clientes)
+---------------------
+Quem vê: sua carteira (só os seus clientes).
+Lista completa dos clientes sob sua responsabilidade, com filtros, funil e atalhos de contato.
+
+Filtros ("Aplicar filtros" / "Limpar filtros"): nome, razão social, CPF/CNPJ, status,
+temperatura, estado, cidade, origem do lead, tipo de negócio, segmento, se já trabalha
+com smartwatch, produto/empresa de interesse, período de cadastro.
+
+Funil de clientes: três colunas — Novos, Em atendimento e Vendidos — cards clicáveis
+mostrando temperatura, valor vendido, última interação e selo "RECOMPRA".
+
+Ações rápidas: ícones de WhatsApp e e-mail para contato direto; seleção múltipla para
+repasse em lote; "Exportar meus clientes".
+
+
+CADASTRAR CLIENTE (/clientes/novo)
+------------------------------------
+Quem vê: todo vendedor.
+Duas abas: "Cadastro manual" e "Importar planilha".
+
+Campos do cadastro manual:
+- Nome do contato (único obrigatório)
+- Nome fantasia, razão social, CNPJ ou CPF
+- E-mail, telefone/WhatsApp
+- Origem do lead, tipo de negócio, segmento de atuação
+- Já trabalha com smartwatch? (sim/não), empresa e produtos de interesse
+- Cidade, estado, observações
+
+Passo a passo:
+1. Preencha o quanto souber e toque em "Cadastrar cliente".
+2. Se o sistema encontrar CNPJ/CPF/e-mail/telefone parecido com outro cadastro,
+   ele avisa e lista os possíveis duplicados.
+3. Confirme com "Cadastrar mesmo assim" se for outro cliente, ou "Voltar e revisar"
+   se for o mesmo.
+
+Atenção: o navegador pode pedir sua localização ao cadastrar — você pode negar sem
+travar o cadastro.
+
+
+FICHA DO CLIENTE (/clientes/[id])
+------------------------------------
+Quem vê: você, para os seus clientes.
+Centro de tudo: dados cadastrais, status comercial, atividades, propostas e histórico.
+
+Contém:
+- Dados do cliente (editáveis)
+- Datas e movimentação (cadastro, última/próxima interação, última venda, total vendido)
+- Status comercial (status e temperatura, editáveis)
+- Linha do tempo de atividades
+- Propostas (empresa, modo, status)
+- Repassar cliente / histórico de repasses (quando aplicável)
+
+Registrar atividade:
+1. Escolha o tipo: WhatsApp, Telefone, E-mail, Visita, Reunião ou Anotação.
+2. Escreva a descrição do contato.
+3. Se for "Visita", aparece "Registrar localização da visita" — só aciona se você tocar.
+
+Criar proposta:
+1. Escolha a empresa (Mibro ou Sincrofit).
+2. Escolha "Fazer simulação" (sem compromisso) ou "Criar cotação real".
+3. Decida "Permitir localização" ou "Continuar sem localização".
+4. Uma nova aba abre com a calculadora já preenchida; a mensagem mostra a validade
+   em minutos.
+
+
+FOLLOW-UPS (/follow-ups)
+--------------------------
+Quem vê: todo vendedor.
+Três abas: Atrasados, Hoje e Próximos (com contagem). Cliente sem interação por
+30 dias cai automaticamente aqui.
+
+Em cada card: nome do cliente, data prevista, nota opcional.
+- "Adiar" — pede em quantos dias reagendar (padrão 7)
+- "Contato realizado" — marca como concluído
+
+Dica: trate "Atrasados" antes de tudo.
+
+
+PROPOSTAS (/cotacoes)
+-----------------------
+Quem vê: suas propostas.
+Filtros: empresa (Mibro/Sincrofit), tipo (Simulação/Real), status (Rascunho,
+Calculada, Enviada, Aguardando aprovação, Convertida, Cancelada).
+
+Ao abrir uma proposta: itens (produto/SKU/variação/qtd/preço/subtotal), totais
+(valor final, desconto, cupom), linha do tempo, local de criação (se houver).
+- "Transformar em cotação real" — quando ainda é simulação
+- "Abrir novamente na calculadora" — para continuar de onde parou
+
+
+VENDAS (/vendas)
+------------------
+Quem vê: suas vendas.
+Lista só de consulta: cliente, estágio, valor, data de confirmação. A confirmação
+em si acontece pelo fluxo integrado com Olist/Shopify, não manualmente aqui.
+
+
+MINHA META (/metas)
+---------------------
+Quem vê: sua meta individual.
+Progresso da meta ativa do mês e histórico de metas anteriores. Só supervisor ou
+administrador pode criar/editar o valor — aqui é só acompanhamento.
+
+
+MEU PONTO (/ponto)
+--------------------
+Quem vê: todo vendedor.
+Histórico mensal (navegue entre meses). Cada dia expande mostrando entrada,
+intervalo, retorno, saída, total trabalhado e alertas de saída antecipada.
+
+Justificar ocorrência:
+1. Toque em "Justificar ocorrência".
+2. Escolha o tipo: Atraso, Saída antecipada, Falta, Problema no ponto,
+   Esquecimento, Atestado ou Outro.
+3. Informe data e motivo — pode anexar documento (JPG/PNG/PDF até 10MB).
+4. Toque em "Enviar justificativa".
+
+Importante: isso é o histórico. Para bater o ponto de verdade, vá em "Meu perfil".
+
+
+MEU PERFIL (/perfil)
+----------------------
+Quem vê: todo vendedor.
+Aqui você bate o ponto do dia e mantém seus dados atualizados.
+
+Bater o ponto:
+1. O card "Meu ponto" mostra seu status: sem iniciar, trabalhando, no intervalo
+   ou expediente encerrado.
+2. Toque no botão da próxima ação: Registrar entrada / Sair para intervalo /
+   Registrar retorno / Registrar saída.
+3. Confirme sua identidade por digital/reconhecimento facial (passkey) ou senha.
+4. Se for saída antes do horário, o sistema pede o motivo antes de confirmar.
+
+Atenção: localização é pedida a cada registro de ponto, nunca fica rastreando
+em segundo plano.
+
+Seus dados: e-mail/papel/cargo (consulta); nome/telefone/WhatsApp (editáveis);
+"Alterar senha"; "Cadastrar passkey"; "Seus clientes" (atalho para os primeiros 20).
+
+
+DÚVIDAS COMUNS
+----------------
+P: Cadastrei um cliente e o sistema disse que já existe. E agora?
+R: Revise a lista de possíveis duplicados. Se for o mesmo cliente, não cadastre
+   de novo — procure-o na carteira. Se for diferente, confirme "Cadastrar mesmo
+   assim".
+
+P: Por que não vejo os clientes de outro vendedor?
+R: Cada vendedor só enxerga a própria carteira. Supervisores veem a equipe deles;
+   administradores veem tudo. É proposital, para proteger os dados dos clientes.
+
+P: Preciso permitir localização sempre?
+R: Não. Só é pedida em momentos pontuais (cadastro, visita, proposta, ponto) e
+   nunca fica ativa continuamente.
+
+P: Simulação e cotação real são a mesma coisa?
+R: Não. Simulação é um cálculo informal sem compromisso. Cotação real gera uma
+   proposta que pode virar venda. Dá para transformar simulação em cotação real
+   depois.
+
+P: Esqueci de bater o ponto na entrada. O que faço?
+R: Vá em "Meu ponto" > "Justificar ocorrência", escolha "Esquecimento" e explique.
+   Anexe documento se tiver.
+
+P: Quem pode mudar minha meta do mês?
+R: Só seu supervisor ou um administrador.
+
+
+---
+Guia de uso — CRM Mibro Vendedores. Em dúvida sobre algo que não está aqui,
+fale com seu supervisor.

@@ -1,0 +1,77 @@
+name: sincrofit-shopify
+
+services:
+  sincrofit-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file:
+      - .env.sincrofit
+    volumes:
+      - sincrofit_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - sincrofit_private
+
+  sincrofit-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sincrofit-shopify-app:local
+    restart: unless-stopped
+    env_file:
+      - .env.sincrofit
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+    depends_on:
+      sincrofit-db:
+        condition: service_healthy
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    networks:
+      - sincrofit_private
+      - proxy
+
+  sincrofit-olist-status-sync:
+    image: sincrofit-shopify-app:local
+    restart: unless-stopped
+    healthcheck:
+      disable: true
+    env_file:
+      - .env.sincrofit
+    depends_on:
+      sincrofit-app:
+        condition: service_healthy
+    command:
+      - /bin/sh
+      - -c
+      - |
+        while true; do
+          wget -q -O /dev/null \
+            --header="Authorization: Bearer $${CRM_SHOPIFY_SHARED_SECRET}" \
+            --post-data="{}" \
+            http://sincrofit-app:3000/internal/olist-order-status-sync || true
+          sleep "$${OLIST_STATUS_SYNC_INTERVAL_SECONDS:-120}"
+        done
+    networks:
+      - sincrofit_private
+
+volumes:
+  sincrofit_postgres_data:
+
+networks:
+  sincrofit_private:
+    driver: bridge
+  proxy:
+    external: true
+    name: shopify-proxy

@@ -1,0 +1,24 @@
+const {test,after}=require('node:test'),assert=require('node:assert/strict');
+const {client,url}=require('./commercial-owner-local-db.cjs');
+process.env.DATABASE_URL=url;
+const p=client(),chat=require('./attendance/src/services/internal-chat-service');
+after(async()=>{await p.$disconnect();await require('./attendance/src/database/prisma').$disconnect();});
+test('internal history keyset pagination in isolated PostgreSQL',async t=>{
+ const prefix='history-local-'+Date.now(),user=await p.user.create({data:{name:'Histórico fictício',email:prefix+'@local.invalid',role:'ADMIN'}});
+ const a=await p.internalChat.create({data:{key:prefix,type:'DIRECT',members:{create:{userId:user.id}}}});
+ const b=await p.internalChat.create({data:{key:prefix+'-other',type:'DIRECT'}});
+ const at=new Date('2026-10-21T08:00:00Z');
+ const id=i=>prefix+'-'+String(i).padStart(5,'0');
+ await p.internalMessage.createMany({data:Array.from({length:401},(_,i)=>({id:id(i),chatId:a.id,senderUserId:user.id,text:'Mensagem fictícia '+i,createdAt:at}))});
+ const list=options=>chat.listMessages(a.id,user,{page:'1',...options});
+ let recent;
+ await t.test('opens latest 60 including message 401, ordered chronologically',async()=>{recent=await list();assert.equal(recent.messages.length,60);assert.equal(recent.messages.at(-1).id,id(400));assert.equal(recent.messages[0].id,id(341));assert.equal(recent.hasOlder,true);});
+ await t.test('walks all older messages without duplicates or omissions at equal timestamps',async()=>{let page=recent,all=[...page.messages];while(page.hasOlder){page=await list({before:page.messages[0].id});all=[...page.messages,...all];}assert.equal(all.length,401);assert.equal(new Set(all.map(m=>m.id)).size,401);assert.deepEqual(all.map(m=>m.id),Array.from({length:401},(_,i)=>id(i)));});
+ await t.test('legacy clients receive latest 300, not oldest 300',async()=>{const legacy=await chat.listMessages(a.id,user);assert.equal(legacy.length,300);assert.equal(legacy.at(-1).id,id(400));assert.equal(legacy[0].id,id(101));});
+ await t.test('incremental new messages drain multiple pages without dropping a burst',async()=>{await p.internalMessage.createMany({data:Array.from({length:145},(_,i)=>({id:id(i+401),chatId:a.id,senderUserId:user.id,text:'Nova mensagem fictícia',createdAt:at}))});let cursor=id(400),all=[],more=true;while(more){const page=await list({after:cursor});all.push(...page.messages);cursor=page.messages.at(-1)?.id;more=page.hasNewer;}assert.equal(all.length,145);assert.equal(all.at(-1).id,id(545));assert.equal((await list({after:cursor})).messages.length,0);});
+ await t.test('search can open around an old message with both directions available',async()=>{const page=await list({around:id(200)});assert.equal(page.messages.length,61);assert.equal(page.messages[30].id,id(200));assert.equal(page.hasOlder,true);assert.equal(page.hasNewer,true);});
+ await t.test('foreign-chat cursor cannot reveal another conversation',async()=>{const other=await p.internalMessage.create({data:{chatId:b.id,text:'Privado fictício'}});await assert.rejects(list({before:other.id}),e=>e.statusCode===404);});
+ await t.test('non-member cannot read history or cursor pages',async()=>{await assert.rejects(chat.listMessages(a.id,{id:'not-a-member'},{page:'1'}),e=>e.statusCode===403);});
+ await t.test('invalid sizes and mixed directions are rejected',async()=>{for(const options of [{limit:101},{limit:0},{limit:'NaN'},{before:id(1),after:id(2)}])await assert.rejects(list(options),e=>e.statusCode===400);});
+ await t.test('empty chat returns an empty final page',async()=>{const empty=await p.internalChat.create({data:{key:prefix+'-empty',type:'DIRECT',members:{create:{userId:user.id}}}});const page=await chat.listMessages(empty.id,user,{page:'1'});assert.deepEqual(page,{messages:[],hasOlder:false,hasNewer:false});});
+});

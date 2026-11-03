@@ -1,0 +1,11 @@
+# Imagem de desenvolvimento: roda "next dev" com hot reload, código montado
+# como volume pelo docker-compose.dev.yml.
+FROM node:20-alpine
+WORKDIR /app
+RUN apk add --no-cache libc6-compat openssl
+COPY package.json package-lock.json* ./
+RUN npm install
+COPY . .
+RUN npx prisma generate
+EXPOSE 3000
+CMD ["npm", "run", "dev"]

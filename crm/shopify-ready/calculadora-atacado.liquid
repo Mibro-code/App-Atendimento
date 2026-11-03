@@ -1,0 +1,3692 @@
+{% comment %}
+  Integração preparada:
+  - Produto/SKU: puxados automaticamente do produto Shopify selecionado em cada bloco.
+  - Preços: calculados exclusivamente nesta página pelas faixas de quantidade.
+  - Olist: recebe SKU, quantidade e preço unitário final; recalcula e confirma o total do pedido.
+  - Confirmação: mantém o pedido pendente para aprovação; pagamento deve ser gerado pelo Olist após aprovação.
+  - Rotas futuras do app:
+      /apps/atacado/calcular-olist
+      /apps/atacado/confirmar-pedido
+{% endcomment %}
+
+{% comment %}
+  Seção: Calculadora de Atacado
+  Arquivo sugerido: sections/calculadora-atacado.liquid
+
+  Observações:
+  - A consulta automática do CNPJ usa um endpoint configurável em "Endpoint da consulta CNPJ".
+  - Recomenda-se usar um App Proxy/servidor próprio, por exemplo:
+      /apps/cnpj/consulta?cnpj=12345678000190
+  - O endpoint deve retornar JSON com campos compatíveis com:
+      razao_social, email, telefone,
+      logradouro, numero, complemento, bairro, municipio, uf, cep
+  - O botão secundário pode enviar a proposta para um webhook do n8n.
+  - Ao avançar da etapa de produtos, a página consulta o Olist e mostra o total confirmado; o detalhamento fiscal depende da NF-e.
+  - Desconto/cupom podem ser alterados no resumo; o botão de atualização reenvia o mesmo pedido temporário ao Olist.
+{% endcomment %}
+
+<style>
+  html.mibro-access-checking body {
+    visibility: hidden !important;
+  }
+</style>
+
+<script>
+  (function () {
+    const accessKey = 'mibro_seller_access_v1';
+    const accessValue = 'authorized';
+    const loginUrl = '/pages/acesso-vendedores';
+
+    document.documentElement.classList.add(
+      'mibro-access-checking'
+    );
+
+    let authorized = false;
+
+    try {
+      authorized =
+        sessionStorage.getItem(accessKey) === accessValue;
+    } catch (error) {
+      authorized = false;
+    }
+
+    if (!authorized) {
+      const currentPage =
+        window.location.pathname +
+        window.location.search;
+
+      const redirectUrl =
+        loginUrl +
+        '?next=' +
+        encodeURIComponent(currentPage);
+
+      window.location.replace(redirectUrl);
+      return;
+    }
+
+    document.documentElement.classList.remove(
+      'mibro-access-checking'
+    );
+  })();
+</script>
+
+<section
+  id="Atacado-{{ section.id }}"
+  class="atacado"
+  style="
+    --atacado-bg: {{ section.settings.cor_fundo }};
+    --atacado-card: {{ section.settings.cor_cards }};
+    --atacado-texto: {{ section.settings.cor_texto }};
+    --atacado-muted: {{ section.settings.cor_texto_secundario }};
+    --atacado-primary: {{ section.settings.cor_primaria }};
+    --atacado-primary-text: {{ section.settings.cor_texto_botao }};
+    --atacado-border: {{ section.settings.cor_borda }};
+  "
+>
+  <div class="atacado__container">
+    <header class="atacado__header">
+      {% if section.settings.selo != blank %}
+        <span class="atacado__badge">{{ section.settings.selo | escape }}</span>
+      {% endif %}
+
+      <h1>{{ section.settings.titulo | escape }}</h1>
+
+      {% if section.settings.subtitulo != blank %}
+        <p>{{ section.settings.subtitulo | escape }}</p>
+      {% endif %}
+    </header>
+
+    <div class="atacado__steps" aria-label="Etapas da cotação">
+      <span class="is-active" data-step-indicator="0">1. Escolha</span>
+      <span data-step-indicator="1">2. Cadastro</span>
+      <span data-step-indicator="2">3. Produtos</span>
+      <span data-step-indicator="3">4. Resumo</span>
+    </div>
+
+    <div class="atacado__notice atacado__notice--error" data-global-error hidden></div>
+    <div class="atacado__notice atacado__notice--success" data-global-success hidden></div>
+    <div class="atacado__mode-banner is-loading" data-wholesale-mode role="status">
+      <strong data-wholesale-mode-title>Verificando modo da loja...</strong>
+      <span data-wholesale-mode-message>
+        A criação de pedidos permanece bloqueada até a configuração ser confirmada.
+      </span>
+    </div>
+
+    <form class="atacado__form" data-atacado-form novalidate>
+      <div class="atacado__panel" data-step="0">
+        <div class="atacado__panel-heading"><div>
+          <span class="atacado__eyebrow">Antes de come&ccedil;ar</span>
+          <h2>Escolha como deseja continuar</h2>
+          <p>Voc&ecirc; pode simular os valores primeiro ou iniciar o cadastro completo.</p>
+        </div></div>
+        <div class="atacado__flow-options">
+          <article class="atacado__flow-card">
+            <span class="atacado__eyebrow">Simula&ccedil;&atilde;o r&aacute;pida</span>
+            <h3>Simular valores primeiro</h3>
+            <p>Monte o mix, veja pre&ccedil;os, varia&ccedil;&otilde;es e total comercial sem preencher o cadastro agora.</p>
+            <button type="button" class="atacado__button atacado__button--primary atacado__button--full" data-start-simulation>Simular valores</button>
+          </article>
+          <article class="atacado__flow-card">
+            <span class="atacado__eyebrow">Fluxo completo</span>
+            <h3>Fazer cadastro e calcular</h3>
+            <p>Continue pelo processo atual: cadastro, produtos e c&aacute;lculo fiscal pela Olist.</p>
+            <button type="button" class="atacado__button atacado__button--secondary atacado__button--full" data-start-registration>Iniciar cadastro</button>
+          </article>
+        </div>
+      </div>
+
+      <div class="atacado__panel" data-step="1" hidden>
+        <div class="atacado__panel-heading">
+          <div>
+            <span class="atacado__eyebrow">Dados comerciais</span>
+            <h2>Identificação do orçamento</h2>
+          </div>
+        </div>
+
+        <div class="atacado__grid atacado__grid--2">
+          <label class="atacado__field">
+            <span>Nome do vendedor *</span>
+            <input type="text" name="vendedor" autocomplete="name" required>
+          </label>
+
+          <label class="atacado__field">
+            <span>Nome do comprador *</span>
+            <input type="text" name="comprador" autocomplete="name" required>
+          </label>
+
+          <label class="atacado__field">
+            <span>Telefone / WhatsApp *</span>
+            <input type="tel" name="telefone_contato" autocomplete="tel" required>
+          </label>
+
+          <label class="atacado__field">
+            <span>CNPJ *</span>
+            <div class="atacado__input-action">
+              <input
+                type="text"
+                name="cnpj"
+                inputmode="numeric"
+                maxlength="18"
+                placeholder="00.000.000/0000-00"
+                data-cnpj-validator-ignore
+                required
+              >
+              <button type="button" class="atacado__small-button" data-consultar-cnpj>
+                Consultar
+              </button>
+            </div>
+            <small data-cnpj-status>Digite o CNPJ e clique em consultar.</small>
+          </label>
+
+          <label class="atacado__field">
+            <span>Razão social</span>
+            <input type="text" name="razao_social">
+          </label>
+
+        </div>
+
+        <div class="atacado__divider"></div>
+
+        <div class="atacado__grid atacado__grid--2">
+          <div class="atacado__confirm-card" data-email-card hidden>
+            <label class="atacado__field">
+              <span>E-mail comercial *</span>
+              <input type="email" name="email" autocomplete="email">
+              <small>O e-mail não foi localizado na consulta. Informe um e-mail para contato.</small>
+            </label>
+          </div>
+
+          <div class="atacado__confirm-card">
+            <label class="atacado__field">
+              <span>Endereço cadastrado *</span>
+              <textarea name="endereco_cadastrado" rows="4" required></textarea>
+            </label>
+
+            <fieldset class="atacado__choice">
+              <legend>A mercadoria será enviada para este endereço?</legend>
+              <label>
+                <input type="radio" name="endereco_correto" value="sim" checked>
+                <span>Sim</span>
+              </label>
+              <label>
+                <input type="radio" name="endereco_correto" value="nao">
+                <span>Usar outro</span>
+              </label>
+            </fieldset>
+          </div>
+        </div>
+
+        <div
+          data-cnpj-detailed-fields
+          {% if section.settings.cnpj_data_level != blank and section.settings.cnpj_data_level != 'complete' %}hidden{% endif %}
+        >
+          <div class="atacado__divider"></div>
+          <div class="atacado__panel-heading">
+            <div>
+              <span class="atacado__eyebrow">Dados da empresa</span>
+              <h3>Dados cadastrais consultados</h3>
+            </div>
+          </div>
+
+          <div class="atacado__grid atacado__grid--3">
+            <label class="atacado__field">
+              <span>Nome fantasia</span>
+              <input type="text" name="nome_fantasia">
+            </label>
+
+            <label class="atacado__field">
+              <span>Situação cadastral</span>
+              <input type="text" name="situacao_cadastral">
+            </label>
+
+            <label class="atacado__field">
+              <span>Inscrição estadual</span>
+              <input type="text" name="inscricao_estadual">
+            </label>
+
+            <label class="atacado__field">
+              <span>Situação da IE</span>
+              <input type="text" name="situacao_ie">
+            </label>
+
+            <label class="atacado__field">
+              <span>Contribuinte de ICMS</span>
+              <select name="contribuinte_icms">
+                <option value="">Não identificado</option>
+                <option value="sim">Sim</option>
+                <option value="nao">Não</option>
+              </select>
+            </label>
+
+            <label class="atacado__field">
+              <span>UF</span>
+              <input type="text" name="cadastro_uf" maxlength="2">
+            </label>
+
+            <label class="atacado__field">
+              <span>Cidade</span>
+              <input type="text" name="cadastro_cidade">
+            </label>
+
+            <label class="atacado__field">
+              <span>CEP</span>
+              <input type="text" name="cadastro_cep" maxlength="9">
+            </label>
+
+            <label class="atacado__field">
+              <span>Telefone da empresa</span>
+              <input type="tel" name="telefone_empresa">
+            </label>
+
+            <label class="atacado__field">
+              <span>E-mail da empresa</span>
+              <input type="email" name="email_empresa">
+            </label>
+          </div>
+
+          <small>Os dados cadastrais acima são opcionais e podem ser corrigidos manualmente.</small>
+        </div>
+
+        <div class="atacado__address-extra" data-endereco-alternativo hidden>
+          <h3>Endereço de entrega</h3>
+
+          <div class="atacado__grid atacado__grid--3">
+            <label class="atacado__field atacado__field--wide">
+              <span>Logradouro *</span>
+              <input type="text" name="entrega_logradouro">
+            </label>
+
+            <label class="atacado__field">
+              <span>Número *</span>
+              <input type="text" name="entrega_numero">
+            </label>
+
+            <label class="atacado__field">
+              <span>Complemento</span>
+              <input type="text" name="entrega_complemento">
+            </label>
+
+            <label class="atacado__field">
+              <span>Bairro *</span>
+              <input type="text" name="entrega_bairro">
+            </label>
+
+            <label class="atacado__field">
+              <span>Cidade *</span>
+              <input type="text" name="entrega_cidade">
+            </label>
+
+            <label class="atacado__field">
+              <span>UF *</span>
+              <input type="text" name="entrega_uf" maxlength="2">
+            </label>
+
+            <label class="atacado__field">
+              <span>CEP *</span>
+              <input type="text" name="entrega_cep" maxlength="9">
+            </label>
+          </div>
+        </div>
+
+        <input type="hidden" name="destino_uf">
+        <input type="hidden" name="destino_cidade">
+        <input type="hidden" name="destino_cep">
+        <input type="hidden" name="cadastro_logradouro">
+        <input type="hidden" name="cadastro_numero">
+        <input type="hidden" name="cadastro_complemento">
+        <input type="hidden" name="cadastro_bairro">
+        <input type="hidden" name="cnpj_consultado" value="nao">
+
+        <label class="atacado__consent">
+          <input type="checkbox" name="consentimento" required>
+          <span>{{ section.settings.texto_consentimento | escape }}</span>
+        </label>
+
+        <div class="atacado__actions atacado__actions--right">
+          <button type="button" class="atacado__button atacado__button--ghost" data-back-choice>Voltar para escolha</button>
+          <button type="button" class="atacado__button atacado__button--primary" data-next-step>
+            Continuar para simulação
+          </button>
+        </div>
+      </div>
+
+      <div class="atacado__panel" data-step="2" hidden>
+        <div class="atacado__panel-heading">
+          <div>
+            <span class="atacado__eyebrow">Tabela comercial</span>
+            <h2>Monte o pedido</h2>
+            <p>
+              A faixa é calculada pela soma de todas as unidades selecionadas.
+            </p>
+          </div>
+
+          <div class="atacado__quantity-card">
+            <span>Total de unidades</span>
+            <strong data-total-quantidade>0</strong>
+            <small data-faixa-atual>Nenhuma faixa aplicada</small>
+          </div>
+        </div>
+
+        <div class="atacado__tax-notice">
+          <strong>Valores dos produtos</strong>
+          <p>Selecione os produtos e quantidades. Ao avançar, os dados serão enviados ao Olist para recalcular e confirmar o total do pedido.</p>
+        </div>
+
+        <div class="atacado__table-wrap">
+          <table class="atacado__table">
+            <thead>
+              <tr>
+                <th>Produto</th>
+                <th>Varejo</th>
+                <th>10–49 un.</th>
+                <th>50–99 un.</th>
+                <th>100+ un.</th>
+                <th>Quantidade</th>
+                <th>Preço aplicado</th>
+                <th>Subtotal</th>
+              </tr>
+            </thead>
+
+            {% assign valid_product_count = 0 %}
+            {% for block in section.blocks %}
+              {% if block.type == 'produto' %}
+                {% if block.settings.produto_shopify != blank %}
+                  {% assign valid_product_count = valid_product_count | plus: 1 %}
+                {% elsif block.settings.nome != blank and block.settings.nome != 'Produto' %}
+                  {% assign valid_product_count = valid_product_count | plus: 1 %}
+                {% endif %}
+              {% endif %}
+            {% endfor %}
+
+            <tbody>
+              {% if valid_product_count > 0 %}
+                {% for block in section.blocks %}
+                  {% if block.type == 'produto' %}
+                    {% assign linked_product = block.settings.produto_shopify %}
+                    {% assign should_render_product = false %}
+                    {% if linked_product != blank %}
+                      {% assign should_render_product = true %}
+                    {% elsif block.settings.nome != blank and block.settings.nome != 'Produto' %}
+                      {% assign should_render_product = true %}
+                    {% endif %}
+
+                    {% if should_render_product %}
+                      {% assign linked_variant = linked_product.selected_or_first_available_variant %}
+                      {% assign display_name = block.settings.nome | strip %}
+                      {% assign display_image = block.settings.imagem %}
+                      {% assign integration_sku = linked_variant.sku %}
+
+                      {% if display_name == blank and linked_product != blank %}
+                        {% assign display_name = linked_product.title | strip %}
+                      {% endif %}
+
+                      {% if linked_product != blank %}
+                        {% if linked_product.featured_image != blank %}
+                          {% assign display_image = linked_product.featured_image %}
+                        {% endif %}
+                      {% endif %}
+
+                      {% if block.settings.sku_olist_override != blank %}
+                        {% assign integration_sku = block.settings.sku_olist_override %}
+                      {% endif %}
+
+                      {% assign variant_data = '' %}
+                      {% case display_name %}
+                        {% when 'Mibro A3' %}
+                          {% assign variant_data = 'Cinza escuro::A3-DARK-GRAY|Bege::A3-MOCHA' %}
+                        {% when 'Mibro C4' %}
+                          {% assign variant_data = 'Preto::C4-BLACK|Prata::C4-SILVER' %}
+                        {% when 'Mibro GS Active' %}
+                          {% assign variant_data = 'Preto::GS-ACTIVE-BLACK' %}
+                        {% when 'Mibro GS Active 2' %}
+                          {% assign variant_data = 'Cinza escuro::GS-ACTIVE2-DARK-GRAY|Roxo claro::GS-ACTIVE2-LIGHT-PURPLE' %}
+                        {% when 'Mibro GS Pro' %}
+                          {% assign variant_data = 'Preto::GS-PRO-BLACK' %}
+                        {% when 'Mibro GS Pro 2' %}
+                          {% assign variant_data = 'Cinza escuro::GS-PRO2-DARK-GRAY|Branco::GS-PRO2-WHITE' %}
+                        {% when 'Mibro Lite 3' %}
+                          {% assign variant_data = 'Cinza escuro::LITE3-DARK-GRAY|Dourado claro::LITE3-LIGHT-GOLD' %}
+                        {% when 'Mibro Lite 3 Pro' %}
+                          {% assign variant_data = 'Verde escuro::LITE3-PRO-BLACKISH-GREEN|Cinza cáqui::LITE3-PRO-KHAKIO-GRAY|Rose Gold::LITE3-PRO-ROSE-GOLD' %}
+                        {% when 'Mibro GS Explorer' %}
+                          {% assign variant_data = '' %}
+                        {% else %}
+                          {% if integration_sku != blank %}
+                            {% capture variant_data %}Padrão::{{ integration_sku }}{% endcapture %}
+                          {% endif %}
+                      {% endcase %}
+
+                      {% if variant_data != blank %}
+                        {% assign product_variants = variant_data | split: '|' %}
+                        <tr
+                          class="atacado__model-row"
+                          data-model-summary="{{ block.id }}"
+                          {{ block.shopify_attributes }}
+                        >
+                          <td>
+                            <div class="atacado__product-name">
+                              {% if display_image != blank %}
+                                {{ display_image | image_url: width: 120 | image_tag: loading: 'lazy', widths: '60, 90, 120', alt: display_name }}
+                              {% endif %}
+                              <div>
+                                {% if block.settings.categoria != blank %}<small>{{ block.settings.categoria | escape }}</small>{% endif %}
+                                <strong>{{ display_name | escape }}</strong>
+                              </div>
+                            </div>
+                          </td>
+                          <td data-price-cell="retail">{{ block.settings.preco_varejo | times: 100 | money }}</td>
+                          <td data-price-cell="tier1">{{ block.settings.preco_10_49 | times: 100 | money }}</td>
+                          <td data-price-cell="tier2">{{ block.settings.preco_50_99 | times: 100 | money }}</td>
+                          <td data-price-cell="tier3">{{ block.settings.preco_100 | times: 100 | money }}</td>
+                          <td><span class="atacado__model-quantity"><b data-model-qty="{{ block.id }}">0</b> un.</span></td>
+                          <td data-model-unit>—</td>
+                          <td><strong data-model-subtotal>—</strong></td>
+                        </tr>
+                        {% for variant_entry in product_variants %}
+                          {% assign variant_parts = variant_entry | split: '::' %}
+                          {% assign variant_color = variant_parts[0] %}
+                          {% assign variant_sku = variant_parts[1] %}
+                          {% capture product_line_name %}{{ display_name }} — {{ variant_color }}{% endcapture %}
+                          <tr
+                            data-product-row
+                            data-product-id="{{ block.id }}-variant-{{ forloop.index0 }}"
+                            data-model-id="{{ block.id }}"
+                            data-product-name="{{ product_line_name | strip | escape }}"
+                            data-product-sku="{{ variant_sku | escape }}"
+                            data-shopify-product-id="{% if linked_product != blank %}{{ linked_product.id }}{% endif %}"
+                            data-shopify-variant-id=""
+                            data-product-linked="true"
+                            data-price-retail="{{ block.settings.preco_varejo | times: 100 | round }}"
+                            data-price-tier1="{{ block.settings.preco_10_49 | times: 100 | round }}"
+                            data-price-tier2="{{ block.settings.preco_50_99 | times: 100 | round }}"
+                            data-price-tier3="{{ block.settings.preco_100 | times: 100 | round }}"
+                          >
+                            <td>
+                              <div class="atacado__product-name atacado__product-name--variant">
+                                <div>
+                                  <span class="atacado__variant-name">{{ variant_color | escape }}</span>
+                                  <small class="atacado__variant-sku">SKU: {{ variant_sku | escape }}</small>
+                                </div>
+                              </div>
+                            </td>
+                            <td colspan="4" class="atacado__variant-instruction">Selecione a quantidade desta cor</td>
+                            <td><div class="atacado__qty"><button type="button" aria-label="Diminuir {{ variant_color | escape }}" data-qty-minus>−</button><input type="number" min="0" step="1" value="0" inputmode="numeric" aria-label="Quantidade de {{ product_line_name | strip | escape }}" data-qty-input><button type="button" aria-label="Aumentar {{ variant_color | escape }}" data-qty-plus>+</button></div></td>
+                            <td></td>
+                            <td></td>
+                          </tr>
+                        {% endfor %}
+                      {% endif %}
+                    {% endif %}
+                  {% endif %}
+                {% endfor %}
+              {% else %}
+                {% assign fallback_names = 'Mibro C4|Mibro A3|Mibro Lite 3|Mibro Lite 3 Pro|Mibro GS Pro|Mibro GS Pro 2|Mibro GS Active|Mibro GS Active 2' | split: '|' %}
+                {% assign fallback_categories = 'Essential Series|Essential Series|Lifestyle Series|Lifestyle Series|Professional Sports Series|Professional Sports Series|Professional Sports Series|Professional Sports Series' | split: '|' %}
+                {% assign fallback_retail = '424|588|612|847|765|1118|647|882' | split: '|' %}
+                {% assign fallback_tier1 = '270|375|390|540|485|710|410|560' | split: '|' %}
+                {% assign fallback_tier2 = '250|345|360|500|450|660|380|520' | split: '|' %}
+                {% assign fallback_tier3 = '235|325|340|475|425|625|360|495' | split: '|' %}
+                {% for name in fallback_names %}
+                  {% assign i = forloop.index0 %}
+                  <tr data-product-row data-product-id="fallback-{{ i }}" data-product-name="{{ name | escape }}" data-product-sku="" data-shopify-product-id="" data-shopify-variant-id="" data-product-linked="false" data-price-retail="{{ fallback_retail[i] | times: 100 }}" data-price-tier1="{{ fallback_tier1[i] | times: 100 }}" data-price-tier2="{{ fallback_tier2[i] | times: 100 }}" data-price-tier3="{{ fallback_tier3[i] | times: 100 }}">
+                    <td><div class="atacado__product-name"><div><small>{{ fallback_categories[i] }}</small><strong>{{ name }}</strong></div></div></td>
+                    <td data-price-cell="retail">{{ fallback_retail[i] | times: 100 | money }}</td>
+                    <td data-price-cell="tier1">{{ fallback_tier1[i] | times: 100 | money }}</td>
+                    <td data-price-cell="tier2">{{ fallback_tier2[i] | times: 100 | money }}</td>
+                    <td data-price-cell="tier3">{{ fallback_tier3[i] | times: 100 | money }}</td>
+                    <td><div class="atacado__qty"><button type="button" aria-label="Diminuir" data-qty-minus>−</button><input type="number" min="0" step="1" value="0" inputmode="numeric" aria-label="Quantidade de {{ name | escape }}" data-qty-input><button type="button" aria-label="Aumentar" data-qty-plus>+</button></div></td>
+                    <td data-unit-price>{{ 0 | money }}</td>
+                    <td><strong data-line-total>{{ 0 | money }}</strong></td>
+                  </tr>
+                {% endfor %}
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="atacado__mobile-products">
+          {% if valid_product_count > 0 %}
+            {% for block in section.blocks %}
+              {% if block.type == 'produto' %}
+                {% assign linked_product = block.settings.produto_shopify %}
+                {% assign should_render_product = false %}
+                {% if linked_product != blank %}
+                  {% assign should_render_product = true %}
+                {% elsif block.settings.nome != blank and block.settings.nome != 'Produto' %}
+                  {% assign should_render_product = true %}
+                {% endif %}
+
+                {% if should_render_product %}
+                  {% assign display_name = block.settings.nome | strip %}
+                  {% if display_name == blank and linked_product != blank %}{% assign display_name = linked_product.title | strip %}{% endif %}
+                  {% assign variant_data = '' %}
+                  {% case display_name %}
+                    {% when 'Mibro A3' %}
+                      {% assign variant_data = 'Cinza escuro::A3-DARK-GRAY|Bege::A3-MOCHA' %}
+                    {% when 'Mibro C4' %}
+                      {% assign variant_data = 'Preto::C4-BLACK|Prata::C4-SILVER' %}
+                    {% when 'Mibro GS Active' %}
+                      {% assign variant_data = 'Preto::GS-ACTIVE-BLACK' %}
+                    {% when 'Mibro GS Active 2' %}
+                      {% assign variant_data = 'Cinza escuro::GS-ACTIVE2-DARK-GRAY|Roxo claro::GS-ACTIVE2-LIGHT-PURPLE' %}
+                    {% when 'Mibro GS Pro' %}
+                      {% assign variant_data = 'Preto::GS-PRO-BLACK' %}
+                    {% when 'Mibro GS Pro 2' %}
+                      {% assign variant_data = 'Cinza escuro::GS-PRO2-DARK-GRAY|Branco::GS-PRO2-WHITE' %}
+                    {% when 'Mibro Lite 3' %}
+                      {% assign variant_data = 'Cinza escuro::LITE3-DARK-GRAY|Dourado claro::LITE3-LIGHT-GOLD' %}
+                    {% when 'Mibro Lite 3 Pro' %}
+                      {% assign variant_data = 'Verde escuro::LITE3-PRO-BLACKISH-GREEN|Cinza cáqui::LITE3-PRO-KHAKIO-GRAY|Rose Gold::LITE3-PRO-ROSE-GOLD' %}
+                    {% when 'Mibro GS Explorer' %}
+                      {% assign variant_data = '' %}
+                  {% endcase %}
+                  {% if variant_data != blank %}
+                    {% assign product_variants = variant_data | split: '|' %}
+                    <article class="atacado__mobile-product atacado__mobile-model" data-mobile-model-summary="{{ block.id }}">
+                      <div class="atacado__mobile-product-head">
+                        <div>
+                          <small>{{ block.settings.categoria | escape }}</small>
+                          <h3>{{ display_name | escape }}</h3>
+                        </div>
+                        <span class="atacado__model-quantity"><b data-model-qty="{{ block.id }}">0</b> un.</span>
+                      </div>
+                      <div class="atacado__mobile-prices">
+                        <span>Preço aplicado <strong data-mobile-model-unit>—</strong></span>
+                        <span>Subtotal <strong data-mobile-model-subtotal>—</strong></span>
+                      </div>
+                      <div class="atacado__mobile-variants">
+                        {% for variant_entry in product_variants %}
+                          {% assign variant_parts = variant_entry | split: '::' %}
+                          {% assign variant_color = variant_parts[0] %}
+                          <div class="atacado__mobile-variant" data-mobile-product data-product-id="{{ block.id }}-variant-{{ forloop.index0 }}">
+                            <div>
+                              <strong class="atacado__variant-name">{{ variant_color | escape }}</strong>
+                              <small>SKU: {{ variant_parts[1] | escape }}</small>
+                            </div>
+                            <div class="atacado__qty"><button type="button" aria-label="Diminuir {{ variant_color | escape }}" data-mobile-minus>−</button><input type="number" min="0" step="1" value="0" aria-label="Quantidade de {{ display_name | escape }} {{ variant_color | escape }}" data-mobile-qty><button type="button" aria-label="Aumentar {{ variant_color | escape }}" data-mobile-plus>+</button></div>
+                          </div>
+                        {% endfor %}
+                      </div>
+                    </article>
+                  {% endif %}
+                {% endif %}
+              {% endif %}
+            {% endfor %}
+          {% else %}
+            {% for name in fallback_names %}
+              {% assign i = forloop.index0 %}
+              <article class="atacado__mobile-product" data-mobile-product data-product-id="fallback-{{ i }}">
+                <div class="atacado__mobile-product-head"><div><small>{{ fallback_categories[i] }}</small><h3>{{ name }}</h3></div><div class="atacado__qty"><button type="button" aria-label="Diminuir" data-mobile-minus>−</button><input type="number" min="0" step="1" value="0" data-mobile-qty><button type="button" aria-label="Aumentar" data-mobile-plus>+</button></div></div>
+                <div class="atacado__mobile-prices"><span>Preço aplicado <strong data-mobile-unit>{{ 0 | money }}</strong></span><span>Subtotal <strong data-mobile-total>{{ 0 | money }}</strong></span></div>
+              </article>
+            {% endfor %}
+          {% endif %}
+        </div>
+
+        <div class="atacado__actions atacado__actions--between">
+          <button type="button" class="atacado__button atacado__button--ghost" data-prev-step>
+            Voltar
+          </button>
+          <button type="button" class="atacado__button atacado__button--primary" data-go-summary>
+            Confirmar total no Olist
+          </button>
+        </div>
+      </div>
+
+      <div class="atacado__panel" data-step="3" hidden>
+        <div class="atacado__panel-heading">
+          <div>
+            <span class="atacado__eyebrow">Condição comercial</span>
+            <h2>Resumo da proposta</h2>
+          </div>
+        </div>
+
+        <div class="atacado__summary-layout">
+          <div class="atacado__summary-products">
+            <h3>Produtos selecionados</h3>
+            <div data-summary-items></div>
+          </div>
+
+          <aside class="atacado__totals">
+            <div class="atacado__discount-box atacado__discount-box--summary">
+              <h3>Desconto ou cupom</h3>
+              <p class="atacado__tax-help">
+                Altere a condição comercial e clique em atualizar. O mesmo pedido aberto será reenviado ao Olist para recalcular e confirmar o total.
+              </p>
+
+              <div class="atacado__grid atacado__grid--2">
+                <label class="atacado__field">
+                  <span>Tipo de desconto</span>
+                  <select name="tipo_desconto" data-discount-type>
+                    <option value="nenhum">Sem desconto</option>
+                    <option value="percentual">Percentual (%)</option>
+                    <option value="fixo">Valor fixo (R$)</option>
+                  </select>
+                </label>
+
+                <label class="atacado__field">
+                  <span>Valor do desconto</span>
+                  <input type="number" name="desconto" min="0" step="0.01" value="0" data-discount-value disabled>
+                </label>
+              </div>
+
+              <label class="atacado__field">
+                <span>Cupom de desconto</span>
+                <input
+                  type="text"
+                  name="cupom_desconto"
+                  maxlength="80"
+                  autocomplete="off"
+                  placeholder="Digite o código, quando houver"
+                  data-coupon-code
+                >
+              </label>
+
+              <label class="atacado__field">
+                <span>Observação comercial</span>
+                <textarea name="observacao" rows="3"></textarea>
+              </label>
+
+              <button
+                type="button"
+                class="atacado__button atacado__button--secondary atacado__button--full"
+                data-recalculate-olist data-fiscal-only
+              >
+                Atualizar total no Olist
+              </button>
+
+              <small class="atacado__recalculate-status" data-recalculate-status data-fiscal-only>
+                Os valores abaixo correspondem ao último cálculo recebido do Olist.
+              </small>
+            </div>
+
+            <div class="atacado__total-row">
+              <span>Quantidade total</span>
+              <strong data-summary-qty>0</strong>
+            </div>
+            <div class="atacado__total-row">
+              <span>Subtotal</span>
+              <strong data-summary-subtotal>{{ 0 | money }}</strong>
+            </div>
+            <div class="atacado__total-row">
+              <span>Desconto</span>
+              <strong data-summary-discount>− {{ 0 | money }}</strong>
+            </div>
+            <div class="atacado__tax-notice" data-simulation-notice hidden>
+              <strong>Simula&ccedil;&atilde;o comercial</strong>
+              <p>O frete n&atilde;o est&aacute; inclu&iacute;do e ser&aacute; calculado ap&oacute;s a compra, conforme a forma de entrega ou retirada escolhida pelo cliente.</p>
+            </div>
+
+            <div class="atacado__olist-result" data-olist-result>
+              <h3>Valores confirmados pelo Olist</h3>
+              <p class="atacado__tax-help" data-olist-message>
+                O total será exibido após o envio dos produtos ao Olist.
+              </p>
+              <div class="atacado__total-row">
+                <span>Total comercial enviado ao Olist</span>
+                <strong data-olist-total-sent>—</strong>
+              </div>
+              <div class="atacado__tax-notice" data-tax-breakdown-unavailable hidden>
+                <strong>Detalhamento fiscal oficial indisponível</strong>
+                <p>A API pública do Olist não informa a memória completa dos tributos antes do faturamento. O detalhamento oficial estará disponível na NF-e.</p>
+              </div>
+              <div data-tax-breakdown-details hidden>
+                <div class="atacado__total-row"><span>IPI</span><strong data-olist-ipi>—</strong></div>
+                <div class="atacado__total-row"><span>ICMS + FCP</span><strong data-olist-icms>—</strong></div>
+                <div class="atacado__total-row"><span>ICMS-ST + FCP-ST</span><strong data-olist-st>—</strong></div>
+                <div class="atacado__total-row"><span>Outros tributos</span><strong data-olist-other>—</strong></div>
+                <div class="atacado__total-row atacado__total-row--tax-total">
+                  <span>Total de tributos informado</span>
+                  <strong data-olist-tax-total>—</strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="atacado__total-row atacado__total-row--final">
+              <span data-summary-total-label>Total calculado pelo Olist</span>
+              <strong data-summary-total>{{ 0 | money }}</strong>
+            </div>
+
+            <div class="atacado__simulation-actions" data-simulation-actions hidden>
+              <button type="button" class="atacado__button atacado__button--primary atacado__button--full" data-continue-registration>
+                Seguir para o cadastro
+              </button>
+              <p class="atacado__privacy">Ao concluir o cadastro, o mix ser&aacute; preservado e o resumo voltar&aacute; com o total confirmado pela Olist. O frete ser&aacute; calculado ap&oacute;s a compra.</p>
+            </div>
+
+            <button
+              type="button"
+              class="atacado__button atacado__button--primary atacado__button--full"
+              data-confirm-order data-fiscal-only
+              disabled
+            >
+              <span data-live-label>{{ section.settings.texto_botao_confirmacao | escape }}</span>
+            </button>
+
+            <label class="atacado__field atacado__simulation-email" data-simulation-email-field hidden>
+              <span>E-mail para receber a proposta *</span>
+              <input type="email" name="simulation_email" autocomplete="email" placeholder="cliente@empresa.com">
+            </label>
+
+            <button
+              type="button"
+              class="atacado__button atacado__button--secondary atacado__button--full"
+              data-save-proposal
+              disabled
+            >
+              {{ section.settings.texto_botao_proposta | escape }}
+            </button>
+
+            <small class="atacado__privacy">
+              {{ section.settings.texto_privacidade | escape }}
+            </small>
+          </aside>
+        </div>
+
+        <div class="atacado__actions">
+          <button type="button" class="atacado__button atacado__button--ghost" data-back-products>
+            Alterar produtos
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <script type="application/json" data-atacado-config>
+    {
+      "currency": {{ cart.currency.iso_code | default: shop.currency | json }},
+      "locale": {{ request.locale.iso_code | default: 'pt-BR' | json }},
+      "cnpjEndpoint": {{ section.settings.endpoint_cnpj | default: '/apps/cnpj-validator/cnpj' | json }},
+      "crmSessionEndpoint": {{ section.settings.endpoint_crm_session | default: '/apps/cnpj-validator/crm/session' | json }},
+      "crmQuoteEndpoint": {{ section.settings.endpoint_crm_quote | default: '/apps/cnpj-validator/crm/quote' | json }},
+      "cnpjDataLevel": {{ section.settings.cnpj_data_level | default: 'complete' | json }},
+      "olistEndpoint": {{ section.settings.endpoint_olist | default: '/apps/cnpj-validator/atacado/calcular-olist' | json }},
+      "modeEndpoint": {{ section.settings.endpoint_modo_teste | default: '/apps/cnpj-validator/atacado/config' | json }},
+      "webhookUrl": {{ section.settings.webhook_url | json }},
+      "confirmEndpoint": {{ section.settings.endpoint_confirmacao_olist | default: '/apps/cnpj-validator/atacado/confirmar-pedido' | json }},
+      "emailEndpoint": {{ section.settings.endpoint_email | default: '/apps/cnpj-validator/atacado/enviar-email' | json }},
+      "minimumWholesale": {{ section.settings.minimo_atacado | default: 10 | json }},
+      "storeName": {{ shop.name | json }},
+      "brandName": {{ section.settings.nome_marca | json }}
+    }
+  </script>
+</section>
+
+<style>
+  #Atacado-{{ section.id }} {
+    background:
+      radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--atacado-primary) 12%, transparent), transparent 34%),
+      var(--atacado-bg);
+    color: var(--atacado-texto);
+    padding: clamp(40px, 6vw, 90px) 18px;
+  }
+
+  #Atacado-{{ section.id }} * {
+    box-sizing: border-box;
+  }
+
+  #Atacado-{{ section.id }} [hidden] {
+    display: none !important;
+  }
+
+  #Atacado-{{ section.id }} .atacado__container {
+    width: min(1380px, 100%);
+    margin: 0 auto;
+  }
+
+  #Atacado-{{ section.id }} .atacado__header {
+    text-align: center;
+    max-width: 820px;
+    margin: 0 auto 34px;
+  }
+
+  #Atacado-{{ section.id }} .atacado__header h1 {
+    color: var(--atacado-texto);
+    font-size: clamp(34px, 5vw, 64px);
+    line-height: 1.02;
+    margin: 12px 0;
+  }
+
+  #Atacado-{{ section.id }} .atacado__header p {
+    color: var(--atacado-muted);
+    font-size: clamp(15px, 2vw, 19px);
+    margin: 0;
+  }
+
+  #Atacado-{{ section.id }} .atacado__badge,
+  #Atacado-{{ section.id }} .atacado__eyebrow {
+    color: var(--atacado-primary);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+
+  #Atacado-{{ section.id }} .atacado__steps {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    width: min(720px, 100%);
+    margin: 0 auto 26px;
+    border: 1px solid var(--atacado-border);
+    border-radius: 999px;
+    overflow: hidden;
+    background: var(--atacado-card);
+  }
+
+  #Atacado-{{ section.id }} .atacado__steps span {
+    color: var(--atacado-muted);
+    padding: 12px 10px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  #Atacado-{{ section.id }} .atacado__steps span.is-active {
+    background: var(--atacado-primary);
+    color: var(--atacado-primary-text);
+  }
+
+  #Atacado-{{ section.id }} .atacado__panel {
+    background: var(--atacado-card);
+    border: 1px solid var(--atacado-border);
+    border-radius: 22px;
+    padding: clamp(20px, 4vw, 42px);
+    box-shadow: 0 18px 70px rgba(0, 0, 0, .08);
+  }
+
+  #Atacado-{{ section.id }} .atacado__panel-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 28px;
+  }
+
+  #Atacado-{{ section.id }} h2,
+  #Atacado-{{ section.id }} h3 {
+    color: var(--atacado-texto);
+    margin-top: 6px;
+  }
+
+  #Atacado-{{ section.id }} .atacado__panel-heading p {
+    color: var(--atacado-muted);
+    margin: 6px 0 0;
+  }
+
+  #Atacado-{{ section.id }} .atacado__grid {
+    display: grid;
+    gap: 18px;
+  }
+
+  #Atacado-{{ section.id }} .atacado__grid--2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #Atacado-{{ section.id }} .atacado__grid--3 {
+    grid-template-columns: 2fr .7fr 1fr 1fr 1.3fr .5fr .8fr;
+  }
+
+  #Atacado-{{ section.id }} .atacado__field {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  #Atacado-{{ section.id }} .atacado__field > span,
+  #Atacado-{{ section.id }} .atacado__choice legend {
+    color: var(--atacado-texto);
+    font-size: 13px;
+    font-weight: 750;
+  }
+
+  #Atacado-{{ section.id }} input,
+  #Atacado-{{ section.id }} textarea,
+  #Atacado-{{ section.id }} select {
+    width: 100%;
+    min-height: 48px;
+    border: 1px solid var(--atacado-border);
+    border-radius: 12px;
+    background: var(--atacado-bg);
+    color: var(--atacado-texto);
+    padding: 11px 13px;
+    font: inherit;
+    outline: none;
+  }
+
+  #Atacado-{{ section.id }} textarea {
+    resize: vertical;
+  }
+
+  #Atacado-{{ section.id }} input:focus,
+  #Atacado-{{ section.id }} textarea:focus,
+  #Atacado-{{ section.id }} select:focus {
+    border-color: var(--atacado-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--atacado-primary) 18%, transparent);
+  }
+
+  #Atacado-{{ section.id }} .atacado__input-action {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+  }
+
+  #Atacado-{{ section.id }} .atacado__small-button {
+    border: 0;
+    border-radius: 12px;
+    background: var(--atacado-primary);
+    color: var(--atacado-primary-text);
+    padding: 0 18px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  #Atacado-{{ section.id }} .atacado__field small,
+  #Atacado-{{ section.id }} .atacado__privacy {
+    color: var(--atacado-muted);
+  }
+
+  #Atacado-{{ section.id }} .atacado__divider {
+    height: 1px;
+    background: var(--atacado-border);
+    margin: 28px 0;
+  }
+
+  #Atacado-{{ section.id }} .atacado__confirm-card,
+  #Atacado-{{ section.id }} .atacado__address-extra,
+  #Atacado-{{ section.id }} .atacado__discount-box {
+    border: 1px solid var(--atacado-border);
+    border-radius: 16px;
+    padding: 18px;
+  }
+
+  #Atacado-{{ section.id }} .atacado__choice {
+    border: 0;
+    padding: 0;
+    margin: 16px 0 0;
+  }
+
+  #Atacado-{{ section.id }} .atacado__choice > label {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin: 10px 14px 0 0;
+    cursor: pointer;
+  }
+
+  #Atacado-{{ section.id }} .atacado__choice input,
+  #Atacado-{{ section.id }} .atacado__consent input {
+    width: 18px;
+    min-height: 18px;
+    accent-color: var(--atacado-primary);
+  }
+
+  #Atacado-{{ section.id }} .atacado__address-extra {
+    margin-top: 20px;
+  }
+
+  #Atacado-{{ section.id }} .atacado__consent {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-top: 22px;
+    color: var(--atacado-muted);
+    font-size: 13px;
+  }
+
+  #Atacado-{{ section.id }} .atacado__actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 28px;
+  }
+
+  #Atacado-{{ section.id }} .atacado__actions--right {
+    justify-content: flex-end;
+  }
+
+  #Atacado-{{ section.id }} .atacado__actions--between {
+    justify-content: space-between;
+  }
+
+  #Atacado-{{ section.id }} .atacado__button {
+    min-height: 50px;
+    border-radius: 12px;
+    padding: 12px 20px;
+    border: 1px solid transparent;
+    font: inherit;
+    font-weight: 800;
+    cursor: pointer;
+    transition: transform .2s ease, opacity .2s ease;
+  }
+
+  #Atacado-{{ section.id }} .atacado__button:hover {
+    transform: translateY(-1px);
+  }
+
+  #Atacado-{{ section.id }} .atacado__button:disabled {
+    cursor: not-allowed;
+    opacity: .55;
+    transform: none;
+  }
+
+  #Atacado-{{ section.id }} .atacado__button--primary {
+    background: var(--atacado-primary);
+    color: var(--atacado-primary-text);
+  }
+
+  #Atacado-{{ section.id }} .atacado__button--secondary {
+    background: transparent;
+    border-color: var(--atacado-primary);
+    color: var(--atacado-primary);
+  }
+
+  #Atacado-{{ section.id }} .atacado__button--ghost {
+    background: transparent;
+    border-color: var(--atacado-border);
+    color: var(--atacado-texto);
+  }
+
+  #Atacado-{{ section.id }} .atacado__button--full {
+    width: 100%;
+    margin-top: 12px;
+  }
+
+  #Atacado-{{ section.id }} .atacado__quantity-card {
+    min-width: 190px;
+    border-radius: 16px;
+    padding: 16px;
+    background: color-mix(in srgb, var(--atacado-primary) 11%, var(--atacado-bg));
+    text-align: right;
+  }
+
+  #Atacado-{{ section.id }} .atacado__quantity-card span,
+  #Atacado-{{ section.id }} .atacado__quantity-card small {
+    display: block;
+    color: var(--atacado-muted);
+  }
+
+  #Atacado-{{ section.id }} .atacado__quantity-card strong {
+    display: block;
+    color: var(--atacado-primary);
+    font-size: 34px;
+    line-height: 1;
+    margin: 7px 0;
+  }
+
+  #Atacado-{{ section.id }} .atacado__table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--atacado-border);
+    border-radius: 16px;
+  }
+
+  #Atacado-{{ section.id }} .atacado__table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 1080px;
+  }
+
+  #Atacado-{{ section.id }} .atacado__table th,
+  #Atacado-{{ section.id }} .atacado__table td {
+    border-bottom: 1px solid var(--atacado-border);
+    padding: 14px 12px;
+    text-align: center;
+    color: var(--atacado-texto);
+  }
+
+  #Atacado-{{ section.id }} .atacado__table th {
+    background: color-mix(in srgb, var(--atacado-primary) 9%, var(--atacado-card));
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+
+  #Atacado-{{ section.id }} .atacado__table td:first-child,
+  #Atacado-{{ section.id }} .atacado__table th:first-child {
+    text-align: left;
+  }
+
+  #Atacado-{{ section.id }} .atacado__table tr.is-applied td[data-price-cell] {
+    opacity: .45;
+  }
+
+  #Atacado-{{ section.id }} .atacado__table tr.is-applied td[data-price-cell].is-current {
+    opacity: 1;
+    color: var(--atacado-primary);
+    font-weight: 900;
+    background: color-mix(in srgb, var(--atacado-primary) 9%, transparent);
+  }
+
+  /* Varejo é somente referência visual e nunca entra no cálculo */
+  #Atacado-{{ section.id }} .atacado__table th:nth-child(2),
+  #Atacado-{{ section.id }} .atacado__table td[data-price-cell="retail"] {
+    color: #9A9A9A !important;
+    font-weight: 500 !important;
+    background: transparent !important;
+    opacity: 1 !important;
+  }
+
+  #Atacado-{{ section.id }} .atacado__table td[data-price-cell="retail"].is-current {
+    color: #9A9A9A !important;
+    font-weight: 500 !important;
+    background: transparent !important;
+  }
+
+  #Atacado-{{ section.id }} .atacado__product-name {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 190px;
+  }
+
+  #Atacado-{{ section.id }} .atacado__product-name img {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    object-fit: cover;
+  }
+
+  #Atacado-{{ section.id }} .atacado__product-name small,
+  #Atacado-{{ section.id }} .atacado__mobile-product small {
+    display: block;
+    color: var(--atacado-muted);
+    font-size: 11px;
+  }
+
+  #Atacado-{{ section.id }} .atacado__product-name strong {
+    display: block;
+    margin-top: 2px;
+  }
+
+  #Atacado-{{ section.id }} .atacado__product-name--variant {
+    padding-left: 20px;
+  }
+
+  #Atacado-{{ section.id }} .atacado__variant-name {
+    display: block;
+    margin-top: 5px;
+    font-weight: 700;
+  }
+
+  #Atacado-{{ section.id }} .atacado__variant-sku {
+    margin-top: 2px;
+    font-size: 10px !important;
+  }
+
+  #Atacado-{{ section.id }} .atacado__model-total {
+    margin-top: 6px;
+    color: var(--atacado-text) !important;
+    font-weight: 600;
+  }
+
+  #Atacado-{{ section.id }} .atacado__model-row td {
+    background: color-mix(in srgb, var(--atacado-primary) 4%, white);
+    border-bottom-style: dashed;
+  }
+
+  #Atacado-{{ section.id }} .atacado__model-quantity {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--atacado-primary) 12%, white);
+    color: var(--atacado-text);
+    white-space: nowrap;
+  }
+
+  #Atacado-{{ section.id }} .atacado__variant-instruction {
+    color: var(--atacado-muted);
+    font-size: 12px;
+    text-align: left;
+  }
+
+  #Atacado-{{ section.id }} .atacado__mobile-variants {
+    margin-top: 12px;
+    border-top: 1px solid var(--atacado-border);
+  }
+
+  #Atacado-{{ section.id }} .atacado__mobile-variant {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--atacado-border);
+  }
+
+  #Atacado-{{ section.id }} .atacado__mobile-variant:last-child {
+    border-bottom: 0;
+  }
+
+  #Atacado-{{ section.id }} .atacado__integration-warning {
+    display: block;
+    margin-top: 5px;
+    color: #a33b00 !important;
+    font-weight: 700;
+  }
+
+  #Atacado-{{ section.id }} .atacado__discount-box--summary {
+    margin-bottom: 18px;
+  }
+
+  #Atacado-{{ section.id }} .atacado__recalculate-status {
+    display: block;
+    margin-top: 10px;
+    color: var(--atacado-muted);
+    line-height: 1.45;
+  }
+
+  #Atacado-{{ section.id }} .atacado__recalculate-status.is-stale {
+    color: #9a5b00;
+    font-weight: 700;
+  }
+
+  #Atacado-{{ section.id }} .atacado__recalculate-status.is-success {
+    color: #12652a;
+    font-weight: 700;
+  }
+
+  #Atacado-{{ section.id }} .atacado__qty {
+    display: inline-grid;
+    grid-template-columns: 34px 64px 34px;
+    align-items: center;
+    border: 1px solid var(--atacado-border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  #Atacado-{{ section.id }} .atacado__qty button {
+    height: 40px;
+    border: 0;
+    background: color-mix(in srgb, var(--atacado-primary) 10%, var(--atacado-bg));
+    color: var(--atacado-primary);
+    font-size: 20px;
+    cursor: pointer;
+  }
+
+  #Atacado-{{ section.id }} .atacado__qty input {
+    min-height: 40px;
+    border: 0;
+    border-radius: 0;
+    padding: 4px;
+    text-align: center;
+    appearance: textfield;
+  }
+
+  #Atacado-{{ section.id }} .atacado__mobile-products {
+    display: none;
+  }
+
+  #Atacado-{{ section.id }} .atacado__summary-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(320px, .7fr);
+    gap: 24px;
+  }
+
+  #Atacado-{{ section.id }} .atacado__summary-products,
+  #Atacado-{{ section.id }} .atacado__totals {
+    border: 1px solid var(--atacado-border);
+    border-radius: 16px;
+    padding: 20px;
+  }
+
+  #Atacado-{{ section.id }} .atacado__summary-item {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--atacado-border);
+    align-items: center;
+  }
+
+  #Atacado-{{ section.id }} .atacado__summary-item span {
+    color: var(--atacado-muted);
+    font-size: 13px;
+  }
+
+  #Atacado-{{ section.id }} .atacado__total-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--atacado-border);
+  }
+
+  #Atacado-{{ section.id }} .atacado__total-row--final {
+    border-bottom: 0;
+    margin-top: 8px;
+    font-size: 20px;
+  }
+
+  #Atacado-{{ section.id }} .atacado__total-row--tax-total {
+    margin-top: 4px;
+    border-top: 2px solid var(--atacado-border);
+    font-weight: 800;
+  }
+
+  #Atacado-{{ section.id }} .atacado__total-row--final strong {
+    color: var(--atacado-primary);
+    font-size: 26px;
+  }
+
+  #Atacado-{{ section.id }} .atacado__notice {
+    width: min(900px, 100%);
+    margin: 0 auto 18px;
+    border-radius: 12px;
+    padding: 12px 16px;
+    font-weight: 700;
+  }
+
+  #Atacado-{{ section.id }} .atacado__notice--error {
+    background: #fff0f0;
+    border: 1px solid #e7a6a6;
+    color: #971b1b;
+  }
+
+  #Atacado-{{ section.id }} .atacado__notice--success {
+    background: #eefaf1;
+    border: 1px solid #9dd5aa;
+    color: #12652a;
+  }
+
+  #Atacado-{{ section.id }} .atacado__mode-banner {
+    display: flex;
+    width: min(900px, 100%);
+    margin: 0 auto 18px;
+    border: 1px solid #d1d5db;
+    border-radius: 14px;
+    background: #f8fafc;
+    color: #374151;
+    padding: 14px 16px;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  #Atacado-{{ section.id }} .atacado__mode-banner[hidden] {
+    display: none;
+  }
+
+  #Atacado-{{ section.id }} .atacado__mode-banner.is-test {
+    width: max-content;
+    max-width: 100%;
+    margin: 0 0 12px auto;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border-color: #f4c04d;
+    background: #fff8df;
+    color: #704d00;
+    font-size: 12px;
+  }
+
+  #Atacado-{{ section.id }} .atacado__mode-banner.is-test span {
+    display: none;
+  }
+
+  #Atacado-{{ section.id }} .atacado__mode-banner.is-error {
+    border-color: #e7a6a6;
+    background: #fff0f0;
+    color: #971b1b;
+  }
+
+  #Atacado-{{ section.id }} .atacado__flow-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+    margin-top: 28px;
+  }
+  #Atacado-{{ section.id }} .atacado__flow-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 24px;
+    border: 1px solid var(--atacado-border);
+    border-radius: 18px;
+    background: var(--atacado-card);
+  }
+  #Atacado-{{ section.id }} .atacado__flow-card h3,
+  #Atacado-{{ section.id }} .atacado__flow-card p { margin: 0; }
+  #Atacado-{{ section.id }} .atacado__flow-card p {
+    flex: 1;
+    color: var(--atacado-muted);
+  }
+  #Atacado-{{ section.id }} .atacado__simulation-actions {
+    display: grid;
+    gap: 12px;
+    margin: 18px 0;
+  }
+  #Atacado-{{ section.id }} .atacado__tax-notice {
+    margin-bottom: 18px;
+    padding: 16px 18px;
+    border: 1px solid #FFD5C7;
+    border-left: 5px solid var(--atacado-primary);
+    border-radius: 14px;
+    background: #FFF7F3;
+  }
+
+  #Atacado-{{ section.id }} .atacado__simulation-email {
+    margin: 18px 0 12px;
+  }
+
+  #Atacado-{{ section.id }} .atacado__tax-notice strong {
+    color: var(--atacado-primary);
+  }
+
+  #Atacado-{{ section.id }} .atacado__tax-notice p {
+    color: var(--atacado-muted);
+    margin: 6px 0 0;
+  }
+
+  @media (max-width: 990px) {
+    #Atacado-{{ section.id }} .atacado__grid--3 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    #Atacado-{{ section.id }} .atacado__summary-layout {
+      grid-template-columns: 1fr;
+    }
+
+    #Atacado-{{ section.id }} .atacado__table-wrap {
+      display: none;
+    }
+
+    #Atacado-{{ section.id }} .atacado__mobile-products {
+      display: grid;
+      gap: 12px;
+    }
+
+    #Atacado-{{ section.id }} .atacado__mobile-product {
+      border: 1px solid var(--atacado-border);
+      border-radius: 14px;
+      padding: 16px;
+    }
+
+    #Atacado-{{ section.id }} .atacado__mobile-product-head,
+    #Atacado-{{ section.id }} .atacado__mobile-prices {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    #Atacado-{{ section.id }} .atacado__mobile-product h3 {
+      margin: 4px 0 0;
+    }
+
+    #Atacado-{{ section.id }} .atacado__mobile-prices {
+      margin-top: 14px;
+      color: var(--atacado-muted);
+    }
+
+    #Atacado-{{ section.id }} .atacado__mobile-prices strong {
+      display: block;
+      color: var(--atacado-texto);
+      margin-top: 3px;
+    }
+  }
+
+  @media (max-width: 720px) {
+    #Atacado-{{ section.id }} .atacado__grid--2,
+    #Atacado-{{ section.id }} .atacado__flow-options,
+    #Atacado-{{ section.id }} .atacado__grid--3 {
+      grid-template-columns: 1fr;
+    }
+
+    #Atacado-{{ section.id }} .atacado__panel-heading {
+      flex-direction: column;
+    }
+
+    #Atacado-{{ section.id }} .atacado__quantity-card {
+      width: 100%;
+      text-align: left;
+    }
+
+    #Atacado-{{ section.id }} .atacado__steps span {
+      font-size: 11px;
+      padding: 10px 5px;
+    }
+
+    #Atacado-{{ section.id }} .atacado__input-action {
+      grid-template-columns: 1fr;
+    }
+
+    #Atacado-{{ section.id }} .atacado__small-button {
+      min-height: 46px;
+    }
+
+    #Atacado-{{ section.id }} .atacado__actions--between {
+      flex-direction: column-reverse;
+    }
+
+    #Atacado-{{ section.id }} .atacado__button {
+      width: 100%;
+    }
+
+    #Atacado-{{ section.id }} .atacado__mobile-product-head,
+    #Atacado-{{ section.id }} .atacado__mobile-prices {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+  }
+</style>
+
+<script>
+  (() => {
+    const root = document.getElementById('Atacado-{{ section.id }}');
+    if (!root || root.dataset.initialized === 'true') return;
+    root.dataset.initialized = 'true';
+
+    const form = root.querySelector('[data-atacado-form]');
+    const config = JSON.parse(root.querySelector('[data-atacado-config]').textContent);
+    const rows = [...root.querySelectorAll('[data-product-row]')];
+    const mobileCards = [...root.querySelectorAll('[data-mobile-product]')];
+    const quoteStorageKey = `mibro_atacado_quote_{{ section.id }}`;
+
+    const getOrCreateQuoteToken = () => {
+      try {
+        const existing = sessionStorage.getItem(quoteStorageKey);
+        if (/^[a-zA-Z0-9_-]{16,100}$/.test(existing || '')) return existing;
+
+        const bytes = new Uint8Array(24);
+        crypto.getRandomValues(bytes);
+        const token = [...bytes]
+          .map((value) => value.toString(16).padStart(2, '0'))
+          .join('');
+        sessionStorage.setItem(quoteStorageKey, token);
+        return token;
+      } catch (_) {
+        return `${Date.now()}_${Math.random().toString(36).slice(2)}_${Math.random().toString(36).slice(2)}`;
+      }
+    };
+
+    const state = {
+      quoteToken: getOrCreateQuoteToken(),
+      currentStep: 0,
+      flow: 'choice',
+      resumeSummaryAfterRegistration: false,
+      products: rows.map((row) => ({
+        id: row.dataset.productId,
+        modelId: row.dataset.modelId || row.dataset.productId,
+        name: row.dataset.productName,
+        sku: row.dataset.productSku || '',
+        shopifyProductId: row.dataset.shopifyProductId || '',
+        shopifyVariantId: row.dataset.shopifyVariantId || '',
+        linked: row.dataset.productLinked === 'true',
+        retail: Number(row.dataset.priceRetail || 0),
+        tier1: Number(row.dataset.priceTier1 || 0),
+        tier2: Number(row.dataset.priceTier2 || 0),
+        tier3: Number(row.dataset.priceTier3 || 0),
+        qty: 0,
+        unitPrice: 0,
+        subtotal: 0
+      })),
+      subtotal: 0,
+      discount: 0,
+      total: 0,
+      totalQty: 0,
+      tier: 'retail',
+      pricingMode: 'mixed',
+      pricingVerified: false,
+      olistOrderId: '',
+      olistCalculated: false,
+      olistValues: null,
+      olistConfirmed: false,
+      testMode: true,
+      modeLoaded: false,
+      modeError: false,
+      crmCustomerId: '',
+      crmSellerId: '',
+      crmProposalMode: '',
+      crmProposalContext: ''
+    };
+
+    const startNewQuote = () => {
+      try {
+        sessionStorage.removeItem(quoteStorageKey);
+      } catch (_) {}
+
+      state.quoteToken = getOrCreateQuoteToken();
+      state.olistOrderId = '';
+      state.olistCalculated = false;
+      state.olistValues = null;
+      state.olistConfirmed = false;
+    };
+
+    const loadCrmSession = async () => {
+      const currentUrl = new URL(window.location.href);
+      const crmToken = currentUrl.searchParams.get('crm_session');
+      if (!crmToken) return;
+
+      // Remove o token da barra de endereço assim que ele é capturado. Ele é
+      // curto e de uso único, mas não precisa permanecer no histórico local.
+      currentUrl.searchParams.delete('crm_session');
+      window.history.replaceState(
+        {},
+        document.title,
+        `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`
+      );
+
+      if (!config.crmSessionEndpoint) {
+        showMessage('error', 'A conexão desta calculadora com o CRM não está configurada.');
+        return;
+      }
+
+      try {
+        const endpoint = new URL(config.crmSessionEndpoint, window.location.origin);
+        endpoint.searchParams.set('token', crmToken);
+        const response = await fetch(endpoint.toString(), {
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+          credentials: 'same-origin'
+        });
+        const result = await response.json().catch(() => null);
+
+        if (!response.ok || result?.ok !== true || !result.customer || !result.seller) {
+          throw new Error(
+            result?.message || 'Não foi possível confirmar os dados recebidos do CRM.'
+          );
+        }
+
+        const customer = result.customer;
+        state.crmCustomerId = String(customer.id || '');
+        state.crmSellerId = String(result.seller.id || '');
+        state.crmProposalMode = result.mode === 'simulation' ? 'SIMULATION' : 'REAL';
+        state.crmProposalContext = String(result.proposalContext || '');
+
+        if (!state.crmProposalContext) {
+          throw new Error('O app não devolveu o contexto seguro da proposta.');
+        }
+
+        const resumeQuote = result.resumeQuote || null;
+        const isConversion =
+          state.crmProposalMode === 'REAL' && resumeQuote?.mode === 'simulation';
+        if (!isConversion && /^[a-zA-Z0-9_-]{16,100}$/.test(resumeQuote?.quoteToken || '')) {
+          state.quoteToken = resumeQuote.quoteToken;
+          try { sessionStorage.setItem(quoteStorageKey, state.quoteToken); } catch (_) {}
+          state.olistOrderId = '';
+          state.olistCalculated = false;
+          state.olistValues = null;
+          state.olistConfirmed = false;
+        } else {
+          startNewQuote();
+        }
+        form.elements.vendedor.value = result.seller.name || '';
+        form.elements.comprador.value = customer.contactName || '';
+        form.elements.telefone_contato.value = customer.phone || '';
+        form.elements.cnpj.value = formatCnpj(customer.cnpj || '');
+        form.elements.razao_social.value = customer.legalName || '';
+        form.elements.nome_fantasia.value = customer.tradeName || '';
+        form.elements.email.value = customer.email || '';
+        form.elements.cnpj_consultado.value = 'nao';
+        if (resumeQuote?.couponCode) {
+          form.elements.cupom_desconto.value = resumeQuote.couponCode;
+        }
+        if (resumeQuote?.notes) {
+          form.elements.observacao.value = resumeQuote.notes;
+        }
+
+        const resumedProducts = Array.isArray(resumeQuote?.products?.products)
+          ? resumeQuote.products.products
+          : [];
+        resumedProducts.forEach((savedProduct) => {
+          const product = state.products.find(
+            (item) => String(item.sku || '') === String(savedProduct?.sku || '')
+          );
+          if (product) updateProductQty(product.id, savedProduct.quantity);
+        });
+        calculate();
+
+        const emailCard = root.querySelector('[data-email-card]');
+        emailCard.hidden = Boolean(form.elements.email.value);
+        form.elements.email.required = !form.elements.email.value;
+        state.flow = state.crmProposalMode === 'SIMULATION' ? 'simulation' : 'registration';
+        state.resumeSummaryAfterRegistration = false;
+        setStep(state.crmProposalMode === 'SIMULATION' ? 2 : 1);
+
+        const cnpjStatus = root.querySelector('[data-cnpj-status]');
+        if (cnpjStatus && customer.cnpj) {
+          cnpjStatus.textContent =
+            'Dados recebidos do CRM. Clique em consultar para validar o CNPJ e carregar a regra de preços.';
+        }
+        showMessage(
+          'success',
+          state.crmProposalMode === 'SIMULATION'
+            ? 'Simulação carregada do CRM. Nenhum pedido será criado no Olist.'
+            : 'Cotação real carregada do CRM. Confira os dados antes de continuar.'
+        );
+      } catch (error) {
+        console.error('Falha ao carregar a sessão do CRM.', error);
+        showMessage(
+          'error',
+          error?.message || 'Não foi possível carregar os dados do CRM.'
+        );
+      }
+    };
+
+    const money = (cents) => {
+      return new Intl.NumberFormat(config.locale || 'pt-BR', {
+        style: 'currency',
+        currency: config.currency || 'BRL'
+      }).format((Number(cents) || 0) / 100);
+    };
+
+    const sanitizeDigits = (value) => String(value || '').replace(/\D/g, '');
+
+    const formatCnpj = (value) => {
+      const digits = sanitizeDigits(value).slice(0, 14);
+      return digits
+        .replace(/^(\d{2})(\d)/, '$1.$2')
+        .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+        .replace(/\.(\d{3})(\d)/, '.$1/$2')
+        .replace(/(\d{4})(\d)/, '$1-$2');
+    };
+
+    const formatCep = (value) => {
+      const digits = sanitizeDigits(value).slice(0, 8);
+      return digits.replace(/^(\d{5})(\d)/, '$1-$2');
+    };
+
+    const isValidCnpj = (value) => {
+      const cnpj = sanitizeDigits(value);
+      if (cnpj.length !== 14 || /^(\d)\1+$/.test(cnpj)) return false;
+
+      const calc = (base, factors) => {
+        const sum = base
+          .split('')
+          .reduce((acc, digit, index) => acc + Number(digit) * factors[index], 0);
+        const mod = sum % 11;
+        return mod < 2 ? 0 : 11 - mod;
+      };
+
+      const d1 = calc(cnpj.slice(0, 12), [5,4,3,2,9,8,7,6,5,4,3,2]);
+      const d2 = calc(cnpj.slice(0, 13), [6,5,4,3,2,9,8,7,6,5,4,3,2]);
+
+      return Number(cnpj[12]) === d1 && Number(cnpj[13]) === d2;
+    };
+
+    const showMessage = (type, message) => {
+      const error = root.querySelector('[data-global-error]');
+      const success = root.querySelector('[data-global-success]');
+
+      error.hidden = true;
+      success.hidden = true;
+
+      if (!message) return;
+
+      const target = type === 'success' ? success : error;
+      target.textContent = message;
+      target.hidden = false;
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+
+    const syncWholesaleModeUi = () => {
+      const banner = root.querySelector('[data-wholesale-mode]');
+      const title = root.querySelector('[data-wholesale-mode-title]');
+      const message = root.querySelector('[data-wholesale-mode-message]');
+      const confirmButton = root.querySelector('[data-confirm-order]');
+      const saveButton = root.querySelector('[data-save-proposal]');
+      const liveLabel = root.querySelector('[data-live-label]');
+      const simulation = state.flow === 'simulation';
+
+      banner.classList.remove('is-loading', 'is-test', 'is-live', 'is-error');
+      banner.hidden = false;
+      message.hidden = false;
+
+      if (state.modeError) {
+        banner.classList.add('is-error');
+        title.textContent = 'Modo seguro ativado';
+        message.textContent =
+          'Não foi possível confirmar a configuração da loja. A criação de pedidos está bloqueada.';
+      } else if (!state.modeLoaded) {
+        banner.classList.add('is-loading');
+        title.textContent = 'Verificando modo da loja...';
+        message.textContent =
+          'A criação de pedidos permanece bloqueada até a configuração ser confirmada.';
+      } else if (state.testMode) {
+        banner.classList.add('is-test');
+        title.textContent = 'Modo teste ativo';
+        message.hidden = true;
+      } else {
+        banner.hidden = true;
+      }
+
+      if (liveLabel) {
+        liveLabel.textContent = state.olistConfirmed
+          ? 'Pedido enviado para análise'
+          : state.testMode
+            ? 'Criação de pedido bloqueada no modo teste'
+            : 'Enviar pedido pendente para análise';
+      }
+
+      confirmButton.disabled =
+        !state.modeLoaded ||
+        state.modeError ||
+        state.testMode ||
+        state.olistConfirmed ||
+        !state.olistCalculated ||
+        !state.olistOrderId;
+      root.querySelector('[data-simulation-email-field]').hidden = !simulation;
+      root.querySelectorAll('[data-fiscal-only]').forEach((element) => { element.hidden = simulation; });
+      root.querySelector('[data-olist-result]').hidden = simulation;
+      root.querySelector('[data-simulation-notice]').hidden = !simulation;
+      root.querySelector('[data-simulation-actions]').hidden = !simulation;
+      root.querySelector('[data-step="2"] .atacado__tax-notice p').textContent = simulation
+        ? 'Selecione produtos e varia\u00e7\u00f5es. O frete n\u00e3o est\u00e1 inclu\u00eddo e ser\u00e1 calculado ap\u00f3s a compra, conforme a forma de entrega ou retirada escolhida.'
+        : 'Selecione os produtos e quantidades. Ao avan\u00e7ar, os dados ser\u00e3o enviados \u00e0 Olist para recalcular e confirmar o total do pedido.';
+      root.querySelector('[data-go-summary]').textContent = simulation
+        ? 'Ver simula\u00e7\u00e3o comercial' : 'Confirmar total no Olist';
+      saveButton.textContent = simulation ? 'Enviar proposta comercial' : {{ section.settings.texto_botao_proposta | json }};
+      saveButton.disabled = state.currentStep !== 3 || (!simulation && !state.testMode && !state.olistCalculated);
+    };
+
+    const loadWholesaleMode = async () => {
+      state.testMode = true;
+      state.modeLoaded = false;
+      state.modeError = false;
+      syncWholesaleModeUi();
+
+      if (!config.modeEndpoint) {
+        state.modeError = true;
+        syncWholesaleModeUi();
+        return;
+      }
+
+      try {
+        const response = await fetch(config.modeEndpoint, {
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+          credentials: 'same-origin'
+        });
+        const result = await response.json();
+
+        if (!response.ok || result.ok === false) {
+          throw new Error(result.error || `Falha HTTP ${response.status}.`);
+        }
+
+        state.testMode = result.testMode !== false;
+        const detailedFields = root.querySelector('[data-cnpj-detailed-fields]');
+        if (detailedFields) {
+          detailedFields.hidden = config.cnpjDataLevel !== 'complete';
+        }
+        state.modeLoaded = true;
+      } catch (error) {
+        console.error('Falha ao carregar o modo de atacado.', error);
+        state.testMode = true;
+        state.modeLoaded = false;
+        state.modeError = true;
+      }
+
+      syncWholesaleModeUi();
+    };
+
+    const setStep = (step) => {
+      state.currentStep = step;
+
+      root.querySelectorAll('[data-step]').forEach((panel) => {
+        panel.hidden = Number(panel.dataset.step) !== step;
+      });
+
+      root.querySelectorAll('[data-step-indicator]').forEach((indicator) => {
+        indicator.classList.toggle(
+          'is-active',
+          Number(indicator.dataset.stepIndicator) === step
+        );
+      });
+
+      showMessage('', '');
+      syncWholesaleModeUi();
+      root.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    const getTier = (totalQty) => {
+      if (totalQty >= 100) return 'tier3';
+      if (totalQty >= 50) return 'tier2';
+      if (totalQty >= Number(config.minimumWholesale || 10)) return 'tier1';
+      return 'retail';
+    };
+
+    const getTierLabel = (tier) => {
+      if (tier === 'per_model') return 'Faixas separadas por modelo para cliente recorrente';
+      if (tier === 'tier3') return 'Faixa de 100+ unidades';
+      if (tier === 'tier2') return 'Faixa de 50–99 unidades';
+      if (tier === 'tier1') return `Faixa de ${config.minimumWholesale || 10}–49 unidades`;
+      return 'Abaixo do mínimo de atacado';
+    };
+
+    const getProductPrice = (product, tier) => {
+      if (tier === 'retail') return 0;
+      return product[tier] || 0;
+    };
+
+    const modelNameFromProduct = (product) =>
+      String(product?.name || '').split(' — ')[0].trim() || 'produto';
+
+    const wholesaleSelectionError = () => {
+      const minimum = Number(config.minimumWholesale || 10);
+
+      if (state.totalQty < minimum) {
+        return `Selecione pelo menos ${minimum} unidades para usar a tabela de atacado.`;
+      }
+
+      if (state.pricingMode !== 'per_model') return '';
+
+      const modelQuantities = new Map();
+      state.products
+        .filter((product) => product.qty > 0)
+        .forEach((product) => {
+          const current = modelQuantities.get(product.modelId) || {
+            name: modelNameFromProduct(product),
+            quantity: 0
+          };
+          current.quantity += product.qty;
+          modelQuantities.set(product.modelId, current);
+        });
+      const invalidModel = [...modelQuantities.values()].find(
+        (model) => model.quantity < minimum
+      );
+
+      return invalidModel
+        ? `Cliente recorrente: o modelo ${invalidModel.name} precisa ter pelo menos ${minimum} unidades.`
+        : '';
+    };
+
+    const syncMobileQty = (productId, value) => {
+      const card = mobileCards.find((item) => item.dataset.productId === productId);
+      if (!card) return;
+      card.querySelector('[data-mobile-qty]').value = value;
+    };
+
+    const syncDesktopQty = (productId, value) => {
+      const row = rows.find((item) => item.dataset.productId === productId);
+      if (!row) return;
+      row.querySelector('[data-qty-input]').value = value;
+    };
+
+    const calculate = () => {
+      state.totalQty = state.products.reduce((sum, product) => sum + product.qty, 0);
+      const globalTier = getTier(state.totalQty);
+      state.tier = state.pricingMode === 'per_model' ? 'per_model' : globalTier;
+      state.subtotal = 0;
+      const modelTotals = new Map();
+
+      state.products.forEach((product) => {
+        const modelTotal = modelTotals.get(product.modelId) || {
+          quantity: 0,
+          subtotal: 0,
+          unitPrice: 0,
+          tier: 'retail'
+        };
+        modelTotal.quantity += product.qty;
+        modelTotals.set(product.modelId, modelTotal);
+      });
+
+      state.products.forEach((product) => {
+        const modelTotal = modelTotals.get(product.modelId);
+        const productTier =
+          state.pricingMode === 'per_model'
+            ? getTier(modelTotal.quantity)
+            : globalTier;
+        product.priceTier = productTier;
+        product.unitPrice = getProductPrice(product, productTier);
+        product.subtotal = product.unitPrice * product.qty;
+        state.subtotal += product.subtotal;
+        modelTotal.subtotal += product.subtotal;
+        modelTotal.unitPrice = product.unitPrice;
+        modelTotal.tier = productTier;
+
+        const row = rows.find((item) => item.dataset.productId === product.id);
+        if (row) {
+          row.classList.toggle('is-applied', product.qty > 0);
+        }
+
+        const card = mobileCards.find((item) => item.dataset.productId === product.id);
+        if (card) {
+          card.classList.toggle('is-applied', product.qty > 0);
+        }
+      });
+
+      root.querySelectorAll('[data-model-qty]').forEach((element) => {
+        element.textContent = modelTotals.get(element.dataset.modelQty)?.quantity || 0;
+      });
+
+      root.querySelectorAll('[data-model-summary]').forEach((row) => {
+        const model = modelTotals.get(row.dataset.modelSummary) || {
+          quantity: 0,
+          subtotal: 0,
+          unitPrice: 0,
+          tier: 'retail'
+        };
+        const hasWholesalePrice = model.quantity > 0 && model.tier !== 'retail';
+        row.querySelector('[data-model-unit]').textContent =
+          hasWholesalePrice ? money(model.unitPrice) : '—';
+        row.querySelector('[data-model-subtotal]').textContent =
+          hasWholesalePrice ? money(model.subtotal) : '—';
+        row.classList.toggle('is-applied', model.quantity > 0);
+        row.querySelectorAll('[data-price-cell]').forEach((cell) => {
+          cell.classList.toggle(
+            'is-current',
+            hasWholesalePrice && cell.dataset.priceCell === model.tier
+          );
+        });
+      });
+
+      root.querySelectorAll('[data-mobile-model-summary]').forEach((card) => {
+        const model = modelTotals.get(card.dataset.mobileModelSummary) || {
+          quantity: 0,
+          subtotal: 0,
+          unitPrice: 0,
+          tier: 'retail'
+        };
+        const hasWholesalePrice = model.quantity > 0 && model.tier !== 'retail';
+        card.querySelector('[data-mobile-model-unit]').textContent =
+          hasWholesalePrice ? money(model.unitPrice) : '—';
+        card.querySelector('[data-mobile-model-subtotal]').textContent =
+          hasWholesalePrice ? money(model.subtotal) : '—';
+      });
+
+      calculateDiscount();
+
+      root.querySelector('[data-total-quantidade]').textContent = state.totalQty;
+      root.querySelector('[data-faixa-atual]').textContent = getTierLabel(state.tier);
+    };
+
+    const calculateDiscount = () => {
+      const type = root.querySelector('[data-discount-type]').value;
+      const input = root.querySelector('[data-discount-value]');
+      const rawValue = Number(input.value || 0);
+
+      input.disabled = type === 'nenhum';
+      if (type === 'nenhum') {
+        input.value = '0';
+        state.discount = 0;
+      } else if (type === 'percentual') {
+        const percent = Math.min(Math.max(rawValue, 0), 100);
+        state.discount = Math.round(state.subtotal * (percent / 100));
+      } else {
+        state.discount = Math.min(Math.round(Math.max(rawValue, 0) * 100), state.subtotal);
+      }
+
+      const baseAfterDiscount = Math.max(state.subtotal - state.discount, 0);
+      if (!state.olistCalculated) state.total = baseAfterDiscount;
+
+      root.querySelector('[data-summary-qty]').textContent = state.totalQty;
+      root.querySelector('[data-summary-subtotal]').textContent = money(state.subtotal);
+      root.querySelector('[data-summary-discount]').textContent = `− ${money(state.discount)}`;
+
+      if (state.olistCalculated) {
+        root.querySelector('[data-summary-total]').textContent = money(state.total);
+      }
+    };
+
+    const updateProductQty = (productId, value) => {
+      const product = state.products.find((item) => item.id === productId);
+      if (!product) return;
+
+      product.qty = Math.max(0, Math.floor(Number(value) || 0));
+      state.olistCalculated = false;
+      state.olistValues = null;
+      state.olistConfirmed = false;
+      syncDesktopQty(productId, product.qty);
+      syncMobileQty(productId, product.qty);
+      calculate();
+    };
+
+    const buildAddress = (data) => {
+      const parts = [
+        [data.logradouro, data.numero].filter(Boolean).join(', '),
+        data.complemento,
+        data.bairro,
+        [data.municipio || data.cidade, data.uf].filter(Boolean).join(' - '),
+        data.cep ? `CEP ${formatCep(data.cep)}` : ''
+      ].filter(Boolean);
+
+      return parts.join(' | ');
+    };
+
+    const normalizeCnpjResponse = (data) => {
+      const source = data?.data || data?.company || data || {};
+      const addressSource =
+        source.estabelecimento || source.endereco || source.address || source;
+      const fiscalSource =
+        source.fiscal || source.estadual || source.stateRegistration || source;
+
+      return {
+        razao_social:
+          source.razao_social || source.legalName || source.nome || source.name || '',
+        nome_fantasia:
+          source.nome_fantasia || source.tradeName || source.fantasia ||
+          source.trade_name || '',
+        situacao_cadastral:
+          source.situacao_cadastral || source.registrationStatus ||
+          source.descricao_situacao_cadastral || '',
+        email: source.email || addressSource.email || source.emails?.[0] || '',
+        telefone:
+          source.telefone || source.phone || source.ddd_telefone_1 || source.ddd_telefone_2 ||
+          addressSource.telefone1 || addressSource.telefone || '',
+        logradouro:
+          addressSource.logradouro || addressSource.street || addressSource.formatted || '',
+        numero: addressSource.numero || addressSource.number || '',
+        complemento:
+          addressSource.complemento || addressSource.complement ||
+          addressSource.details || '',
+        bairro: addressSource.bairro || addressSource.district || '',
+        municipio:
+          addressSource.municipio?.descricao || addressSource.municipio ||
+          addressSource.cidade || addressSource.city || '',
+        uf: addressSource.estado?.sigla || addressSource.uf || addressSource.state || '',
+        cep: addressSource.cep || addressSource.postalCode || addressSource.zip || '',
+        inscricao_estadual:
+          source.inscricao_estadual || source.ie || fiscalSource.inscricao_estadual ||
+          fiscalSource.number || '',
+        situacao_ie:
+          source.situacao_ie || fiscalSource.situacao_ie || fiscalSource.situacao ||
+          fiscalSource.status || '',
+        contribuinte_icms:
+          source.contribuinte_icms ?? fiscalSource.contribuinte_icms ??
+          fiscalSource.icmsTaxpayer ?? null
+      };
+    };
+
+    const normalizeContributor = (value) => {
+      if (value === true || value === 1) return 'sim';
+      if (value === false || value === 0) return 'nao';
+
+      const normalized = String(value ?? '')
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+
+      if (['sim', 's', 'true', '1', 'contribuinte'].includes(normalized)) return 'sim';
+      if (['nao', 'n', 'false', '0', 'nao contribuinte'].includes(normalized)) return 'nao';
+      return '';
+    };
+
+    const applyCnpjData = (company) => {
+      form.elements.destino_uf.value = company.uf || '';
+      form.elements.destino_cidade.value = company.municipio || '';
+      form.elements.destino_cep.value = sanitizeDigits(company.cep || '');
+      form.elements.contribuinte_icms.value = normalizeContributor(company.contribuinte_icms);
+      form.elements.inscricao_estadual.value = company.inscricao_estadual || '';
+      form.elements.situacao_ie.value = company.situacao_ie || '';
+      form.elements.situacao_cadastral.value = company.situacao_cadastral || '';
+      form.elements.nome_fantasia.value = company.nome_fantasia || '';
+      form.elements.telefone_empresa.value = company.telefone || '';
+      form.elements.email_empresa.value = company.email || '';
+      form.elements.cadastro_logradouro.value = company.logradouro || '';
+      form.elements.cadastro_numero.value = company.numero || '';
+      form.elements.cadastro_complemento.value = company.complemento || '';
+      form.elements.cadastro_bairro.value = company.bairro || '';
+      form.elements.cadastro_cidade.value = company.municipio || '';
+      form.elements.cadastro_uf.value = company.uf || '';
+      form.elements.cadastro_cep.value = sanitizeDigits(company.cep || '');
+      form.elements.cnpj_consultado.value = 'sim';
+    };
+
+    const consultCnpj = async () => {
+      const button = root.querySelector('[data-consultar-cnpj]');
+      const input = form.elements.cnpj;
+      const status = root.querySelector('[data-cnpj-status]');
+      const cnpj = sanitizeDigits(input.value);
+
+      if (!isValidCnpj(cnpj)) {
+        status.textContent = 'CNPJ inválido. Confira os 14 dígitos.';
+        showMessage('error', 'Digite um CNPJ válido antes de consultar.');
+        return;
+      }
+
+      button.disabled = true;
+      button.textContent = 'Consultando...';
+      status.textContent = 'Buscando dados cadastrais...';
+
+      try {
+        let requestUrl = '';
+
+        if (!config.cnpjEndpoint) {
+          requestUrl = `https://brasilapi.com.br/api/cnpj/v1/${encodeURIComponent(cnpj)}`;
+        } else if (config.cnpjEndpoint.includes('{cnpj}')) {
+          requestUrl = config.cnpjEndpoint.replace(
+            '{cnpj}',
+            encodeURIComponent(cnpj)
+          );
+        } else {
+          const separator = config.cnpjEndpoint.includes('?') ? '&' : '?';
+          requestUrl =
+            `${config.cnpjEndpoint}${separator}cnpj=${encodeURIComponent(cnpj)}`;
+        }
+
+        const response = await fetch(requestUrl, {
+          method: 'GET',
+          headers: { Accept: 'application/json' }
+        });
+
+        if (!response.ok) throw new Error(`Falha HTTP ${response.status}`);
+
+        const raw = await response.json();
+        const company = normalizeCnpjResponse(raw);
+        const pricingMode = raw?.pricing?.mode;
+
+        if (!['mixed', 'per_model'].includes(pricingMode)) {
+          throw new Error('Não foi possível verificar o histórico de compras deste CNPJ.');
+        }
+
+        const registeredAddress = buildAddress(company);
+        const dataLevel = ['verify', 'essential', 'complete'].includes(config.cnpjDataLevel)
+          ? config.cnpjDataLevel
+          : 'complete';
+        const shouldFillEssential = ['essential', 'complete'].includes(dataLevel);
+
+        if (shouldFillEssential && company.razao_social) {
+          form.elements.razao_social.value = company.razao_social;
+        }
+        if (shouldFillEssential && registeredAddress) {
+          form.elements.endereco_cadastrado.value = registeredAddress;
+        }
+        state.pricingMode = pricingMode;
+        state.pricingVerified = true;
+        calculate();
+        applyCnpjData(company);
+
+        form.elements.simulation_email.value = company.email || form.elements.simulation_email.value;
+        const emailCard = root.querySelector('[data-email-card]');
+        const emailField = form.elements.email;
+        if (shouldFillEssential && company.email) {
+          emailField.value = company.email;
+        }
+        emailCard.hidden = Boolean(emailField.value);
+        emailField.required = !emailField.value;
+
+        if (
+          shouldFillEssential &&
+          !form.elements.telefone_contato.value &&
+          company.telefone
+        ) {
+          form.elements.telefone_contato.value = company.telefone;
+        }
+
+        const levelNotice =
+          dataLevel === 'verify'
+            ? ' CNPJ e regra de preços verificados; informe os dados comerciais manualmente.'
+            : dataLevel === 'essential'
+              ? ' Dados essenciais disponíveis foram preenchidos.'
+              : ' Todos os dados disponíveis foram preenchidos.';
+        const missingFields = [
+          !String(form.elements.endereco_cadastrado.value || '').trim()
+            ? 'endereço cadastrado'
+            : '',
+          !String(emailField.value || '').trim() ? 'e-mail comercial' : '',
+          !String(form.elements.telefone_contato.value || '').trim()
+            ? 'telefone/WhatsApp'
+            : ''
+        ].filter(Boolean);
+        const manualNotice = missingFields.length
+          ? ` Preencha manualmente: ${missingFields.join(', ')}.`
+          : '';
+        const pricingNotice =
+          pricingMode === 'per_model'
+            ? ' Cliente recorrente: faixas e mínimo calculados separadamente por modelo.'
+            : ' Primeira compra: faixa calculada pelo mix total de produtos.';
+
+        status.textContent = `Consulta concluída.${levelNotice}${manualNotice}${pricingNotice}`;
+        showMessage(
+          'success',
+          `Consulta concluída.${levelNotice}${manualNotice}${pricingNotice}`
+        );
+      } catch (error) {
+        console.error(error);
+        status.textContent = 'Não foi possível consultar. Preencha os dados manualmente.';
+        showMessage(
+          'error',
+          error?.message || 'Não foi possível consultar o CNPJ agora.'
+        );
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Verificar CNPJ';
+      }
+    };
+
+    const validateStepOne = () => {
+      const required = [
+        'vendedor',
+        'comprador',
+        'telefone_contato',
+        'cnpj',
+        'email',
+        'endereco_cadastrado',
+        'consentimento'
+      ];
+
+      if (form.elements.endereco_correto.value === 'nao') {
+        required.push(
+          'entrega_logradouro',
+          'entrega_numero',
+          'entrega_bairro',
+          'entrega_cidade',
+          'entrega_uf',
+          'entrega_cep'
+        );
+      }
+
+      if (form.elements.cnpj_consultado.value !== 'sim') {
+        form.elements.cnpj.focus();
+        showMessage('error', 'Consulte o CNPJ antes de continuar.');
+        return false;
+      }
+      if (!state.pricingVerified) {
+        showMessage('error', 'Consulte novamente o CNPJ para verificar a regra de preços.');
+        return false;
+      }
+
+      for (const name of required) {
+        const field = form.elements[name];
+        const isCheckbox = field?.type === 'checkbox';
+        const isEmpty = isCheckbox ? !field.checked : !String(field?.value || '').trim();
+
+        if (isEmpty) {
+          field?.focus();
+          showMessage('error', 'Preencha todos os campos obrigatórios antes de continuar.');
+          return false;
+        }
+      }
+
+      if (!isValidCnpj(form.elements.cnpj.value)) {
+        form.elements.cnpj.focus();
+        showMessage('error', 'O CNPJ informado não é válido.');
+        return false;
+      }
+
+      return true;
+    };
+
+    const pickNumber = (source, paths) => {
+      for (const path of paths) {
+        const value = path.split('.').reduce((current, key) => current?.[key], source);
+        if (value !== undefined && value !== null && value !== '') {
+          const number = Number(String(value).replace(',', '.'));
+          if (Number.isFinite(number)) return number;
+        }
+      }
+      return 0;
+    };
+
+    const toCents = (value, response) => {
+      if (!Number.isFinite(value)) return 0;
+      return response?.values_in_cents === true || response?.currency_unit === 'cents'
+        ? Math.round(value)
+        : Math.round(value * 100);
+    };
+
+    const normalizeOlistResponse = (response) => {
+      const source = response?.data || response?.pedido || response?.order || response;
+      const products = toCents(pickNumber(source, ['values.commercial_subtotal','values.products','values.produtos','total_produtos','subtotal','valor_produtos']), response);
+      const discount = toCents(pickNumber(source, ['values.commercial_discount','values.discount','values.desconto','desconto','valor_desconto']), response);
+      const totalSent = toCents(pickNumber(source, ['values.total_sent_to_olist']), response);
+      const ipi = toCents(pickNumber(source, ['values.ipi','impostos.ipi','valor_ipi','ipi']), response);
+      const icms = toCents(pickNumber(source, ['values.icms_fcp','values.icms','impostos.icms_fcp','impostos.icms','valor_icms']), response);
+      const st = toCents(pickNumber(source, ['values.icms_st_fcp_st','values.st','impostos.icms_st_fcp_st','valor_icms_st','icms_st']), response);
+      const pis = toCents(pickNumber(source, ['values.pis','impostos.pis','valor_pis']), response);
+      const cofins = toCents(pickNumber(source, ['values.cofins','impostos.cofins','valor_cofins']), response);
+      const cbs = toCents(pickNumber(source, ['values.cbs','impostos.cbs','valor_cbs']), response);
+      const ibsState = toCents(pickNumber(source, ['values.ibs_state','values.ibs_estadual','impostos.ibs_estadual']), response);
+      const ibsCity = toCents(pickNumber(source, ['values.ibs_city','values.ibs_municipal','impostos.ibs_municipal']), response);
+      const difal = toCents(pickNumber(source, ['values.difal','impostos.difal','valor_difal']), response);
+      const total = toCents(pickNumber(source, ['values.total_confirmed_by_olist','values.total','total','total_pedido','valor_total']), response);
+      return {
+        orderId: String(source?.olist_order_id || source?.pedido_id || source?.order_id || source?.id || ''),
+        orderNumber: String(source?.numero || source?.order_number || source?.numero_pedido || ''),
+        status: String(source?.status || source?.situacao || 'em_aberto'),
+        paymentUrl: String(source?.payment_url || source?.link_pagamento || source?.cobranca?.url || ''),
+        taxBreakdownAvailable: response?.tax_breakdown_available === true,
+        taxEstimateAvailable: response?.app_tax_estimate_available === true,
+        products, discount, totalSent, ipi, icms, st,
+        other: pis + cofins + cbs + ibsState + ibsCity + difal,
+        total
+      };
+    };
+
+    const renderOlistValues = (values) => {
+      const productsTotal = values.products > 0 ? values.products : state.subtotal;
+      const discountTotal = values.discount >= 0 ? values.discount : state.discount;
+      const totalSent = values.totalSent > 0
+        ? values.totalSent
+        : Math.max(productsTotal - discountTotal, 0);
+      const taxTotal = values.ipi + values.icms + values.st + values.other;
+      const taxDetails = root.querySelector('[data-tax-breakdown-details]');
+      const taxUnavailable = root.querySelector('[data-tax-breakdown-unavailable]');
+
+      root.querySelector('[data-summary-subtotal]').textContent = money(productsTotal);
+      root.querySelector('[data-summary-discount]').textContent = `− ${money(discountTotal)}`;
+      root.querySelector('[data-olist-total-sent]').textContent = money(totalSent);
+      root.querySelector('[data-summary-total-label]').textContent = 'Total confirmado pelo Olist';
+      taxDetails.hidden = !values.taxBreakdownAvailable;
+      taxUnavailable.hidden = values.taxBreakdownAvailable;
+      root.querySelector('[data-olist-ipi]').textContent = values.taxBreakdownAvailable ? money(values.ipi) : '—';
+      root.querySelector('[data-olist-icms]').textContent = values.taxBreakdownAvailable ? money(values.icms) : '—';
+      root.querySelector('[data-olist-st]').textContent = values.taxBreakdownAvailable ? money(values.st) : '—';
+      root.querySelector('[data-olist-other]').textContent = values.taxBreakdownAvailable ? money(values.other) : '—';
+      root.querySelector('[data-olist-tax-total]').textContent = values.taxBreakdownAvailable ? money(taxTotal) : '—';
+      root.querySelector('[data-summary-total]').textContent = money(values.total);
+      root.querySelector('[data-olist-message]').textContent =
+        values.taxBreakdownAvailable
+          ? `Total e detalhamento recebidos do Olist. Pedido aberto: ${values.orderId}.`
+          : `Total confirmado no pedido aberto ${values.orderId}. Nenhum tributo foi somado novamente pelo app.`;
+
+      const status = root.querySelector('[data-recalculate-status]');
+      status.classList.remove('is-stale');
+      status.classList.add('is-success');
+      status.textContent = `Valores atualizados pelo Olist às ${new Date().toLocaleTimeString(config.locale || 'pt-BR', { hour: '2-digit', minute: '2-digit' })}.`;
+
+      syncWholesaleModeUi();
+    };
+
+    const renderTestPreview = () => {
+      state.olistOrderId = '';
+      state.olistCalculated = false;
+      state.olistValues = null;
+      state.olistConfirmed = false;
+      state.total = Math.max(state.subtotal - state.discount, 0);
+
+      root.querySelector('[data-summary-subtotal]').textContent = money(state.subtotal);
+      root.querySelector('[data-summary-discount]').textContent = `− ${money(state.discount)}`;
+      root.querySelector('[data-summary-total-label]').textContent = 'Total comercial de teste';
+      root.querySelector('[data-summary-total]').textContent = money(state.total);
+      root.querySelector('[data-olist-total-sent]').textContent = '—';
+      root.querySelector('[data-tax-breakdown-details]').hidden = true;
+      root.querySelector('[data-tax-breakdown-unavailable]').hidden = false;
+      root.querySelector('[data-olist-ipi]').textContent = '—';
+      root.querySelector('[data-olist-icms]').textContent = '—';
+      root.querySelector('[data-olist-st]').textContent = '—';
+      root.querySelector('[data-olist-other]').textContent = '—';
+      root.querySelector('[data-olist-tax-total]').textContent = '—';
+      root.querySelector('[data-olist-message]').textContent =
+        'Pr\u00e9via comercial gerada sem criar um pedido. O frete n\u00e3o est\u00e1 inclu\u00eddo e ser\u00e1 calculado ap\u00f3s a compra.';
+
+      const status = root.querySelector('[data-recalculate-status]');
+      status.classList.remove('is-stale', 'is-success');
+      status.textContent =
+        'Pr\u00e9via comercial local atualizada.';
+
+      syncWholesaleModeUi();
+    };
+
+    const renderSimulationPreview = () => {
+      state.olistOrderId = '';
+      state.olistCalculated = false;
+      state.olistValues = null;
+      state.olistConfirmed = false;
+      state.total = Math.max(state.subtotal - state.discount, 0);
+      root.querySelector('[data-summary-subtotal]').textContent = money(state.subtotal);
+      root.querySelector('[data-summary-discount]').textContent = `- ${money(state.discount)}`;
+      root.querySelector('[data-summary-total-label]').textContent = 'Total dos produtos';
+      root.querySelector('[data-summary-total]').textContent = money(state.total);
+      const status = root.querySelector('[data-recalculate-status]');
+      status.classList.remove('is-stale', 'is-success');
+      status.textContent = 'Simula\u00e7\u00e3o comercial atualizada. O frete n\u00e3o est\u00e1 inclu\u00eddo e ser\u00e1 calculado ap\u00f3s a compra.';
+      syncWholesaleModeUi();
+    };
+
+    const calculateWithOlist = async (allowNewQuoteRetry = true) => {
+      if (state.crmProposalMode === 'SIMULATION') {
+        throw new Error('Esta proposta é uma simulação e não pode acessar o Olist.');
+      }
+      if (!config.olistEndpoint) {
+        throw new Error('Configure o endpoint de cálculo do Olist no editor desta seção.');
+      }
+
+      const selectedProducts = state.products.filter((product) => product.qty > 0);
+      const productsWithoutSku = selectedProducts.filter((product) => !String(product.sku || '').trim());
+
+      if (productsWithoutSku.length > 0) {
+        throw new Error(
+          `Informe o SKU do Olist para: ${productsWithoutSku.map((product) => product.name).join(', ')}.`
+        );
+      }
+
+      const response = await fetch(config.olistEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(proposalPayload())
+      });
+
+      const rawText = await response.text();
+      let result = {};
+      try { result = rawText ? JSON.parse(rawText) : {}; } catch (_) {}
+
+      if (!response.ok || result.success === false) {
+        if (allowNewQuoteRetry && result.code === 'QUOTE_IDENTITY_CHANGED') {
+          startNewQuote();
+          return calculateWithOlist(false);
+        }
+
+        const error = new Error(
+          result.message || result.error || `Olist retornou erro HTTP ${response.status}.`
+        );
+        error.code = result.code || '';
+        throw error;
+      }
+
+      const values = normalizeOlistResponse(result);
+      if (!values.total) throw new Error('O Olist não retornou o total calculado.');
+
+      state.olistOrderId = values.orderId;
+      state.olistValues = values;
+      state.olistCalculated = true;
+      state.total = values.total;
+      renderOlistValues(values);
+    };
+
+    const renderSummary = () => {
+      const container = root.querySelector('[data-summary-items]');
+      const selected = state.products.filter((product) => product.qty > 0);
+
+      container.innerHTML = selected.map((product) => `
+        <div class="atacado__summary-item">
+          <div>
+            <strong>${escapeHtml(product.name)}</strong>
+            <span>${product.qty} un. × ${money(product.unitPrice)}</span>
+          </div>
+          <span>${getTierLabel(state.tier)}</span>
+          <strong>${money(product.subtotal)}</strong>
+        </div>
+      `).join('');
+
+      calculateDiscount();
+    };
+
+    const escapeHtml = (value) => {
+      return String(value || '').replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+      }[char]));
+    };
+
+    const proposalPayload = () => {
+      const formData = Object.fromEntries(new FormData(form).entries());
+
+      const shippingAddress =
+        form.elements.endereco_correto.value === 'sim'
+          ? form.elements.endereco_cadastrado.value
+          : buildAddress({
+              logradouro: form.elements.entrega_logradouro.value,
+              numero: form.elements.entrega_numero.value,
+              complemento: form.elements.entrega_complemento.value,
+              bairro: form.elements.entrega_bairro.value,
+              municipio: form.elements.entrega_cidade.value,
+              uf: form.elements.entrega_uf.value,
+              cep: form.elements.entrega_cep.value
+            });
+
+      return {
+        created_at: new Date().toISOString(),
+        quote_token: state.quoteToken,
+        crm_customer_id: state.crmCustomerId,
+        crm_seller_id: state.crmSellerId,
+        crm_proposal_mode: state.crmProposalMode,
+        crm_context: state.crmProposalContext,
+        test_mode: state.testMode,
+        order_creation_allowed: state.modeLoaded && !state.modeError && !state.testMode,
+        olist_order_id: state.olistOrderId || '',
+        store: config.storeName,
+        brand: config.brandName,
+        seller: formData.vendedor,
+        buyer: formData.comprador,
+        phone: formData.telefone_contato,
+        cnpj: sanitizeDigits(formData.cnpj),
+        company_name:
+          formData.razao_social || formData.nome_fantasia ||
+          formData.comprador || sanitizeDigits(formData.cnpj),
+        trade_name: formData.nome_fantasia || '',
+        email: formData.email,
+        registered_email: formData.email,
+        state_registration: formData.inscricao_estadual || '',
+        state_registration_status: formData.situacao_ie || '',
+        icms_contributor: formData.contribuinte_icms || '',
+        destination_state: formData.destino_uf || '',
+        destination_city: formData.destino_cidade || '',
+        destination_zip: formData.destino_cep || '',
+        registered_address: formData.endereco_cadastrado,
+        shipping_address: shippingAddress,
+        use_registered_address: form.elements.endereco_correto.value === 'sim',
+        registered_address_fields: {
+          street: formData.cadastro_logradouro || '',
+          number: formData.cadastro_numero || '',
+          complement: formData.cadastro_complemento || '',
+          district: formData.cadastro_bairro || '',
+          city: formData.cadastro_cidade || '',
+          state: formData.cadastro_uf || '',
+          zip: formData.cadastro_cep || '',
+          country: 'Brasil'
+        },
+        shipping_address_fields:
+          form.elements.endereco_correto.value === 'sim'
+            ? null
+            : {
+                street: formData.entrega_logradouro || '',
+                number: formData.entrega_numero || '',
+                complement: formData.entrega_complemento || '',
+                district: formData.entrega_bairro || '',
+                city: formData.entrega_cidade || '',
+                state: formData.entrega_uf || '',
+                zip: sanitizeDigits(formData.entrega_cep || ''),
+                country: 'Brasil'
+              },
+        products: state.products
+          .filter((product) => product.qty > 0)
+          .map((product) => ({
+            block_id: product.id,
+            model_id: product.modelId,
+            shopify_product_id: product.shopifyProductId,
+            shopify_variant_id: product.shopifyVariantId,
+            sku: product.sku,
+            name: product.name,
+            quantity: product.qty,
+            unit_price_cents: product.unitPrice,
+            subtotal_cents: product.subtotal,
+            price_source: 'wholesale_page'
+          })),
+        total_quantity: state.totalQty,
+        price_tier: state.pricingMode === 'per_model' ? 'per_model' : state.tier,
+        pricing_mode: state.pricingMode,
+        subtotal_cents: state.subtotal,
+        discount_cents: state.discount,
+        commercial_total_cents: Math.max(state.subtotal - state.discount, 0),
+        taxable_amount_cents: Math.max(state.subtotal - state.discount, 0),
+        olist_total_cents: state.olistCalculated ? state.total : null,
+        pricing_source: 'wholesale_page',
+        tax_calculation_source: 'olist',
+        payment_source: 'olist_after_approval',
+        request_payment_after_approval: true,
+        discount_type: formData.tipo_desconto,
+        discount_value: Number(formData.desconto || 0),
+        coupon_code: String(formData.cupom_desconto || '').trim(),
+        simulation_only: state.flow === 'simulation',
+        taxes_included: state.flow !== 'simulation' && state.olistCalculated,
+        freight_included: false,
+        proposal_scope: state.flow === 'simulation' ? 'products_only' : 'complete',
+        recalculate_existing_order: Boolean(state.olistOrderId),
+        calculation_stage: state.olistOrderId ? 'recalculation' : 'initial',
+        notes: formData.observacao || '',
+        consent: Boolean(form.elements.consentimento.checked)
+      };
+    };
+
+    const canvasFitText = (context, value, maxWidth) => {
+      const text = String(value || '');
+      if (context.measureText(text).width <= maxWidth) return text;
+      let shortened = text;
+      while (shortened.length > 1 && context.measureText(`${shortened}…`).width > maxWidth) {
+        shortened = shortened.slice(0, -1);
+      }
+      return `${shortened}…`;
+    };
+
+    const canvasWrappedText = (context, value, x, y, maxWidth, lineHeight, maxLines = 3) => {
+      const words = String(value || '').split(/\s+/).filter(Boolean);
+      const lines = [];
+      let current = '';
+
+      words.forEach((word) => {
+        const candidate = current ? `${current} ${word}` : word;
+        if (context.measureText(candidate).width <= maxWidth || !current) {
+          current = candidate;
+        } else {
+          lines.push(current);
+          current = word;
+        }
+      });
+      if (current) lines.push(current);
+
+      lines.slice(0, maxLines).forEach((line, index) => {
+        const isLast = index === maxLines - 1 && lines.length > maxLines;
+        context.fillText(
+          isLast ? canvasFitText(context, `${line}…`, maxWidth) : line,
+          x,
+          y + index * lineHeight
+        );
+      });
+
+      return y + Math.min(lines.length, maxLines) * lineHeight;
+    };
+
+    const createProposalA4Image = (proposal, eventType) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1240;
+      canvas.height = 1754;
+      const context = canvas.getContext('2d');
+      const pageWidth = canvas.width;
+      const margin = 78;
+      const contentWidth = pageWidth - margin * 2;
+      const ink = '#1F1F1F';
+      const muted = '#637083';
+      const primary = '#FF6633';
+      const border = '#FFD5C7';
+      const pale = '#FFF7F3';
+
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.fillStyle = primary;
+      context.fillRect(0, 0, canvas.width, 224);
+      context.fillStyle = '#ffffff';
+      context.font = '700 22px Arial, sans-serif';
+      context.fillText('MIBRO · CONDIÇÃO COMERCIAL', margin, 72);
+      context.font = '700 48px Arial, sans-serif';
+      context.fillText(
+        eventType === 'olist_confirmed' ? 'Pedido enviado ao Olist' : 'Resumo da proposta',
+        margin,
+        145
+      );
+      context.font = '400 22px Arial, sans-serif';
+      context.fillText(new Date().toLocaleString('pt-BR'), margin, 188);
+
+      let y = 282;
+      context.fillStyle = ink;
+      context.font = '700 27px Arial, sans-serif';
+      context.fillText('Dados comerciais', margin, y);
+      y += 34;
+      context.strokeStyle = border;
+      context.lineWidth = 2;
+      context.strokeRect(margin, y, contentWidth, 210);
+
+      const leftX = margin + 24;
+      const rightX = margin + contentWidth / 2 + 24;
+      const valueWidth = contentWidth / 2 - 48;
+      const drawField = (label, value, x, fieldY) => {
+        context.fillStyle = muted;
+        context.font = '700 16px Arial, sans-serif';
+        context.fillText(label.toUpperCase(), x, fieldY);
+        context.fillStyle = ink;
+        context.font = '400 21px Arial, sans-serif';
+        context.fillText(canvasFitText(context, value || 'Não informado', valueWidth), x, fieldY + 29);
+      };
+
+      drawField('Empresa', proposal.company_name, leftX, y + 38);
+      drawField('CNPJ', formatCnpj(proposal.cnpj), rightX, y + 38);
+      drawField('Comprador', proposal.buyer, leftX, y + 108);
+      drawField('Vendedor', proposal.seller, rightX, y + 108);
+      drawField('Telefone', proposal.phone, leftX, y + 178);
+      drawField('E-mail', proposal.email, rightX, y + 178);
+      y += 270;
+      context.fillStyle = ink;
+      context.font = '700 27px Arial, sans-serif';
+      context.fillText('Produtos selecionados', margin, y);
+      y += 28;
+      context.fillStyle = pale;
+      context.fillRect(margin, y, contentWidth, 54);
+      context.fillStyle = ink;
+      context.font = '700 16px Arial, sans-serif';
+      context.fillText('PRODUTO', margin + 18, y + 34);
+      context.fillText('QTD.', margin + 620, y + 34);
+      context.fillText('UNITÁRIO', margin + 760, y + 34);
+      context.fillText('SUBTOTAL', margin + 940, y + 34);
+      y += 54;
+
+      proposal.products.forEach((product) => {
+        context.strokeStyle = border;
+        context.strokeRect(margin, y, contentWidth, 70);
+        context.fillStyle = ink;
+        context.font = '700 18px Arial, sans-serif';
+        context.fillText(canvasFitText(context, product.name, 500), margin + 18, y + 41);
+        context.fillStyle = ink;
+        context.font = '400 18px Arial, sans-serif';
+        context.fillText(String(product.quantity), margin + 635, y + 40);
+        context.fillText(money(product.unit_price_cents), margin + 760, y + 40);
+        context.font = '700 18px Arial, sans-serif';
+        context.fillText(money(product.subtotal_cents), margin + 940, y + 40);
+        y += 70;
+      });
+
+      y += 34;
+      const totalsX = margin + 600;
+      const totalsValueX = margin + contentWidth;
+      const drawTotal = (label, value, strong = false) => {
+        context.fillStyle = strong ? ink : muted;
+        context.font = `${strong ? '700 24px' : '400 19px'} Arial, sans-serif`;
+        context.textAlign = 'left';
+        context.fillText(label, totalsX, y);
+        context.textAlign = 'right';
+        context.fillStyle = strong ? primary : ink;
+        context.fillText(value, totalsValueX, y);
+        context.textAlign = 'left';
+        y += strong ? 42 : 34;
+      };
+      drawTotal('Quantidade total', String(proposal.total_quantity));
+      drawTotal('Subtotal', money(proposal.subtotal_cents));
+      drawTotal('Desconto', `− ${money(proposal.discount_cents)}`);
+      drawTotal(proposal.simulation_only ? 'Total dos produtos' : 'Total comercial', money(proposal.commercial_total_cents), true);
+      if (proposal.olist_total_cents) {
+        drawTotal('Total Olist', money(proposal.olist_total_cents), true);
+      }
+
+      y = Math.max(y + 20, 1430);
+      context.fillStyle = ink;
+      context.font = '700 22px Arial, sans-serif';
+      context.fillText('Endereço de entrega', margin, y);
+      context.fillStyle = muted;
+      context.font = '400 18px Arial, sans-serif';
+      canvasWrappedText(context, proposal.shipping_address, margin, y + 32, contentWidth, 25, 3);
+
+      context.fillStyle = pale;
+      context.fillRect(0, 1658, pageWidth, 96);
+      context.fillStyle = muted;
+      context.font = '400 16px Arial, sans-serif';
+      context.fillText('Documento gerado automaticamente pela área de atacado Mibro.', margin, 1700);
+      context.fillText(`Cotação: ${proposal.quote_token}`, margin, 1728);
+
+      return canvas.toDataURL('image/jpeg', 0.84);
+    };
+
+    const sendProposalEmail = async (proposal, eventType) => {
+      if (!config.emailEndpoint) {
+        throw new Error('Configure o endpoint de e-mail da proposta.');
+      }
+
+      const a4Image = createProposalA4Image(proposal, eventType);
+      const response = await fetch(config.emailEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+          event: eventType,
+          proposal,
+          olist_order_id: proposal.olist_order_id || '',
+          a4_image: a4Image,
+          send_to_customer: proposal.simulation_only === true
+        })
+      });
+      const rawText = await response.text();
+      let result = {};
+      try { result = rawText ? JSON.parse(rawText) : {}; } catch (_) {}
+
+      if (!response.ok || result.success === false) {
+        throw new Error(result.message || result.error || `Falha HTTP ${response.status}.`);
+      }
+      return result;
+    };
+
+    const syncCrmCalculation = async () => {
+      if (!state.crmCustomerId || !state.crmProposalContext || !config.crmQuoteEndpoint) return;
+      const response = await fetch(config.crmQuoteEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ proposal: proposalPayload() })
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || result?.success === false) {
+        throw new Error(result?.message || 'Não foi possível registrar o cálculo no CRM.');
+      }
+    };
+    const saveProposal = async () => {
+      const simulation = state.flow === 'simulation';
+      if (simulation) {
+        const email = String(form.elements.simulation_email.value || '').trim();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          form.elements.simulation_email.focus();
+          showMessage('error', 'Informe um e-mail v\u00e1lido para receber a proposta.');
+          return;
+        }
+        form.elements.email.value = email;
+      }
+      if (!simulation && !state.testMode && !state.olistCalculated) {
+        showMessage('error', 'Calcule os valores no Olist antes de confirmar a proposta.');
+        return;
+      }
+      const selectionError = wholesaleSelectionError();
+      if (selectionError) {
+        showMessage('error', selectionError);
+        return;
+      }
+
+      const button = root.querySelector('[data-save-proposal]');
+      const payload = proposalPayload();
+      localStorage.setItem(
+        `atacado_proposta_${config.brandName || config.storeName}`,
+        JSON.stringify(payload)
+      );
+
+      button.disabled = true;
+      const originalText = button.textContent;
+      button.textContent = 'Gerando formulário A4...';
+
+      try {
+        await sendProposalEmail(payload, 'proposal');
+        showMessage(
+          'success',
+          'Proposta enviada por e-mail com o formulário e a imagem A4 anexada.'
+        );
+      } catch (error) {
+        console.error(error);
+        showMessage(
+          'error',
+          error?.message || 'Não foi possível enviar a proposta por e-mail. Ela continua salva neste navegador.'
+        );
+      } finally {
+        button.disabled = false;
+        button.textContent = originalText;
+      }
+    };
+
+    const saveFinalizedContact = async (proposal) => {
+      return sendProposalEmail(proposal, 'olist_confirmed');
+    };
+    const confirmOlistOrder = async () => {
+      if (state.crmProposalMode === 'SIMULATION') {
+        showMessage('error', 'Simulações não podem criar ou confirmar pedidos no Olist.');
+        return;
+      }
+      if (!state.modeLoaded || state.modeError || state.testMode) {
+        showMessage(
+          'error',
+          'A criação de pedidos está bloqueada. Desative o modo teste no painel do app Shopify.'
+        );
+        return;
+      }
+
+      if (!state.olistCalculated || !state.olistOrderId) {
+        showMessage('error', 'Calcule o pedido no Olist antes de confirmar.');
+        return;
+      }
+
+      const selectionError = wholesaleSelectionError();
+      if (selectionError) {
+        showMessage('error', selectionError);
+        return;
+      }
+
+      const button = root.querySelector('[data-confirm-order]');
+      const originalText = button.textContent;
+      const payload = {
+        olist_order_id: state.olistOrderId,
+        action: 'confirm_for_approval',
+        request_payment_after_approval: true,
+        proposal: proposalPayload()
+      };
+
+      localStorage.setItem(
+        `atacado_proposta_${config.brandName || config.storeName}`,
+        JSON.stringify(payload)
+      );
+
+      if (!config.confirmEndpoint) {
+        showMessage('success', 'Pedido calculado e salvo neste navegador. Configure o endpoint de confirmação para enviá-lo à aprovação no Olist.');
+        return;
+      }
+
+      button.disabled = true;
+      button.textContent = 'Enviando pedido pendente...';
+
+      try {
+        const response = await fetch(config.confirmEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const rawText = await response.text();
+        let result = {};
+        try { result = rawText ? JSON.parse(rawText) : {}; } catch (_) {}
+
+        if (!response.ok || result.success === false) {
+          throw new Error(result.message || result.error || `Falha HTTP ${response.status}.`);
+        }
+
+        state.olistConfirmed = true;
+        let contactMessage =
+          ' Os dados do contato também foram enviados ao e-mail da loja.';
+
+        try {
+          await saveFinalizedContact(proposalPayload());
+        } catch (contactError) {
+          console.error(contactError);
+          contactMessage =
+            ' O pedido foi confirmado, mas o formulário de contato não pôde ser enviado.';
+        }
+
+        try {
+          sessionStorage.removeItem(quoteStorageKey);
+        } catch (_) {}
+
+        showMessage(
+          'success',
+          (result.message ||
+            'Pedido mantido em aberto no Olist e enviado para análise da responsável.') +
+            contactMessage
+        );
+        syncWholesaleModeUi();
+      } catch (error) {
+        console.error(error);
+        showMessage('error', error?.message || 'Não foi possível confirmar o pedido no Olist.');
+      } finally {
+        button.textContent = originalText;
+        syncWholesaleModeUi();
+      }
+    };
+
+    root.querySelector('[data-consultar-cnpj]').addEventListener('click', consultCnpj);
+
+    form.elements.cnpj.addEventListener('input', (event) => {
+      startNewQuote();
+      event.target.value = formatCnpj(event.target.value);
+
+      form.elements.cnpj_consultado.value = 'nao';
+      form.elements.contribuinte_icms.value = '';
+      form.elements.inscricao_estadual.value = '';
+      form.elements.situacao_ie.value = '';
+      form.elements.situacao_cadastral.value = '';
+      form.elements.telefone_empresa.value = '';
+      form.elements.email_empresa.value = '';
+      form.elements.razao_social.value = '';
+      form.elements.endereco_cadastrado.value = '';
+      form.elements.destino_uf.value = '';
+      form.elements.destino_cidade.value = '';
+      form.elements.destino_cep.value = '';
+      form.elements.nome_fantasia.value = '';
+      form.elements.cadastro_logradouro.value = '';
+      form.elements.cadastro_numero.value = '';
+      form.elements.cadastro_complemento.value = '';
+      form.elements.cadastro_bairro.value = '';
+      form.elements.cadastro_cidade.value = '';
+      form.elements.cadastro_uf.value = '';
+      form.elements.cadastro_cep.value = '';
+
+      state.olistCalculated = false;
+      state.olistValues = null;
+      state.olistConfirmed = false;
+      state.pricingMode = 'mixed';
+      state.pricingVerified = false;
+
+      const emailCard = root.querySelector('[data-email-card]');
+      form.elements.email.value = '';
+      form.elements.email.required = false;
+      state.flow = 'choice';
+      state.resumeSummaryAfterRegistration = false;
+      emailCard.hidden = true;
+      root.querySelector('[data-cnpj-status]').textContent =
+        'Digite o CNPJ e clique em verificar.';
+    });
+
+    if (form.elements.entrega_cep) {
+      form.elements.entrega_cep.addEventListener('input', (event) => {
+        event.target.value = formatCep(event.target.value);
+      });
+    }
+
+    root.querySelectorAll('input[name="endereco_correto"]').forEach((radio) => {
+      radio.addEventListener('change', () => {
+        const show = form.elements.endereco_correto.value === 'nao';
+        root.querySelector('[data-endereco-alternativo]').hidden = !show;
+      });
+    });
+
+    rows.forEach((row) => {
+      const productId = row.dataset.productId;
+      const input = row.querySelector('[data-qty-input]');
+
+      row.querySelector('[data-qty-minus]').addEventListener('click', () => {
+        updateProductQty(productId, Number(input.value) - 1);
+      });
+
+      row.querySelector('[data-qty-plus]').addEventListener('click', () => {
+        updateProductQty(productId, Number(input.value) + 1);
+      });
+
+      input.addEventListener('input', () => {
+        updateProductQty(productId, input.value);
+      });
+    });
+
+    mobileCards.forEach((card) => {
+      const productId = card.dataset.productId;
+      const input = card.querySelector('[data-mobile-qty]');
+
+      card.querySelector('[data-mobile-minus]').addEventListener('click', () => {
+        updateProductQty(productId, Number(input.value) - 1);
+      });
+
+      card.querySelector('[data-mobile-plus]').addEventListener('click', () => {
+        updateProductQty(productId, Number(input.value) + 1);
+      });
+
+      input.addEventListener('input', () => {
+        updateProductQty(productId, input.value);
+      });
+    });
+
+    root.querySelector('[data-start-simulation]').addEventListener('click', () => {
+      state.pricingMode = 'mixed';
+      state.pricingVerified = false;
+      state.flow = 'simulation';
+      state.resumeSummaryAfterRegistration = false;
+      setStep(2);
+    });
+    root.querySelector('[data-start-registration]').addEventListener('click', () => {
+      state.flow = 'registration';
+      state.resumeSummaryAfterRegistration = false;
+      setStep(1);
+    });
+    root.querySelector('[data-back-choice]').addEventListener('click', () => {
+      state.flow = 'choice';
+      state.resumeSummaryAfterRegistration = false;
+      setStep(0);
+    });
+
+    root.querySelector('[data-next-step]').addEventListener('click', async () => {
+      if (!validateStepOne()) return;
+      if (!state.resumeSummaryAfterRegistration) { setStep(2); return; }
+      try {
+        calculateDiscount();
+        renderSummary();
+        state.flow = 'registration';
+        if (state.testMode) renderTestPreview();
+        else { await calculateWithOlist(); renderOlistValues(state.olistValues); }
+        state.resumeSummaryAfterRegistration = false;
+        let summaryEmailSaved = false;
+        try {
+          await sendProposalEmail(proposalPayload(), 'proposal');
+          summaryEmailSaved = true;
+        } catch (emailError) {
+          console.error('Falha ao salvar o resumo pos-cadastro por e-mail.', emailError);
+        }
+        setStep(3);
+        showMessage(
+          summaryEmailSaved ? 'success' : 'error',
+          summaryEmailSaved
+            ? 'Cadastro conclu\u00eddo. Resumo do pedido e imagem enviados ao e-mail da loja.'
+            : 'Cadastro conclu\u00eddo e resumo calculado, mas o e-mail com a imagem n\u00e3o foi enviado.'
+        );
+      } catch (error) {
+        state.flow = 'registration_after_simulation';
+        console.error(error);
+        showMessage('error', error?.message || 'N\u00e3o foi poss\u00edvel calcular os valores na Olist.');
+      }
+    });
+
+    root.querySelector('[data-prev-step]').addEventListener('click', () =>
+      setStep(state.flow === 'simulation' ? (state.crmProposalMode ? 2 : 0) : 1)
+    );
+
+    root.querySelector('[data-go-summary]').addEventListener('click', async (event) => {
+      const selectionError = wholesaleSelectionError();
+      if (selectionError) {
+        showMessage('error', selectionError);
+        return;
+      }
+
+      const button = event.currentTarget;
+      const originalText = button.textContent;
+      button.disabled = true;
+      button.textContent = state.flow === 'simulation' ? 'Preparando simula\u00e7\u00e3o...' : state.testMode
+        ? 'Preparando prévia de teste...'
+        : 'Calculando no Olist...';
+
+      try {
+        calculateDiscount();
+        renderSummary();
+
+        if (state.flow === 'simulation') {
+          renderSimulationPreview();
+          syncCrmCalculation().catch((error) => {
+            console.error('Simulação calculada, mas não sincronizada com o CRM.', error);
+          });
+        } else if (state.testMode) {
+          renderTestPreview();
+        } else {
+          await calculateWithOlist();
+          renderOlistValues(state.olistValues);
+        }
+
+        setStep(3);
+      } catch (error) {
+        console.error(error);
+        showMessage('error', error?.message || 'Não foi possível calcular os valores no Olist.');
+      } finally {
+        button.disabled = false;
+        button.textContent = originalText;
+      }
+    });
+
+    root.querySelector('[data-back-products]').addEventListener('click', () => setStep(2));
+
+    root.querySelector('[data-continue-registration]').addEventListener('click', () => {
+      const simulationEmail = String(form.elements.simulation_email.value || '').trim();
+      if (simulationEmail) form.elements.email.value = simulationEmail;
+      state.flow = 'registration_after_simulation';
+      state.resumeSummaryAfterRegistration = true;
+      const emailCard = root.querySelector('[data-email-card]');
+      emailCard.hidden = Boolean(form.elements.email.value);
+      form.elements.email.required = !form.elements.email.value;
+      setStep(1);
+    });
+
+    const invalidateOlistCalculation = () => {
+      state.olistCalculated = false;
+      state.olistValues = null;
+      state.olistConfirmed = false;
+      calculateDiscount();
+
+      if (state.flow === 'simulation') {
+        renderSummary();
+        renderSimulationPreview();
+        return;
+      }
+      if (state.testMode) {
+        renderSummary();
+        renderTestPreview();
+        return;
+      }
+
+      root.querySelector('[data-olist-message]').textContent =
+        'A condição comercial foi alterada. Clique em “Atualizar total no Olist”.';
+      root.querySelector('[data-olist-total-sent]').textContent = '—';
+      root.querySelector('[data-tax-breakdown-details]').hidden = true;
+      root.querySelector('[data-tax-breakdown-unavailable]').hidden = true;
+      root.querySelector('[data-olist-ipi]').textContent = '—';
+      root.querySelector('[data-olist-icms]').textContent = '—';
+      root.querySelector('[data-olist-st]').textContent = '—';
+      root.querySelector('[data-olist-other]').textContent = '—';
+      root.querySelector('[data-olist-tax-total]').textContent = '—';
+      root.querySelector('[data-summary-total]').textContent = '—';
+      root.querySelector('[data-confirm-order]').disabled = true;
+      root.querySelector('[data-save-proposal]').disabled = true;
+
+      const status = root.querySelector('[data-recalculate-status]');
+      status.classList.remove('is-success');
+      status.classList.add('is-stale');
+      status.textContent = 'Desconto ou cupom alterado. O total precisa ser atualizado no Olist.';
+    };
+
+    const recalculateOlistValues = async (event) => {
+      const selectionError = wholesaleSelectionError();
+      if (selectionError) {
+        showMessage('error', selectionError);
+        return;
+      }
+
+      const button = event.currentTarget;
+      const originalText = button.textContent;
+      button.disabled = true;
+      button.textContent = state.testMode
+        ? 'Atualizando prévia de teste...'
+        : 'Atualizando no Olist...';
+
+      try {
+        calculateDiscount();
+        renderSummary();
+
+        if (state.testMode) {
+          renderTestPreview();
+          showMessage('success', 'Prévia comercial de teste atualizada sem criar pedido.');
+        } else {
+          await calculateWithOlist();
+          renderOlistValues(state.olistValues);
+          showMessage('success', 'Total atualizado e confirmado pelo Olist.');
+        }
+      } catch (error) {
+        console.error(error);
+        invalidateOlistCalculation();
+        showMessage('error', error?.message || 'Não foi possível atualizar os valores no Olist.');
+      } finally {
+        button.disabled = false;
+        button.textContent = originalText;
+      }
+    };
+
+    root.querySelector('[data-discount-type]').addEventListener('change', () => {
+      calculateDiscount();
+      invalidateOlistCalculation();
+    });
+    root.querySelector('[data-discount-value]').addEventListener('input', invalidateOlistCalculation);
+    root.querySelector('[data-coupon-code]').addEventListener('input', invalidateOlistCalculation);
+    root.querySelector('[data-recalculate-olist]').addEventListener('click', recalculateOlistValues);
+
+    root.querySelector('[data-save-proposal]').addEventListener('click', saveProposal);
+    root.querySelector('[data-confirm-order]').addEventListener('click', confirmOlistOrder);
+
+    calculate();
+    loadWholesaleMode();
+    loadCrmSession();
+  })();
+</script>
+
+{% schema %}
+{
+  "name": "Calculadora de atacado",
+  "tag": "section",
+  "class": "section-calculadora-atacado",
+  "settings": [
+    {
+      "type": "text",
+      "id": "nome_marca",
+      "label": "Nome da marca",
+      "default": "Mibro"
+    },
+    {
+      "type": "text",
+      "id": "selo",
+      "label": "Selo superior",
+      "default": "Atacado oficial"
+    },
+    {
+      "type": "text",
+      "id": "titulo",
+      "label": "Título",
+      "default": "Calcule seu pedido por quantidade"
+    },
+    {
+      "type": "textarea",
+      "id": "subtitulo",
+      "label": "Subtítulo",
+      "default": "Consulte preços por faixa, monte um pedido misto e receba uma proposta personalizada."
+    },
+    {
+      "type": "range",
+      "id": "minimo_atacado",
+      "label": "Quantidade mínima de atacado",
+      "min": 1,
+      "max": 49,
+      "step": 1,
+      "default": 10
+    },
+    {
+      "type": "select",
+      "id": "cnpj_data_level",
+      "label": "Dados preenchidos pela consulta CNPJ",
+      "default": "complete",
+      "options": [
+        {
+          "value": "verify",
+          "label": "Só verificar o CNPJ"
+        },
+        {
+          "value": "essential",
+          "label": "Preencher dados essenciais"
+        },
+        {
+          "value": "complete",
+          "label": "Preencher todos os dados"
+        }
+      ],
+      "info": "A verificação da regra de preços continua ativa em todos os níveis."
+    },
+    {
+      "type": "text",
+      "id": "endpoint_cnpj",
+      "label": "Endpoint próprio da consulta CNPJ (opcional)",
+      "default": "/apps/cnpj-validator/cnpj",
+      "info": "Consulta os dados cadastrais e o histórico aprovado do CNPJ no Olist."
+    },
+    {
+      "type": "text",
+      "id": "endpoint_crm_session",
+      "label": "Endpoint da sessão do CRM",
+      "default": "/apps/cnpj-validator/crm/session",
+      "info": "Recebe a sessão criada no CRM e preenche cliente e vendedor nesta calculadora."
+    },
+    {
+      "type": "text",
+      "id": "endpoint_crm_quote",
+      "label": "Endpoint de propostas do CRM",
+      "default": "/apps/cnpj-validator/crm/quote",
+      "info": "Registra cálculos de simulação no CRM sem chamar o Olist."
+    },
+    {
+      "type": "text",
+      "id": "endpoint_modo_teste",
+      "label": "Endpoint do modo teste",
+      "default": "/apps/cnpj-validator/atacado/config",
+      "info": "Consulta no app se a página deve operar em modo teste ou produção."
+    },
+    {
+      "type": "text",
+      "id": "endpoint_olist",
+      "label": "Endpoint para cálculo no Olist",
+      "default": "/apps/cnpj-validator/atacado/calcular-olist",
+      "info": "Cria ou atualiza o mesmo pedido aberto no Olist e devolve o total recalculado."
+    },
+    {
+      "type": "url",
+      "id": "webhook_url",
+      "label": "Webhook do n8n"
+    },
+    {
+      "type": "text",
+      "id": "endpoint_confirmacao_olist",
+      "label": "Endpoint para confirmar o pedido no Olist",
+      "default": "/apps/cnpj-validator/atacado/confirmar-pedido",
+      "info": "Mantém o pedido aberto e apenas o marca para análise da responsável no Olist."
+    },
+    {
+      "type": "text",
+      "id": "endpoint_email",
+      "label": "Endpoint para enviar formulário por e-mail",
+      "default": "/apps/cnpj-validator/atacado/enviar-email",
+      "info": "Envia o formulário completo e a imagem A4 da proposta."
+    },
+    {
+      "type": "text",
+      "id": "texto_botao_confirmacao",
+      "label": "Texto do botão de confirmação",
+      "default": "Enviar pedido pendente para análise"
+    },
+    {
+      "type": "text",
+      "id": "texto_botao_proposta",
+      "label": "Texto do botão secundário",
+      "default": "Receber proposta personalizada"
+    },
+    {
+      "type": "textarea",
+      "id": "texto_consentimento",
+      "label": "Texto de consentimento",
+      "default": "Autorizo o uso dos dados informados para elaboração desta cotação e contato comercial relacionado à solicitação."
+    },
+    {
+      "type": "textarea",
+      "id": "texto_privacidade",
+      "label": "Texto abaixo dos botões",
+      "default": "Os dados serão usados apenas para atendimento desta solicitação comercial."
+    },
+    {
+      "type": "header",
+      "content": "Cores"
+    },
+    {
+      "type": "color",
+      "id": "cor_fundo",
+      "label": "Fundo",
+      "default": "#FFF7F3"
+    },
+    {
+      "type": "color",
+      "id": "cor_cards",
+      "label": "Cards",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "cor_texto",
+      "label": "Texto",
+      "default": "#1F1F1F"
+    },
+    {
+      "type": "color",
+      "id": "cor_texto_secundario",
+      "label": "Texto secundário",
+      "default": "#637083"
+    },
+    {
+      "type": "color",
+      "id": "cor_primaria",
+      "label": "Cor principal",
+      "default": "#FF6633"
+    },
+    {
+      "type": "color",
+      "id": "cor_texto_botao",
+      "label": "Texto do botão",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "cor_borda",
+      "label": "Bordas",
+      "default": "#FFD5C7"
+    }
+  ],
+  "blocks": [
+    {
+      "type": "produto",
+      "name": "Produto",
+      "settings": [
+        {
+          "type": "text",
+          "id": "categoria",
+          "label": "Categoria",
+          "default": "Smartwatch"
+        },
+        {
+          "type": "product",
+          "id": "produto_shopify",
+          "label": "Produto Shopify",
+          "info": "Selecione o produto real da loja. O código usa automaticamente o SKU da primeira variante disponível para localizar o item no Olist."
+        },
+        {
+          "type": "text",
+          "id": "sku_olist_override",
+          "label": "SKU específico do Olist (opcional)",
+          "info": "Preencha somente quando o SKU usado no Olist for diferente do SKU da variante Shopify ou quando precisar indicar uma variante específica."
+        },
+        {
+          "type": "text",
+          "id": "nome",
+          "label": "Nome manual de reserva",
+          "info": "Usado apenas enquanto nenhum produto Shopify estiver selecionado."
+        },
+        {
+          "type": "image_picker",
+          "id": "imagem",
+          "label": "Imagem"
+        },
+        {
+          "type": "number",
+          "id": "preco_varejo",
+          "label": "Preço de varejo",
+          "default": 499
+        },
+        {
+          "type": "number",
+          "id": "preco_10_49",
+          "label": "Preço de 10 a 49",
+          "default": 300
+        },
+        {
+          "type": "number",
+          "id": "preco_50_99",
+          "label": "Preço de 50 a 99",
+          "default": 280
+        },
+        {
+          "type": "number",
+          "id": "preco_100",
+          "label": "Preço de 100 ou mais",
+          "default": 250
+        }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Calculadora de atacado",
+      "blocks": [
+        {
+          "type": "produto",
+          "settings": {
+            "categoria": "Essential Series",
+            "nome": "Mibro C4",
+            "preco_varejo": 424,
+            "preco_10_49": 270,
+            "preco_50_99": 250,
+            "preco_100": 235
+          }
+        },
+        {
+          "type": "produto",
+          "settings": {
+            "categoria": "Essential Series",
+            "nome": "Mibro A3",
+            "preco_varejo": 588,
+            "preco_10_49": 375,
+            "preco_50_99": 345,
+            "preco_100": 325
+          }
+        },
+        {
+          "type": "produto",
+          "settings": {
+            "categoria": "Lifestyle Series",
+            "nome": "Mibro Lite 3",
+            "preco_varejo": 612,
+            "preco_10_49": 390,
+            "preco_50_99": 360,
+            "preco_100": 340
+          }
+        },
+        {
+          "type": "produto",
+          "settings": {
+            "categoria": "Lifestyle Series",
+            "nome": "Mibro Lite 3 Pro",
+            "preco_varejo": 847,
+            "preco_10_49": 540,
+            "preco_50_99": 500,
+            "preco_100": 475
+          }
+        },
+        {
+          "type": "produto",
+          "settings": {
+            "categoria": "Professional Sports Series",
+            "nome": "Mibro GS Pro",
+            "preco_varejo": 765,
+            "preco_10_49": 485,
+            "preco_50_99": 450,
+            "preco_100": 425
+          }
+        },
+        {
+          "type": "produto",
+          "settings": {
+            "categoria": "Professional Sports Series",
+            "nome": "Mibro GS Pro 2",
+            "preco_varejo": 1118,
+            "preco_10_49": 710,
+            "preco_50_99": 660,
+            "preco_100": 625
+          }
+        },
+        {
+          "type": "produto",
+          "settings": {
+            "categoria": "Professional Sports Series",
+            "nome": "Mibro GS Active",
+            "preco_varejo": 647,
+            "preco_10_49": 410,
+            "preco_50_99": 380,
+            "preco_100": 360
+          }
+        },
+        {
+          "type": "produto",
+          "settings": {
+            "categoria": "Professional Sports Series",
+            "nome": "Mibro GS Active 2",
+            "preco_varejo": 882,
+            "preco_10_49": 560,
+            "preco_50_99": 520,
+            "preco_100": 495
+          }
+        }
+      ]
+    }
+  ]
+}
+{% endschema %}

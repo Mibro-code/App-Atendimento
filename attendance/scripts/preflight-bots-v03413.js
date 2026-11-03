@@ -1,0 +1,47 @@
+const assert = require("node:assert/strict");
+assert.equal(process.env.DATABASE_URL, "postgresql://bot_qa:isolated-local-qa@127.0.0.1:25432/bot_release_20261005", "Somente cópia local isolada.");
+const prisma = require("../src/database/prisma");
+const { ensureQuestionAnswerBots } = require("../src/services/flow-builder-migration-service");
+const { ensurePostTriageRelease } = require("../src/services/post-triage-release-migration");
+const { nodeTypeCatalog, normalizeGraph } = require("../src/services/bot-visual-flow-graph");
+const { simulateFlow } = require("../src/services/bot-visual-flow-service");
+async function snapshot() {
+  const models = ["contact", "conversation", "message", "user", "channelAccount", "knowledgeSource", "bot", "botIntent", "botIntentExample", "botFlowStep", "quickReply", "conversationNote"];
+  return Object.fromEntries(await Promise.all(models.filter((model) => prisma[model]).map(async (model) => [model, await prisma[model].count()])));
+}
+(async () => {
+  const before = await snapshot();
+  const oldTriage = await prisma.bot.findUniqueOrThrow({ where: { id: "system-triage-bot" } });
+  await ensureQuestionAnswerBots();
+  let published = await ensurePostTriageRelease();
+  if (!published.migrated) published = { answers: await prisma.botResponse.count({ where: { key: { startsWith: "ASSIST_MIBRO_" }, active: true } }), products: await prisma.botResponse.count({ where: { key: { startsWith: "ASSIST_MIBRO_PRODUTO_" }, active: true } }) };
+  assert.ok(published.answers >= 13);
+  assert.deepEqual(await snapshot(), before, "Nenhum registro original removido/adicionado nos modelos preservados.");
+  const bots = await prisma.bot.findMany({ where: { archivedAt: null }, include: { visualFlows: { where: { isDefault: true }, include: { activeVersion: true } } } });
+  const triage = bots.find((bot) => bot.id === oldTriage.id), assistant = bots.find((bot) => bot.id === "mibro-assistant-observer");
+  assert.equal(triage.status, oldTriage.status);
+  assert.equal(triage.autoReplyEnabled, oldTriage.autoReplyEnabled);
+  assert.equal(assistant.autoReplyEnabled, true);
+  assert.ok(bots.filter((bot) => ![triage.id, assistant.id].includes(bot.id)).every((bot) => bot.status === "ARCHIVED_LEGACY" && !bot.autoReplyEnabled));
+  assert.ok(!nodeTypeCatalog().some((node) => node.type === "webhook" || node.key === "webhook"));
+  assert.equal(normalizeGraph({ nodes: [{ key: "old", type: "webhook", config: {} }], edges: [] }).nodes[0].type, "removed");
+  const actor = await prisma.user.findFirstOrThrow({ where: { role: "ADMIN", active: true } });
+  const flow = assistant.visualFlows[0];
+  const simulatedAt = "2026-10-05T14:00:00.000Z";
+  const start = await simulateFlow(assistant.id, flow.id, { source: "PUBLISHED", simulatedAt, message: "Olá" }, actor);
+  const ask = await simulateFlow(assistant.id, flow.id, { source: "PUBLISHED", simulatedAt, state: start.state, message: "Quero comprar um relógio" }, actor);
+  const answer = await simulateFlow(assistant.id, flow.id, { source: "PUBLISHED", simulatedAt, state: ask.state, message: "Lite 3 Pro" }, actor);
+  assert.ok(answer.outputs.some((output) => output.text?.includes("products/mibro-lite-3-pro")));
+  const back = await simulateFlow(assistant.id, flow.id, { source: "PUBLISHED", simulatedAt, state: answer.state, message: "Voltar" }, actor);
+  assert.equal(back.state.currentNodeKey, "answer_products");
+  const done = await simulateFlow(assistant.id, flow.id, { source: "PUBLISHED", simulatedAt, state: answer.state, message: "Finalizar atendimento" }, actor);
+  assert.equal(done.status, "COMPLETED");
+  const human = await simulateFlow(assistant.id, flow.id, { source: "PUBLISHED", simulatedAt, state: answer.state, message: "quero falar com um vendedor" }, actor);
+  assert.equal(human.status, "HANDED_OFF");
+  const second = await ensurePostTriageRelease(); assert.equal(second.migrated, false);
+  assert.deepEqual(await snapshot(), before);
+  const { createApp } = require("../src/app");
+  const app = createApp({ channel: new Proxy({}, { get: () => async () => { throw new Error("Envio real bloqueado"); } }) });
+  assert.ok(app);
+  console.log(JSON.stringify({ preserved: before, answers: published.answers, products: published.products, boot: "OK", idempotent: true, noRealMessages: true }));
+})().catch((error) => { console.error(error); process.exitCode = 1; }).finally(() => prisma.$disconnect());

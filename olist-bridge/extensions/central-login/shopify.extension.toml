@@ -1,0 +1,136 @@
+# Learn more about configuring your Customer account UI extension:
+# https://shopify.dev/api/customer-account-ui-extensions/unstable/configuration
+
+# The version of APIs your extension will receive. Learn more:
+# https://shopify.dev/docs/api/usage/versioning
+api_version = "2026-04"
+
+[[extensions]]
+name = "central-login"
+handle = "central-login"
+type = "ui_extension"
+uid = "80797afd-7bb5-0b63-b8dc-d5b7a3076797a5631021"
+
+# Controls where in Shopify your extension will be injected,
+# and the file that contains your extension’s source code. Learn more:
+# https://shopify.dev/docs/api/customer-account-ui-extensions/unstable/extension-targets-overview
+
+[[extensions.targeting]]
+module = "./src/CentralCliente.jsx"
+target = "customer-account.page.render"
+
+[extensions.capabilities]
+api_access = true
+network_access = true
+
+[extensions.settings]
+
+[[extensions.settings.fields]]
+key = "account_background"
+type = "single_line_text_field"
+name = "Fundo do card Minha conta"
+description = "Escolha transparent, subdued ou base."
+
+[[extensions.settings.fields.validations]]
+name = "choices"
+value = '["transparent", "subdued", "base"]'
+
+[[extensions.settings.fields]]
+key = "quick_card_background"
+type = "single_line_text_field"
+name = "Fundo dos cards de acesso rápido"
+description = "Escolha transparent, subdued ou base."
+
+[[extensions.settings.fields.validations]]
+name = "choices"
+value = '["transparent", "subdued", "base"]'
+
+[[extensions.settings.fields]]
+key = "order_card_background"
+type = "single_line_text_field"
+name = "Fundo dos cards de pedidos"
+description = "Escolha transparent, subdued ou base."
+
+[[extensions.settings.fields.validations]]
+name = "choices"
+value = '["transparent", "subdued", "base"]'
+
+[[extensions.settings.fields]]
+key = "account_border_width"
+type = "single_line_text_field"
+name = "Borda do card Minha conta"
+description = "Escolha base, large, large-100 ou large-200."
+
+[[extensions.settings.fields.validations]]
+name = "choices"
+value = '["base", "large", "large-100", "large-200"]'
+
+[[extensions.settings.fields]]
+key = "quick_card_border_width"
+type = "single_line_text_field"
+name = "Borda dos cards de acesso rápido"
+description = "Escolha base, large, large-100 ou large-200."
+
+[[extensions.settings.fields.validations]]
+name = "choices"
+value = '["base", "large", "large-100", "large-200"]'
+
+[[extensions.settings.fields]]
+key = "order_card_border_width"
+type = "single_line_text_field"
+name = "Borda dos cards de pedidos"
+description = "Escolha base, large, large-100 ou large-200."
+
+[[extensions.settings.fields.validations]]
+name = "choices"
+value = '["base", "large", "large-100", "large-200"]'
+
+[[extensions.settings.fields]]
+key = "account_border_radius"
+type = "single_line_text_field"
+name = "Cantos do card Minha conta"
+description = "Escolha none, small, base, large ou max."
+
+[[extensions.settings.fields.validations]]
+name = "choices"
+value = '["none", "small", "base", "large", "max"]'
+
+[[extensions.settings.fields]]
+key = "quick_card_border_radius"
+type = "single_line_text_field"
+name = "Cantos dos cards de acesso rápido"
+description = "Escolha none, small, base, large ou max."
+
+[[extensions.settings.fields.validations]]
+name = "choices"
+value = '["none", "small", "base", "large", "max"]'
+
+[[extensions.settings.fields]]
+key = "order_card_border_radius"
+type = "single_line_text_field"
+name = "Cantos dos cards de pedidos"
+description = "Escolha none, small, base, large ou max."
+
+[[extensions.settings.fields.validations]]
+name = "choices"
+value = '["none", "small", "base", "large", "max"]'
+
+[[extensions.settings.fields]]
+key = "notice_tone"
+type = "single_line_text_field"
+name = "Cor do aviso de segurança"
+description = "Warning é o tom mais próximo do laranja."
+
+[[extensions.settings.fields.validations]]
+name = "choices"
+value = '["info", "success", "warning", "critical"]'
+
+[[extensions.settings.fields]]
+key = "number_tone"
+type = "single_line_text_field"
+name = "Tom dos números dos cards"
+description = "Escolha auto, neutral ou critical."
+
+[[extensions.settings.fields.validations]]
+name = "choices"
+value = '["auto", "neutral", "critical"]'

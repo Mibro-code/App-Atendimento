@@ -1,0 +1,117 @@
+name: mibro-shopify
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - private
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mibro-shopify-app:local
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      GOTENBERG_URL: http://gotenberg:3000
+    depends_on:
+      db:
+        condition: service_healthy
+      gotenberg:
+        condition: service_started
+    expose:
+      - "3000"
+    volumes:
+      - wholesale_documents:/app/storage/wholesale-documents
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    networks:
+      - private
+      - proxy
+
+  olist-status-sync:
+    image: mibro-shopify-app:local
+    restart: unless-stopped
+    healthcheck:
+      disable: true
+    env_file:
+      - .env
+    depends_on:
+      app:
+        condition: service_healthy
+    command:
+      - /bin/sh
+      - -c
+      - |
+        while true; do
+          wget -q -O /dev/null \
+            --header="Authorization: Bearer $${CRM_SHOPIFY_SHARED_SECRET}" \
+            --post-data="{}" \
+            http://app:3000/internal/olist-order-status-sync || true
+          sleep "$${OLIST_STATUS_SYNC_INTERVAL_SECONDS:-120}"
+        done
+    networks:
+      - private
+
+  # Converte o .docx preenchido em PDF (rota LibreOffice do Gotenberg).
+  # Sem porta publicada: so o app acessa via rede interna "private".
+  # mem_limit evita que uma conversao pesada consuma toda a RAM da VPS.
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    restart: unless-stopped
+    mem_limit: 512m
+    expose:
+      - "3000"
+    networks:
+      - private
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - private
+      - proxy
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
+  wholesale_documents:
+
+networks:
+  private:
+    driver: bridge
+  proxy:
+    external: true
+    name: shopify-proxy

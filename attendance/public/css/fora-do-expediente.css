@@ -1,0 +1,55 @@
+/* Configurações → Fora do expediente (complementa configuracoes.css). */
+.ah-state{margin:0 0 14px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;color:var(--muted);background:var(--surface);font-size:13px}
+.ah-state.ah-error,.ah-error{color:#9e472b;border-color:#f1d0c5;background:#fff8f5}
+html[data-theme=dark] .ah-state.ah-error,html[data-theme=dark] .ah-error{color:#f0a37e;border-color:#4a3226;background:#2a1f1a}
+.ah-state button,.ah-error button{margin-left:8px;min-height:32px;padding:0 12px;border:1px solid currentColor;border-radius:8px;color:inherit;background:transparent;font-weight:700;cursor:pointer}
+.ah-inline-error{color:#b3401d;font-size:13px;font-weight:700}
+.ah-eyebrow{display:block;color:var(--orange);font-size:10px;font-weight:900;letter-spacing:.13em}
+.ah-count{color:var(--muted);font-weight:400}
+.ah-days{margin:0;padding:0;border:0}
+.ah-days legend{margin-bottom:6px;font-size:12px;font-weight:700}
+#ah-days{display:flex;flex-wrap:wrap;gap:6px}
+.ah-day{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 12px;border:1px solid var(--line);border-radius:18px;font-size:13px;cursor:pointer}
+.ah-day input{margin:0}
+.ah-preview{margin-top:14px}
+.ah-preview-label{display:block;margin-bottom:6px;color:var(--muted);font-size:12px;font-weight:700}
+.ah-bubble{max-width:420px;padding:10px 12px 7px;border-radius:12px;background:#ffdfd2;box-shadow:0 1px 2px #00000010;color:#1f2328}
+.ah-bubble p{margin:0;font-size:14px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
+.ah-bubble footer{margin-top:5px;text-align:right;color:#7a5b00;font-size:11px;font-style:italic}
+.ah-rules ul{margin:8px 0 0;padding-left:18px;font-size:13px;line-height:1.6}
+.ah-section{margin-top:18px}
+.ah-section-heading{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px}
+.ah-section-heading h3{margin:3px 0 0;font-size:15px}
+.ah-section-tools{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.ah-inline{display:inline-flex;align-items:center;gap:6px;font-size:12px}
+.ah-section button.secondary,.ah-holiday-form button.secondary{min-height:36px;padding:0 12px;border:1px solid var(--line);border-radius:8px;color:var(--ink);background:var(--surface);font-size:13px;font-weight:700;cursor:pointer}
+.ah-holiday-list,.ah-reminder-list{margin:12px 0 0;padding:0;list-style:none}
+.ah-holiday,.ah-reminder{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:10px 0;border-top:1px solid var(--line);font-size:13px}
+.ah-holiday small,.ah-reminder small{display:block;color:var(--muted);font-size:12px}
+.ah-holiday.inactive{opacity:.6}
+.ah-holiday.inactive b{text-decoration:line-through}
+.ah-row-actions{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.ah-holiday-form{margin-top:12px;padding:14px;border:1px solid var(--line);border-radius:12px}
+.ah-holiday-form h4{margin:0 0 10px}
+.ah-new-holiday{margin-top:12px}
+.ah-counters{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-top:12px}
+.ah-counter{padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.ah-counter strong{display:block;font-size:20px}
+.ah-counter span{color:var(--muted);font-size:12px}
+.ah-counter.failed strong,.ah-counter.unknown strong{color:#b3401d}
+.ah-reminder{display:block}
+.ah-reminder-main{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px}
+.ah-reminder-main small{display:inline}
+.ah-reminder-meta,.ah-reminder-reason{margin-top:4px;color:var(--muted);font-size:12px;overflow-wrap:anywhere}
+.ah-reminder .ah-row-actions{margin-top:6px}
+.ah-badge{display:inline-block;padding:2px 8px;border-radius:10px;background:var(--panel);font-size:11px;font-weight:800}
+.status-sent .ah-badge{color:#17663a;background:#dff3e6}
+.status-pending .ah-badge,.status-processing .ah-badge{color:#7a5b00;background:#fdf1cf}
+.status-failed .ah-badge,.status-unknown .ah-badge{color:#9e472b;background:#fde4da}
+.ah-link{color:var(--orange);font-size:13px;font-weight:700}
+@media (max-width:560px){
+  .settings-grid .fields.two-columns{grid-template-columns:1fr}
+  .ah-section-tools{width:100%}
+  .ah-section-tools button{flex:1}
+}
+#ah-holidays-card .ah-new-holiday{min-height:36px;padding:0 12px;border:1px solid var(--line);border-radius:8px;color:var(--ink);background:var(--surface);font-size:13px;font-weight:700;cursor:pointer}

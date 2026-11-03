@@ -1,0 +1,473 @@
+﻿{% comment %}
+  Acesso dos vendedores — Sincrofit
+
+  Este bloqueio protege apenas a interface no navegador. A senha configurada no
+  Theme Editor é renderizada no HTML e não substitui autenticação no backend.
+{% endcomment %}
+
+{% liquid
+  assign section_id = 'SincrofitSellerAccess-' | append: section.id
+  assign calculator_url = section.settings.calculator_page.url | default: '/pages/pedidos-dos-vendedores'
+%}
+
+<section id="{{ section_id }}" class="sf-seller-access">
+  <div class="sf-seller-access__glow sf-seller-access__glow--one" aria-hidden="true"></div>
+  <div class="sf-seller-access__glow sf-seller-access__glow--two" aria-hidden="true"></div>
+
+  <div class="sf-seller-access__card">
+    <div class="sf-seller-access__brand">
+      {% if section.settings.logo != blank %}
+        {{ section.settings.logo
+          | image_url: width: 360
+          | image_tag:
+            loading: 'eager',
+            widths: '180, 240, 360',
+            class: 'sf-seller-access__logo',
+            alt: section.settings.logo.alt
+        }}
+      {% else %}
+        <span class="sf-seller-access__brand-name">Sincrofit</span>
+      {% endif %}
+    </div>
+
+    <span class="sf-seller-access__eyebrow">{{ section.settings.eyebrow | escape }}</span>
+    <h1>{{ section.settings.heading | escape }}</h1>
+    <p class="sf-seller-access__intro">{{ section.settings.intro | escape }}</p>
+
+    <form class="sf-seller-access__form" data-seller-access-form novalidate>
+      <label for="SellerAccessCode-{{ section.id }}">Código de acesso</label>
+      <div class="sf-seller-access__field">
+        <input
+          id="SellerAccessCode-{{ section.id }}"
+          name="access_code"
+          type="password"
+          autocomplete="current-password"
+          inputmode="text"
+          placeholder="{{ section.settings.placeholder | escape }}"
+          required
+          data-seller-access-input
+        >
+        <button
+          type="button"
+          class="sf-seller-access__reveal"
+          aria-label="Mostrar código de acesso"
+          aria-pressed="false"
+          data-seller-access-reveal
+        >
+          <span data-reveal-label>Mostrar</span>
+        </button>
+      </div>
+
+      <p class="sf-seller-access__status" role="status" aria-live="polite" hidden data-seller-access-status></p>
+
+      <button class="sf-seller-access__submit" type="submit">
+        {{ section.settings.button_text | escape }}
+        <span aria-hidden="true">→</span>
+      </button>
+    </form>
+
+    {% if section.settings.help_text != blank %}
+      <p class="sf-seller-access__help">{{ section.settings.help_text | escape }}</p>
+    {% endif %}
+  </div>
+</section>
+
+<style>
+  #{{ section_id }} {
+    --sf-ink: {{ section.settings.color_ink }};
+    --sf-muted: {{ section.settings.color_muted }};
+    --sf-primary: {{ section.settings.color_primary }};
+    --sf-primary-dark: {{ section.settings.color_primary_dark }};
+    --sf-paper: {{ section.settings.color_background }};
+    --sf-line: {{ section.settings.color_border }};
+    position: relative;
+    isolation: isolate;
+    min-height: min(780px, calc(100vh - 80px));
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    padding: clamp(48px, 8vw, 96px) 20px;
+    background:
+      radial-gradient(circle at 15% 10%, color-mix(in srgb, var(--sf-primary) 18%, transparent), transparent 32%),
+      radial-gradient(circle at 90% 85%, color-mix(in srgb, var(--sf-primary) 13%, transparent), transparent 34%),
+      var(--sf-paper);
+    color: var(--sf-ink);
+    font-family: 'Metropolis', 'Montserrat', Arial, Helvetica, sans-serif;
+  }
+
+  #{{ section_id }} * {
+    box-sizing: border-box;
+  }
+
+  #{{ section_id }} .sf-seller-access__glow {
+    position: absolute;
+    z-index: -1;
+    width: 260px;
+    height: 260px;
+    border-radius: 50%;
+    filter: blur(10px);
+    opacity: .24;
+    background: var(--sf-primary);
+  }
+
+  #{{ section_id }} .sf-seller-access__glow--one {
+    top: -150px;
+    right: 8%;
+  }
+
+  #{{ section_id }} .sf-seller-access__glow--two {
+    bottom: -180px;
+    left: 5%;
+  }
+
+  #{{ section_id }} .sf-seller-access__card {
+    width: min(100%, 520px);
+    padding: clamp(30px, 6vw, 52px);
+    border: 1px solid var(--sf-line);
+    border-radius: 28px;
+    background: rgba(255, 255, 255, .94);
+    box-shadow: 0 26px 80px rgba(11, 66, 71, .13);
+    backdrop-filter: blur(14px);
+  }
+
+  #{{ section_id }} .sf-seller-access__brand {
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    margin-bottom: 34px;
+  }
+
+  #{{ section_id }} .sf-seller-access__logo {
+    display: block;
+    width: auto;
+    max-width: 180px;
+    max-height: 54px;
+    object-fit: contain;
+  }
+
+  #{{ section_id }} .sf-seller-access__brand-name {
+    color: var(--sf-ink);
+    font-size: 30px;
+    font-weight: 900;
+    letter-spacing: -.04em;
+  }
+
+  #{{ section_id }} .sf-seller-access__eyebrow {
+    display: block;
+    margin-bottom: 13px;
+    color: var(--sf-primary-dark);
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: .17em;
+    text-transform: uppercase;
+  }
+
+  #{{ section_id }} h1 {
+    margin: 0;
+    color: var(--sf-ink);
+    font-size: clamp(32px, 6vw, 48px);
+    font-weight: 900;
+    letter-spacing: -.045em;
+    line-height: 1.02;
+  }
+
+  #{{ section_id }} .sf-seller-access__intro {
+    margin: 18px 0 32px;
+    color: var(--sf-muted);
+    font-size: 16px;
+    line-height: 1.65;
+  }
+
+  #{{ section_id }} .sf-seller-access__form label {
+    display: block;
+    margin-bottom: 9px;
+    color: var(--sf-ink);
+    font-size: 13px;
+    font-weight: 800;
+  }
+
+  #{{ section_id }} .sf-seller-access__field {
+    position: relative;
+  }
+
+  #{{ section_id }} .sf-seller-access__field input {
+    width: 100%;
+    min-height: 56px;
+    padding: 14px 92px 14px 16px;
+    border: 1px solid var(--sf-line);
+    border-radius: 14px;
+    outline: 0;
+    background: #fff;
+    color: var(--sf-ink);
+    font: inherit;
+    transition: border-color .2s ease, box-shadow .2s ease;
+  }
+
+  #{{ section_id }} .sf-seller-access__field input:focus {
+    border-color: var(--sf-primary);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--sf-primary) 17%, transparent);
+  }
+
+  #{{ section_id }} .sf-seller-access__reveal {
+    position: absolute;
+    top: 50%;
+    right: 14px;
+    padding: 7px 5px;
+    border: 0;
+    background: transparent;
+    color: var(--sf-primary-dark);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 900;
+    cursor: pointer;
+    transform: translateY(-50%);
+  }
+
+  #{{ section_id }} .sf-seller-access__status {
+    margin: 12px 0 0;
+    padding: 11px 13px;
+    border-radius: 11px;
+    background: #fff1ee;
+    color: #a22b18;
+    font-size: 13px;
+    font-weight: 800;
+  }
+
+  #{{ section_id }} .sf-seller-access__submit {
+    width: 100%;
+    min-height: 58px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    margin-top: 18px;
+    padding: 15px 24px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--sf-primary);
+    color: #fff;
+    font: inherit;
+    font-weight: 900;
+    cursor: pointer;
+    box-shadow: 0 12px 28px color-mix(in srgb, var(--sf-primary) 28%, transparent);
+    transition: background .2s ease, transform .2s ease, box-shadow .2s ease;
+  }
+
+  #{{ section_id }} .sf-seller-access__submit:hover {
+    background: var(--sf-primary-dark);
+    box-shadow: 0 15px 34px color-mix(in srgb, var(--sf-primary) 32%, transparent);
+    transform: translateY(-2px);
+  }
+
+  #{{ section_id }} .sf-seller-access__help {
+    margin: 23px 0 0;
+    color: var(--sf-muted);
+    font-size: 12px;
+    line-height: 1.55;
+    text-align: center;
+  }
+
+  @media (max-width: 560px) {
+    #{{ section_id }} {
+      min-height: calc(100vh - 64px);
+      padding: 24px 14px;
+    }
+
+    #{{ section_id }} .sf-seller-access__card {
+      padding: 30px 22px;
+      border-radius: 22px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #{{ section_id }} *,
+    #{{ section_id }} *::before,
+    #{{ section_id }} *::after {
+      scroll-behavior: auto !important;
+      transition-duration: .01ms !important;
+    }
+  }
+</style>
+
+<script>
+  (() => {
+    const root = document.getElementById({{ section_id | json }});
+    if (!root) return;
+
+    const form = root.querySelector('[data-seller-access-form]');
+    const input = root.querySelector('[data-seller-access-input]');
+    const status = root.querySelector('[data-seller-access-status]');
+    const reveal = root.querySelector('[data-seller-access-reveal]');
+    const revealLabel = root.querySelector('[data-reveal-label]');
+    const accessKey = 'sincrofit_seller_access_v1';
+    const expectedCode = {{ section.settings.access_code | json }};
+    const defaultDestination = {{ calculator_url | json }};
+
+    function safeDestination() {
+      const fallbackDestination =
+        defaultDestination === window.location.pathname
+          ? '/pages/pedidos-dos-vendedores'
+          : defaultDestination;
+      const requested = new URLSearchParams(window.location.search).get('return_to');
+      if (!requested) return fallbackDestination;
+
+      try {
+        const parsed = new URL(requested, window.location.origin);
+        if (
+          parsed.origin === window.location.origin &&
+          parsed.pathname.startsWith('/') &&
+          parsed.pathname !== window.location.pathname
+        ) {
+          return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+        }
+      } catch (error) {
+        // Usa o destino padrão quando o parâmetro não for uma URL válida.
+      }
+
+      return fallbackDestination;
+    }
+
+    if (sessionStorage.getItem(accessKey) === 'authorized') {
+      window.location.replace(safeDestination());
+      return;
+    }
+
+    reveal?.addEventListener('click', () => {
+      const show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      reveal.setAttribute('aria-pressed', String(show));
+      reveal.setAttribute('aria-label', show ? 'Ocultar código de acesso' : 'Mostrar código de acesso');
+      revealLabel.textContent = show ? 'Ocultar' : 'Mostrar';
+      input.focus();
+    });
+
+    form?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const typedCode = input.value.trim();
+
+      if (!expectedCode) {
+        status.textContent = 'Defina o código de acesso nas configurações desta seção.';
+        status.hidden = false;
+        return;
+      }
+
+      if (typedCode !== expectedCode) {
+        status.textContent = 'Código de acesso inválido. Confira e tente novamente.';
+        status.hidden = false;
+        input.select();
+        return;
+      }
+
+      sessionStorage.setItem(accessKey, 'authorized');
+      status.hidden = true;
+      window.location.assign(safeDestination());
+    });
+  })();
+</script>
+
+{% schema %}
+{
+  "name": "Acesso vendedores SF",
+  "tag": "section",
+  "class": "section-sincrofit-seller-access",
+  "settings": [
+    {
+      "type": "image_picker",
+      "id": "logo",
+      "label": "Logo Sincrofit"
+    },
+    {
+      "type": "text",
+      "id": "eyebrow",
+      "label": "Identificação",
+      "default": "Área exclusiva"
+    },
+    {
+      "type": "text",
+      "id": "heading",
+      "label": "Título",
+      "default": "Acesso dos vendedores"
+    },
+    {
+      "type": "textarea",
+      "id": "intro",
+      "label": "Texto de apoio",
+      "default": "Entre com seu código para consultar o catálogo comercial e montar pedidos de atacado."
+    },
+    {
+      "type": "text",
+      "id": "placeholder",
+      "label": "Placeholder",
+      "default": "Digite seu código"
+    },
+    {
+      "type": "text",
+      "id": "access_code",
+      "label": "Código de acesso",
+      "info": "Proteção visual no navegador. Não use aqui uma senha administrativa ou secreta."
+    },
+    {
+      "type": "page",
+      "id": "calculator_page",
+      "label": "Página da calculadora"
+    },
+    {
+      "type": "text",
+      "id": "button_text",
+      "label": "Texto do botão",
+      "default": "Entrar na área de vendas"
+    },
+    {
+      "type": "text",
+      "id": "help_text",
+      "label": "Ajuda",
+      "default": "Se você ainda não possui acesso, fale com o responsável comercial."
+    },
+    {
+      "type": "header",
+      "content": "Identidade visual"
+    },
+    {
+      "type": "color",
+      "id": "color_primary",
+      "label": "Turquesa principal",
+      "default": "#24a8b4"
+    },
+    {
+      "type": "color",
+      "id": "color_primary_dark",
+      "label": "Turquesa escuro",
+      "default": "#168793"
+    },
+    {
+      "type": "color",
+      "id": "color_background",
+      "label": "Fundo",
+      "default": "#f3f9fa"
+    },
+    {
+      "type": "color",
+      "id": "color_ink",
+      "label": "Texto",
+      "default": "#101516"
+    },
+    {
+      "type": "color",
+      "id": "color_muted",
+      "label": "Texto secundário",
+      "default": "#5f696b"
+    },
+    {
+      "type": "color",
+      "id": "color_border",
+      "label": "Bordas",
+      "default": "#d7e7e9"
+    }
+  ],
+  "presets": [
+    {
+      "name": "Acesso vendedores Sincrofit"
+    }
+  ]
+}
+{% endschema %}

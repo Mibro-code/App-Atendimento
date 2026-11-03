@@ -1,0 +1,2 @@
+ALTER TABLE "User"
+ADD COLUMN "canCreateTeamUsers" BOOLEAN NOT NULL DEFAULT false;

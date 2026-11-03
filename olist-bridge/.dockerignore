@@ -1,0 +1,11 @@
+.cache
+build
+node_modules
+.git
+.env
+.env.*
+!.env.example
+backups
+.shopify
+.react-router
+extensions/*/dist

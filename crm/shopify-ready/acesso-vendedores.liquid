@@ -1,0 +1,1604 @@
+{% liquid
+  assign section_id = 'mibro-seller-login-' | append: section.id
+  assign destination_url = section.settings.destination_url
+
+  if destination_url == blank
+    assign destination_url = '/pages/consulta-de-precos'
+  endif
+%}
+
+<section
+  id="{{ section_id }}"
+  class="mibro-seller-login"
+  data-hide-header-footer="{{ section.settings.hide_header_footer }}"
+>
+  <div class="mibro-seller-layout">
+
+    <!-- LADO INSTITUCIONAL -->
+    <div class="mibro-seller-hero">
+
+      {% if section.settings.hero_image != blank %}
+        <div class="mibro-seller-hero-image">
+          {{
+            section.settings.hero_image
+            | image_url: width: 1800
+            | image_tag:
+              loading: 'eager',
+              widths: '750, 1100, 1500, 1800',
+              sizes: '(max-width: 989px) 100vw, 55vw',
+              alt: section.settings.hero_title
+          }}
+        </div>
+      {% endif %}
+
+      <div class="mibro-seller-hero-overlay"></div>
+
+      <div class="mibro-decoration mibro-decoration-one"></div>
+      <div class="mibro-decoration mibro-decoration-two"></div>
+      <div class="mibro-decoration mibro-decoration-three"></div>
+
+      <div class="mibro-seller-hero-content">
+
+        <div class="mibro-seller-brand">
+          {% if section.settings.logo != blank %}
+            {{
+              section.settings.logo
+              | image_url: width: 500
+              | image_tag:
+                class: 'mibro-seller-logo',
+                loading: 'eager',
+                widths: '180, 280, 400, 500',
+                sizes: '180px',
+                alt: shop.name
+            }}
+          {% else %}
+            <span class="mibro-seller-brand-name">
+              MIBRO
+            </span>
+          {% endif %}
+
+          <span class="mibro-seller-brand-division">
+            Brasil
+          </span>
+        </div>
+
+        <div class="mibro-seller-hero-copy">
+          {% if section.settings.hero_badge != blank %}
+            <span class="mibro-seller-hero-badge">
+              <span class="mibro-seller-badge-dot"></span>
+              {{ section.settings.hero_badge }}
+            </span>
+          {% endif %}
+
+          <h1>
+            {{ section.settings.hero_title }}
+          </h1>
+
+          {% if section.settings.hero_description != blank %}
+            <p>
+              {{ section.settings.hero_description }}
+            </p>
+          {% endif %}
+
+          {% if section.blocks.size > 0 %}
+            <div class="mibro-seller-benefits">
+              {% for block in section.blocks %}
+                {% if block.type == 'benefit' %}
+                  <div
+                    class="mibro-seller-benefit"
+                    {{ block.shopify_attributes }}
+                  >
+                    <span class="mibro-seller-benefit-icon">
+                      <svg
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <path
+                          d="m5 12 4 4L19 6"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2.2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        />
+                      </svg>
+                    </span>
+
+                    <span>
+                      {{ block.settings.text }}
+                    </span>
+                  </div>
+                {% endif %}
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+
+        <div class="mibro-seller-hero-footer">
+          <span>
+            {{ section.settings.hero_footer }}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- LADO DO LOGIN -->
+    <div class="mibro-seller-form-area">
+
+      <div class="mibro-seller-mobile-brand">
+        {% if section.settings.logo != blank %}
+          {{
+            section.settings.logo
+            | image_url: width: 360
+            | image_tag:
+              class: 'mibro-seller-mobile-logo',
+              loading: 'eager',
+              widths: '180, 280, 360',
+              sizes: '150px',
+              alt: shop.name
+          }}
+        {% else %}
+          <strong>MIBRO</strong>
+        {% endif %}
+      </div>
+
+      <div class="mibro-seller-form-wrapper">
+
+        <div class="mibro-seller-form-header">
+          <span class="mibro-seller-restricted">
+            <svg
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                d="M7 10V8a5 5 0 0 1 10 0v2m-11 0h12a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1Zm3 0V8a3 3 0 0 1 6 0v2"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+
+            Acesso restrito
+          </span>
+
+          <h2>
+            {{ section.settings.form_title }}
+          </h2>
+
+          {% if section.settings.form_description != blank %}
+            <p>
+              {{ section.settings.form_description }}
+            </p>
+          {% endif %}
+        </div>
+
+        <form
+          class="mibro-seller-form"
+          novalidate
+        >
+          <div class="mibro-seller-field">
+            <label for="{{ section_id }}-password">
+              Senha de acesso
+            </label>
+
+            <div class="mibro-seller-input-container">
+              <span class="mibro-seller-input-icon">
+                <svg
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M7 10V8a5 5 0 0 1 10 0v2m-11 0h12a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1Zm3 0V8a3 3 0 0 1 6 0v2"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </span>
+
+              <input
+                id="{{ section_id }}-password"
+                class="mibro-seller-password"
+                type="password"
+                name="seller_password"
+                placeholder="{{ section.settings.password_placeholder }}"
+                autocomplete="current-password"
+                autocapitalize="none"
+                spellcheck="false"
+                maxlength="100"
+                required
+              >
+
+              <button
+                type="button"
+                class="mibro-seller-toggle-password"
+                aria-label="Mostrar senha"
+              >
+                <svg
+                  class="mibro-eye-open"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="2.7"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                  />
+                </svg>
+
+                <svg
+                  class="mibro-eye-closed"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="m3 3 18 18M10.7 6.1A9 9 0 0 1 12 6c6 0 9.5 6 9.5 6a15 15 0 0 1-2.3 3M6.5 6.6C3.8 8.4 2.5 12 2.5 12s3.5 6 9.5 6a9 9 0 0 0 3.1-.5M9.9 9.9a3 3 0 0 0 4.2 4.2"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div
+            class="mibro-seller-message"
+            role="status"
+            aria-live="polite"
+          ></div>
+
+          <button
+            type="submit"
+            class="mibro-seller-submit"
+          >
+            <span class="mibro-seller-submit-content">
+              <span>
+                {{ section.settings.button_text }}
+              </span>
+
+              <svg
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  d="M5 12h14m-5-5 5 5-5 5"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </span>
+
+            <span class="mibro-seller-loading">
+              <span class="mibro-seller-spinner"></span>
+              Verificando acesso
+            </span>
+          </button>
+        </form>
+
+        <div class="mibro-seller-authorized">
+          <svg
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path
+              d="M12 3 5 6v5c0 4.8 2.9 8.4 7 10 4.1-1.6 7-5.2 7-10V6l-7-3Z"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <path
+              d="m9 12 2 2 4-4"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+
+          <span>
+            Área exclusiva para vendedores autorizados da Mibro Brasil
+          </span>
+        </div>
+
+        {% if section.settings.support_text != blank %}
+          <div class="mibro-seller-support">
+            <span>
+              {{ section.settings.support_text }}
+            </span>
+
+            {% if section.settings.support_url != blank %}
+              <a href="{{ section.settings.support_url }}">
+                Solicitar suporte
+              </a>
+            {% endif %}
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="mibro-seller-form-footer">
+        {{ section.settings.footer_text }}
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  #{{ section_id }} {
+    --mibro-orange: {{ section.settings.primary_color }};
+    --mibro-dark: {{ section.settings.dark_color }};
+    --mibro-light: {{ section.settings.light_color }};
+    --mibro-text: {{ section.settings.text_color }};
+
+    width: 100%;
+    min-height: 100vh;
+    min-height: 100svh;
+    background: var(--mibro-light);
+    color: var(--mibro-text);
+    font-family:
+      Inter,
+      Poppins,
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
+      sans-serif;
+  }
+
+  #{{ section_id }} * {
+    box-sizing: border-box;
+  }
+
+  #{{ section_id }} .mibro-seller-layout {
+    display: grid;
+    min-height: 100vh;
+    min-height: 100svh;
+    grid-template-columns: minmax(430px, 1.08fr) minmax(430px, 0.92fr);
+  }
+
+  /* HERO */
+
+  #{{ section_id }} .mibro-seller-hero {
+    position: relative;
+    display: flex;
+    min-height: 100%;
+    overflow: hidden;
+    background:
+      radial-gradient(
+        circle at 18% 12%,
+        rgba(255, 102, 51, 0.18),
+        transparent 30%
+      ),
+      radial-gradient(
+        circle at 90% 90%,
+        rgba(255, 102, 51, 0.12),
+        transparent 34%
+      ),
+      linear-gradient(
+        145deg,
+        #080808 0%,
+        var(--mibro-dark) 55%,
+        #181818 100%
+      );
+    color: #ffffff;
+  }
+
+  #{{ section_id }} .mibro-seller-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background-image:
+      linear-gradient(
+        rgba(255, 255, 255, 0.025) 1px,
+        transparent 1px
+      ),
+      linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.025) 1px,
+        transparent 1px
+      );
+    background-size: 42px 42px;
+    mask-image:
+      linear-gradient(
+        to bottom,
+        rgba(0, 0, 0, 0.8),
+        transparent
+      );
+  }
+
+  #{{ section_id }} .mibro-seller-hero-image {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+  }
+
+  #{{ section_id }} .mibro-seller-hero-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.35;
+  }
+
+  #{{ section_id }} .mibro-seller-hero-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background:
+      linear-gradient(
+        90deg,
+        rgba(5, 5, 5, 0.97) 0%,
+        rgba(5, 5, 5, 0.79) 55%,
+        rgba(5, 5, 5, 0.68) 100%
+      ),
+      linear-gradient(
+        0deg,
+        rgba(5, 5, 5, 0.85) 0%,
+        transparent 55%
+      );
+  }
+
+  #{{ section_id }} .mibro-seller-hero-content {
+    position: relative;
+    z-index: 4;
+    display: flex;
+    width: 100%;
+    min-height: 100%;
+    flex-direction: column;
+    padding: clamp(36px, 5vw, 72px);
+  }
+
+  #{{ section_id }} .mibro-seller-brand {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+  }
+
+  #{{ section_id }} .mibro-seller-logo {
+    display: block;
+    width: auto;
+    max-width: 180px;
+    max-height: 58px;
+    object-fit: contain;
+  }
+
+  #{{ section_id }} .mibro-seller-brand-name {
+    color: #ffffff;
+    font-size: 32px;
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: 2px;
+  }
+
+  #{{ section_id }} .mibro-seller-brand-division {
+    padding-left: 13px;
+    border-left: 1px solid rgba(255, 255, 255, 0.28);
+    color: rgba(255, 255, 255, 0.68);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  #{{ section_id }} .mibro-seller-hero-copy {
+    width: 100%;
+    max-width: 650px;
+    margin: auto 0;
+    padding: 70px 0;
+  }
+
+  #{{ section_id }} .mibro-seller-hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    margin-bottom: 24px;
+    padding: 9px 14px;
+    border: 1px solid rgba(255, 102, 51, 0.35);
+    border-radius: 999px;
+    background: rgba(255, 102, 51, 0.1);
+    color: #ff8c66;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+  }
+
+  #{{ section_id }} .mibro-seller-badge-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--mibro-orange);
+    box-shadow: 0 0 0 5px rgba(255, 102, 51, 0.12);
+  }
+
+  #{{ section_id }} .mibro-seller-hero h1 {
+    max-width: 700px;
+    margin: 0;
+    color: #ffffff;
+    font-size: clamp(42px, 5.4vw, 76px);
+    font-weight: 800;
+    line-height: 0.99;
+    letter-spacing: -3.5px;
+  }
+
+  #{{ section_id }} .mibro-seller-hero h1::after {
+    content: ".";
+    color: var(--mibro-orange);
+  }
+
+  #{{ section_id }} .mibro-seller-hero-copy > p {
+    max-width: 580px;
+    margin: 25px 0 0;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: clamp(15px, 1.4vw, 18px);
+    line-height: 1.75;
+  }
+
+  #{{ section_id }} .mibro-seller-benefits {
+    display: grid;
+    gap: 14px;
+    margin-top: 36px;
+  }
+
+  #{{ section_id }} .mibro-seller-benefit {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    color: rgba(255, 255, 255, 0.88);
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  #{{ section_id }} .mibro-seller-benefit-icon {
+    display: inline-flex;
+    width: 27px;
+    height: 27px;
+    flex: 0 0 27px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 102, 51, 0.35);
+    border-radius: 8px;
+    background: rgba(255, 102, 51, 0.1);
+    color: var(--mibro-orange);
+  }
+
+  #{{ section_id }} .mibro-seller-benefit-icon svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  #{{ section_id }} .mibro-seller-hero-footer {
+    color: rgba(255, 255, 255, 0.42);
+    font-size: 11px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+  }
+
+  #{{ section_id }} .mibro-decoration {
+    position: absolute;
+    z-index: 3;
+    pointer-events: none;
+  }
+
+  #{{ section_id }} .mibro-decoration-one {
+    top: 17%;
+    right: -74px;
+    width: 150px;
+    height: 150px;
+    border: 24px solid rgba(255, 102, 51, 0.12);
+    border-radius: 50%;
+  }
+
+  #{{ section_id }} .mibro-decoration-two {
+    right: 8%;
+    bottom: 11%;
+    width: 85px;
+    height: 4px;
+    background: var(--mibro-orange);
+    transform: rotate(-35deg);
+    opacity: 0.8;
+  }
+
+  #{{ section_id }} .mibro-decoration-three {
+    right: 13%;
+    bottom: 16%;
+    width: 44px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.3);
+    transform: rotate(-35deg);
+  }
+
+  /* FORMULÁRIO */
+
+  #{{ section_id }} .mibro-seller-form-area {
+    position: relative;
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    justify-content: center;
+    padding: clamp(35px, 5vw, 80px);
+    background:
+      radial-gradient(
+        circle at 100% 0%,
+        rgba(255, 102, 51, 0.07),
+        transparent 30%
+      ),
+      var(--mibro-light);
+  }
+
+  #{{ section_id }} .mibro-seller-form-area::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 5px;
+    height: 100%;
+    background: var(--mibro-orange);
+  }
+
+  #{{ section_id }} .mibro-seller-form-wrapper {
+    width: 100%;
+    max-width: 470px;
+    margin: auto;
+    animation: mibro-login-entry 0.6s ease both;
+  }
+
+  #{{ section_id }} .mibro-seller-mobile-brand {
+    display: none;
+  }
+
+  #{{ section_id }} .mibro-seller-form-header {
+    margin-bottom: 32px;
+  }
+
+  #{{ section_id }} .mibro-seller-restricted {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 17px;
+    color: var(--mibro-orange);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  #{{ section_id }} .mibro-seller-restricted svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  #{{ section_id }} .mibro-seller-form-header h2 {
+    margin: 0;
+    color: var(--mibro-text);
+    font-size: clamp(31px, 4vw, 44px);
+    font-weight: 800;
+    line-height: 1.08;
+    letter-spacing: -1.8px;
+  }
+
+  #{{ section_id }} .mibro-seller-form-header p {
+    max-width: 430px;
+    margin: 14px 0 0;
+    color: #747474;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+
+  #{{ section_id }} .mibro-seller-field label {
+    display: block;
+    margin-bottom: 9px;
+    color: #2a2a2a;
+    font-size: 13px;
+    font-weight: 750;
+  }
+
+  #{{ section_id }} .mibro-seller-input-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  #{{ section_id }} .mibro-seller-input-icon {
+    position: absolute;
+    left: 17px;
+    z-index: 2;
+    display: flex;
+    color: #929292;
+    pointer-events: none;
+  }
+
+  #{{ section_id }} .mibro-seller-input-icon svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  #{{ section_id }} .mibro-seller-password {
+    display: block;
+    width: 100%;
+    height: 58px;
+    margin: 0;
+    padding: 0 55px 0 50px;
+    border: 1px solid #dddddd;
+    border-radius: 12px;
+    outline: none;
+    background: #ffffff;
+    color: #1d1d1f;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 500;
+    box-shadow: 0 7px 22px rgba(0, 0, 0, 0.035);
+    transition:
+      border-color 0.2s ease,
+      box-shadow 0.2s ease,
+      transform 0.2s ease;
+  }
+
+  #{{ section_id }} .mibro-seller-password::placeholder {
+    color: #a1a1a1;
+    opacity: 1;
+  }
+
+  #{{ section_id }} .mibro-seller-password:hover {
+    border-color: #bebebe;
+  }
+
+  #{{ section_id }} .mibro-seller-password:focus {
+    border-color: var(--mibro-orange);
+    box-shadow:
+      0 0 0 4px rgba(255, 102, 51, 0.11),
+      0 9px 25px rgba(0, 0, 0, 0.05);
+  }
+
+  #{{ section_id }} .mibro-seller-password.has-error {
+    border-color: #d93025;
+    box-shadow:
+      0 0 0 4px rgba(217, 48, 37, 0.08);
+  }
+
+  #{{ section_id }} .mibro-seller-toggle-password {
+    position: absolute;
+    right: 14px;
+    z-index: 3;
+    display: inline-flex;
+    width: 36px;
+    height: 36px;
+    min-width: 0;
+    min-height: 0;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: #7e7e7e;
+    cursor: pointer;
+    transition:
+      color 0.2s ease,
+      background 0.2s ease;
+  }
+
+  #{{ section_id }} .mibro-seller-toggle-password:hover {
+    background: rgba(255, 102, 51, 0.08);
+    color: var(--mibro-orange);
+  }
+
+  #{{ section_id }} .mibro-seller-toggle-password svg {
+    width: 21px;
+    height: 21px;
+  }
+
+  #{{ section_id }} .mibro-eye-closed {
+    display: none;
+  }
+
+  #{{ section_id }}
+    .mibro-seller-toggle-password.is-visible
+    .mibro-eye-open {
+    display: none;
+  }
+
+  #{{ section_id }}
+    .mibro-seller-toggle-password.is-visible
+    .mibro-eye-closed {
+    display: block;
+  }
+
+  #{{ section_id }} .mibro-seller-message {
+    display: flex;
+    min-height: 28px;
+    align-items: center;
+    margin: 7px 0 3px;
+    color: #d93025;
+    font-size: 12px;
+    font-weight: 650;
+  }
+
+  #{{ section_id }} .mibro-seller-message.is-success {
+    color: #198754;
+  }
+
+  #{{ section_id }} .mibro-seller-submit {
+    position: relative;
+    display: flex;
+    width: 100%;
+    height: 58px;
+    min-width: 0;
+    min-height: 0;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    padding: 0 24px;
+    overflow: hidden;
+    border: 0;
+    border-radius: 12px;
+    background: var(--mibro-orange);
+    color: #ffffff;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 14px 30px rgba(255, 102, 51, 0.24);
+    transition:
+      transform 0.2s ease,
+      box-shadow 0.2s ease,
+      filter 0.2s ease;
+  }
+
+  #{{ section_id }} .mibro-seller-submit::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -130%;
+    width: 80%;
+    height: 100%;
+    background:
+      linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.25),
+        transparent
+      );
+    transform: skewX(-20deg);
+    transition: left 0.55s ease;
+  }
+
+  #{{ section_id }} .mibro-seller-submit:hover {
+    filter: brightness(0.95);
+    transform: translateY(-2px);
+    box-shadow: 0 18px 35px rgba(255, 102, 51, 0.3);
+  }
+
+  #{{ section_id }} .mibro-seller-submit:hover::before {
+    left: 150%;
+  }
+
+  #{{ section_id }} .mibro-seller-submit:active {
+    transform: translateY(0);
+  }
+
+  #{{ section_id }} .mibro-seller-submit:focus-visible {
+    outline: 3px solid rgba(255, 102, 51, 0.25);
+    outline-offset: 4px;
+  }
+
+  #{{ section_id }} .mibro-seller-submit:disabled {
+    cursor: wait;
+    filter: none;
+    opacity: 0.8;
+    transform: none;
+  }
+
+  #{{ section_id }} .mibro-seller-submit-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 11px;
+  }
+
+  #{{ section_id }} .mibro-seller-submit-content svg {
+    width: 19px;
+    height: 19px;
+    transition: transform 0.2s ease;
+  }
+
+  #{{ section_id }}
+    .mibro-seller-submit:hover
+    .mibro-seller-submit-content
+    svg {
+    transform: translateX(3px);
+  }
+
+  #{{ section_id }} .mibro-seller-loading {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  #{{ section_id }} .mibro-seller-submit.is-loading
+    .mibro-seller-submit-content {
+    display: none;
+  }
+
+  #{{ section_id }} .mibro-seller-submit.is-loading
+    .mibro-seller-loading {
+    display: flex;
+  }
+
+  #{{ section_id }} .mibro-seller-spinner {
+    width: 17px;
+    height: 17px;
+    border: 2px solid rgba(255, 255, 255, 0.45);
+    border-top-color: #ffffff;
+    border-radius: 50%;
+    animation: mibro-spinner 0.7s linear infinite;
+  }
+
+  #{{ section_id }} .mibro-seller-authorized {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    margin-top: 24px;
+    padding: 18px;
+    border: 1px solid #e8e8e8;
+    border-radius: 11px;
+    background: rgba(255, 255, 255, 0.65);
+    color: #797979;
+    font-size: 11px;
+    line-height: 1.5;
+  }
+
+  #{{ section_id }} .mibro-seller-authorized svg {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 18px;
+    color: var(--mibro-orange);
+  }
+
+  #{{ section_id }} .mibro-seller-support {
+    margin-top: 22px;
+    color: #8a8a8a;
+    font-size: 12px;
+    line-height: 1.6;
+    text-align: center;
+  }
+
+  #{{ section_id }} .mibro-seller-support a {
+    display: inline-block;
+    margin-left: 4px;
+    color: var(--mibro-orange);
+    font-weight: 750;
+    text-decoration: none;
+  }
+
+  #{{ section_id }} .mibro-seller-support a:hover {
+    text-decoration: underline;
+  }
+
+  #{{ section_id }} .mibro-seller-form-footer {
+    position: absolute;
+    right: 30px;
+    bottom: 20px;
+    left: 30px;
+    color: #aaaaaa;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    text-align: center;
+    text-transform: uppercase;
+  }
+
+  #{{ section_id }}.has-login-error
+    .mibro-seller-form-wrapper {
+    animation: mibro-login-shake 0.28s ease;
+  }
+
+  /* OCULTAR CABEÇALHO E RODAPÉ */
+
+  body.mibro-seller-clean-page {
+    overflow-x: hidden;
+  }
+
+  body.mibro-seller-clean-page
+    .shopify-section-group-header-group,
+  body.mibro-seller-clean-page
+    .shopify-section-group-footer-group,
+  body.mibro-seller-clean-page
+    #shopify-section-header,
+  body.mibro-seller-clean-page
+    #shopify-section-footer {
+    display: none !important;
+  }
+
+  body.mibro-seller-clean-page #MainContent {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* RESPONSIVO */
+
+  @media screen and (max-width: 989px) {
+    #{{ section_id }} .mibro-seller-layout {
+      display: block;
+    }
+
+    #{{ section_id }} .mibro-seller-hero {
+      min-height: 310px;
+    }
+
+    #{{ section_id }} .mibro-seller-hero-content {
+      min-height: 310px;
+      padding: 32px 28px;
+    }
+
+    #{{ section_id }} .mibro-seller-hero-copy {
+      margin: auto 0 0;
+      padding: 45px 0 5px;
+    }
+
+    #{{ section_id }} .mibro-seller-hero h1 {
+      max-width: 570px;
+      font-size: clamp(38px, 8vw, 58px);
+    }
+
+    #{{ section_id }} .mibro-seller-benefits,
+    #{{ section_id }} .mibro-seller-hero-footer {
+      display: none;
+    }
+
+    #{{ section_id }} .mibro-seller-form-area {
+      min-height: calc(100svh - 310px);
+      padding: 55px 25px 70px;
+    }
+
+    #{{ section_id }} .mibro-seller-form-area::after {
+      top: 0;
+      width: 100%;
+      height: 4px;
+    }
+
+    #{{ section_id }} .mibro-seller-form-footer {
+      position: static;
+      margin-top: 50px;
+    }
+  }
+
+  @media screen and (max-width: 749px) {
+    #{{ section_id }} .mibro-seller-hero {
+      min-height: 230px;
+    }
+
+    #{{ section_id }} .mibro-seller-hero-content {
+      min-height: 230px;
+      padding: 25px 20px;
+    }
+
+    #{{ section_id }} .mibro-seller-brand {
+      gap: 10px;
+    }
+
+    #{{ section_id }} .mibro-seller-logo {
+      max-width: 135px;
+      max-height: 42px;
+    }
+
+    #{{ section_id }} .mibro-seller-brand-name {
+      font-size: 25px;
+    }
+
+    #{{ section_id }} .mibro-seller-brand-division {
+      font-size: 10px;
+    }
+
+    #{{ section_id }} .mibro-seller-hero-copy {
+      padding: 30px 0 0;
+    }
+
+    #{{ section_id }} .mibro-seller-hero-badge {
+      margin-bottom: 14px;
+      padding: 7px 11px;
+      font-size: 9px;
+    }
+
+    #{{ section_id }} .mibro-seller-hero h1 {
+      max-width: 390px;
+      font-size: clamp(32px, 10vw, 43px);
+      letter-spacing: -2px;
+    }
+
+    #{{ section_id }} .mibro-seller-hero-copy > p {
+      display: none;
+    }
+
+    #{{ section_id }} .mibro-decoration-one {
+      width: 110px;
+      height: 110px;
+      border-width: 18px;
+    }
+
+    #{{ section_id }} .mibro-seller-form-area {
+      min-height: calc(100svh - 230px);
+      justify-content: flex-start;
+      padding: 42px 18px 50px;
+    }
+
+    #{{ section_id }} .mibro-seller-form-wrapper {
+      max-width: 100%;
+    }
+
+    #{{ section_id }} .mibro-seller-form-header {
+      margin-bottom: 27px;
+    }
+
+    #{{ section_id }} .mibro-seller-form-header h2 {
+      font-size: 31px;
+      letter-spacing: -1.3px;
+    }
+
+    #{{ section_id }} .mibro-seller-password,
+    #{{ section_id }} .mibro-seller-submit {
+      height: 56px;
+    }
+
+    #{{ section_id }} .mibro-seller-authorized {
+      padding: 15px;
+    }
+  }
+
+  @media screen and (prefers-reduced-motion: reduce) {
+    #{{ section_id }} *,
+    #{{ section_id }} *::before,
+    #{{ section_id }} *::after {
+      scroll-behavior: auto !important;
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  @keyframes mibro-spinner {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes mibro-login-entry {
+    from {
+      opacity: 0;
+      transform: translateY(18px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes mibro-login-shake {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+
+    25% {
+      transform: translateX(-5px);
+    }
+
+    75% {
+      transform: translateX(5px);
+    }
+  }
+</style>
+
+<script>
+  (function () {
+    const root = document.getElementById({{ section_id | json }});
+
+    if (!root) {
+      return;
+    }
+
+    const form = root.querySelector('.mibro-seller-form');
+    const passwordInput = root.querySelector('.mibro-seller-password');
+    const togglePassword = root.querySelector(
+      '.mibro-seller-toggle-password'
+    );
+    const submitButton = root.querySelector('.mibro-seller-submit');
+    const message = root.querySelector('.mibro-seller-message');
+
+    const configuredPassword =
+      {{ section.settings.fixed_password | json }};
+
+    const configuredDestination =
+      {{ destination_url | json }};
+
+    const accessKey = 'mibro_seller_access_v1';
+    const accessValue = 'authorized';
+
+    if (root.dataset.hideHeaderFooter === 'true') {
+      document.body.classList.add('mibro-seller-clean-page');
+    }
+
+    function getDestinationUrl() {
+      const parameters = new URLSearchParams(
+        window.location.search
+      );
+
+      const requestedPage = parameters.get('next');
+
+      if (
+        requestedPage &&
+        requestedPage.startsWith('/') &&
+        !requestedPage.startsWith('//')
+      ) {
+        return requestedPage;
+      }
+
+      return configuredDestination;
+    }
+
+    function hasActiveAccess() {
+      try {
+        return (
+          sessionStorage.getItem(accessKey) === accessValue
+        );
+      } catch (error) {
+        return false;
+      }
+    }
+
+    function saveAccess() {
+      try {
+        sessionStorage.setItem(accessKey, accessValue);
+        return true;
+      } catch (error) {
+        return false;
+      }
+    }
+
+    function normalizePassword(password) {
+      {% if section.settings.case_sensitive %}
+        return password;
+      {% else %}
+        return password.toLocaleLowerCase('pt-BR');
+      {% endif %}
+    }
+
+    function showError(text) {
+      message.textContent = text;
+      message.classList.remove('is-success');
+
+      passwordInput.classList.add('has-error');
+
+      root.classList.remove('has-login-error');
+
+      void root.offsetWidth;
+
+      root.classList.add('has-login-error');
+
+      passwordInput.focus();
+      passwordInput.select();
+    }
+
+    function clearMessage() {
+      message.textContent = '';
+      message.classList.remove('is-success');
+      passwordInput.classList.remove('has-error');
+      root.classList.remove('has-login-error');
+    }
+
+    function redirectToDestination() {
+      const destination = getDestinationUrl();
+
+      if (!destination) {
+        showError(
+          'A página de consulta ainda não foi configurada.'
+        );
+
+        submitButton.disabled = false;
+        submitButton.classList.remove('is-loading');
+
+        return;
+      }
+
+      window.location.replace(destination);
+    }
+
+    /*
+      Se o vendedor já foi autorizado nesta aba,
+      ele não precisa digitar a senha novamente.
+    */
+    if (hasActiveAccess()) {
+      redirectToDestination();
+      return;
+    }
+
+    togglePassword.addEventListener('click', function () {
+      const passwordIsVisible =
+        passwordInput.type === 'text';
+
+      passwordInput.type =
+        passwordIsVisible ? 'password' : 'text';
+
+      togglePassword.classList.toggle(
+        'is-visible',
+        !passwordIsVisible
+      );
+
+      togglePassword.setAttribute(
+        'aria-label',
+        passwordIsVisible
+          ? 'Mostrar senha'
+          : 'Ocultar senha'
+      );
+
+      passwordInput.focus();
+    });
+
+    passwordInput.addEventListener('input', clearMessage);
+
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+
+      clearMessage();
+
+      const enteredPassword =
+        passwordInput.value.trim();
+
+      if (!enteredPassword) {
+        showError('Digite a senha para continuar.');
+        return;
+      }
+
+      if (!configuredPassword) {
+        showError(
+          'A senha de acesso ainda não foi configurada.'
+        );
+        return;
+      }
+
+      const normalizedEnteredPassword =
+        normalizePassword(enteredPassword);
+
+      const normalizedConfiguredPassword =
+        normalizePassword(configuredPassword.trim());
+
+      if (
+        normalizedEnteredPassword !==
+        normalizedConfiguredPassword
+      ) {
+        showError(
+          'Senha incorreta. Verifique e tente novamente.'
+        );
+
+        return;
+      }
+
+      submitButton.disabled = true;
+      submitButton.classList.add('is-loading');
+
+      message.textContent = 'Acesso autorizado.';
+      message.classList.add('is-success');
+
+      saveAccess();
+
+      window.setTimeout(function () {
+        redirectToDestination();
+      }, 550);
+    });
+  })();
+</script>
+
+{% schema %}
+{
+  "name": "Acesso de vendedores",
+  "tag": "section",
+  "class": "section-acesso-vendedores",
+  "settings": [
+    {
+      "type": "header",
+      "content": "Identidade visual"
+    },
+    {
+      "type": "image_picker",
+      "id": "logo",
+      "label": "Logo da Mibro"
+    },
+    {
+      "type": "image_picker",
+      "id": "hero_image",
+      "label": "Imagem de fundo opcional"
+    },
+    {
+      "type": "color",
+      "id": "primary_color",
+      "label": "Cor principal",
+      "default": "#FF6633"
+    },
+    {
+      "type": "color",
+      "id": "dark_color",
+      "label": "Cor escura",
+      "default": "#0B0B0B"
+    },
+    {
+      "type": "color",
+      "id": "light_color",
+      "label": "Cor de fundo do formulário",
+      "default": "#F7F7F7"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Cor principal do texto",
+      "default": "#1D1D1F"
+    },
+    {
+      "type": "header",
+      "content": "Apresentação"
+    },
+    {
+      "type": "text",
+      "id": "hero_badge",
+      "label": "Selo superior",
+      "default": "Portal comercial oficial"
+    },
+    {
+      "type": "text",
+      "id": "hero_title",
+      "label": "Título principal",
+      "default": "Portal Comercial Mibro"
+    },
+    {
+      "type": "textarea",
+      "id": "hero_description",
+      "label": "Descrição principal",
+      "default": "Consulte produtos, preços de atacado e condições comerciais em uma área exclusiva para vendedores autorizados."
+    },
+    {
+      "type": "text",
+      "id": "hero_footer",
+      "label": "Texto inferior",
+      "default": "Mibro Brasil • Uso interno comercial"
+    },
+    {
+      "type": "header",
+      "content": "Formulário de acesso"
+    },
+    {
+      "type": "text",
+      "id": "form_title",
+      "label": "Título do formulário",
+      "default": "Área de vendedores"
+    },
+    {
+      "type": "textarea",
+      "id": "form_description",
+      "label": "Descrição do formulário",
+      "default": "Digite sua senha para acessar o sistema de consulta de produtos e preços."
+    },
+    {
+      "type": "text",
+      "id": "password_placeholder",
+      "label": "Texto dentro do campo",
+      "default": "Digite sua senha"
+    },
+    {
+      "type": "text",
+      "id": "fixed_password",
+      "label": "Senha fixa",
+      "default": "MIBRO2026",
+      "info": "Esta senha será utilizada por todos os vendedores."
+    },
+    {
+      "type": "checkbox",
+      "id": "case_sensitive",
+      "label": "Diferenciar letras maiúsculas e minúsculas",
+      "default": false
+    },
+    {
+      "type": "url",
+      "id": "destination_url",
+      "label": "Página de consulta de preços"
+    },
+    {
+      "type": "text",
+      "id": "button_text",
+      "label": "Texto do botão",
+      "default": "Acessar consulta de preços"
+    },
+    {
+      "type": "header",
+      "content": "Suporte e página"
+    },
+    {
+      "type": "text",
+      "id": "support_text",
+      "label": "Texto de suporte",
+      "default": "Está com dificuldade para acessar?"
+    },
+    {
+      "type": "url",
+      "id": "support_url",
+      "label": "Link para suporte"
+    },
+    {
+      "type": "text",
+      "id": "footer_text",
+      "label": "Texto inferior do formulário",
+      "default": "Ambiente exclusivo da Mibro Brasil"
+    },
+    {
+      "type": "checkbox",
+      "id": "hide_header_footer",
+      "label": "Ocultar cabeçalho e rodapé nesta página",
+      "default": true
+    }
+  ],
+  "blocks": [
+    {
+      "type": "benefit",
+      "name": "Benefício",
+      "limit": 4,
+      "settings": [
+        {
+          "type": "text",
+          "id": "text",
+          "label": "Texto",
+          "default": "Consulta rápida de preços comerciais"
+        }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Acesso de vendedores",
+      "blocks": [
+        {
+          "type": "benefit",
+          "settings": {
+            "text": "Consulta rápida de produtos e preços"
+          }
+        },
+        {
+          "type": "benefit",
+          "settings": {
+            "text": "Valores e condições para atacado"
+          }
+        },
+        {
+          "type": "benefit",
+          "settings": {
+            "text": "Área exclusiva para a equipe comercial"
+          }
+        }
+      ]
+    }
+  ]
+}
+{% endschema %}

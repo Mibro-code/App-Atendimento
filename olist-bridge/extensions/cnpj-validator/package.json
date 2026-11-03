@@ -1,0 +1,8 @@
+{
+  "name": "cnpj-validator",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build": "esbuild ../../scripts/cnpj-validator-theme.js --minify --outfile=assets/cnpj-validator.js"
+  }
+}

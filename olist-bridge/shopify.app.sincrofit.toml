@@ -1,0 +1,35 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "ec06da38289a8efc98618325f1aac318"
+name = "clientes-login-Sincrofit"
+application_url = "https://app.sincrofit.com.br"
+embedded = true
+
+[access_scopes]
+scopes = "write_discounts,read_orders,read_customers,customer_read_customers,customer_read_orders"
+
+[webhooks]
+api_version = "2026-07"
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/uninstalled"
+  topics = [ "app/uninstalled" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/scopes_update"
+  topics = [ "app/scopes_update" ]
+
+[[webhooks.subscriptions]]
+topics = [ "orders/paid" ]
+uri = "/webhooks/orders/paid"
+
+[auth]
+redirect_urls = [ "https://app.sincrofit.com.br/auth/callback" ]
+
+[app_proxy]
+url = "https://app.sincrofit.com.br/apps/cnpj-validator"
+subpath = "cnpj-validator"
+prefix = "apps"
+
+[build]
+automatically_update_urls_on_dev = true

@@ -1,0 +1,116 @@
+name: mibro-atendimento
+
+services:
+  database:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-app_whats}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - atendimento_postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 320m
+    networks:
+      - private
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mibro-atendimento-app:local
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      NODE_OPTIONS: --max-old-space-size=320
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB:-app_whats}?schema=public
+      SESSION_SECRET: ${SESSION_SECRET}
+      VERIFY_TOKEN: ${VERIFY_TOKEN}
+      WHATSAPP_TOKEN: ${WHATSAPP_TOKEN}
+      PHONE_NUMBER_ID: ${PHONE_NUMBER_ID}
+      WHATSAPP_BUSINESS_ACCOUNT_ID: ${WHATSAPP_BUSINESS_ACCOUNT_ID:-}
+      GRAPH_VERSION: ${GRAPH_VERSION}
+      META_APP_ID: ${META_APP_ID:-}
+      META_APP_SECRET: ${META_APP_SECRET}
+      META_OAUTH_REDIRECT_URI: ${META_OAUTH_REDIRECT_URI:-}
+      INTEGRATION_API_SECRET: ${INTEGRATION_API_SECRET}
+      INTEGRATION_ENCRYPTION_KEY: ${INTEGRATION_ENCRYPTION_KEY:-}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      GOOGLE_OAUTH_REDIRECT_URI: ${GOOGLE_OAUTH_REDIRECT_URI:-}
+      GMAIL_SYNC_INTERVAL_MS: ${GMAIL_SYNC_INTERVAL_MS:-30000}
+      FOLLOW_UP_REMINDER_LEAD_MINUTES: ${FOLLOW_UP_REMINDER_LEAD_MINUTES:-15}
+      GMAIL_SYNC_LABEL: ${GMAIL_SYNC_LABEL-Shopify (site Mibro)}
+      MICROSOFT_OAUTH_CLIENT_ID: ${MICROSOFT_OAUTH_CLIENT_ID:-}
+      MICROSOFT_OAUTH_CLIENT_SECRET: ${MICROSOFT_OAUTH_CLIENT_SECRET:-}
+      MICROSOFT_OAUTH_REDIRECT_URI: ${MICROSOFT_OAUTH_REDIRECT_URI:-}
+      MERCADO_LIVRE_CLIENT_ID: ${MERCADO_LIVRE_CLIENT_ID:-}
+      MERCADO_LIVRE_CLIENT_SECRET: ${MERCADO_LIVRE_CLIENT_SECRET:-}
+      MERCADO_LIVRE_OAUTH_REDIRECT_URI: ${MERCADO_LIVRE_OAUTH_REDIRECT_URI:-}
+      AMAZON_SPAPI_APPLICATION_ID: ${AMAZON_SPAPI_APPLICATION_ID:-}
+      AMAZON_LWA_CLIENT_ID: ${AMAZON_LWA_CLIENT_ID:-}
+      AMAZON_LWA_CLIENT_SECRET: ${AMAZON_LWA_CLIENT_SECRET:-}
+      AMAZON_OAUTH_REDIRECT_URI: ${AMAZON_OAUTH_REDIRECT_URI:-}
+      AMAZON_SELLER_CENTRAL_URL: ${AMAZON_SELLER_CENTRAL_URL:-https://sellercentral.amazon.com.br}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-haiku-4-5-20251001}
+      ANTHROPIC_TIMEOUT_MS: ${ANTHROPIC_TIMEOUT_MS:-8000}
+      AI_SECRETS_ENCRYPTION_KEY: ${AI_SECRETS_ENCRYPTION_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.6-flash}
+      GEMINI_TIMEOUT_MS: ${GEMINI_TIMEOUT_MS:-15000}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      OPENAI_TIMEOUT_MS: ${OPENAI_TIMEOUT_MS:-8000}
+      MEDIA_STORAGE_DIR: /app/storage/media
+      LOCAL_KNOWLEDGE_BASE_URL: ${LOCAL_KNOWLEDGE_BASE_URL:-}
+      LOCAL_KNOWLEDGE_BOT_IDS: ${LOCAL_KNOWLEDGE_BOT_IDS:-}
+    volumes:
+      - atendimento_media_data:/app/storage
+    expose:
+      - "3000"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    mem_limit: 448m
+    networks:
+      private:
+      proxy:
+        aliases:
+          - atendimento-app
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  atendimento_postgres_data:
+  atendimento_media_data:
+
+networks:
+  private:
+    driver: bridge
+  proxy:
+    external: true
+    name: shopify-proxy

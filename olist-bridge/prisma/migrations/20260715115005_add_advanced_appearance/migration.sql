@@ -1,0 +1,28 @@
+-- CreateTable
+CREATE TABLE "AppearanceSettings" (
+    "shop" TEXT NOT NULL PRIMARY KEY,
+    "accountBackground" TEXT NOT NULL DEFAULT 'transparent',
+    "quickCardBackground" TEXT NOT NULL DEFAULT 'transparent',
+    "orderCardBackground" TEXT NOT NULL DEFAULT 'transparent',
+    "noticeTone" TEXT NOT NULL DEFAULT 'info',
+    "numberTone" TEXT NOT NULL DEFAULT 'auto',
+    "pageBackgroundHex" TEXT NOT NULL DEFAULT '#F7F7F7',
+    "cardBackgroundHex" TEXT NOT NULL DEFAULT '#FFFFFF',
+    "cardBorderHex" TEXT NOT NULL DEFAULT '#D7D7D7',
+    "cardTitleHex" TEXT NOT NULL DEFAULT '#202223',
+    "cardTextHex" TEXT NOT NULL DEFAULT '#616161',
+    "noticeBackgroundHex" TEXT NOT NULL DEFAULT '#EAF4FF',
+    "noticeTextHex" TEXT NOT NULL DEFAULT '#005BD3',
+    "noticeBorderHex" TEXT NOT NULL DEFAULT '#B4D7FF',
+    "numberBackgroundHex" TEXT NOT NULL DEFAULT '#EEEEEE',
+    "numberTextHex" TEXT NOT NULL DEFAULT '#303030',
+    "numberBorderHex" TEXT NOT NULL DEFAULT '#D7D7D7',
+    "buttonBackgroundHex" TEXT NOT NULL DEFAULT '#303030',
+    "buttonTextHex" TEXT NOT NULL DEFAULT '#FFFFFF',
+    "buttonBorderHex" TEXT NOT NULL DEFAULT '#303030',
+    "cardBorderWidth" INTEGER NOT NULL DEFAULT 1,
+    "cardRadius" INTEGER NOT NULL DEFAULT 10,
+    "buttonRadius" INTEGER NOT NULL DEFAULT 8,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL
+);

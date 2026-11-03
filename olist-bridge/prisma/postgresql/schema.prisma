@@ -1,0 +1,243 @@
+// Arquivo gerado automaticamente. Nao editar manualmente.
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long
+// enough when changing adapters.
+// See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Session {
+  id            String    @id
+  shop          String
+  state         String
+  isOnline      Boolean   @default(false)
+  scope         String?
+  expires       DateTime?
+  accessToken   String
+  userId        BigInt?
+  firstName     String?
+  lastName      String?
+  email         String?
+  accountOwner  Boolean   @default(false)
+  locale        String?
+  collaborator  Boolean?  @default(false)
+  emailVerified Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+}
+
+model CouponSettings {
+  id String @id @default("default")
+
+  // Cupom de indicação
+  referralDiscountType            String  @default("PERCENTAGE")
+  referralDiscountValue           Float   @default(15)
+  referralDurationDays            Int     @default(30)
+  referralTotalUsageLimit         Int?
+  referralUsageLimitPerCustomer   Int     @default(1)
+  referralMinimumPurchase         Float   @default(100)
+  referralEligibleProducts        String?
+  referralEligibleCollections     String?
+  referralCombinesProductDiscount Boolean @default(false)
+  referralCombinesOrderDiscount   Boolean @default(false)
+  referralCombinesShipping        Boolean @default(false)
+  referralAllowsGuest             Boolean @default(false)
+
+  // Cupom de recompensa
+  rewardDiscountType              String  @default("PERCENTAGE")
+  rewardDiscountValue             Float   @default(10)
+  rewardDurationDays              Int     @default(30)
+  rewardUsageLimit                Int     @default(1)
+  rewardMinimumPurchase           Float   @default(100)
+  rewardCreatorExclusive          Boolean @default(true)
+  rewardEligibleProducts          String?
+  rewardEligibleCollections       String?
+  rewardCombinesProductDiscount   Boolean @default(false)
+  rewardCombinesOrderDiscount     Boolean @default(false)
+  rewardCombinesShipping          Boolean @default(false)
+
+  // Regras gerais
+  rewardReleaseMoment             String  @default("PAID")
+  rewardWaitingDays               Int     @default(0)
+  refundRule                      String  @default("CANCEL_REWARD")
+  monthlyRewardLimit              Int     @default(10)
+  allowMultipleProgramCoupons     Boolean @default(true)
+  excludeGiftCards                Boolean @default(true)
+  requirePaidOrder                Boolean @default(true)
+  requireAuthenticatedCustomer    Boolean @default(true)
+  preventSelfReferral             Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+model ReferralCoupon {
+  id String @id @default(cuid())
+
+  shop                String
+  customerId          String
+  customerEmail       String?
+  customerName        String?
+
+  code                String
+  shopifyDiscountId   String?
+
+  status              String   @default("ACTIVE")
+  totalUses           Int      @default(0)
+
+  startsAt            DateTime @default(now())
+  endsAt              DateTime?
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  referrals ReferralUse[]
+
+  @@unique([shop, code])
+  @@unique([shop, customerId])
+  @@index([shop])
+  @@index([customerId])
+}
+
+model ReferralUse {
+  id String @id @default(cuid())
+
+  shop              String
+  referralCouponId  String
+
+  orderId           String
+  orderName         String?
+
+  buyerCustomerId   String?
+  buyerEmail        String?
+
+  orderTotal        Float?
+  currencyCode      String?
+
+  status            String   @default("PENDING")
+  paidAt            DateTime?
+  validatedAt       DateTime?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+ referralCoupon ReferralCoupon @relation(fields: [referralCouponId], references: [id], onDelete: Cascade)
+
+  reward RewardCoupon?
+
+  @@unique([shop, orderId])
+  @@index([referralCouponId])
+  @@index([buyerCustomerId])
+  @@index([buyerEmail])
+}
+
+model RewardCoupon {
+  id String @id @default(cuid())
+
+  shop              String
+  referralUseId     String @unique
+
+  ownerCustomerId   String
+  ownerEmail        String?
+
+  code              String
+  shopifyDiscountId String?
+
+  status            String   @default("ACTIVE")
+  usageLimit        Int      @default(1)
+  usageCount        Int      @default(0)
+
+  startsAt          DateTime @default(now())
+  endsAt            DateTime?
+  usedAt             DateTime?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  referralUse ReferralUse @relation(fields: [referralUseId], references: [id], onDelete: Cascade)
+
+  @@unique([shop, code])
+  @@index([shop])
+  @@index([ownerCustomerId])
+}
+
+model CentralLinkSettings {
+  shop String @id
+
+  warrantyLabel String @default("Garantia")
+  warrantyUrl   String @default("/pages/garantia")
+
+  appLabel String @default("Aplicativo Fit")
+  appUrl   String @default("/pages/aplicativo-fit")
+
+  supportLabel String @default("Suporte")
+  supportUrl   String @default("/pages/contato")
+
+  installationGuideLabel String @default("Guia de instalação")
+  installationGuideUrl   String @default("/pages/guias-de-instalacao")
+
+  warrantyRequestLabel String @default("Acionar garantia")
+  warrantyRequestUrl   String @default("/pages/garantia")
+
+  contactSupportLabel String @default("Falar com suporte")
+  contactSupportUrl   String @default("/pages/contato")
+
+  policiesLabel String @default("Ver políticas da loja")
+  policiesUrl   String @default("/pages/politicas")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AppearanceSettings {
+  shop String @id
+
+accountBorderWidth   String @default("base")
+quickCardBorderWidth String @default("base")
+orderCardBorderWidth String @default("base")
+
+accountBorderRadius   String @default("base")
+quickCardBorderRadius String @default("base")
+orderCardBorderRadius String @default("base")
+
+  // Valores compatíveis com os componentes da Shopify
+  accountBackground   String @default("transparent")
+  quickCardBackground String @default("transparent")
+  orderCardBackground String @default("transparent")
+  noticeTone          String @default("info")
+  numberTone          String @default("auto")
+
+  // Cores livres usadas na prévia administrativa
+  pageBackgroundHex String @default("#F7F7F7")
+
+  cardBackgroundHex String @default("#FFFFFF")
+  cardBorderHex     String @default("#D7D7D7")
+  cardTitleHex      String @default("#202223")
+  cardTextHex       String @default("#616161")
+
+  noticeBackgroundHex String @default("#EAF4FF")
+  noticeTextHex       String @default("#005BD3")
+  noticeBorderHex     String @default("#B4D7FF")
+
+  numberBackgroundHex String @default("#EEEEEE")
+  numberTextHex       String @default("#303030")
+  numberBorderHex     String @default("#D7D7D7")
+
+  buttonBackgroundHex String @default("#303030")
+  buttonTextHex       String @default("#FFFFFF")
+  buttonBorderHex     String @default("#303030")
+
+  cardBorderWidth Int @default(1)
+  cardRadius      Int @default(10)
+  buttonRadius    Int @default(8)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

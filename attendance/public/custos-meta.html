@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,interactive-widget=resizes-content">
+  <meta name="theme-color" content="#16171a">
+  <link rel="icon" type="image/svg+xml" href="/assets/central-favicon.svg">
+  <title>Custos Meta &bull; Central de Atendimento</title>
+  <script>try{const saved=localStorage.getItem("mibro-theme");document.documentElement.dataset.theme=saved||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch{}</script>
+  <link rel="stylesheet" href="/css/skeleton.css">
+  <link rel="stylesheet" href="/css/bots.css">
+  <link rel="stylesheet" href="/css/operacao.css">
+</head>
+<body class="meta-cost-page">
+  <header class="topbar">
+    <a class="brand" href="/"><img src="/assets/central-mark.svg" alt="Central de Atendimento"><span></span><small>Custos Meta</small></a>
+    <div class="phase-badge">CUSTOS META &bull; ESTIMATIVA</div>
+    <a class="back-link" href="/">&larr; Central</a>
+    <button id="theme-toggle" class="round-button" type="button" title="Alternar tema">&#9790;</button>
+    <button id="logout" class="user-button" type="button"><span id="current-user">Usuário</span> &bull; Sair</button>
+  </header>
+
+  <main class="ops-shell">
+    <div class="ops-heading">
+      <div><span>WHATSAPP</span><h1>Custos da Meta</h1><p>Estimativa a partir da categoria informada pela própria Meta em cada envio. Não bloqueia nenhum envio.</p></div>
+    </div>
+
+    <form id="cost-filters" class="ops-filters" aria-label="Filtros">
+      <div id="cost-company-filter" class="company-filter" role="radiogroup" aria-label="Empresa" hidden></div>
+      <label><span>Período</span><select id="cost-period"><option value="day">Hoje</option><option value="week">Últimos 7 dias</option><option value="month" selected>Este mês</option></select></label>
+      <label><span>Número</span><select id="cost-account"><option value="">Todos os números</option></select></label>
+    </form>
+
+    <section id="cost-total" class="ops-cards" aria-label="Total"></section>
+    <p class="ops-note">Templates respondidos: cada envio conta uma vez se recebeu resposta até o fim do período selecionado. Quando a mensagem cita um envio, usamos esse vínculo; sem citação, associamos ao último template do mesmo chat e número. É uma associação temporal, não prova de causalidade. Reações e registros sem número identificado não entram na taxa; só são avaliados os templates registrados neste relatório de custos.</p>
+    <section id="template-ranking" class="ops-panel tpl-panel" aria-labelledby="tpl-title">
+      <div class="ops-panel-heading"><h2 id="tpl-title">Templates mais utilizados</h2><small id="tpl-scope">Somente a empresa ativa</small></div>
+      <div class="tpl-toolbar">
+        <div class="tpl-segment" role="group" aria-label="Período do ranking">
+          <button type="button" data-tpl-period="7d">7 dias</button><button type="button" data-tpl-period="30d" class="active">30 dias</button><button type="button" data-tpl-period="90d">90 dias</button><button type="button" data-tpl-period="custom">Personalizado</button>
+        </div>
+        <form id="tpl-custom" class="tpl-custom" hidden>
+          <label><span>De</span><input id="tpl-from" type="date" required></label>
+          <label><span>Até</span><input id="tpl-to" type="date" required></label>
+          <button type="submit">Aplicar</button>
+        </form>
+        <div class="tpl-segment" role="group" aria-label="Ordenar ranking por">
+          <button type="button" data-tpl-sort="sent" class="active">Mais enviados</button><button type="button" data-tpl-sort="rate">Maior taxa de resposta</button>
+        </div>
+      </div>
+      <div id="tpl-summary" class="tpl-summary" aria-live="polite"></div>
+      <div id="tpl-list" class="tpl-list"><div class="ops-empty">Carregando…</div></div>
+      <button id="tpl-more" type="button" class="ops-more tpl-more" hidden></button>
+      <p class="ops-note">Barra = envios aceitos pela Meta (falhas não entram); trecho destacado = envios respondidos. Taxa = respondidos ÷ envios avaliáveis (com número identificado). Mesma regra de resposta dos cartões acima, mas com o período deste ranking e todos os templates registrados no envio (não só os que já têm custo). Clique em um template para ver o histórico.</p>
+    </section>
+
+    <section id="template-authors" class="ops-panel tpl-panel" aria-labelledby="tpl-authors-title">
+      <div class="ops-panel-heading"><h2 id="tpl-authors-title">Templates enviados por pessoa</h2><small>Mesmo período e número do ranking</small></div>
+      <label class="tpl-author-filter"><span>Pessoa / origem</span><select id="tpl-author-filter"><option value="">Todas as pessoas</option></select></label>
+      <div id="tpl-authors" aria-live="polite"></div>
+      <p class="ops-note">Abra a pessoa para ver cada template e número utilizado. Autoria registrada no envio, não o responsável atual do chat. Envios sem autoria ficam em “Origem não registrada” (podem incluir automações). Falhas aparecem separadas e não contam como enviadas.</p>
+    </section>
+
+    <section id="template-commercial" class="ops-panel tpl-panel" aria-labelledby="tpl-commercial-title">
+      <div class="ops-panel-heading"><h2 id="tpl-commercial-title">Desempenho comercial</h2><small>Mesmo período e número do ranking</small></div>
+      <div class="tpl-commercial-grid">
+        <div><h3>Funil disponível</h3><div id="tpl-funnel"></div><ul id="tpl-pending" class="tpl-pending"></ul></div>
+        <div><h3>Evolução das respostas (por dia de envio)</h3><div id="tpl-evolution"></div></div>
+      </div>
+    </section>
+
+    <dialog id="tpl-detail" class="tpl-detail" aria-labelledby="tpl-detail-title">
+      <div class="tpl-detail-head"><div><span id="tpl-detail-meta"></span><h2 id="tpl-detail-title">Template</h2></div><button type="button" class="round-button" data-tpl-close aria-label="Fechar">&times;</button></div>
+      <div id="tpl-detail-body"><div class="ops-empty">Carregando…</div></div>
+    </dialog>
+
+    <p id="cost-unpriced" class="ops-note" hidden></p>
+    <section id="cost-companies" class="cost-companies"></section>
+    <section class="ops-panel" aria-labelledby="authors-title">
+      <div class="ops-panel-heading"><h2 id="authors-title">Quanto cada pessoa gastou</h2><small>Mesmo período e filtros acima</small></div>
+      <p class="ops-note">Total por atendente, detalhado pelo WhatsApp usado no envio. Valores estimados; envios sem preço não entram no total.</p>
+      <div id="cost-author-detail"></div>
+      <details class="cost-secondary"><summary>Ver gráficos gerais de gastos</summary><div class="cost-author-charts">
+        <section aria-labelledby="author-chart-title"><h3 id="author-chart-title">Por atendente / origem</h3><div id="cost-author-chart"></div></section>
+        <section aria-labelledby="number-chart-title"><h3 id="number-chart-title">Por número de envio</h3><div id="cost-number-chart"></div></section>
+      </div></details>
+      <p class="ops-note">A autoria é a registrada no envio, não o responsável atual da conversa. O telefone exibido é o cadastrado na conta; registros antigos sem número não são atribuídos por suposição.</p>
+    </section>
+
+    <div class="ops-grid">
+      <section class="ops-panel" aria-labelledby="pricing-title">
+        <div class="ops-panel-heading"><h2 id="pricing-title">Tabela de preços</h2><small>Novo preço encerra o anterior na data de início</small></div>
+        <form id="pricing-form" class="ops-filters cost-inline-form">
+          <label><span>País</span><input id="pricing-country" value="BR" maxlength="8" required></label>
+          <label><span>Categoria</span><select id="pricing-category"><option>SERVICE</option><option>MARKETING</option><option>UTILITY</option><option>AUTHENTICATION</option></select></label>
+          <label><span>Preço por mensagem</span><input id="pricing-price" type="number" min="0" step="0.0001" required></label>
+          <label><span>Moeda (sem conversão)</span><input id="pricing-currency" value="BRL" readonly required></label>
+          <label><span>Vale a partir de</span><input id="pricing-from" type="date"></label>
+          <button type="submit" class="ops-more">Salvar preço</button>
+        </form>
+        <div id="pricing-list" class="cost-table"></div>
+      </section>
+      <section class="ops-panel" aria-labelledby="budget-title">
+        <div class="ops-panel-heading"><h2 id="budget-title">Orçamento mensal</h2><small>Só alerta — nunca bloqueia envio</small></div>
+        <form id="budget-form" class="ops-filters cost-inline-form">
+          <label><span>Empresa</span><select id="budget-company"></select></label>
+          <label><span>Orçamento (R$)</span><input id="budget-value" type="number" min="0" step="1" placeholder="Vazio = sem orçamento"></label>
+          <button type="submit" class="ops-more">Salvar orçamento</button>
+        </form>
+      </section>
+    </div>
+  </main>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <style>
+    /* bots.css fixa a tela para o editor; este relatório precisa rolar inteiro. */
+    body.meta-cost-page { height:auto; min-height:100vh; min-height:100dvh; overflow-x:hidden; overflow-y:auto; }
+    .cost-companies { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%,300px), 1fr)); gap:12px; margin-bottom:12px; }
+    .meta-cost-page .topbar { height:auto;min-height:64px;flex-wrap:wrap;padding:12px 18px; }
+    .meta-cost-page .brand img { width:32px;height:32px; }
+    .cost-company { border-left:3px solid color-mix(in srgb, var(--company-color, var(--line)) 70%, transparent); }
+    .cost-company dl { margin:0; display:grid; grid-template-columns:1fr auto; gap:6px 12px; font-size:12px; }
+    .cost-company dt { color:var(--muted); }
+    .cost-company dd { margin:0; font-weight:800; text-align:right; }
+    .cost-budget { margin-top:10px; }
+    .cost-budget i { display:block; height:8px; border-radius:4px; background:linear-gradient(90deg, var(--ink) var(--value), var(--panel) var(--value)); }
+    .cost-budget.warning i { background:linear-gradient(90deg, var(--ops-warning) var(--value), var(--panel) var(--value)); }
+    .cost-budget.critical i { background:linear-gradient(90deg, var(--ops-critical) var(--value), var(--panel) var(--value)); }
+    .cost-budget small { display:block; margin-top:4px; color:var(--muted); font-size:11px; }
+    .cost-inline-form { border:0; padding:0; margin:0 0 10px; }
+    .cost-inline-form input { width:100%; min-height:36px; padding:0 10px; border:1px solid var(--line); border-radius:8px; color:var(--ink); background:var(--surface); font-size:12px; }
+    .cost-table { overflow:auto; font-size:12px; }
+    .cost-table table { width:100%; border-collapse:collapse; }
+    .cost-table th, .cost-table td { padding:6px 8px; border-bottom:1px solid var(--line); text-align:left; white-space:nowrap; }
+    .cost-table th { color:var(--muted); font-size:11px; }
+    .cost-author-charts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px; margin:16px 0; }
+    .cost-author-charts h3 { font-size:13px; }
+    .cost-bar { margin:10px 0; }
+    .cost-bar-label { display:flex; justify-content:space-between; gap:12px; font-size:12px; overflow-wrap:anywhere; }
+    .cost-bar progress { display:block; width:100%; height:10px; margin-top:5px; accent-color:var(--accent,#ff6633); }
+    .cost-author-charts small { color:var(--muted); }
+    .author-cost-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,350px),1fr));gap:14px;margin:16px 0; }
+    .author-cost-card { min-width:0;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--surface); }
+    .author-cost-card header { display:flex;align-items:start;justify-content:space-between;gap:14px;padding-bottom:12px;border-bottom:1px solid var(--line); }
+    .author-cost-card h3 { margin:0 0 4px;font-size:15px;overflow-wrap:anywhere; }
+    .author-cost-card header span,.author-cost-total small { color:var(--muted);font-size:11px; }
+    .author-cost-total { flex:none;text-align:right;display:grid;gap:4px; }
+    .author-cost-total strong { font-size:19px;font-variant-numeric:tabular-nums; }
+    .author-number-list { list-style:none;padding:0;margin:0; }
+    .author-number-row { display:flex;align-items:start;justify-content:space-between;gap:12px;padding:14px 0;border-bottom:1px solid var(--line); }
+    .author-number-row:last-child { border-bottom:0;padding-bottom:0; }
+    .author-number-info { display:grid;gap:5px;min-width:0;overflow-wrap:anywhere; }
+    .author-number-info b { font-size:13px;font-variant-numeric:tabular-nums; }
+    .author-number-info span { font-size:12px; }
+    .author-number-info small { color:var(--muted);font-size:11px;line-height:1.5; }
+    .author-number-cost { flex:none;font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap; }
+    .cost-secondary { margin-top:14px;border-top:1px solid var(--line);padding-top:12px; }
+    .cost-secondary summary { cursor:pointer;color:var(--muted);font-size:12px;line-height:1.5; }
+    .cost-secondary summary:focus-visible { outline:2px solid currentColor;outline-offset:4px; }
+    /* Ranking de templates — usa a cor da empresa ativa (--company-color). */
+    .tpl-panel { margin-bottom:12px; --tpl-color:var(--company-color, var(--orange)); }
+    .tpl-author-filter { display:grid;gap:4px;max-width:320px;margin-bottom:10px;color:var(--muted);font-size:11px; }
+    .tpl-author-filter select { min-height:36px;width:100%;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink); }
+    .tpl-author summary { display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center; }
+    .tpl-author summary::before { content:"▸"; }
+    .tpl-author[open] summary::before { content:"▾"; }
+    .tpl-author summary strong { color:var(--ink); }
+    .tpl-author summary small { width:100%;color:var(--muted); }
+    .tpl-toolbar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px; }
+    .tpl-segment { display:inline-flex; flex-wrap:wrap; gap:2px; padding:2px; border:1px solid var(--line); border-radius:10px; background:var(--panel); }
+    .tpl-segment button { min-height:32px; padding:0 11px; border:0; border-radius:8px; color:var(--muted); background:transparent; font-size:11px; font-weight:800; }
+    .tpl-segment button.active { color:var(--ink); background:var(--surface); box-shadow:0 0 0 1px var(--line); }
+    .tpl-segment button:focus-visible, .tpl-row:focus-visible, .tpl-more:focus-visible { outline:2px solid var(--tpl-color); outline-offset:2px; }
+    .tpl-custom { display:flex; flex-wrap:wrap; align-items:flex-end; gap:6px; }
+    .tpl-custom[hidden] { display:none; }
+    .tpl-custom label { display:grid; gap:2px; color:var(--muted); font-size:10px; font-weight:800; }
+    .tpl-custom input { min-height:32px; padding:0 8px; border:1px solid var(--line); border-radius:8px; color:var(--ink); background:var(--surface); font-size:12px; color-scheme:light dark; }
+    .tpl-custom button { min-height:32px; padding:0 12px; border:1px solid var(--line); border-radius:8px; color:var(--ink); background:var(--surface); font-size:11px; font-weight:800; }
+    .tpl-summary { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%,130px), 1fr)); gap:8px; margin-bottom:10px; }
+    .tpl-summary div { padding:8px 10px; border:1px solid var(--line); border-radius:10px; background:var(--panel); }
+    .tpl-summary span { display:block; color:var(--muted); font-size:10px; font-weight:700; }
+    .tpl-summary b { display:block; margin-top:2px; font-size:17px; font-variant-numeric:tabular-nums; }
+    .tpl-list { display:grid; gap:4px; }
+    .tpl-row { width:100%; display:grid; grid-template-columns:28px minmax(0,1.3fr) minmax(120px,1fr) auto; align-items:center; gap:12px; padding:9px 10px; border:1px solid transparent; border-radius:10px; color:var(--ink); background:transparent; text-align:left; font:inherit; cursor:pointer; }
+    .tpl-row:hover { border-color:var(--line); background:var(--panel); }
+    .tpl-rank { color:var(--muted); font-size:12px; font-weight:800; text-align:center; font-variant-numeric:tabular-nums; }
+    .tpl-name { min-width:0; display:grid; gap:2px; }
+    .tpl-name b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; }
+    .tpl-name small { color:var(--muted); font-size:10px; }
+    .tpl-bar { position:relative; height:10px; border-radius:5px; background:var(--panel); overflow:hidden; }
+    .tpl-bar i { position:absolute; inset:0 auto 0 0; width:var(--sent); border-radius:5px; background:color-mix(in srgb, var(--tpl-color) 30%, transparent); }
+    .tpl-bar i::after { content:""; position:absolute; inset:0 auto 0 0; width:var(--replied); border-radius:5px; background:var(--tpl-color); }
+    .tpl-stats { display:flex; gap:12px; font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .tpl-stats b { color:var(--ink); font-size:12px; }
+    .tpl-stats .tpl-rate { min-width:56px; text-align:right; }
+    .tpl-stats .tpl-rate b { font-size:14px; }
+    .tpl-small { color:var(--ops-warning); font-size:10px; }
+    .tpl-commercial-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.2fr); gap:20px; }
+    .tpl-commercial-grid h3, .tpl-detail h3 { margin:0 0 8px; font-size:12px; color:var(--muted); }
+    .tpl-step { margin:0 0 8px; }
+    .tpl-step-label { display:flex; justify-content:space-between; gap:10px; font-size:12px; }
+    .tpl-step-label b { font-variant-numeric:tabular-nums; }
+    .tpl-step .tpl-bar { margin-top:4px; height:8px; }
+    .tpl-step .tpl-bar i::after { display:none; }
+    .tpl-step small { color:var(--muted); font-size:10px; }
+    .tpl-pending { margin:12px 0 0; padding:0; list-style:none; display:grid; gap:6px; }
+    .tpl-pending li { padding:8px 10px; border:1px dashed var(--line); border-radius:10px; font-size:11px; }
+    .tpl-pending li b { display:flex; justify-content:space-between; gap:8px; font-size:12px; }
+    .tpl-pending li b em { color:var(--muted); font-style:normal; font-size:10px; }
+    .tpl-pending li span { color:var(--muted); line-height:1.45; }
+    .tpl-evolution { display:flex; align-items:flex-end; gap:2px; height:120px; padding-top:6px; border-bottom:1px solid var(--line); }
+    .tpl-evolution div { flex:1 1 0; min-width:2px; height:100%; display:flex; flex-direction:column; justify-content:flex-end; }
+    .tpl-evolution i { position:relative; display:block; height:var(--sent); border-radius:2px 2px 0 0; background:color-mix(in srgb, var(--tpl-color) 30%, transparent); }
+    .tpl-evolution i::after { content:""; position:absolute; left:0; right:0; bottom:0; height:var(--replied); border-radius:2px 2px 0 0; background:var(--tpl-color); }
+    .tpl-axis { display:flex; justify-content:space-between; margin-top:4px; color:var(--muted); font-size:10px; }
+    .tpl-legend { display:flex; flex-wrap:wrap; gap:12px; margin-top:6px; color:var(--muted); font-size:10px; }
+    .tpl-legend i { display:inline-block; width:10px; height:10px; margin-right:4px; border-radius:2px; vertical-align:-1px; background:var(--tpl-color); }
+    .tpl-legend i.soft { background:color-mix(in srgb, var(--tpl-color) 30%, transparent); }
+    .tpl-detail { width:min(760px, calc(100vw - 32px)); max-height:calc(100dvh - 32px); padding:16px; border:1px solid var(--line); border-radius:14px; color:var(--ink); background:var(--surface); --tpl-color:var(--company-color, var(--orange)); }
+    .tpl-detail::backdrop { background:rgba(0,0,0,.55); }
+    .tpl-detail-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:12px; }
+    .tpl-detail-head h2 { margin:2px 0 0; font-size:17px; overflow-wrap:anywhere; }
+    .tpl-detail-head span { color:var(--muted); font-size:11px; }
+    .tpl-detail h3 { margin-top:14px; }
+    @media(prefers-reduced-motion:no-preference) { .tpl-bar i, .tpl-bar i::after { transition:width .25s ease; } }
+    @media(max-width:760px) {
+      .tpl-row { grid-template-columns:22px minmax(0,1fr); gap:6px 10px; }
+      .tpl-row .tpl-bar, .tpl-row .tpl-stats { grid-column:2; }
+      .tpl-stats { flex-wrap:wrap; gap:4px 10px; white-space:normal; }
+      .tpl-stats .tpl-rate { min-width:0; text-align:left; }
+      .tpl-commercial-grid { grid-template-columns:minmax(0,1fr); }
+    }
+    @media(max-width:420px) { .author-cost-card { padding:12px; }.author-cost-total strong { font-size:17px; } }
+    @media(max-width:650px) { .cost-author-charts { grid-template-columns:minmax(0,1fr); } }
+  </style>
+  <script src="/js/company-context.js"></script>
+  <script src="/js/template-ranking.js?v=0.37.6-authors-1"></script>
+  <script src="/js/custos-meta.js?v=0.37.6"></script>
+</body>
+</html>

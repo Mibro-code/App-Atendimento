@@ -1,0 +1,32 @@
+.qr-search-field{margin:0 10px 8px;padding:0 8px}
+.qr-search-field input{width:100%;height:34px;padding:0 9px;border:1px solid var(--line);border-radius:8px;color:var(--ink);background:var(--surface);font-size:10px}
+.qr-filters{margin:0 10px 8px;padding:0 8px;display:grid;gap:6px}
+.qr-filters select{height:32px;padding:0 8px;border:1px solid var(--line);border-radius:8px;color:var(--ink);background:var(--surface);font-size:9px}
+.qr-shortcut-pill{padding:3px 7px;border-radius:8px;color:#7a3418;background:var(--orange-soft);font-size:7px;font-weight:900}
+.qr-intents-checklist{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+.qr-categories-checklist{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:7px;margin-top:8px}
+.qr-category-option{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:7px;min-height:38px;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--surface);cursor:pointer}
+.qr-category-option.child{margin-left:12px}
+.qr-category-option input{accent-color:var(--orange)}
+.qr-category-option span{font-size:10px;font-weight:750;color:var(--ink)}
+.qr-category-option small{grid-column:2;color:var(--muted);font-size:8px}
+.qr-category-option:has(input:checked){border-color:var(--orange);background:var(--orange-soft)}
+/* Lista: prévia do conteúdo e estados (carregando/erro/vazio) distintos. */
+.qr-card{min-height:112px;align-content:start}
+.qr-card header b{min-width:0;flex:1}
+.qr-card .qr-shortcut-pill{justify-self:start;font-size:10px}
+.qr-card-preview{margin:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--muted);font-size:12px;line-height:1.4;overflow-wrap:anywhere}
+.qr-card .bot-meta{flex-wrap:wrap;font-size:11px;row-gap:2px}
+.qr-card:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+.qr-list-state{display:grid;gap:8px;justify-items:start;padding:16px;border:1px dashed var(--line);border-radius:11px;background:var(--panel)}
+.qr-list-state b{font-size:13px;color:var(--ink)}
+.qr-list-state p{margin:0;color:var(--muted);font-size:12px;line-height:1.45}
+.qr-list-state.error{border-style:solid;border-color:var(--danger,#d92d20)}
+.qr-list-state button{min-height:36px;padding:0 14px;border:1px solid var(--line);border-radius:18px;color:var(--ink);background:var(--surface);font-size:12px;font-weight:800;cursor:pointer}
+.qr-list-state button:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+#editor[aria-busy="true"]{opacity:.6;transition:opacity .15s}
+/* Prévia em balão de WhatsApp: quebras de linha e formatação preservadas. */
+.qr-bubble{max-width:100%;padding:10px 12px;border-radius:10px 10px 10px 2px;background:#dcf8c6;color:#111b21;font-size:13px;line-height:1.45;overflow-wrap:anywhere;white-space:normal}
+html[data-theme="dark"] .qr-bubble{background:#005c4b;color:#e9edef}
+.qr-preview-warning{margin:8px 0 0;padding:8px 10px;border-radius:8px;background:var(--orange-soft);color:var(--ink);font-size:12px;line-height:1.45}
+.qr-preview-warning code{font-size:11px}

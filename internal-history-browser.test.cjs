@@ -1,0 +1,51 @@
+const {chromium}=require('playwright'),fs=require('node:fs'),assert=require('node:assert/strict');
+const source=fs.readFileSync('attendance/public/js/internal-chat.js','utf8');
+const prefix=source.slice(0,source.indexOf('  async function loadUsers()'))+'window.HistoryTest={state,renderMessages,loadOlderMessages,refreshMessageTail,mergeMessages,messagePage};})();';
+(async()=>{
+ const browser=await chromium.launch({channel:'msedge',headless:true});
+ try{
+  const context=await browser.newContext({serviceWorkers:'block'}),page=await context.newPage();
+  let data=Array.from({length:401},(_,i)=>({id:'m'+String(i).padStart(5,'0'),createdAt:new Date(1000+i).toISOString(),type:'USER',text:'Mensagem fictícia '+i,senderUserId:'other',senderUser:{name:'Pessoa fictícia'}}));
+  let beforeDelay=0,failBefore=false,requests=0;
+  await context.route('**/*',async route=>{
+   const url=new URL(route.request().url());
+   if(url.hostname!=='history.local')return route.abort();
+   if(url.pathname==='/')return route.fulfill({contentType:'text/html',body:'<style>#internal-chat-messages{height:350px;overflow:auto;overflow-anchor:none}.internal-message-row{min-height:68px}p{margin:4px}</style><div id="internal-chat-messages"></div>'});
+   if(!url.pathname.startsWith('/api/internal-chats/'))return route.abort();
+   requests++;
+   const before=url.searchParams.get('before'),after=url.searchParams.get('after');
+   if(before&&beforeDelay)await new Promise(resolve=>setTimeout(resolve,beforeDelay));
+   if(before&&failBefore)return route.fulfill({status:500,json:{error:'Falha simulada'}});
+   const eligible=data.filter(m=>before?m.id<before:after?m.id>after:true);
+   const messages=after?eligible.slice(0,60):eligible.slice(-60);
+   return route.fulfill({json:{messages,hasOlder:after?null:eligible.length>60,hasNewer:after&&eligible.length>60}});
+  });
+  await page.goto('http://history.local/');await page.addScriptTag({content:prefix});
+  await page.evaluate(async()=>{const h=HistoryTest;h.state.currentChatId='a';const page=await h.messagePage('a');h.state.messages=page.messages;h.state.hasOlder=page.hasOlder;h.renderMessages(h.state.messages,{forceScroll:true});});
+  await page.waitForTimeout(60);
+  assert.equal(await page.locator('[data-message-id]').count(),60);assert.equal(await page.locator('[data-message-id]').last().getAttribute('data-message-id'),'m00400');
+  console.log('PASS latest messages load on opening');
+  const anchor=await page.evaluate(()=>{const p=document.querySelector('#internal-chat-messages');p.scrollTop=450;const n=[...p.querySelectorAll('[data-message-id]')].find(n=>n.getBoundingClientRect().bottom>p.getBoundingClientRect().top);window.anchorNode=n;return {id:n.dataset.messageId,top:n.getBoundingClientRect().top};});
+  await page.evaluate(()=>HistoryTest.loadOlderMessages());
+  assert.equal(await page.locator('[data-message-id]').count(),120);
+  const retained=await page.evaluate(id=>{const n=document.querySelector(`[data-message-id="${id}"]`);return {same:n===window.anchorNode,top:n.getBoundingClientRect().top};},anchor.id);
+  assert.equal(retained.same,true);assert.ok(Math.abs(retained.top-anchor.top)<3);
+  console.log('PASS older page keeps scroll position and existing DOM nodes');
+  const add=n=>{const i=data.length;data.push({id:'m'+String(i).padStart(5,'0'),createdAt:new Date(1000+i).toISOString(),type:'USER',text:'Nova mensagem '+n,senderUserId:'other',senderUser:{name:'Pessoa fictícia'}});};
+  for(let i=0;i<145;i++)add(i);
+  await page.evaluate(()=>HistoryTest.refreshMessageTail());
+  assert.equal(await page.locator('[data-message-id]').count(),265);
+  assert.equal(await page.locator('[data-message-id]').last().getAttribute('data-message-id'),'m00545');
+  assert.ok(Math.abs((await page.locator(`[data-message-id="${anchor.id}"]`).boundingBox()).y-anchor.top)<3);
+  console.log('PASS real-time burst preserves loaded history, ordering and reading position');
+  await page.evaluate(()=>Promise.all([HistoryTest.refreshMessageTail(),HistoryTest.refreshMessageTail()]));
+  assert.equal(await page.locator('[data-message-id]').count(),265);console.log('PASS overlapping refreshes do not duplicate messages');
+  failBefore=true;await page.evaluate(()=>HistoryTest.loadOlderMessages());assert.equal(await page.locator('[data-message-id]').count(),265);assert.match(await page.locator('[data-internal-history]').innerText(),/Tentar/);
+  failBefore=false;await page.evaluate(()=>HistoryTest.loadOlderMessages());assert.equal(await page.locator('[data-message-id]').count(),325);console.log('PASS history failure preserves messages and allows retry');
+  beforeDelay=100;
+  await page.evaluate(async()=>{const request=HistoryTest.loadOlderMessages();HistoryTest.state.currentChatId='b';HistoryTest.state.openSequence++;HistoryTest.state.messages=[];HistoryTest.state.hasOlder=false;document.querySelector('#internal-chat-messages').innerHTML='Outro chat';await request;});
+  assert.equal(await page.locator('[data-message-id]').count(),0);assert.equal(await page.locator('#internal-chat-messages').innerText(),'Outro chat');console.log('PASS late history response cannot contaminate another chat');
+  console.log(JSON.stringify({browserScenarios:6,requests,realMessagesSent:0}));
+  await context.close();
+ }finally{await browser.close();}
+})().catch(e=>{console.error(e);process.exitCode=1;});

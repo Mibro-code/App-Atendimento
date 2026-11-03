@@ -1,0 +1,599 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long
+// enough when changing adapters.
+// See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Session {
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+}
+
+model CouponSettings {
+  shop String @id
+
+  // Cupom de indicação
+  referralDiscountType            String  @default("PERCENTAGE")
+  referralDiscountValue           Float   @default(15)
+  referralDurationDays            Int     @default(30)
+  referralTotalUsageLimit         Int?
+  referralUsageLimitPerCustomer   Int     @default(1)
+  referralMinimumPurchase         Float   @default(100)
+  referralEligibleProducts        String?
+  referralEligibleCollections     String?
+  referralCombinesProductDiscount Boolean @default(false)
+  referralCombinesOrderDiscount   Boolean @default(false)
+  referralCombinesShipping        Boolean @default(false)
+  referralAllowsGuest             Boolean @default(false)
+
+  // Cupom de recompensa
+  rewardDiscountType            String  @default("PERCENTAGE")
+  rewardDiscountValue           Float   @default(10)
+  rewardDurationDays            Int     @default(30)
+  rewardUsageLimit              Int     @default(1)
+  rewardMinimumPurchase         Float   @default(100)
+  rewardCreatorExclusive        Boolean @default(true)
+  rewardEligibleProducts        String?
+  rewardEligibleCollections     String?
+  rewardCombinesProductDiscount Boolean @default(false)
+  rewardCombinesOrderDiscount   Boolean @default(false)
+  rewardCombinesShipping        Boolean @default(false)
+
+  // Regras gerais
+  rewardReleaseMoment          String  @default("PAID")
+  rewardWaitingDays            Int     @default(0)
+  refundRule                   String  @default("CANCEL_REWARD")
+  monthlyRewardLimit           Int     @default(10)
+  allowMultipleProgramCoupons  Boolean @default(true)
+  excludeGiftCards             Boolean @default(true)
+  requirePaidOrder             Boolean @default(true)
+  requireAuthenticatedCustomer Boolean @default(true)
+  preventSelfReferral          Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ReferralCoupon {
+  id String @id @default(cuid())
+
+  shop          String
+  customerId    String
+  customerEmail String?
+  customerName  String?
+
+  code              String
+  shopifyDiscountId String?
+
+  status    String @default("ACTIVE")
+  totalUses Int    @default(0)
+
+  startsAt DateTime  @default(now())
+  endsAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  referrals ReferralUse[]
+
+  @@unique([shop, code])
+  @@unique([shop, customerId])
+  @@index([shop])
+  @@index([customerId])
+}
+
+model ReferralUse {
+  id String @id @default(cuid())
+
+  shop             String
+  referralCouponId String
+
+  orderId   String
+  orderName String?
+
+  buyerCustomerId String?
+  buyerEmail      String?
+
+  orderTotal   Float?
+  currencyCode String?
+
+  status      String    @default("PENDING")
+  paidAt      DateTime?
+  validatedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  referralCoupon ReferralCoupon @relation(fields: [referralCouponId], references: [id], onDelete: Cascade)
+
+  reward RewardCoupon?
+
+  @@unique([shop, orderId])
+  @@index([referralCouponId])
+  @@index([buyerCustomerId])
+  @@index([buyerEmail])
+}
+
+model RewardCoupon {
+  id String @id @default(cuid())
+
+  shop          String
+  referralUseId String? @unique
+
+  ownerCustomerId String
+  ownerEmail      String?
+
+  code              String
+  shopifyDiscountId String?
+
+  status     String @default("ACTIVE")
+  usageLimit Int    @default(1)
+  usageCount Int    @default(0)
+
+  // Detalhes escolhidos na criacao do cupom. Sao opcionais para
+  // preservar os registros criados antes destes controles existirem.
+  discountType           String?
+  discountValue          Float?
+  durationDays           Int?
+  couponName             String?
+  customerEligibility    String?
+  appliesOncePerCustomer Boolean?
+
+  startsAt DateTime  @default(now())
+  endsAt   DateTime?
+  usedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  referralUse ReferralUse? @relation(fields: [referralUseId], references: [id], onDelete: Cascade)
+
+  @@unique([shop, code])
+  @@index([shop])
+  @@index([ownerCustomerId])
+}
+
+model CentralLinkSettings {
+  shop String @id
+
+  warrantyLabel String @default("Garantia")
+  warrantyUrl   String @default("/pages/garantia")
+
+  appLabel String @default("Aplicativo Fit")
+  appUrl   String @default("/pages/aplicativo-fit")
+
+  supportLabel String @default("Suporte")
+  supportUrl   String @default("/pages/contato")
+
+  installationGuideLabel String @default("Guia de instalação")
+  installationGuideUrl   String @default("/pages/guias-de-instalacao")
+
+  warrantyRequestLabel String @default("Acionar garantia")
+  warrantyRequestUrl   String @default("/pages/garantia")
+
+  contactSupportLabel String @default("Falar com suporte")
+  contactSupportUrl   String @default("/pages/contato")
+
+  policiesLabel String @default("Ver políticas da loja")
+  policiesUrl   String @default("/pages/politicas")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AppearanceSettings {
+  shop String @id
+
+  accountBorderWidth   String @default("base")
+  quickCardBorderWidth String @default("base")
+  orderCardBorderWidth String @default("base")
+
+  accountBorderRadius   String @default("base")
+  quickCardBorderRadius String @default("base")
+  orderCardBorderRadius String @default("base")
+
+  // Valores compatíveis com os componentes da Shopify
+  accountBackground   String @default("transparent")
+  quickCardBackground String @default("transparent")
+  orderCardBackground String @default("transparent")
+  noticeTone          String @default("info")
+  numberTone          String @default("auto")
+
+  // Cores livres usadas na prévia administrativa
+  pageBackgroundHex String @default("#F7F7F7")
+
+  cardBackgroundHex String @default("#FFFFFF")
+  cardBorderHex     String @default("#D7D7D7")
+  cardTitleHex      String @default("#202223")
+  cardTextHex       String @default("#616161")
+
+  noticeBackgroundHex String @default("#EAF4FF")
+  noticeTextHex       String @default("#005BD3")
+  noticeBorderHex     String @default("#B4D7FF")
+
+  numberBackgroundHex String @default("#EEEEEE")
+  numberTextHex       String @default("#303030")
+  numberBorderHex     String @default("#D7D7D7")
+
+  buttonBackgroundHex String @default("#303030")
+  buttonTextHex       String @default("#FFFFFF")
+  buttonBorderHex     String @default("#303030")
+
+  cardBorderWidth Int @default(1)
+  cardRadius      Int @default(10)
+  buttonRadius    Int @default(8)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model OlistOAuthState {
+  state     String   @id
+  shop      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+  @@index([shop])
+}
+
+model OlistConnection {
+  shop String @id
+
+  // Tokens nunca sao armazenados em texto puro. A aplicacao usa AES-256-GCM
+  // com OLIST_TOKEN_ENCRYPTION_KEY antes de persistir estes valores.
+  accessTokenCiphertext  String
+  refreshTokenCiphertext String
+
+  tokenType String  @default("Bearer")
+  scope     String?
+
+  expiresAt        DateTime
+  refreshExpiresAt DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model WholesaleSettings {
+  shop String @id
+
+  // O modo teste e o padrao seguro: a pagina pode ser validada, mas nenhuma
+  // rota server-side deve criar ou confirmar pedidos enquanto estiver ativo.
+  testModeEnabled Boolean @default(true)
+  cnpjDataLevel   String  @default("complete")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model WholesaleQuote {
+  id          String @id @default(cuid())
+  shop        String
+  publicToken String @unique
+  cnpj        String
+
+  olistOrderId     String?
+  olistOrderNumber String?
+  identityHash     String?
+  payloadHash      String?
+
+  // DRAFT -> PROCESSING -> CALCULATED -> READY_FOR_REVIEW -> APPROVED.
+  // ERROR pode ser retomado; READY_FOR_REVIEW bloqueia novos recalculos.
+  status              String    @default("DRAFT")
+  processingStartedAt DateTime?
+  lastErrorCode       String?
+  calculatedAt        DateTime?
+  confirmedAt         DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([shop, olistOrderId])
+  @@index([shop, cnpj])
+  @@index([olistOrderId])
+}
+
+// Cliente autenticado pela Shopify que pode acessar uma ou mais empresas de
+// atacado. O MVP cria um unico vinculo, mas a relacao N:N permite evoluir sem
+// remodelar os pedidos ou duplicar identidades.
+model WholesaleCustomer {
+  id                String   @id @default(cuid())
+  shop              String
+  shopifyCustomerId String?
+  name              String?
+  email             String?
+  emailNormalized   String
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  companies      WholesaleCustomerCompany[]
+  credential     WholesaleCredential?
+  portalSessions WholesalePortalSession[]
+  resourceRecipients WholesaleResourceRecipient[]
+
+  @@unique([shop, shopifyCustomerId])
+  @@unique([shop, emailNormalized])
+  @@index([shop])
+  @@index([email])
+}
+
+model WholesaleCredential {
+  id                 String    @id @default(cuid())
+  customerId         String    @unique
+  passwordHash       String
+  mustChangePassword Boolean   @default(true)
+  failedAttempts     Int       @default(0)
+  lockedUntil        DateTime?
+  passwordChangedAt  DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  customer WholesaleCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+}
+
+model WholesalePortalSession {
+  id         String   @id @default(cuid())
+  customerId String
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  lastUsedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  customer WholesaleCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([expiresAt])
+}
+
+model WholesaleCompany {
+  id              String    @id @default(cuid())
+  shop            String
+  legalName       String
+  tradeName       String?
+  cnpj            String
+  olistCustomerId String?
+  active          Boolean   @default(true)
+  lastSyncedAt    DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  customers WholesaleCustomerCompany[]
+  orders    WholesaleOrder[]
+  resources WholesaleResource[]
+
+  @@unique([shop, cnpj])
+  @@unique([shop, olistCustomerId])
+  @@index([cnpj])
+}
+
+// Arquivos e links exibidos no perfil do revendedor. Recursos sem companyId
+// sao gerais para a loja; contratos podem ser vinculados a uma empresa.
+model WholesaleResource {
+  id           String    @id @default(cuid())
+  shop         String
+  companyId    String?
+  type         String
+  title        String
+  description  String?
+
+  // LINK = comportamento atual
+  // FILLABLE_DOCUMENT = formulario preenchido dentro do portal
+  deliveryType String    @default("LINK")
+
+  // Link externo. Obrigatorio apenas quando deliveryType = LINK.
+  url          String?
+
+  // Template de documento preenchivel
+  templatePath    String?
+  templateName    String?
+  templateVersion Int     @default(1)
+
+  // Recursos do documento
+  allowDraft       Boolean @default(false)
+  allowDownload    Boolean @default(true)
+  generatePdf      Boolean @default(false)
+  requiresApproval Boolean @default(false)
+
+  active       Boolean   @default(true)
+  displayOrder Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  company     WholesaleCompany? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  recipients  WholesaleResourceRecipient[]
+  submissions WholesaleDocumentSubmission[]
+
+  @@index([shop, type, active])
+  @@index([companyId])
+}
+model WholesaleDocumentSubmission {
+  id         String @id @default(cuid())
+  shop       String
+  resourceId String
+  companyId  String
+  customerId String
+
+  status String @default("DRAFT")
+
+  templateVersion Int
+  formData        Json
+
+  finalDocxPath String?
+  finalPdfPath  String?
+
+  submittedAt DateTime?
+  approvedAt  DateTime?
+  rejectedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  resource WholesaleResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@index([resourceId])
+  @@index([companyId])
+  @@index([customerId])
+  @@index([status])
+}
+
+// Quando nao ha destinatarios, o recurso respeita somente o escopo geral ou
+// da empresa. Com destinatarios, ele fica exclusivo para as pessoas indicadas.
+model WholesaleResourceRecipient {
+  id         String   @id @default(cuid())
+  resourceId String
+  customerId String
+  createdAt  DateTime @default(now())
+
+  resource WholesaleResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  customer WholesaleCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([resourceId, customerId])
+  @@index([customerId])
+}
+
+model WholesaleCustomerCompany {
+  id         String   @id @default(cuid())
+  customerId String
+  companyId  String
+  role       String   @default("BUYER")
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  customer WholesaleCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  company  WholesaleCompany  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, companyId])
+  @@index([companyId])
+}
+
+model WholesaleOrder {
+  id                String    @id @default(cuid())
+  shop              String
+  companyId         String
+  olistOrderId      String
+  orderNumber       String
+  status            String?
+  paymentStatus     String?
+  fulfillmentStatus String?
+  currencyCode      String    @default("BRL")
+  subtotal          Decimal?  @db.Decimal(14, 2)
+  discountValue     Decimal?  @db.Decimal(14, 2)
+  shippingValue     Decimal?  @db.Decimal(14, 2)
+  total             Decimal?  @db.Decimal(14, 2)
+  orderedAt         DateTime?
+  lastSyncedAt      DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  company  WholesaleCompany     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  items    WholesaleOrderItem[]
+  invoice  WholesaleInvoice?
+  tracking WholesaleTracking?
+
+  @@unique([shop, olistOrderId])
+  @@unique([companyId, orderNumber])
+  @@index([companyId, orderedAt])
+  @@index([shop, status])
+  @@index([orderNumber])
+}
+
+model WholesaleOrderItem {
+  id            String   @id @default(cuid())
+  orderId       String
+  olistItemId   String?
+  productName   String
+  sku           String?
+  quantity      Decimal  @db.Decimal(14, 4)
+  unitPrice     Decimal? @db.Decimal(14, 4)
+  discountValue Decimal? @db.Decimal(14, 2)
+  totalPrice    Decimal? @db.Decimal(14, 2)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  order WholesaleOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([orderId, olistItemId])
+  @@index([orderId])
+  @@index([sku])
+}
+
+model WholesaleInvoice {
+  id             String    @id @default(cuid())
+  orderId        String    @unique
+  olistInvoiceId String?
+  invoiceNumber  String?
+  invoiceSeries  String?
+  invoiceKey     String?
+  danfeUrl       String?
+  xmlUrl         String?
+  issuedAt       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  order WholesaleOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceKey])
+}
+
+model WholesaleTracking {
+  id           String    @id @default(cuid())
+  orderId      String    @unique
+  trackingCode String?
+  carrier      String?
+  service      String?
+  status       String?
+  lastUpdate   DateTime?
+  lastSyncedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  order  WholesaleOrder           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  events WholesaleTrackingEvent[]
+
+  @@index([trackingCode])
+}
+
+model WholesaleTrackingEvent {
+  id              String   @id @default(cuid())
+  trackingId      String
+  externalEventId String?
+  fingerprint     String
+  status          String?
+  description     String
+  city            String?
+  state           String?
+  eventDate       DateTime
+  createdAt       DateTime @default(now())
+
+  tracking WholesaleTracking @relation(fields: [trackingId], references: [id], onDelete: Cascade)
+
+  @@unique([trackingId, fingerprint])
+  @@unique([trackingId, externalEventId])
+  @@index([trackingId, eventDate])
+}

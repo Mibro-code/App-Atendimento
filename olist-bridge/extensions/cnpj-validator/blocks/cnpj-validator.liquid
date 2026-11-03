@@ -1,0 +1,178 @@
+<script type="application/json" data-cnpj-validator-config>
+  {
+    "selector": {{ block.settings.cnpj_selector | json }},
+    "proxyPath": "/apps/cnpj-validator/cnpj",
+    "configPath": "/apps/cnpj-validator/atacado/config",
+    "fieldPrefix": {{ block.settings.field_prefix | json }},
+    "requireActive": {{ block.settings.require_active | json }},
+    "showTradeName": {{ block.settings.show_trade_name | json }},
+    "showStatus": {{ block.settings.show_status | json }},
+    "showStateRegistration": {{ block.settings.show_state_registration | json }},
+    "showAddress": {{ block.settings.show_address | json }},
+    "showLocationDetails": {{ block.settings.show_location_details | json }},
+    "showPhone": {{ block.settings.show_phone | json }},
+    "showEmail": {{ block.settings.show_email | json }},
+    "labels": {
+      "legalName": {{ block.settings.legal_name_label | json }},
+      "tradeName": {{ block.settings.trade_name_label | json }},
+      "status": {{ block.settings.status_label | json }},
+      "stateRegistration": {{ block.settings.state_registration_label | json }},
+      "stateRegistrationStatus": {{ block.settings.state_registration_status_label | json }},
+      "icmsTaxpayer": {{ block.settings.icms_taxpayer_label | json }},
+      "address": {{ block.settings.address_label | json }},
+      "state": {{ block.settings.state_label | json }},
+      "city": {{ block.settings.city_label | json }},
+      "postalCode": {{ block.settings.postal_code_label | json }},
+      "phone": {{ block.settings.phone_label | json }},
+      "email": {{ block.settings.email_label | json }}
+    }
+  }
+</script>
+
+{% schema %}
+{
+  "name": "Validador de CNPJ",
+  "target": "body",
+  "javascript": "cnpj-validator.js",
+  "stylesheet": "cnpj-validator.css",
+  "settings": [
+    {
+      "type": "text",
+      "id": "cnpj_selector",
+      "label": "Seletor dos campos CNPJ",
+      "default": "input[name*='cnpj' i], input[id*='cnpj' i], input[data-cnpj]"
+    },
+    {
+      "type": "text",
+      "id": "field_prefix",
+      "label": "Prefixo dos nomes dos campos",
+      "default": "cnpj_",
+      "info": "Exemplo: cnpj_ gera cnpj_razao_social."
+    },
+    {
+      "type": "checkbox",
+      "id": "require_active",
+      "label": "Aceitar somente empresa ativa",
+      "default": true
+    },
+    {
+      "type": "header",
+      "content": "Campos criados após a consulta"
+    },
+    {
+      "type": "text",
+      "id": "legal_name_label",
+      "label": "Rótulo de Razão Social",
+      "default": "Razão Social"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_trade_name",
+      "label": "Criar campo Nome Fantasia",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "trade_name_label",
+      "label": "Rótulo de Nome Fantasia",
+      "default": "Nome Fantasia"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_status",
+      "label": "Criar campo Situação Cadastral",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "status_label",
+      "label": "Rótulo da Situação Cadastral",
+      "default": "Situação Cadastral"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_state_registration",
+      "label": "Criar campos de IE e ICMS",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "state_registration_label",
+      "label": "Rótulo da Inscrição Estadual",
+      "default": "Inscrição Estadual"
+    },
+    {
+      "type": "text",
+      "id": "state_registration_status_label",
+      "label": "Rótulo da Situação da IE",
+      "default": "Situação da IE"
+    },
+    {
+      "type": "text",
+      "id": "icms_taxpayer_label",
+      "label": "Rótulo de contribuinte ICMS",
+      "default": "Contribuinte de ICMS"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_address",
+      "label": "Criar campo Endereço",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "address_label",
+      "label": "Rótulo do Endereço",
+      "default": "Endereço da empresa"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_location_details",
+      "label": "Criar campos separados de UF, cidade e CEP",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "state_label",
+      "label": "Rótulo da UF",
+      "default": "UF"
+    },
+    {
+      "type": "text",
+      "id": "city_label",
+      "label": "Rótulo da cidade",
+      "default": "Cidade"
+    },
+    {
+      "type": "text",
+      "id": "postal_code_label",
+      "label": "Rótulo do CEP",
+      "default": "CEP"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_phone",
+      "label": "Criar campo Telefone",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "phone_label",
+      "label": "Rótulo do Telefone",
+      "default": "Telefone da empresa"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_email",
+      "label": "Criar campo E-mail",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "email_label",
+      "label": "Rótulo do E-mail",
+      "default": "E-mail da empresa"
+    }
+  ]
+}
+{% endschema %}

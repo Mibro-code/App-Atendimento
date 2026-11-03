@@ -1,0 +1,13 @@
+services:
+  app:
+    image: mibro-crm-app:ec28638d81aa
+    labels:
+      org.opencontainers.image.revision: ec28638d81aa073dd3d48e7ce68b0d842d532c68
+    build:
+      labels:
+        org.opencontainers.image.revision: ec28638d81aa073dd3d48e7ce68b0d842d532c68
+  migrate:
+    image: mibro-crm-migrate:ec28638d81aa
+    build:
+      labels:
+        org.opencontainers.image.revision: ec28638d81aa073dd3d48e7ce68b0d842d532c68

@@ -1,0 +1,76 @@
+name: mibro-crm
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${CRM_POSTGRES_DB}
+      POSTGRES_USER: ${CRM_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${CRM_POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - private
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mibro-crm-app:local
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      ATTENDANCE_DOCUMENTS_DIR: /app/storage/attendance-documents
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "3000"
+    volumes:
+      - attendance_documents:/app/storage/attendance-documents
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    networks:
+      private:
+      proxy:
+        aliases:
+          - crm-app
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    profiles: ["tools"]
+    env_file:
+      - .env.production
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["npx", "prisma", "migrate", "deploy"]
+    networks:
+      - private
+
+volumes:
+  postgres_data:
+  attendance_documents:
+
+networks:
+  private:
+    driver: bridge
+  proxy:
+    external: true
+    name: shopify-proxy

@@ -1,0 +1,20 @@
+# Build incremental do app Shopify (Mibro e Sincrofit): parte da imagem em
+# produção (BASE_IMAGE) e só ACRESCENTA os arquivos novos da ponte de
+# propostas comerciais (orçamentos Olist V3). Nenhum arquivo existente é
+# substituído; sem mudança de banco do app Shopify.
+#
+# Pré-requisitos na imagem base (conferir antes): olist-api.server.js exporta
+# olistRequest, findOlistContactByTaxId, createOlistContact,
+# findOlistProductBySku, getOlistOrder, OlistApiError; e existem
+# crm-order-bridge.server.js (resolveBridgeShop), crm-bridge-http.server.js,
+# crm-order-bridge-rules.js, olist-order-read-retry.server.js e
+# wholesale-mode.server.js.
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+USER root
+WORKDIR /app
+COPY --chown=shopify:shopify app/services/crm-proposal-bridge-rules.js app/services/crm-proposal-bridge.server.js ./app/services/
+COPY --chown=shopify:shopify app/routes/internal.crm.proposals.upsert.jsx app/routes/internal.crm.proposals.find.jsx app/routes/internal.crm.proposals.get.jsx app/routes/internal.crm.proposals.situation.jsx app/routes/internal.crm.proposals.mark.jsx app/routes/internal.crm.proposals.convert.jsx ./app/routes/
+COPY --chown=shopify:shopify app/routes/internal.crm.orders.inspect.jsx app/routes/internal.crm.sellers.list.jsx ./app/routes/
+RUN npm run build && chown -R shopify:shopify /app/build
+USER shopify

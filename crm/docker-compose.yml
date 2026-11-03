@@ -1,0 +1,72 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mibro
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Configure_POSTGRES_PASSWORD}
+      POSTGRES_DB: mibro_vendedores
+    ports:
+      - "5434:5432"
+    volumes:
+      - mibro_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mibro -d mibro_vendedores"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "${DATABASE_URL:?Configure_DATABASE_URL}"
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-troque-este-valor-para-um-segredo-forte-em-desenvolvimento}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
+      NODE_ENV: production
+      CRM_SHOPIFY_SHARED_SECRET: ${CRM_SHOPIFY_SHARED_SECRET:-}
+      CRM_SHOPIFY_MIBRO_SHARED_SECRET: ${CRM_SHOPIFY_MIBRO_SHARED_SECRET:-}
+      CRM_SHOPIFY_SINCROFIT_SHARED_SECRET: ${CRM_SHOPIFY_SINCROFIT_SHARED_SECRET:-}
+      SHOPIFY_WHOLESALE_URL: ${SHOPIFY_WHOLESALE_URL:-}
+      MIBRO_SHOPIFY_WHOLESALE_URL: ${MIBRO_SHOPIFY_WHOLESALE_URL:-}
+      SINCROFIT_SHOPIFY_WHOLESALE_URL: ${SINCROFIT_SHOPIFY_WHOLESALE_URL:-}
+      QUOTE_SESSION_TTL_MINUTES: ${QUOTE_SESSION_TTL_MINUTES:-10}
+      ATTENDANCE_DOCUMENTS_DIR: /app/storage/attendance-documents
+    ports:
+      - "3001:3000"
+    volumes:
+      # Documentos de ocorrência do ponto (atestados) — a imagem "app" é
+      # standalone (sem bind mount do projeto), então precisa de um volume
+      # nomeado próprio para persistir entre deploys/restarts.
+      - mibro_attendance_docs:/app/storage/attendance-documents
+
+  # Serviço auxiliar (não sobe com "docker compose up" por padrão) usado para
+  # rodar "prisma migrate deploy" e o seed contra o Postgres do compose, com
+  # o node_modules completo (inclui o CLI do Prisma, que não vai para a
+  # imagem final "standalone" do serviço app). Uso:
+  #   docker compose --profile tools run --rm migrate npx prisma migrate deploy
+  #   docker compose --profile tools run --rm migrate npm run db:seed
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    profiles: ["tools"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "${DATABASE_URL:?Configure_DATABASE_URL}"
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
+      NODE_ENV: production
+    command: ["npx", "prisma", "migrate", "deploy"]
+
+volumes:
+  mibro_pg_data:
+  mibro_attendance_docs:

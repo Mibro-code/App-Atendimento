@@ -1,0 +1,1938 @@
+// Schema do CRM Comercial "Mibro Vendedores".
+// Fonte oficial dos dados = este banco Postgres. Planilhas/exportações são
+// apenas espelhos futuros, nunca a fonte de verdade.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Usuários / Vendedores
+// ---------------------------------------------------------------------------
+
+enum Role {
+  ADMIN
+  SUPERVISOR
+  VENDEDOR
+  REPRESENTANTE
+}
+
+// User = identidade de autenticação/autorização, nada mais. Dados comerciais
+// (telefone, cargo, avatar, meta, assinatura de e-mail etc.) ficam em
+// SellerProfile (1:1, opcional). Isso permite desativar o login sem perder
+// histórico comercial, e trocar dados comerciais sem tocar em autenticação.
+// Mantemos `name` aqui (fora da lista de referência do pedido) só como
+// fallback mínimo de identificação — usado antes de existir SellerProfile e
+// em telas que não podem depender de um join (ex.: log de auditoria,
+// listagem simples de usuários no admin).
+model User {
+  centralIdentityLink CentralIdentityLink?
+  id     String  @id @default(cuid())
+  name   String
+  email  String  @unique
+  role   Role    @default(VENDEDOR)
+  active Boolean @default(true)
+
+  // Exclusão lógica: remove o acesso e oculta a conta das operações normais,
+  // mas preserva clientes, propostas, vendas, ponto e auditoria.
+  deletedAt DateTime?
+
+  passwordHash String
+
+  // RCA: identificador comercial curto, único e pesquisável (ex.: "027").
+  // Não é role nem tipo de representante e nunca é o id técnico do banco.
+  rca String? @unique
+
+  // Um vendedor pode ter um supervisor responsável pela equipe. Supervisor e
+  // Admin não precisam de supervisorId. Isso é estrutura de acesso (RBAC),
+  // não dado comercial — por isso fica no User, não no SellerProfile.
+  supervisorId String?
+  supervisor   User?   @relation("SupervisorTeam", fields: [supervisorId], references: [id])
+  team         User[]  @relation("SupervisorTeam")
+
+  // Prazo individual usado para avisar sobre clientes sem interação ou
+  // venda. Supervisores configuram apenas vendedores da própria equipe.
+  followUpAfterDays Int @default(30)
+
+  // Política da equipe: quando true, vendedores diretamente subordinados a
+  // este supervisor podem repassar clientes entre si.
+  allowSellerCustomerTransfer Boolean @default(false)
+
+  // Permissão individual: vendedor só repassa clientes da própria carteira
+  // quando esta opção E a política geral do supervisor estão habilitadas.
+  canTransferOwnCustomers Boolean @default(false)
+
+  // Permissão individual concedida por ADMIN. Quando habilitada para um
+  // supervisor, ele pode criar somente vendedores/representantes e estes
+  // são sempre vinculados à própria equipe pelo backend.
+  canCreateTeamUsers Boolean @default(false)
+
+  // Lembretes do ponto. O horário efetivo da batida continua vindo sempre
+  // do servidor; estes campos servem somente para decidir quando avisar.
+  timeClockReminderEnabled         Boolean              @default(true)
+  timeClockRequiredEvents          TimeClockEventType[] @default([CLOCK_IN, CLOCK_OUT])
+  timeClockWorkingDays             Int[]                @default([1, 2, 3, 4, 5])
+  timeClockStartMinutes            Int                  @default(540)
+  timeClockLunchStartMinutes       Int                  @default(720)
+  timeClockLunchEndMinutes         Int                  @default(780)
+  timeClockEndMinutes              Int                  @default(1080)
+  timeClockReminderIntervalMinutes Int                  @default(15)
+
+  // Pessoa que o supervisor deve contatar externamente sobre pedidos.
+  orderFollowUpAssigneeId  String?
+  orderFollowUpAssignee    User?   @relation("SupervisorOrderFollowUpAssignee", fields: [orderFollowUpAssigneeId], references: [id], onDelete: SetNull)
+  orderFollowUpSupervisors User[]  @relation("SupervisorOrderFollowUpAssignee")
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastLoginAt DateTime?
+
+  sellerProfile SellerProfile?
+
+  customers                  Customer[]                @relation("CustomerSeller")
+  activities                 CustomerActivity[]
+  followUps                  FollowUp[]
+  quotes                     Quote[]
+  sales                      Sale[]
+  auditLogs                  AuditLog[]
+  statusChanges              CustomerStatusHistory[]
+  locationCaptures           LocationCapture[]
+  timeClockEntries           TimeClockEntry[]
+  timeClockEarlyDepartures   TimeClockEarlyDeparture[] @relation("TimeClockEarlyDepartureUser")
+  timeClockCorrectionsMade   TimeClockCorrection[]     @relation("TimeClockCorrectionActor")
+  occurrences                Occurrence[]              @relation("OccurrenceOwner")
+  occurrencesReviewed        Occurrence[]              @relation("OccurrenceReviewer")
+  attendanceDocuments        AttendanceDocument[]      @relation("AttendanceDocumentOwner")
+  customerTransfersFrom      CustomerTransferHistory[] @relation("TransferFromSeller")
+  customerTransfersTo        CustomerTransferHistory[] @relation("TransferToSeller")
+  customerTransfersPerformed CustomerTransferHistory[] @relation("TransferPerformedBy")
+
+  quoteSessionsAsSeller CrmSessionToken[] @relation("QuoteSessionSeller")
+  quoteSessionsCreated  CrmSessionToken[] @relation("QuoteSessionCreatedBy")
+
+  salesGoalsAsSeller              SalesGoal[]                    @relation("GoalSeller")
+  salesGoalsCreated               SalesGoal[]                    @relation("GoalCreatedBy")
+  notifications                   Notification[]                 @relation("NotificationRecipient")
+  passkeys                        PasskeyCredential[]
+  commissionPlansAsRepresentative CommissionPlan[]               @relation("CommissionRepresentative")
+  commissionPlansCreated          CommissionPlan[]               @relation("CommissionCreatedBy")
+  representativeRegions           RepresentativeRegion[]
+  commissionTypeDefaultsUpdated   RepresentativeTypeCommission[] @relation("CommissionTypeDefaultUpdatedBy")
+  saleCommissionsSet              Sale[]                         @relation("SaleCommissionSetBy")
+  orderFollowUpsNotified          OlistOrder[]                   @relation("OrderFollowUpNotifiedBy")
+  orderFollowUpsResolved          OlistOrder[]                   @relation("OrderFollowUpResolvedBy")
+  appointmentsAssigned            Appointment[]                  @relation("AppointmentAssignee")
+  appointmentsCreated             Appointment[]                  @relation("AppointmentCreatedBy")
+  appointmentsCompleted           Appointment[]                  @relation("AppointmentCompletedBy")
+  appointmentsCancelled           Appointment[]                  @relation("AppointmentCancelledBy")
+  appointmentParticipations       AppointmentParticipant[]
+  priceTablesCreated              PriceTable[]                   @relation("PriceTableCreatedBy")
+  priceTablesPublished            PriceTable[]                   @relation("PriceTablePublishedBy")
+
+  // Funções comerciais adicionais concedidas pelo ADMIN (não substituem o cargo).
+  commercialFunctions CommercialFunction[] @default([])
+  commercialProposals CommercialProposal[] @relation("ProposalSeller")
+  olistSellerLinks    SellerOlistLink[]
+
+  // Desafios WebAuthn são curtos e de uso único. Ficam no usuário para não
+  // depender de estado em memória entre réplicas do app.
+  webAuthnChallenge          String?
+  webAuthnChallengePurpose   String?
+  webAuthnChallengeExpiresAt DateTime?
+
+  @@index([role])
+  @@index([supervisorId])
+  @@index([orderFollowUpAssigneeId])
+  @@index([deletedAt])
+}
+
+// Not a user merge. Roles and all historical references remain local.
+model CentralIdentityLink {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  attendanceUserId String   @unique
+  primaryEmail     String   @unique
+  enabled          Boolean  @default(false)
+  confirmation     String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  user             User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+}
+
+// Explicit confirmation only. The CRM portfolio is shared; this does not
+// grant access to the source conversation or change company ownership.
+model CentralContactLink {
+  id String @id @default(cuid())
+  attendanceCompanyId String
+  attendanceContactId String
+  customerId String
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  confirmedBy String
+  createdAt DateTime @default(now())
+
+  @@unique([attendanceCompanyId, attendanceContactId])
+  @@index([customerId])
+}
+
+model PasskeyCredential {
+  id String @id
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  publicKey  Bytes
+  counter    BigInt    @default(0)
+  transports String[]
+  deviceType String?
+  backedUp   Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+
+  @@index([userId])
+}
+
+// Perfil comercial do vendedor/supervisor/admin com função comercial.
+// Opcional por design: nem todo User (ex.: um admin puramente
+// administrativo) precisa de um. NUNCA apagar este registro apenas porque o
+// User foi desativado (active=false) — o histórico comercial (propostas,
+// clientes, vendas antigas) continua precisando desses dados para exibição.
+model SellerProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+
+  displayName String // nome usado nas telas do CRM e como fallback nos e-mails
+  fullName    String?
+  avatarUrl   String?
+  jobTitle    String? // cargo
+  phone       String?
+  whatsapp    String?
+
+  commercialEmail String?
+  commercialPhone String?
+
+  // Preparado para a futura personalização do remetente dos e-mails de
+  // proposta enviados pelo app Shopify (infraestrutura de envio continua
+  // sendo do app Shopify — o CRM só fornece estes dados).
+  emailSenderName String?
+  emailReplyTo    String?
+
+  monthlyGoalCents   Int? // meta mensal, opcional
+  region             String? // região/localização comercial, opcional (texto livre legado; regiões normalizadas ficam em RepresentativeRegion)
+  // Subtipo comercial do REPRESENTANTE. Não é uma role: a role continua REPRESENTANTE.
+  representativeType RepresentativeType?
+  internalNotes      String? // observações internas (visível a admin/supervisor)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Clientes
+// ---------------------------------------------------------------------------
+
+enum CustomerStatus {
+  NOVO
+  CONTATO_REALIZADO
+  EM_NEGOCIACAO
+  COTACAO_ENVIADA
+  AGUARDANDO_RETORNO
+  AGUARDANDO_PAGAMENTO
+  CLIENTE_ATIVO
+  SEM_INTERESSE
+  VENDA_PERDIDA
+  INATIVO
+}
+
+// Etapa do funil comercial, persistida (antes era só calculada na tela).
+// Complementa CustomerStatus: INATIVO aqui e status INATIVO são mantidos
+// sincronizados pela camada lib/pipeline.ts.
+enum PipelineStage {
+  NOVO
+  EM_ATENDIMENTO
+  FOLLOW_UP
+  COTACAO
+  VENDIDO
+  RECICLAGEM
+  INATIVO
+}
+
+enum Temperature {
+  QUENTE
+  MORNO
+  FRIO
+  SEM_CLASSIFICACAO
+}
+
+enum BusinessType {
+  LOJA_VIRTUAL
+  LOJA_FISICA
+  LOJA_FISICA_E_VIRTUAL
+  OUTRO
+}
+
+enum CustomerInterest {
+  SMARTWATCH
+  OCULOS_IA
+  FONE_DE_OUVIDO
+}
+
+model Customer {
+  id String @id @default(cuid())
+
+  contactName String // nome do contato
+  legalName   String? // razão social
+  tradeName   String? // nome fantasia
+
+  cnpjDigits String? // somente dígitos
+  cpfDigits  String? // somente dígitos, opcional
+
+  email         String?
+  phoneDigits   String? // WhatsApp/telefone normalizado (somente dígitos)
+  phone2Digits  String?
+  phone3Digits  String?
+  phoneChannel  String?
+  phone2Channel String?
+  phone3Channel String?
+
+  addressStreet     String?
+  addressNumber     String?
+  addressDistrict   String?
+  addressComplement String?
+  city              String?
+  state             String? // UF
+  spRegion          String? // região comercial de São Paulo (livre/importável)
+  zipDigits         String?
+
+  sellerId String
+  seller   User   @relation("CustomerSeller", fields: [sellerId], references: [id])
+
+  leadOrigin          String? // origem do lead (texto livre: indicação, feira, site, etc.)
+  businessType        BusinessType?
+  industrySegment     String? // segmento de atuação da empresa do cliente
+  worksWithSmartwatch Boolean?
+  interests           CustomerInterest[]       @default([])
+  interestedBrand     CustomerInterestedBrand?
+  leadCapturedAt      DateTime? // carimbo original vindo de formulário/planilha
+  notes               String? // observações gerais
+
+  status      CustomerStatus @default(NOVO)
+  temperature Temperature    @default(SEM_CLASSIFICACAO)
+
+  // Funil comercial. O ciclo começa em 1 e é incrementado quando o cliente
+  // inicia uma nova oportunidade (retorno para Novos, saída de Reciclagem/
+  // Inativos, recompra). As tentativas (estrelas) contam só o ciclo atual;
+  // o histórico completo continua em CustomerActivity/CustomerStatusHistory.
+  pipelineStage          PipelineStage  @default(NOVO)
+  pipelineStageChangedAt DateTime       @default(now())
+  commercialCycle        Int            @default(1)
+  cycleContactAttempts   Int            @default(0)
+  lastContactAttemptAt   DateTime?
+  stageReason            String? // motivo do Inativo/Reciclagem
+  stageReturnAt          DateTime? // "Voltar em": retorno agendado
+  stageReturnTo          PipelineStage? // etapa de destino do retorno agendado
+
+  lastInteractionAt DateTime?
+  nextInteractionAt DateTime?
+  lastSaleAt        DateTime?
+  totalSoldCents    Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tags               Tag[]                     @relation("CustomerTags")
+  activities         CustomerActivity[]
+  statusHistory      CustomerStatusHistory[]
+  followUps          FollowUp[]
+  quotes             Quote[]
+  sales              Sale[]
+  olistOrders        OlistOrder[]
+  quoteSessionTokens CrmSessionToken[]
+  locationCaptures   LocationCapture[]
+  transferHistory    CustomerTransferHistory[]
+  appointments       Appointment[]
+  centralContactLinks CentralContactLink[]
+  commercialProposals CommercialProposal[]
+
+  // Duplicidade: checagem feita na aplicação (case/format-insensitive), mas os
+  // índices abaixo aceleram a busca usada nessa checagem.
+  @@index([cnpjDigits])
+  @@index([cpfDigits])
+  @@index([email])
+  @@index([phoneDigits])
+  @@index([sellerId])
+  @@index([status])
+  @@index([temperature])
+  @@index([state])
+  @@index([spRegion])
+  @@index([businessType])
+  @@index([industrySegment])
+  @@index([interestedBrand])
+  @@index([sellerId, pipelineStage])
+  @@index([pipelineStage, stageReturnAt])
+  @@index([cycleContactAttempts])
+}
+
+model Tag {
+  id    String @id @default(cuid())
+  name  String @unique
+  color String @default("#FF6633")
+
+  customers Customer[] @relation("CustomerTags")
+
+  createdAt DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Histórico de status/temperatura (nunca sobrescrever, sempre inserir)
+// ---------------------------------------------------------------------------
+
+enum StatusHistoryField {
+  STATUS
+  TEMPERATURE
+  PIPELINE_STAGE
+}
+
+model CustomerStatusHistory {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  field    StatusHistoryField
+  oldValue String?
+  newValue String
+
+  changedById String
+  changedBy   User   @relation(fields: [changedById], references: [id])
+
+  reason          String?
+  changedByRca    String? // snapshot do RCA de quem alterou
+  commercialCycle Int?
+
+  createdAt DateTime @default(now())
+
+  @@index([customerId, createdAt])
+}
+
+// Histórico imutável de responsabilidade comercial. Propostas e vendas
+// anteriores permanecem vinculadas aos vendedores originais; somente a
+// responsabilidade atual do Customer e follow-ups pendentes são repassados.
+model CustomerTransferHistory {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  fromSellerId String
+  fromSeller   User   @relation("TransferFromSeller", fields: [fromSellerId], references: [id])
+
+  toSellerId String
+  toSeller   User   @relation("TransferToSeller", fields: [toSellerId], references: [id])
+
+  transferredById String
+  transferredBy   User   @relation("TransferPerformedBy", fields: [transferredById], references: [id])
+
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@index([customerId, createdAt])
+  @@index([fromSellerId])
+  @@index([toSellerId])
+}
+
+// ---------------------------------------------------------------------------
+// Atividades / timeline do cliente
+// ---------------------------------------------------------------------------
+
+enum ActivityType {
+  WHATSAPP
+  TELEFONE
+  EMAIL
+  VISITA
+  REUNIAO
+  ANOTACAO
+  COTACAO
+  PEDIDO
+  PAGAMENTO
+  VENDA
+  CANCELAMENTO
+  FOLLOW_UP
+}
+
+model CustomerActivity {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  sellerId String
+  seller   User   @relation(fields: [sellerId], references: [id])
+
+  type         ActivityType
+  description  String
+  nextActionAt DateTime? // próxima ação opcional
+
+  // Localização só é preenchida em registro explícito de visita (nunca
+  // rastreamento silencioso). Só existe quando o vendedor aciona
+  // "Registrar localização da visita" e o navegador concede permissão.
+  // Mantido aqui (além do LocationCapture mais rico, abaixo) por
+  // compatibilidade com a tela de atividade já existente da Fase 1 — não
+  // remover para não quebrar o fluxo já testado.
+  latitude       Float?
+  longitude      Float?
+  accuracyMeters Float?
+
+  // Tentativa de contato comercial registrada por "Registrar contato"
+  // (estrelas do funil). O canal é o próprio `type`.
+  isContactAttempt Boolean        @default(false)
+  commercialCycle  Int?
+  pipelineStage    PipelineStage?
+
+  createdAt DateTime @default(now())
+
+  locationCapture LocationCapture?
+
+  @@index([customerId, createdAt])
+  @@index([sellerId, createdAt])
+  @@index([type])
+}
+
+// ---------------------------------------------------------------------------
+// Follow-up
+// ---------------------------------------------------------------------------
+
+enum FollowUpStatus {
+  PENDENTE
+  CONCLUIDO
+  ADIADO
+}
+
+enum FollowUpSource {
+  AUTOMATICO_30_DIAS
+  AUTOMATICO_INATIVIDADE
+  MANUAL
+}
+
+model FollowUp {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  sellerId String
+  seller   User   @relation(fields: [sellerId], references: [id])
+
+  dueAt  DateTime
+  status FollowUpStatus @default(PENDENTE)
+  source FollowUpSource @default(MANUAL)
+
+  note        String?
+  completedAt DateTime?
+  // Chave determinística do ciclo de inatividade. Garante idempotência mesmo
+  // quando duas requisições tentam gerar o mesmo aviso ao mesmo tempo.
+  dedupeKey   String?   @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sellerId, status, dueAt])
+  @@index([customerId, status])
+}
+
+// ---------------------------------------------------------------------------
+// Agenda — compromissos internos (follow-up, ligação, reunião, visita...).
+// Separado de FollowUp de propósito: FollowUp é o aviso AUTOMÁTICO de
+// recompra ligado à etapa FOLLOW_UP do funil; Appointment é um compromisso
+// criado por uma pessoa, com data/hora, responsável e status próprios.
+// O vínculo com o cliente é só por customerId — nenhum dado do cliente é
+// copiado para cá. Horários seguem a regra do projeto: gravados em UTC e
+// interpretados/exibidos em America/Sao_Paulo (ver lib/agenda-rules.ts).
+// ---------------------------------------------------------------------------
+
+enum AppointmentType {
+  FOLLOW_UP
+  LIGACAO
+  WHATSAPP
+  REUNIAO
+  VISITA
+  PROPOSTA
+  COBRANCA
+  EVENTO
+  TAREFA
+  OUTRO
+}
+
+// "Atrasado" não é status: é calculado (PENDENTE + horário já passou), para
+// nunca precisar de job de atualização nem cancelar nada automaticamente.
+enum AppointmentStatus {
+  PENDENTE
+  CONCLUIDO
+  CANCELADO
+}
+
+enum AppointmentPriority {
+  BAIXA
+  NORMAL
+  ALTA
+}
+
+model Appointment {
+  id String @id @default(cuid())
+
+  title       String
+  description String?
+
+  type     AppointmentType
+  status   AppointmentStatus   @default(PENDENTE)
+  priority AppointmentPriority @default(NORMAL)
+
+  // Dia inteiro: startsAt = 00:00 de São Paulo daquele dia, endsAt nulo.
+  // endsAt nulo em compromisso com horário = duração padrão (ver regras).
+  startsAt DateTime
+  endsAt   DateTime?
+  allDay   Boolean   @default(false)
+
+  // Minutos antes de startsAt (0 = na hora, nulo = sem lembrete). Nesta
+  // versão o lembrete é exibido dentro do app; a coluna já serve de base
+  // para futuros canais (push/e-mail/WhatsApp) sem migração.
+  reminderMinutes     Int?
+  reminderDismissedAt DateTime?
+
+  // Cor escolhida para o compromisso (hex da paleta da Agenda). Nula = usa a
+  // cor do responsável. Validada no backend contra a paleta fixa.
+  color String?
+
+  assignedToId String
+  assignedTo   User   @relation("AppointmentAssignee", fields: [assignedToId], references: [id])
+
+  createdById String
+  createdBy   User   @relation("AppointmentCreatedBy", fields: [createdById], references: [id])
+
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  completedAt   DateTime?
+  completedById String?
+  completedBy   User?     @relation("AppointmentCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
+
+  cancelledAt   DateTime?
+  cancelledById String?
+  cancelledBy   User?     @relation("AppointmentCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  participants AppointmentParticipant[]
+
+  @@index([assignedToId, startsAt])
+  @@index([customerId, startsAt])
+  @@index([status, startsAt])
+}
+
+// Evento compartilhado: pessoas que também veem o compromisso na própria
+// agenda (somente leitura). Quem edita continua sendo o responsável/escopo
+// dele. Quem pode ser convidado segue a mesma regra de atribuição.
+model AppointmentParticipant {
+  appointmentId String
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([appointmentId, userId])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Propostas / Cotações (espelho leve da WholesaleQuote do app Shopify)
+// ---------------------------------------------------------------------------
+
+// SIMULATION = simulação comercial (calcula e pode enviar por e-mail, mas
+// NUNCA gera pedido real no Olist). REAL = cotação real, segue o fluxo atual
+// de pedido/aprovação no Olist. Decidido no CRM no momento de "Criar
+// proposta" e transportado no CrmSessionToken/JWT — o app Shopify nunca deve
+// decidir isso sozinho a partir de um parâmetro de URL editável.
+enum ProposalMode {
+  SIMULATION
+  REAL
+}
+
+// Marca/loja comercial que calcula e envia a proposta. Clientes e equipes
+// continuam compartilhados; a marca pertence à operação comercial.
+enum CommercialBrand {
+  MIBRO
+  SINCROFIT
+}
+
+// Preferência comercial do cliente. Separada da marca operacional porque
+// pedidos e propostas continuam pertencendo sempre a uma única empresa.
+enum CustomerInterestedBrand {
+  MIBRO
+  SINCROFIT
+  AMBAS
+}
+
+enum QuoteStatus {
+  ABERTA // rascunho, sessão criada mas ainda não calculada
+  CALCULADA
+  ENVIADA // proposta enviada por e-mail ao cliente (SIMULATION ou REAL)
+  ENVIADA_PARA_ANALISE // fluxo REAL: pedido Olist enviado para aprovação manual
+  CONVERTIDA // SIMULATION que originou uma proposta REAL (ver convertedQuotes)
+  CANCELADA
+  EXPIRADA
+}
+
+model Quote {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  sellerId String
+  seller   User   @relation(fields: [sellerId], references: [id])
+
+  // Token público da WholesaleQuote no app Shopify (publicToken). É a chave
+  // de correlação entre CRM e app Shopify — nunca gerado pelo CRM.
+  shopifyQuoteToken String?
+
+  brand CommercialBrand @default(MIBRO)
+
+  mode   ProposalMode @default(REAL)
+  status QuoteStatus  @default(ABERTA)
+
+  // Exclusão lógica de simulações: dados/auditoria nunca são apagados.
+  deletedAt       DateTime?
+  deletedById     String?
+  deletedSnapshot Json?
+
+  totalValueCents Int?
+  discountCents   Int?
+  couponCode      String?
+  notes           String?
+  productsSummary Json? // snapshot dos itens (produto/sku/variante/qtd/preço) recebido do Shopify no momento do cálculo — nunca recalculado depois
+
+  sentAt      DateTime? // quando a proposta foi enviada por e-mail
+  sentToEmail String?
+  convertedAt DateTime? // preenchido só na SIMULATION original quando ela gera uma proposta REAL
+
+  // Vínculo de conversão SIMULATION -> REAL. A simulação original NUNCA é
+  // sobrescrita: uma nova Quote REAL é criada com sourceQuoteId apontando
+  // para ela, preservando auditoria de ambas.
+  sourceQuoteId   String?
+  sourceQuote     Quote?  @relation("QuoteConversion", fields: [sourceQuoteId], references: [id])
+  convertedQuotes Quote[] @relation("QuoteConversion")
+
+  // Snapshot comercial do vendedor no momento da cotação. A associação real
+  // continua sendo por sellerId (nunca por nome) — estes campos existem só
+  // para exibir dados históricos corretos mesmo que o SellerProfile do
+  // vendedor mude depois (novo cargo, telefone, nome de exibição etc.).
+  sellerNameSnapshot     String?
+  sellerEmailSnapshot    String?
+  sellerPhoneSnapshot    String?
+  sellerJobTitleSnapshot String?
+
+  // Calculadora nativa do CRM. Propostas vindas do Shopify continuam com
+  // origin=SHOPIFY e os campos abaixo nulos (itens só em productsSummary).
+  origin        QuoteOrigin          @default(SHOPIFY)
+  priceGroup    PriceGroup?
+  quantityRule  PricingQuantityRule?
+  // Faixa escolhida manualmente; nulo = automático pela quantidade.
+  selectedTier  PriceTier?
+  subtotalCents Int?
+  // Estado do assistente (etapa atual, campos parciais) para retomar rascunhos.
+  draftState    Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Trava curta contra envio simultâneo ao Olist (duplo clique, duas abas).
+  olistLockedAt DateTime?
+
+  items             QuoteItem[]
+  olistOrder        OlistOrder?
+  locationCaptures  LocationCapture[]
+  crmSessionTokens  CrmSessionToken[]
+  notifications     Notification[]
+  olistSyncAttempts OlistSyncAttempt[]
+  commercialProposal CommercialProposal?
+
+  @@unique([brand, shopifyQuoteToken])
+  @@index([customerId])
+  @@index([sellerId])
+  @@index([brand])
+  @@index([mode])
+  @@index([deletedAt])
+  @@index([sourceQuoteId])
+  @@index([origin])
+  @@index([priceGroup])
+}
+
+// ---------------------------------------------------------------------------
+// Catálogo comercial e tabelas de preço de atacado (calculadora nativa do CRM)
+// ---------------------------------------------------------------------------
+// O CRM passa a ser a fonte oficial de produtos e preços. O frontend NUNCA
+// define preço: tudo é resolvido no backend por lib/pricing a partir da
+// tabela PUBLISHED vigente da marca + grupo comercial do vendedor responsável.
+
+// Grupo comercial, derivado do cargo do vendedor responsável pela cotação
+// (nunca aceito do navegador). Independente da faixa de quantidade.
+enum PriceGroup {
+  STANDARD // vendedores (e supervisor/admin vendendo diretamente)
+  REPRESENTATIVE // representantes
+}
+
+// Faixa de quantidade: TIER1 1–49, TIER2 50–99, TIER3 100+ (sem mínimo).
+enum PriceTier {
+  TIER1
+  TIER2
+  TIER3
+}
+
+// Regra de quantidade usada para a faixa automática: MIX = soma do pedido
+// (cliente novo); PER_MODEL = soma por modelo (cliente recorrente no Olist).
+enum PricingQuantityRule {
+  MIX
+  PER_MODEL
+}
+
+enum PriceTableStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum QuoteOrigin {
+  SHOPIFY // espelho de WholesaleQuote vindo do app Shopify (fluxo legado)
+  CRM // calculadora nativa do CRM
+}
+
+model Product {
+  id String @id @default(cuid())
+
+  brand     CommercialBrand
+  // Chave estável do modelo dentro da marca (ex.: "c4", "motion-gps").
+  slug      String
+  name      String // nome comercial ("Mibro C4") — nunca usado como SKU
+  category  String          @default("Smartwatch")
+  imageUrl  String?
+  active    Boolean         @default(true)
+  sortOrder Int             @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  variants     ProductVariant[]
+  priceEntries PriceEntry[]
+  quoteItems   QuoteItem[]
+
+  @@unique([brand, slug])
+  @@index([brand, active])
+}
+
+// Variação (cor) com o SKU oficial usado na integração Olist. O preço é por
+// modelo (Product); a variação só identifica o item enviado ao Olist.
+model ProductVariant {
+  id String @id @default(cuid())
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  // Duplicado do Product para garantir unicidade de SKU por marca no banco.
+  brand            CommercialBrand
+  sku              String
+  colorName        String
+  shopifyVariantId String?
+  active           Boolean         @default(true)
+  sortOrder        Int             @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  quoteItems QuoteItem[]
+
+  @@unique([brand, sku])
+  @@index([productId])
+}
+
+// Versão imutável de uma tabela de preços. Editar = criar nova versão (DRAFT)
+// e publicar. A vigência de uma versão PUBLISHED vai de effectiveFrom até o
+// effectiveFrom da próxima versão publicada do mesmo escopo — por isso nunca
+// há sobreposição. Versões anteriores ficam preservadas para histórico e
+// para as propostas que as utilizaram.
+model PriceTable {
+  id String @id @default(cuid())
+
+  brand      CommercialBrand
+  priceGroup PriceGroup
+  version    Int
+  status     PriceTableStatus @default(DRAFT)
+
+  effectiveFrom DateTime
+  changeReason  String?
+
+  // Preenchido apenas quando PUBLISHED: "<brand>:<group>:<effectiveFrom ISO>".
+  // Unicidade impede duas versões publicadas no mesmo escopo e instante.
+  publishedKey String? @unique
+
+  createdById   String?
+  createdBy     User?     @relation("PriceTableCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  publishedById String?
+  publishedBy   User?     @relation("PriceTablePublishedBy", fields: [publishedById], references: [id], onDelete: SetNull)
+  publishedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  entries    PriceEntry[]
+  quoteItems QuoteItem[]
+
+  @@unique([brand, priceGroup, version])
+  @@index([brand, priceGroup, status, effectiveFrom])
+}
+
+// Preço de um modelo numa faixa. Faixa ausente = não configurada (o backend
+// recusa a cotação). CHECK (unitPriceCents > 0) definido na migration.
+model PriceEntry {
+  id String @id @default(cuid())
+
+  priceTableId String
+  priceTable   PriceTable @relation(fields: [priceTableId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  tier           PriceTier
+  unitPriceCents Int
+
+  @@unique([priceTableId, productId, tier])
+  @@index([productId])
+}
+
+// Item da cotação nativa — também é o snapshot de preço: nome, cor, SKU,
+// grupo, faixas e preço ficam congelados aqui e nunca são recalculados por
+// mudanças posteriores na tabela.
+model QuoteItem {
+  id String @id @default(cuid())
+
+  quoteId String
+  quote   Quote  @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  productId String?
+  product   Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variantId String?
+  variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  sku         String
+  productName String
+  colorName   String?
+  quantity    Int
+
+  priceGroup        PriceGroup
+  priceTableId      String
+  priceTable        PriceTable @relation(fields: [priceTableId], references: [id])
+  priceTableVersion Int
+
+  automaticTier PriceTier
+  appliedTier   PriceTier
+  manualTier    Boolean   @default(false)
+
+  unitPriceCents    Int
+  lineSubtotalCents Int
+  // Parte do desconto do pedido rateada neste item (mesma regra do envio ao Olist).
+  lineDiscountCents Int @default(0)
+
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([quoteId])
+  @@index([priceTableId])
+  @@index([appliedTier])
+}
+
+// ---------------------------------------------------------------------------
+// Pedidos Olist (dados que o app Shopify existente envia para o CRM)
+// ---------------------------------------------------------------------------
+
+model OlistOrder {
+  id String @id @default(cuid())
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  quoteId String? @unique
+  quote   Quote?  @relation(fields: [quoteId], references: [id])
+
+  // Cada marca usa uma conta Olist própria. O mesmo id externo pode existir
+  // nas duas contas, portanto a identidade é brand + olistOrderId.
+  brand        CommercialBrand @default(MIBRO)
+  olistOrderId String // id retornado pela Olist
+  orderNumber  String?
+
+  valueCents Int
+
+  // Status bruto vindo do Olist (código "situacao" ou texto), preservado tal
+  // como recebido. NUNCA inventar/assumir códigos: eles só existem aqui
+  // depois de confirmados no app Shopify existente.
+  olistStatusRaw String?
+
+  // Status mapeado para o vocabulário do CRM, via camada de mapeamento
+  // centralizada (ver lib/olist-status-map). Fica separado do status de
+  // "venda" (Sale) de propósito: pedido criado no Olist != venda confirmada.
+  crmStatus String @default("PEDIDO_CRIADO")
+
+  lastSyncedAt DateTime?
+
+  followUpStatus       OrderFollowUpStatus @default(PENDING)
+  followUpNotifiedAt   DateTime?
+  followUpNotifiedById String?
+  followUpNotifiedBy   User?               @relation("OrderFollowUpNotifiedBy", fields: [followUpNotifiedById], references: [id], onDelete: SetNull)
+  followUpResolvedAt   DateTime?
+  followUpResolvedById String?
+  followUpResolvedBy   User?               @relation("OrderFollowUpResolvedBy", fields: [followUpResolvedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  statusHistory OlistStatusHistory[]
+  sale          Sale?
+
+  @@unique([brand, olistOrderId])
+  @@index([customerId])
+  @@index([brand])
+  @@index([crmStatus])
+  @@index([followUpStatus, createdAt])
+}
+
+enum OrderFollowUpStatus {
+  PENDING
+  NOTIFIED
+  RESOLVED
+}
+
+model OlistStatusHistory {
+  id           String     @id @default(cuid())
+  olistOrderId String
+  olistOrder   OlistOrder @relation(fields: [olistOrderId], references: [id], onDelete: Cascade)
+
+  olistStatusRaw String?
+  crmStatus      String
+
+  createdAt DateTime @default(now())
+
+  @@index([olistOrderId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Vendas — estado interno de negócio, nunca inferido só pela criação do
+// pedido no Olist.
+// ---------------------------------------------------------------------------
+
+enum SaleStage {
+  COTACAO
+  PEDIDO_CRIADO
+  AGUARDANDO_APROVACAO
+  AGUARDANDO_PAGAMENTO
+  PAGAMENTO_CONFIRMADO
+  EM_PREPARACAO
+  ENVIADO
+  ENTREGUE
+  CANCELADO
+}
+
+model Sale {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  sellerId String
+  seller   User   @relation(fields: [sellerId], references: [id])
+
+  olistOrderId String?     @unique
+  olistOrder   OlistOrder? @relation(fields: [olistOrderId], references: [id])
+
+  stage      SaleStage @default(COTACAO)
+  valueCents Int
+
+  // "Venda realizada" = confirmação real de pagamento/aprovação suficiente.
+  confirmedAt DateTime?
+  // "Venda finalizada" = pedido enviado/entregue ou processo concluído.
+  finalizedAt DateTime?
+  cancelledAt DateTime?
+
+  // Comissão aplicada nesta venda. CUSTOM_ORDER (definida no pedido) tem
+  // prioridade sobre DEFAULT (plano do representante / padrão do tipo).
+  commissionRateBps Int?
+  commissionCents   Int?
+  commissionSource  CommissionSource?
+  commissionSetById String?
+  commissionSetBy   User?             @relation("SaleCommissionSetBy", fields: [commissionSetById], references: [id], onDelete: SetNull)
+  commissionSetAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([sellerId])
+  @@index([stage])
+}
+
+enum CommissionSource {
+  DEFAULT
+  CUSTOM_ORDER
+}
+
+// ---------------------------------------------------------------------------
+// Fase 2 — Integração CRM → Shopify (lado CRM): token de sessão de cotação
+// ---------------------------------------------------------------------------
+// Token JWT de curta duração e uso único, gerado pelo CRM quando um usuário
+// clica em "Criar cotação" no perfil do cliente. O app Shopify (fora deste
+// repositório) resolve o token chamando o CRM em
+// POST /api/integrations/shopify/session/resolve. O registro abaixo é a
+// fonte de verdade para expiração/uso único — nunca confiar só na expiração
+// embutida no JWT (defesa em profundidade).
+model CrmSessionToken {
+  id String @id @default(cuid())
+
+  // Claim "jti" do JWT — identifica o token de forma única e é a chave usada
+  // para checar/registrar o uso único.
+  jti String @unique
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  // Vendedor cujos dados vão para a calculadora (normalmente igual a
+  // Customer.sellerId, mas gravado explicitamente no momento da criação).
+  sellerId String
+  seller   User   @relation("QuoteSessionSeller", fields: [sellerId], references: [id])
+
+  // Quem clicou no botão "Criar proposta" (vendedor, supervisor ou admin).
+  createdById String
+  createdBy   User   @relation("QuoteSessionCreatedBy", fields: [createdById], references: [id])
+
+  // Decidido no CRM (nunca lido de um parâmetro de URL editável pelo
+  // navegador) — o app Shopify obtém isto resolvendo o token neste endpoint,
+  // e é o que autoriza (ou não) seguir com criação de pedido no Olist.
+  mode  ProposalMode    @default(REAL)
+  brand CommercialBrand @default(MIBRO)
+
+  // Preenchido em "Abrir novamente na calculadora" (mesma proposta) ou em
+  // "Transformar em cotação real" (aponta para a SIMULATION de origem). O
+  // app Shopify usa isso para tentar restaurar o mix de produtos por
+  // SKU/variant id — nunca só pelo nome do produto.
+  resumeQuoteId String?
+  resumeQuote   Quote?  @relation(fields: [resumeQuoteId], references: [id])
+
+  expiresAt DateTime
+  usedAt    DateTime? // nulo até ser resolvido pelo app Shopify
+
+  createdAt DateTime @default(now())
+
+  @@index([customerId])
+  @@index([sellerId])
+  @@index([brand])
+  @@index([expiresAt])
+  @@index([resumeQuoteId])
+}
+
+// ---------------------------------------------------------------------------
+// Ponto externo — registro pessoal de jornada para vendedores e supervisores.
+// Os quatro eventos são independentes: o usuário pode registrar somente os
+// momentos aplicáveis ao dia. `workDate` usa o calendário de São Paulo e,
+// junto com eventType, impede cliques duplicados no mesmo dia.
+// ---------------------------------------------------------------------------
+
+enum TimeClockEventType {
+  CLOCK_IN
+  LUNCH_START
+  LUNCH_END
+  CLOCK_OUT
+}
+
+model TimeClockEntry {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  eventType  TimeClockEventType
+  workDate   DateTime           @db.Date
+  occurredAt DateTime           @default(now())
+
+  // Horário é sempre definido pelo servidor. A localização é uma tentativa
+  // explícita no clique e não impede o ponto quando estiver indisponível ou
+  // quando o usuário negar a permissão.
+  locationStatus     LocationStatus?
+  latitude           Float?
+  longitude          Float?
+  accuracyMeters     Float?
+  locationCapturedAt DateTime?
+  userAgentSummary   String?
+  deviceType         String?
+
+  createdAt DateTime @default(now())
+
+  earlyDeparture TimeClockEarlyDeparture?
+  corrections    TimeClockCorrection[]
+
+  @@unique([userId, workDate, eventType])
+  @@index([userId, occurredAt])
+  @@index([workDate])
+}
+
+// Justificativa obrigatória quando o CLOCK_OUT ocorre antes do horário
+// esperado de expediente (ver EXPECTED_CLOCK_OUT_TIME em lib/config.ts).
+// Nunca sobrescreve o TimeClockEntry original — é um registro adicional
+// ligado a ele, criado na mesma transação da batida.
+enum EarlyDepartureReason {
+  COMPROMISSO
+  EMERGENCIA
+  PROBLEMA_PESSOAL
+  AUTORIZACAO_SUPERVISOR
+  OUTRO
+}
+
+model TimeClockEarlyDeparture {
+  id String @id @default(cuid())
+
+  entryId String         @unique
+  entry   TimeClockEntry @relation(fields: [entryId], references: [id])
+
+  userId String
+  user   User   @relation("TimeClockEarlyDepartureUser", fields: [userId], references: [id])
+
+  expectedAt  DateTime
+  actualAt    DateTime
+  reason      EarlyDepartureReason
+  description String
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+// Ocorrências/justificativas do vendedor ligadas a uma data (atraso, falta,
+// atestado etc.), analisadas por supervisor (própria equipe) ou admin
+// (todas). Pode ter documentos anexados (ver AttendanceDocument).
+enum OccurrenceType {
+  ATRASO
+  SAIDA_ANTECIPADA
+  FALTA
+  PROBLEMA_NO_PONTO
+  ESQUECIMENTO
+  ATESTADO
+  OUTRO
+}
+
+enum OccurrenceStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Occurrence {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation("OccurrenceOwner", fields: [userId], references: [id])
+
+  type           OccurrenceType
+  occurrenceDate DateTime       @db.Date
+  description    String
+
+  status       OccurrenceStatus @default(PENDING)
+  reviewedById String?
+  reviewedBy   User?            @relation("OccurrenceReviewer", fields: [reviewedById], references: [id])
+  reviewedAt   DateTime?
+  reviewNote   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  documents AttendanceDocument[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([occurrenceDate])
+}
+
+// Documento/atestado anexado a uma ocorrência. Arquivo em si fica em disco
+// (storage/attendance-documents/, fora de public/ — nunca servido
+// estaticamente); storageKey é só o nome do arquivo salvo (aleatório, nunca
+// o nome enviado pelo cliente). Servido só via rota autenticada que
+// reconfere RBAC a cada request.
+model AttendanceDocument {
+  id String @id @default(cuid())
+
+  occurrenceId String
+  occurrence   Occurrence @relation(fields: [occurrenceId], references: [id])
+
+  userId String
+  user   User   @relation("AttendanceDocumentOwner", fields: [userId], references: [id])
+
+  fileName   String
+  mimeType   String
+  fileSize   Int
+  storageKey String
+
+  uploadedAt DateTime @default(now())
+
+  @@index([occurrenceId])
+}
+
+// Trilha de auditoria de correção administrativa de uma batida. O valor em
+// TimeClockEntry só muda através da rota que também grava aqui — nunca é
+// alterado silenciosamente, e o registro original nunca é apagado.
+model TimeClockCorrection {
+  id String @id @default(cuid())
+
+  entryId String
+  entry   TimeClockEntry @relation(fields: [entryId], references: [id])
+
+  changedById String
+  changedBy   User   @relation("TimeClockCorrectionActor", fields: [changedById], references: [id])
+
+  fieldChanged String
+  oldValue     String
+  newValue     String
+  reason       String
+
+  createdAt DateTime @default(now())
+
+  @@index([entryId])
+}
+
+// ---------------------------------------------------------------------------
+// Localização — sempre capturada por ação explícita do vendedor, nunca em
+// background. Cobre não só a visita presencial (CUSTOMER_VISIT, já existente
+// na Fase 1 via CustomerActivity), mas também momentos da cotação
+// (PROPOSAL_STARTED/PROPOSAL_SENT), preparando o terreno para quando esses
+// eventos vierem do fluxo da calculadora Shopify (Fase 2/3). Sem
+// fingerprinting: nenhum IP é coletado aqui (não há justificativa/política
+// definida para isso ainda).
+// ---------------------------------------------------------------------------
+
+enum LocationSource {
+  CUSTOMER_CREATED
+  PROPOSAL_STARTED
+  PROPOSAL_SENT
+  CUSTOMER_VISIT
+}
+
+enum LocationStatus {
+  GRANTED
+  DENIED
+  UNAVAILABLE
+  TIMEOUT
+  NOT_SUPPORTED
+}
+
+model LocationCapture {
+  id String @id @default(cuid())
+
+  sellerId String
+  seller   User   @relation(fields: [sellerId], references: [id])
+
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id])
+
+  quoteId String?
+  quote   Quote?  @relation(fields: [quoteId], references: [id])
+
+  // Preenchido quando a captura corresponde a uma CustomerActivity do tipo
+  // VISITA (fluxo já existente da Fase 1). Fica nulo para capturas
+  // originadas de cotação (sem uma atividade de timeline associada).
+  activityId String?           @unique
+  activity   CustomerActivity? @relation(fields: [activityId], references: [id])
+
+  // Só preenchidos quando locationStatus = GRANTED.
+  latitude       Float?
+  longitude      Float?
+  accuracyMeters Float?
+  capturedAt     DateTime?
+
+  locationStatus LocationStatus
+  locationSource LocationSource
+
+  // Contexto leve, não usado para fingerprinting — só para diagnóstico
+  // (ex.: "TIMEOUT aconteceu muito num certo navegador/dispositivo").
+  userAgentSummary String? // string curta, ex.: "Chrome 128 / Android"
+  deviceType       String? // heurística simples: "mobile" | "tablet" | "desktop"
+
+  createdAt DateTime @default(now())
+
+  // Localização da proposta (item 3 do plano): idempotência quando o app
+  // Shopify reenvia o mesmo evento (ex.: recálculo depois do envio) — nunca
+  // duplica captura para a mesma proposta+origem. NULLs em quoteId (caso
+  // CUSTOMER_VISIT/PROPOSAL_STARTED sem cotação ainda) não colidem entre si
+  // (comportamento padrão do Postgres para unique com NULL).
+  @@unique([quoteId, locationSource])
+  @@index([sellerId, createdAt])
+  @@index([customerId])
+  @@index([quoteId])
+  @@index([locationSource])
+}
+
+// ---------------------------------------------------------------------------
+// Auditoria
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Metas de venda — criadas por Supervisor/Admin para um vendedor específico.
+// Nunca apagadas (histórico): uma nova meta é sempre um novo registro; a meta
+// "atual" é a que está ACTIVE e cujo período (startDate..endDate) cobre hoje.
+// Progresso NUNCA é armazenado aqui — é sempre recalculado a partir de Sale
+// (stage = PAGAMENTO_CONFIRMADO), ver lib/goals.ts, para nunca divergir dos
+// dados reais de venda.
+// ---------------------------------------------------------------------------
+
+enum GoalType {
+  REVENUE // meta por valor (targetValueCents)
+  SALES_COUNT // meta por quantidade de vendas confirmadas (targetSalesCount)
+}
+
+// Ciclo de vida da meta. ACHIEVED/EXPIRED são estados terminais decididos por
+// syncGoalAlerts (lib/goal-alerts.ts) a partir do progresso e da data —
+// nunca escolhidos diretamente pelo usuário na criação/edição.
+enum GoalStatus {
+  ACTIVE
+  ACHIEVED
+  EXPIRED
+  CANCELLED
+}
+
+model SalesGoal {
+  id String @id @default(cuid())
+
+  sellerId String
+  seller   User   @relation("GoalSeller", fields: [sellerId], references: [id])
+
+  createdById String
+  createdBy   User   @relation("GoalCreatedBy", fields: [createdById], references: [id])
+
+  type GoalType
+
+  // Exatamente um dos dois é preenchido, de acordo com `type` (validado na
+  // rota, não no schema — Prisma não tem "OR" declarativo entre colunas).
+  targetValueCents Int?
+  targetSalesCount Int?
+
+  startDate DateTime
+  endDate   DateTime
+
+  status GoalStatus @default(ACTIVE)
+
+  // Preenchido pelo sync assim que o progresso atinge 100% pela primeira
+  // vez — é o "quando" pedido no histórico, e também a chave de idempotência
+  // que impede reenviar o aviso de meta atingida.
+  achievedAt DateTime?
+
+  // Idempotência dos alertas automáticos (ver lib/goal-alerts.ts). Sem estes
+  // campos, rodar o sync duas vezes no mesmo período geraria notificação
+  // duplicada — mesmo problema que FollowUp.dedupeKey resolve para follow-up
+  // automático.
+  warningNotifiedAt  DateTime?
+  achievedNotifiedAt DateTime?
+  expiredNotifiedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  notifications Notification[]
+
+  @@index([sellerId, status])
+  @@index([status, endDate])
+}
+
+// Percentual de comissão versionado. Uma troca cria um novo período em vez
+// de sobrescrever o passado, preservando o cálculo histórico por venda.
+model CommissionPlan {
+  id String @id @default(cuid())
+
+  representativeId String
+  representative   User   @relation("CommissionRepresentative", fields: [representativeId], references: [id])
+
+  createdById String?
+  createdBy   User?   @relation("CommissionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  brand     CommercialBrand?
+  rateBps   Int
+  startDate DateTime
+  endDate   DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([representativeId, startDate, endDate])
+  @@index([representativeId, brand, startDate])
+}
+
+enum RepresentativeType {
+  ATACADO
+  VAREJO
+  OUTRO
+}
+
+// Comissão padrão por tipo de representante. rateBps nulo = sem padrão
+// definido (nenhum percentual é presumido).
+model RepresentativeTypeCommission {
+  type        RepresentativeType @id
+  rateBps     Int?
+  updatedById String?
+  updatedBy   User?              @relation("CommissionTypeDefaultUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  updatedAt   DateTime           @updatedAt
+}
+
+// Regiões atendidas por um representante. city vazio = estado inteiro.
+model RepresentativeRegion {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  state     String // UF
+  city      String   @default("")
+  createdAt DateTime @default(now())
+
+  @@unique([userId, state, city])
+  @@index([state, city])
+}
+
+// ---------------------------------------------------------------------------
+// Notificações — modelo genérico reaproveitável por qualquer evento do CRM
+// (hoje só metas; não existia nenhum antes). dedupeKey segue o mesmo padrão
+// de FollowUp.dedupeKey: garante idempotência mesmo se o sync rodar
+// concorrentemente ou mais de uma vez para o mesmo evento.
+// ---------------------------------------------------------------------------
+
+enum NotificationType {
+  GOAL_WARNING
+  GOAL_ACHIEVED
+  GOAL_EXPIRED
+  QUOTE_CREATED // aviso ao supervisor: cotação feita pela equipe
+}
+
+model Notification {
+  id String @id @default(cuid())
+
+  recipientId String
+  recipient   User   @relation("NotificationRecipient", fields: [recipientId], references: [id])
+
+  type    NotificationType
+  title   String
+  message String
+
+  goalId String?
+  goal   SalesGoal? @relation(fields: [goalId], references: [id])
+
+  quoteId String?
+  quote   Quote?  @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+
+  readAt DateTime?
+
+  dedupeKey String @unique
+
+  createdAt DateTime @default(now())
+
+  @@index([recipientId, readAt, createdAt])
+  @@index([quoteId])
+}
+
+model AuditLog {
+  id String @id @default(cuid())
+
+  actorId String?
+  actor   User?   @relation(fields: [actorId], references: [id])
+
+  action     String // ex.: "LOGIN", "CUSTOMER_CREATED", "STATUS_CHANGED", ...
+  entityType String? // ex.: "Customer", "Sale"
+  entityId   String?
+  metadata   Json?
+
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  @@index([actorId, createdAt])
+  @@index([entityType, entityId])
+  @@index([action])
+}
+
+// ---------------------------------------------------------------------------
+// Histórico de sincronização CRM -> Olist (via ponte do app Shopify da marca)
+// ---------------------------------------------------------------------------
+// Cada chamada (cálculo/criação do pedido, envio para análise, e-mail) gera
+// uma tentativa. Nada é sobrescrito: falhas e divergências ficam rastreáveis
+// pelo id da tentativa exibido ao usuário.
+
+enum OlistSyncAction {
+  CALCULATE
+  CONFIRM
+  EMAIL
+  PROPOSAL_CREATE
+  PROPOSAL_UPDATE
+  PROPOSAL_READ
+  PROPOSAL_CONVERT
+  PROPOSAL_SITUATION
+  ORDER_STATUS
+}
+
+enum OlistSyncStatus {
+  STARTED
+  SUCCEEDED
+  FAILED
+}
+
+model OlistSyncAttempt {
+  id String @id @default(cuid())
+
+  quoteId String
+  quote   Quote  @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  brand  CommercialBrand
+  action OlistSyncAction
+  status OlistSyncStatus @default(STARTED)
+
+  actorId String?
+
+  // Hash do payload enviado (detecta reenvio idêntico x alteração).
+  requestHash  String?
+  olistOrderId String?
+  orderNumber  String?
+
+  errorCode    String?
+  errorMessage String?
+  // Divergência de preço/total entre o enviado e o devolvido pelo Olist.
+  mismatch     Json?
+  response     Json?
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  @@index([quoteId, startedAt])
+  @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// Propostas comerciais nativas do Olist (orçamentos V3)
+// ---------------------------------------------------------------------------
+// A proposta é o documento oficial da negociação. O Olist é a fonte do que
+// foi registrado no ERP; o CRM controla permissões, aprovações internas,
+// versões, aceite e acompanhamento. Cada dimensão tem um estado separado.
+
+// Funções extras concedidas pelo ADMIN a qualquer usuário, sem trocar o cargo.
+enum CommercialFunction {
+  GERENTE_COMERCIAL
+  FINANCEIRO
+}
+
+enum ProposalCommercialStatus {
+  RASCUNHO
+  AGUARDANDO_APROVACAO
+  APROVADA_INTERNAMENTE
+  REPROVADA_INTERNAMENTE
+  ENVIADA
+  EM_NEGOCIACAO
+  ACEITA
+  RECUSADA
+  EXPIRADA
+  CONVERSAO_SOLICITADA
+  CONVERTIDA
+  CANCELADA
+}
+
+enum ProposalApprovalStatus {
+  NAO_SOLICITADA
+  PENDENTE
+  APROVADA
+  REPROVADA
+  INVALIDADA
+}
+
+enum ProposalAcceptanceStatus {
+  PENDENTE
+  ACEITA
+  RECUSADA
+  ALTERACAO_SOLICITADA
+}
+
+enum ProposalSyncStatus {
+  NAO_SINCRONIZADA
+  PENDENTE
+  SINCRONIZANDO
+  SINCRONIZADA
+  ERRO
+  CONFLITO
+}
+
+enum ProposalOrderStatus {
+  SEM_PEDIDO
+  CONVERSAO_EM_ANDAMENTO
+  CONVERSAO_INCERTA
+  PEDIDO_CRIADO
+  PEDIDO_APROVADO
+  FATURADO
+  ENVIADO
+  ENTREGUE
+  NAO_ENTREGUE
+  EM_DEVOLUCAO
+  CANCELADO
+}
+
+// Situação de recebimento lida do contas a receber do Olist (nunca inferida
+// da aprovação do pedido).
+enum ProposalFinancialStatus {
+  NAO_APLICAVEL
+  SEM_COBRANCA
+  AGUARDANDO_PAGAMENTO
+  PAGAMENTO_PARCIAL
+  PAGAMENTO_CONFIRMADO
+  CANCELADO
+}
+
+enum ProposalApprovalDecision {
+  APROVADA
+  REPROVADA
+  AJUSTE_SOLICITADO
+}
+
+enum ProposalAcceptanceDecision {
+  ACEITA
+  RECUSADA
+  ALTERACAO_SOLICITADA
+}
+
+enum ProposalDispatchChannel {
+  EMAIL
+  OUTRO_CANAL
+}
+
+model CommercialProposal {
+  id String @id @default(cuid())
+
+  // Quote REAL que guarda itens (QuoteItem) e totais. 1:1.
+  quoteId String @unique
+  quote   Quote  @relation(fields: [quoteId], references: [id])
+
+  // Simulação de origem. Índice único parcial (migration): uma proposta ativa por simulação.
+  sourceQuoteId String?
+
+  brand      CommercialBrand
+  customerId String
+  customer   Customer        @relation(fields: [customerId], references: [id])
+  // Responsável comercial (comissão). Definido no servidor, nunca pelo navegador.
+  sellerId   String
+  seller     User            @relation("ProposalSeller", fields: [sellerId], references: [id])
+
+  version     Int    @default(1)
+  contentHash String
+
+  commercialStatus ProposalCommercialStatus @default(RASCUNHO)
+  approvalStatus   ProposalApprovalStatus   @default(NAO_SOLICITADA)
+  acceptanceStatus ProposalAcceptanceStatus @default(PENDENTE)
+  syncStatus       ProposalSyncStatus       @default(NAO_SINCRONIZADA)
+  orderStatus      ProposalOrderStatus      @default(SEM_PEDIDO)
+  financialStatus  ProposalFinancialStatus  @default(NAO_APLICAVEL)
+
+  // Condições comerciais
+  validityDays          Int?
+  validUntil            DateTime?
+  paymentType           String? // Nenhuma | Parcelas | Texto livre (vocabulário Olist)
+  paymentCondition      String? // "30 60 90", "3x" etc.
+  paymentText           String?
+  freightCents          Int       @default(0)
+  freightResponsibility String? // R | D | T | 3 | 4 | S (vocabulário Olist)
+  deliveryTerm          String?
+  customerNotes         String?
+  internalNotes         String?
+  discountJustification String?
+
+  // Aprovação e aceite valem para uma versão específica.
+  submittedAt     DateTime?
+  approvedVersion Int?
+  approvedHash    String?
+  approvedAt      DateTime?
+  acceptedVersion Int?
+  acceptedAt      DateTime?
+
+  // Vínculo Olist
+  olistSellerId       String?
+  olistContactId      String?
+  olistProposalId     String?
+  olistProposalNumber String?
+  olistSituation      String?
+  olistSubtotalCents  Int?
+  olistTotalCents     Int?
+  olistSnapshotHash   String?
+  syncedVersion       Int?
+  lastSyncedAt        DateTime?
+  lastSyncErrorCode   String?
+  lastSyncError       String?
+
+  // Conversão em pedido
+  conversionRequestedAt   DateTime?
+  conversionRequestedById String?
+  convertedAt             DateTime?
+  convertedById           String?
+  olistOrderId            String?
+  olistOrderNumber        String?
+  olistOrderSituation     String?
+  orderLastSyncedAt       DateTime?
+
+  // Financeiro (somente leitura do Olist)
+  financialDueCents  Int?
+  financialPaidCents Int?
+  financialOpenCents Int?
+
+  cancelledAt  DateTime?
+  cancelReason String?
+
+  // Trava curta contra operações simultâneas no Olist.
+  lockedAt DateTime?
+
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  versions    ProposalVersion[]
+  approvals   ProposalApproval[]
+  dispatches  ProposalDispatch[]
+  acceptances ProposalAcceptance[]
+  events      ProposalEvent[]
+
+  @@unique([brand, olistProposalId])
+  @@unique([brand, olistOrderId])
+  @@index([sellerId])
+  @@index([customerId])
+  @@index([commercialStatus])
+  @@index([approvalStatus])
+  @@index([syncStatus])
+  @@index([orderStatus])
+  @@index([validUntil])
+  @@index([createdAt])
+}
+
+// Fotografia imutável de cada versão (itens, condições e totais).
+model ProposalVersion {
+  id            String             @id @default(cuid())
+  proposalId    String
+  proposal      CommercialProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  version       Int
+  contentHash   String
+  snapshot      Json
+  subtotalCents Int
+  discountCents Int
+  freightCents  Int
+  totalCents    Int
+  reason        String?
+  createdById   String
+  createdAt     DateTime           @default(now())
+
+  @@unique([proposalId, version])
+}
+
+model ProposalApproval {
+  id            String                   @id @default(cuid())
+  proposalId    String
+  proposal      CommercialProposal       @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  version       Int
+  contentHash   String
+  decision      ProposalApprovalDecision
+  actorId       String
+  actorRole     String
+  totalCents    Int
+  discountCents Int
+  discountBps   Int
+  reason        String?
+  invalidatedAt DateTime?
+  createdAt     DateTime                 @default(now())
+
+  @@index([proposalId, createdAt])
+}
+
+model ProposalDispatch {
+  id           String                  @id @default(cuid())
+  proposalId   String
+  proposal     CommercialProposal      @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  version      Int
+  channel      ProposalDispatchChannel
+  recipient    String?
+  description  String?
+  succeeded    Boolean
+  errorCode    String?
+  errorMessage String?
+  providerRef  String?
+  actorId      String
+  createdAt    DateTime                @default(now())
+
+  @@index([proposalId, createdAt])
+}
+
+model ProposalAcceptance {
+  id          String                     @id @default(cuid())
+  proposalId  String
+  proposal    CommercialProposal         @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  version     Int
+  decision    ProposalAcceptanceDecision
+  // Origem do registro. Hoje só existe registro manual por usuário do CRM;
+  // não há confirmação digital oficial disponível pela API.
+  source      String                     @default("REGISTRO_MANUAL")
+  channel     String
+  evidence    String
+  contactName String?
+  occurredAt  DateTime
+  actorId     String
+  createdAt   DateTime                   @default(now())
+
+  @@index([proposalId, createdAt])
+}
+
+// Histórico completo (CRM, Olist e sistema). Nunca é apagado.
+model ProposalEvent {
+  id         String             @id @default(cuid())
+  proposalId String
+  proposal   CommercialProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  type       String
+  origin     String             @default("CRM")
+  version    Int?
+  actorId    String?
+  data       Json?
+  createdAt  DateTime           @default(now())
+
+  @@index([proposalId, createdAt])
+  @@index([type])
+}
+
+// Vendedor do CRM -> vendedor cadastrado no Olist da marca. Configurado por ADMIN.
+model SellerOlistLink {
+  id              String          @id @default(cuid())
+  userId          String
+  user            User            @relation(fields: [userId], references: [id])
+  brand           CommercialBrand
+  olistSellerId   String
+  olistSellerName String
+  olistSellerCode String?
+  olistSituation  String?
+  active          Boolean         @default(true)
+  lastSyncedAt    DateTime?
+  updatedById     String
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@unique([userId, brand])
+  @@unique([brand, olistSellerId])
+}
+
+// Alçadas de desconto configuradas pelo ADMIN. Sem registro = sem alçada (0%).
+// scopeKey: "ROLE:<Role>", "FUNCTION:GERENTE_COMERCIAL" ou "USER:<id>"; brandKey: marca ou "*".
+model ProposalDiscountLimit {
+  id             String   @id @default(cuid())
+  scopeKey       String
+  brandKey       String   @default("*")
+  maxDiscountBps Int
+  active         Boolean  @default(true)
+  updatedById    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([scopeKey, brandKey])
+}

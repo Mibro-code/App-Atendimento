@@ -1,0 +1,8 @@
+{
+  "botId": "commercial-number-welcome-bot",
+  "channelAccountId": "cmu17d9o8028hqi0kvr1pdci7",
+  "categoryId": "cmsotpf70000ars0kbnklc62u",
+  "message": "Olá! Seja bem-vindo(a) à Mibro Brasil! 👋\n\nVocê está no nosso atendimento comercial. Em alguns instantes, um atendente falará com você para dar continuidade ao atendimento.",
+  "scope": "Atualizar somente o fluxo publicado da recepção Comercial, usando uma nova versão do fluxo; manter bot, empresa e vínculo do número. Não alterar conversas em andamento.",
+  "status": "Pendente de publicação autorizada junto com a integração"
+}

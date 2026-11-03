@@ -1,0 +1,15 @@
+api_version = "2026-04"
+
+[[extensions]]
+name = "Cupons"
+handle = "indique-e-ganhe"
+type = "ui_extension"
+uid = "507f1586-0f8e-4b26-4daf-4eaadb4ff0f593e6c55b"
+
+[[extensions.targeting]]
+module = "./src/IndiqueEGanhe.jsx"
+target = "customer-account.page.render"
+
+[extensions.capabilities]
+api_access = true
+network_access = true

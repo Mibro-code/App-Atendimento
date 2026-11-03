@@ -1,0 +1,14 @@
+node_modules/
+.next*/
+.env*
+storage/
+backups/
+*.log
+*.tsbuildinfo
+*.sqlite*
+*.db
+*.tar*
+*.tgz
+*.zip
+coverage/
+.olist-flow-test-cache/

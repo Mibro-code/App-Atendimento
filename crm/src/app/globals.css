@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: #f7f7f8;
+  color: #1a1a1a;
+}
+
+html.dark { color-scheme: dark; }
+html.dark body { background-color: #0b1120; color: #e5e7eb; }
+
+.card {
+  @apply bg-white rounded-lg border border-gray-200 shadow-sm;
+}
+
+.btn-primary {
+  @apply inline-flex items-center justify-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+}
+
+.btn-brand-mibro { @apply inline-flex items-center justify-center rounded-md bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
+.btn-brand-sincrofit { @apply inline-flex items-center justify-center rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
+
+.btn-secondary {
+  @apply inline-flex items-center justify-center rounded-md bg-white border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+}
+
+.input-field {
+  @apply block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-brand focus:ring-1 focus:ring-brand outline-none;
+}
+
+.input-field-error {
+  @apply border-red-500 focus:border-red-500 focus:ring-red-500;
+}
+
+.label-field {
+  @apply block text-sm font-medium text-gray-700 mb-1;
+}
+
+.badge {
+  @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+}
+
+.dark .card, .dark .bg-white { background-color: #1b2025; border-color: #343a40; }
+.dark .bg-gray-50 { background-color: #121619; }
+.dark .bg-gray-100 { background-color: #252b31; }
+.dark .text-gray-950, .dark .text-gray-900, .dark .text-gray-800, .dark .text-gray-700 { color: #e5e7eb; }
+.dark .text-gray-600, .dark .text-gray-500 { color: #a8b2c1; }
+.dark .text-brand { color: #fb923c; }
+.dark .border-gray-100, .dark .border-gray-200, .dark .border-gray-300 { border-color: #334155; }
+.dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]) { border-color: #334155; }
+.dark .hover\:bg-gray-50:hover, .dark .hover\:bg-gray-100:hover { background-color: #1e293b; }
+.dark .input-field, .dark input, .dark select, .dark textarea { background-color: #171c20; border-color: #424950; color: #e5e7eb; }
+.dark .btn-secondary { background-color: #1b2025; border-color: #424950; color: #e5e7eb; }
+
+/* Shared neutral surfaces; brand accent is reserved for navigation/focus.
+   Status badges keep their semantic colors and no role/menu is removed. */
+.crm-app-shell { --crm-bg:#f6f7f8; --crm-surface:#fff; --crm-soft:#eef0f2; --crm-line:#e0e4e7; --crm-text:#20262c; --crm-muted:#66717c; background:var(--crm-bg); color:var(--crm-text); font-size:14px; }
+.dark .crm-app-shell { --crm-bg:#111518; --crm-surface:#1b2025; --crm-soft:#252b31; --crm-line:#343b42; --crm-text:#e6eaee; --crm-muted:#a1abb4; }
+.crm-app-shell .card { background:var(--crm-surface); border-color:var(--crm-line); border-radius:12px; box-shadow:none; }
+.crm-app-shell .input-field { min-height:40px; border-radius:8px; box-shadow:none; background:var(--crm-surface); border-color:var(--crm-line); }
+.crm-app-shell .btn-primary { border:1px solid var(--crm-text); border-radius:8px; background:var(--crm-text); color:var(--crm-surface); box-shadow:none; }
+.crm-app-shell .btn-secondary { border-radius:8px; background:var(--crm-surface); border-color:var(--crm-line); color:var(--crm-text); box-shadow:none; }
+.crm-app-shell :is(button,a,input,select,textarea):focus-visible { outline:2px solid #e76236; outline-offset:3px; }
+.crm-sidebar { position:sticky; top:0; height:100dvh; background:var(--crm-surface); width:224px; }
+.crm-sidebar > nav { overflow-y:auto; min-height:0; scrollbar-width:thin; }
+.crm-module-label { display:block; font-size:10px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--crm-muted); }
+.crm-primary-nav a { min-height:38px; font-size:13px; font-weight:500; border-radius:8px; }
+.crm-app-shell a[aria-current="page"] { color:var(--crm-text); background:var(--crm-soft); box-shadow:inset 2px 0 #e76236; }
+.crm-workspace-header { min-height:72px; align-items:center; justify-content:space-between; gap:16px; padding:12px 28px; border-bottom:1px solid var(--crm-line); background:var(--crm-surface); }
+.crm-workspace-header h1 { margin-top:3px; font-size:17px; font-weight:600; }
+.crm-account-label { max-width:45%; text-align:right; font-size:12px; color:var(--crm-muted); }
+.crm-workspace-main { width:100%; max-width:1600px; margin-inline:auto; }
+.crm-workspace-main > :first-child > :first-child h1 { font-size:22px; font-weight:600; letter-spacing:-.025em; }
+@media(prefers-reduced-motion:reduce){.crm-app-shell *{scroll-behavior:auto!important;transition:none!important;animation:none!important;}}
+
+@keyframes tutorial-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-tutorial-in { animation: tutorial-in 180ms ease-out; }

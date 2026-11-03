@@ -1,0 +1,604 @@
+  {% comment %}
+    LP Varejo Mibro — use em um template de pagina exclusivo.
+    Os links, video, imagens e produtos sao editaveis no Theme Editor.
+  {% endcomment %}
+  
+{% liquid
+  assign section_id = 'MibroB2B-' | append: section.id
+  assign contact_return_url = page.url | append: '?contact_posted=true'
+  assign use_native_contact_submit = false
+  if template.suffix == 'atacado'
+    assign use_native_contact_submit = true
+  endif
+  assign campaign_label = section.settings.campaign_name | default: 'Atacado Principal'
+  case template.suffix
+    when 'atacado'
+      assign campaign_label = 'Atacado Principal'
+    when 'varejo'
+      assign campaign_label = 'Atacado Principal'
+    when 'atacado1'
+      assign campaign_label = 'Teste A'
+    when 'atacado2'
+      assign campaign_label = 'Teste B'
+  endcase
+%}
+  
+  <section id="{{ section_id }}" class="mb-b2b">
+    <div class="mb-b2b__hero mb-b2b__container">
+      <div class="mb-b2b__eyebrow">{{ section.settings.eyebrow | escape }}</div>
+      <h1>{{ section.settings.heading | escape }}</h1>
+      <p class="mb-b2b__subheading">{{ section.settings.subheading | escape }}</p>
+  
+      <div class="mb-b2b__video-wrap">
+        {% if section.settings.video != blank %}
+        {{ section.settings.video | video_tag: image_size: '1600x', autoplay: false, loop: false, muted: false, controls: true, controlslist: 'nodownload nofullscreen noremoteplayback', disablepictureinpicture: true, playsinline: true, class: 'mb-b2b__video' }}
+        {% elsif section.settings.video_url != blank %}
+          {% if section.settings.video_url.type == 'youtube' %}
+          <iframe src="https://www.youtube.com/embed/{{ section.settings.video_url.id }}?rel=0&fs=0" title="Vídeo Mibro para lojistas" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope" loading="lazy"></iframe>
+          {% else %}
+          <iframe src="https://player.vimeo.com/video/{{ section.settings.video_url.id }}?fullscreen=0" title="Vídeo Mibro para lojistas" allow="autoplay" loading="lazy"></iframe>
+          {% endif %}
+        {% else %}
+          <div class="mb-b2b__video-placeholder"><span>Adicione o vídeo da campanha no editor do tema</span></div>
+        {% endif %}
+      </div>
+    </div>
+  
+    <div class="mb-b2b__benefits mb-b2b__container">
+      {% for block in section.blocks %}
+        {% if block.type == 'benefit' %}
+          <div class="mb-b2b__benefit" {{ block.shopify_attributes }}>
+            <span class="mb-b2b__benefit-media">
+              {% if block.settings.image != blank %}
+                {{ block.settings.image | image_url: width: 120 | image_tag: loading: 'lazy', class: 'mb-b2b__benefit-image', alt: block.settings.text }}
+              {% elsif block.settings.icon != blank %}
+                <span class="mb-b2b__benefit-icon" aria-hidden="true">{{ block.settings.icon | escape }}</span>
+              {% else %}
+                <span class="mb-b2b__number">0{{ forloop.index }}</span>
+              {% endif %}
+            </span>
+            <span>{{ block.settings.text | escape }}</span>
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  
+    <div class="mb-b2b__cta-wrap mb-b2b__container">
+      <div class="mb-b2b__gate" data-form-gate>
+        <span class="mb-b2b__gate-panel mb-b2b__gate-panel--top" aria-hidden="true"></span>
+        <span class="mb-b2b__gate-panel mb-b2b__gate-panel--bottom" aria-hidden="true"></span>
+        <button class="mb-b2b__cta mb-b2b__gate-button" type="button" data-open-partner-form>{{ section.settings.cta_text | escape }} <span aria-hidden="true">↓</span></button>
+      </div>
+      {% if section.settings.cta_note != blank %}<p>{{ section.settings.cta_note | escape }}</p>{% endif %}
+    </div>
+  
+    <div class="mb-b2b__form-shell mb-b2b__container" data-partner-form hidden>
+      <div class="mb-b2b__form-heading">
+        <span>Cadastro de parceiro</span>
+        <h2>{{ section.settings.form_heading | escape }}</h2>
+        <p>{{ section.settings.form_text | escape }}</p>
+      </div>
+    {% form 'contact', id: 'MibroPartnerForm', class: 'mb-b2b__form', return_to: contact_return_url %}
+      <input type="hidden" name="contact[tags]" value="Lead LP Atacado Mibro - {{ campaign_label | escape }}">
+      <input type="hidden" name="contact[Identificacao da campanha]" value="{{ campaign_label | escape }}">
+      <input type="hidden" name="contact[Modelo da LP]" value="{{ template.suffix | escape }}">
+      <input type="hidden" name="contact[Pagina da LP]" data-tracking="page_path">
+      <input type="hidden" name="contact[URL completa]" data-tracking="page_url">
+      <input type="hidden" name="contact[UTM source]" data-tracking="utm_source">
+      <input type="hidden" name="contact[UTM medium]" data-tracking="utm_medium">
+      <input type="hidden" name="contact[UTM campaign]" data-tracking="utm_campaign">
+      <input type="hidden" name="contact[UTM content]" data-tracking="utm_content">
+      <input type="hidden" name="contact[Referencia]" data-tracking="referrer">
+      <input type="hidden" name="contact[body]" data-contact-body value="Novo cadastro de parceiro Mibro">
+        {% if form.posted_successfully? %}<p class="mb-b2b__form-success" role="status">Cadastro enviado. O portfólio de preços foi liberado abaixo.</p>{% endif %}
+        {{ form.errors | default_errors }}
+        <div class="mb-b2b__form-grid">
+          <label><span>Nome</span><input type="text" name="contact[name]" autocomplete="name" required></label>
+          <label><span>E-mail</span><input type="email" name="contact[email]" autocomplete="email" required></label>
+          <label><span>Número/WhatsApp</span><input type="tel" name="contact[phone]" autocomplete="tel" inputmode="numeric" placeholder="(11) 99999-9999" maxlength="15" data-phone required></label>
+          <label><span>CNPJ</span><input type="text" name="contact[CNPJ]" inputmode="numeric" autocomplete="off" placeholder="00.000.000/0000-00" maxlength="18" data-cnpj data-cnpj-level="complete" required></label>
+        </div>
+        <p class="mb-b2b__ajax-status" data-form-status role="status" hidden></p>
+        <button class="mb-b2b__cta mb-b2b__submit" type="button" data-submit-partner-form>{{ section.settings.form_submit_text | escape }} <span aria-hidden="true">→</span></button>
+      {% endform %}
+    </div>
+  
+    {% unless section.settings.show_pricing_table == false %}
+      <div class="mb-b2b__products mb-b2b__container" data-price-catalog hidden>
+        <div class="mb-b2b__section-heading"><span>Portfólio completo</span><h2>{{ section.settings.products_heading | escape }}</h2></div>
+        <div class="mb-b2b__table-scroll" role="region" aria-label="Tabela de preços Mibro" tabindex="0">
+          <table class="mb-b2b__price-table">
+            <thead><tr><th>Produto</th><th>Varejo Unitário</th><th>10–49 un.</th><th>50–99 un.</th><th class="mb-b2b__best">100+ un.</th></tr></thead>
+            <tbody>
+              <tr class="mb-b2b__group"><th colspan="4">Essential Series</th><th class="mb-b2b__specialist">Fale com um de nossos especialistas</th></tr>
+              <tr><th>{% if section.settings.link_c4 != blank %}<a href="{{ section.settings.link_c4 }}" target="_blank" rel="noopener noreferrer">Mibro C4</a>{% else %}Mibro C4{% endif %}</th><td>R$ 424</td><td>R$ 270</td><td>R$ 250</td><td class="mb-b2b__best">—</td></tr>
+              <tr><th>{% if section.settings.link_a3 != blank %}<a href="{{ section.settings.link_a3 }}" target="_blank" rel="noopener noreferrer">Mibro A3</a>{% else %}Mibro A3{% endif %}</th><td>R$ 588</td><td>R$ 375</td><td>R$ 345</td><td class="mb-b2b__best">—</td></tr>
+              <tr class="mb-b2b__group"><th colspan="4">Lifestyle Series</th><th class="mb-b2b__specialist">Fale com um de nossos especialistas</th></tr>
+              <tr><th>{% if section.settings.link_lite_3 != blank %}<a href="{{ section.settings.link_lite_3 }}" target="_blank" rel="noopener noreferrer">Mibro Lite 3</a>{% else %}Mibro Lite 3{% endif %}</th><td>R$ 612</td><td>R$ 390</td><td>R$ 360</td><td class="mb-b2b__best">—</td></tr>
+              <tr><th>{% if section.settings.link_lite_3_pro != blank %}<a href="{{ section.settings.link_lite_3_pro }}" target="_blank" rel="noopener noreferrer">Mibro Lite 3 Pro</a>{% else %}Mibro Lite 3 Pro{% endif %}</th><td>R$ 847</td><td>R$ 540</td><td>R$ 500</td><td class="mb-b2b__best">—</td></tr>
+              <tr class="mb-b2b__group"><th colspan="4">Professional Sports Series</th><th class="mb-b2b__specialist">Fale com um de nossos especialistas</th></tr>
+              <tr><th>{% if section.settings.link_gs_pro != blank %}<a href="{{ section.settings.link_gs_pro }}" target="_blank" rel="noopener noreferrer">Mibro GS Pro</a>{% else %}Mibro GS Pro{% endif %}</th><td>R$ 765</td><td>R$ 485</td><td>R$ 450</td><td class="mb-b2b__best">—</td></tr>
+              <tr><th>{% if section.settings.link_gs_pro_2 != blank %}<a href="{{ section.settings.link_gs_pro_2 }}" target="_blank" rel="noopener noreferrer">Mibro GS Pro 2</a>{% else %}Mibro GS Pro 2{% endif %}</th><td>R$ 1.118</td><td>R$ 710</td><td>R$ 660</td><td class="mb-b2b__best">—</td></tr>
+              <tr><th>{% if section.settings.link_gs_active != blank %}<a href="{{ section.settings.link_gs_active }}" target="_blank" rel="noopener noreferrer">Mibro GS Active</a>{% else %}Mibro GS Active{% endif %}</th><td>R$ 647</td><td>R$ 410</td><td>R$ 380</td><td class="mb-b2b__best">—</td></tr>
+              <tr><th>{% if section.settings.link_gs_active_2 != blank %}<a href="{{ section.settings.link_gs_active_2 }}" target="_blank" rel="noopener noreferrer">Mibro GS Active 2</a>{% else %}Mibro GS Active 2{% endif %}</th><td>R$ 882</td><td>R$ 560</td><td>R$ 520</td><td class="mb-b2b__best">—</td></tr>
+              <tr><th>{% if section.settings.link_gs_explorer != blank %}<a href="{{ section.settings.link_gs_explorer }}" target="_blank" rel="noopener noreferrer">Mibro GS Explorer</a>{% else %}Mibro GS Explorer{% endif %}</th><td>R$ 1.176</td><td>R$ 750</td><td>R$ 700</td><td class="mb-b2b__best">—</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="mb-b2b__table-note">Arraste para o lado para consultar todas as faixas de quantidade.</p>
+      </div>
+    {% endunless %}
+  
+    {% assign gallery_count = section.blocks | where: 'type', 'gallery' | size %}
+    {% if gallery_count > 0 %}
+      <div class="mb-b2b__marquee" aria-label="Galeria Mibro">
+        <div class="mb-b2b__track">
+          {% for repeat in (1..2) %}
+            {% for block in section.blocks %}
+              {% if block.type == 'gallery' and block.settings.image != blank %}
+                <div class="mb-b2b__gallery-item" {% if repeat == 1 %}{{ block.shopify_attributes }}{% else %}aria-hidden="true"{% endif %}>{{ block.settings.image | image_url: width: 900 | image_tag: loading: 'lazy', widths: '360, 540, 720, 900', alt: block.settings.alt }}</div>
+              {% endif %}
+            {% endfor %}
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+  
+    <div class="mb-b2b__final">
+      <div class="mb-b2b__container">
+        <span>Wearables para todos os perfis</span>
+        <h2>{{ section.settings.final_heading | escape }}</h2>
+        <a class="mb-b2b__cta" href="{{ section.settings.final_cta_link | default: '#' }}" {% if section.settings.final_cta_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ section.settings.final_cta_text | escape }} <span aria-hidden="true">→</span></a>
+      </div>
+    </div>
+  </section>
+  
+  <script>
+    (() => {
+      const root = document.getElementById({{ section_id | json }});
+      if (!root) return;
+      const formShell = root.querySelector('[data-partner-form]');
+      const form = formShell && formShell.querySelector('form');
+      const catalog = root.querySelector('[data-price-catalog]');
+      const gate = root.querySelector('[data-form-gate]');
+    const cnpjInput = form && form.querySelector('[data-cnpj]');
+    const phoneInput = form && form.querySelector('[data-phone]');
+    const submitButton = form && form.querySelector('[data-submit-partner-form]');
+    const campaignVideo = root.querySelector('.mb-b2b__video');
+    const partnerButton = root.querySelector('[data-open-partner-form]');
+    const storageKey = 'mibro-pricing-unlocked-v2-{{ section.id }}';
+
+    const trackingParams = new URLSearchParams(window.location.search);
+    const defaultCampaign = {{ campaign_label | json }};
+    const useNativeContactSubmit = {{ use_native_contact_submit | json }};
+    const leadSheetEndpoint = '/apps/cnpj-validator/atacado/registrar-lead';
+    const trackingValues = {
+      page_path: window.location.pathname,
+      page_url: window.location.href,
+      utm_source: trackingParams.get('utm_source') || 'direto',
+      utm_medium: trackingParams.get('utm_medium') || 'nao informado',
+      utm_campaign: trackingParams.get('utm_campaign') || defaultCampaign,
+      utm_content: trackingParams.get('utm_content') || 'nao informado',
+      referrer: document.referrer || 'acesso direto'
+    };
+    Object.entries(trackingValues).forEach(([key, value]) => {
+      const field = form?.querySelector(`[data-tracking="${key}"]`);
+      if (field) field.value = value;
+    });
+
+    function scrollElementToCenter(element, duration = 1600) {
+      if (!element || element.offsetParent === null) return;
+      const startY = window.scrollY;
+      const rect = element.getBoundingClientRect();
+      const desiredY = startY + rect.top - ((window.innerHeight - rect.height) / 2);
+      const maxY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+      const targetY = Math.min(Math.max(0, desiredY), maxY);
+      const distance = targetY - startY;
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        window.scrollTo(0, targetY);
+        return;
+      }
+      const startedAt = performance.now();
+      const animate = (now) => {
+        const progress = Math.min((now - startedAt) / duration, 1);
+        const eased = progress < 0.5
+          ? 4 * progress * progress * progress
+          : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+        window.scrollTo(0, startY + distance * eased);
+        if (progress < 1) requestAnimationFrame(animate);
+      };
+      requestAnimationFrame(animate);
+    }
+
+    campaignVideo?.addEventListener('ended', () => {
+      window.setTimeout(() => scrollElementToCenter(partnerButton), 250);
+    });
+  
+      function formatCnpj(value) {
+        return value.replace(/\D/g, '').slice(0, 14)
+          .replace(/^(\d{2})(\d)/, '$1.$2')
+          .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+          .replace(/\.(\d{3})(\d)/, '.$1/$2')
+          .replace(/(\d{4})(\d)/, '$1-$2');
+      }
+  
+      function formatPhone(value) {
+        const digits = value.replace(/\D/g, '');
+        if (digits.length > 11) return digits.slice(0, 15);
+        if (digits.length <= 2) return digits.replace(/^(\d{1,2})/, '($1');
+        if (digits.length <= 6) return digits.replace(/^(\d{2})(\d+)/, '($1) $2');
+        if (digits.length <= 10) return digits.replace(/^(\d{2})(\d{4})(\d+)/, '($1) $2-$3');
+        return digits.replace(/^(\d{2})(\d{5})(\d{4})$/, '($1) $2-$3');
+      }
+  
+      function isValidPhone(value) {
+        const digits = value.replace(/\D/g, '');
+        const validDdds = new Set(['11','12','13','14','15','16','17','18','19','21','22','24','27','28','31','32','33','34','35','37','38','41','42','43','44','45','46','47','48','49','51','53','54','55','61','62','63','64','65','66','67','68','69','71','73','74','75','77','79','81','82','83','84','85','86','87','88','89','91','92','93','94','95','96','97','98','99']);
+        if (!validDdds.has(digits.slice(0, 2))) return false;
+        if (/^(\d)\1+$/.test(digits)) return false;
+        if (digits.length === 11) return digits.charAt(2) === '9';
+        if (digits.length === 10) return /^[2-5]/.test(digits.slice(2));
+        return false;
+      }
+  
+      function isValidCnpj(value) {
+        const digits = value.replace(/\D/g, '');
+        if (digits.length !== 14 || /^(\d)\1{13}$/.test(digits)) return false;
+        const calculateDigit = (base, weights) => {
+          const sum = base.split('').reduce((total, digit, index) => total + Number(digit) * weights[index], 0);
+          const remainder = sum % 11;
+          return remainder < 2 ? 0 : 11 - remainder;
+        };
+        const first = calculateDigit(digits.slice(0, 12), [5,4,3,2,9,8,7,6,5,4,3,2]);
+        const second = calculateDigit(digits.slice(0, 12) + first, [6,5,4,3,2,9,8,7,6,5,4,3,2]);
+        return digits.endsWith(`${first}${second}`);
+      }
+  
+      cnpjInput?.addEventListener('input', () => {
+        cnpjInput.value = formatCnpj(cnpjInput.value);
+        cnpjInput.setCustomValidity('');
+      });
+  
+      phoneInput?.addEventListener('input', () => {
+        phoneInput.value = formatPhone(phoneInput.value);
+        phoneInput.setCustomValidity('');
+      });
+      phoneInput?.addEventListener('blur', () => {
+        phoneInput.setCustomValidity(isValidPhone(phoneInput.value) ? '' : 'Digite um telefone brasileiro válido com DDD.');
+        if (phoneInput.value) phoneInput.reportValidity();
+      });
+  
+      function openForm() {
+        if (!formShell || gate?.classList.contains('is-opening')) return;
+        gate?.classList.add('is-opening');
+        window.setTimeout(() => {
+          if (gate) gate.hidden = true;
+          formShell.hidden = false;
+          requestAnimationFrame(() => formShell.classList.add('is-open'));
+          formShell.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          window.setTimeout(() => formShell.querySelector('input')?.focus(), 500);
+        }, 680);
+      }
+  
+      function unlockCatalog() {
+        if (!catalog) return;
+        catalog.classList.remove('is-open');
+        catalog.hidden = false;
+        void catalog.offsetHeight;
+        window.setTimeout(() => catalog.classList.add('is-open'), 100);
+      }
+  
+      root.querySelectorAll('[data-open-partner-form]').forEach((button) => button.addEventListener('click', openForm));
+    const contactWasPosted = new URLSearchParams(window.location.search).get('contact_posted') === 'true' || !!formShell?.querySelector('.mb-b2b__form-success');
+    if (contactWasPosted) {
+      sessionStorage.setItem(storageKey, '1');
+      if (gate) gate.hidden = true;
+      if (formShell) formShell.hidden = true;
+      unlockCatalog();
+      window.setTimeout(() => {
+        catalog?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 260);
+    } else if (formShell?.querySelector('.errors')) {
+      if (gate) gate.hidden = true;
+      formShell.hidden = false;
+      formShell.classList.add('is-open');
+    } else if (sessionStorage.getItem(storageKey) === '1') {
+      if (gate) gate.hidden = true;
+      if (formShell) formShell.hidden = true;
+      unlockCatalog();
+    }
+      submitButton?.addEventListener('click', async () => {
+        if (!form.reportValidity()) return;
+        if (phoneInput && !isValidPhone(phoneInput.value)) {
+          phoneInput.setCustomValidity('Digite um telefone brasileiro válido com DDD.');
+          phoneInput.reportValidity();
+          phoneInput.focus();
+          return;
+        }
+        if (cnpjInput && !isValidCnpj(cnpjInput.value)) {
+          cnpjInput.setCustomValidity('Digite um CNPJ válido.');
+          cnpjInput.reportValidity();
+          cnpjInput.focus();
+          return;
+        }
+        const contactBody = form.querySelector('[data-contact-body]');
+        if (contactBody) {
+          const fieldValue = (name) => form.querySelector(`[name="${name}"]`)?.value?.trim() || 'não informado';
+          contactBody.value = [
+            'Novo cadastro de parceiro Mibro',
+            `Campanha: ${defaultCampaign}`,
+            `Página: ${window.location.pathname}`,
+            `Nome: ${fieldValue('contact[name]')}`,
+            `E-mail: ${fieldValue('contact[email]')}`,
+            `Telefone: ${fieldValue('contact[phone]')}`,
+            `CNPJ: ${fieldValue('contact[CNPJ]')}`
+          ].join('\n');
+        }
+        const status = form.querySelector('[data-form-status]');
+      submitButton.disabled = true;
+      if (status) {
+        status.hidden = false;
+        status.textContent = 'Enviando cadastro com segurança...';
+        status.classList.remove('is-error');
+      }
+
+      const leadFieldValue = (name) => form.querySelector(`[name="${name}"]`)?.value?.trim() || '';
+      const companyData = Object.fromEntries(
+        Array.from(form.elements)
+          .filter((field) => field.name?.startsWith('cnpj_') && field.value?.trim())
+          .map((field) => [field.name.slice(5), field.value.trim()])
+      );
+      const leadId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      try {
+        const sheetResponse = await fetch(leadSheetEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({
+            quote_token: leadId,
+            buyer_name: leadFieldValue('contact[name]'),
+            buyer_email: leadFieldValue('contact[email]'),
+            buyer_phone: leadFieldValue('contact[phone]'),
+            cnpj: leadFieldValue('contact[CNPJ]'),
+            company_data: companyData,
+            campaign: defaultCampaign,
+            template: {{ template.suffix | json }},
+            ...trackingValues
+          })
+        });
+        const sheetResult = await sheetResponse.json().catch(() => null);
+        if (!sheetResponse.ok || sheetResult?.success !== true) throw new Error('sheet_sync_failed');
+      } catch (error) {
+        console.warn('O cadastro seguirá para a Shopify, mas a planilha não confirmou o registro.');
+      }
+
+      if (useNativeContactSubmit) {
+        form.removeAttribute('target');
+        form.requestSubmit();
+        return;
+      }
+      if (status) { status.hidden = false; status.textContent = 'Enviando cadastro...'; status.classList.remove('is-error'); }
+
+      const oldFrame = root.querySelector('[data-contact-frame]');
+      oldFrame?.remove();
+      const frame = document.createElement('iframe');
+      const frameName = `${root.id}-contact-frame-${Date.now()}`;
+      frame.name = frameName;
+      frame.setAttribute('data-contact-frame', '');
+      frame.setAttribute('aria-hidden', 'true');
+      frame.hidden = true;
+
+      let submitted = false;
+      frame.addEventListener('load', () => {
+        if (!submitted) {
+          submitted = true;
+          form.setAttribute('target', frameName);
+          form.requestSubmit();
+          return;
+        }
+
+        let responseUrl = '';
+        try { responseUrl = frame.contentWindow.location.href; } catch (error) {}
+        if (responseUrl.includes('/challenge') || responseUrl.includes('/errors')) {
+          if (status) {
+            status.textContent = 'A Shopify ainda exigiu uma verificação. Aguarde alguns minutos e tente novamente.';
+            status.classList.add('is-error');
+          }
+          submitButton.disabled = false;
+          return;
+        }
+
+        sessionStorage.setItem(storageKey, '1');
+        if (status) status.textContent = 'Cadastro enviado. Abrindo preços...';
+        formShell.classList.remove('is-open');
+        formShell.classList.add('is-closing');
+        window.setTimeout(() => {
+          formShell.hidden = true;
+          unlockCatalog();
+          window.setTimeout(() => catalog?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 180);
+        }, 520);
+      });
+      root.appendChild(frame);
+    });
+    })();
+  </script>
+  
+  {% style %}
+    #{{ section_id }} { --ink:#17110f; --blue:#ff6633; --cyan:#ff9a78; --paper:#fff7f3; --muted:#6c5d57; --line:#efdeda; background:var(--paper); color:var(--ink); font-family:'Manrope', Arial, Helvetica, sans-serif; overflow:hidden; }
+    #{{ section_id }} * { box-sizing:border-box; }
+    #{{ section_id }} [hidden] { display:none !important; }
+    #{{ section_id }} .cnpj-validator-fields,
+    #{{ section_id }} .cnpj-validator-status { display:none !important; }
+    #{{ section_id }} .mb-b2b__container { width:min(1120px, calc(100% - 40px)); margin-inline:auto; }
+    #{{ section_id }} .mb-b2b__hero { padding:72px 0 34px; text-align:center; }
+    #{{ section_id }} .mb-b2b__eyebrow, #{{ section_id }} .mb-b2b__section-heading span, #{{ section_id }} .mb-b2b__final>div>span { display:inline-block; margin-bottom:16px; color:var(--blue); font-size:12px; font-weight:900; letter-spacing:.18em; text-transform:uppercase; }
+    #{{ section_id }} h1 { max-width:1000px; margin:0 auto; font-size:clamp(30px,6.2vw,{{ section.settings.heading_size }}px); line-height:1; letter-spacing:-.055em; font-weight:900; text-wrap:balance; }
+    #{{ section_id }} .mb-b2b__subheading { max-width:800px; margin:24px auto 38px; color:var(--muted); font-size:clamp(15px,2vw,{{ section.settings.subheading_size }}px); line-height:1.55; }
+    #{{ section_id }} .mb-b2b__video-wrap { position:relative; aspect-ratio:16/9; overflow:hidden; border-radius:24px; background:#17110f; box-shadow:0 25px 75px rgba(151,57,26,.2); }
+    #{{ section_id }} .mb-b2b__video-wrap iframe, #{{ section_id }} .mb-b2b__video, #{{ section_id }} .mb-b2b__video-wrap video { width:100%; height:100%; border:0; object-fit:cover; }
+    #{{ section_id }} .mb-b2b__video-placeholder { height:100%; display:grid; place-items:center; color:#fff0ea; background:radial-gradient(circle at 50% 0,#7d351f 0,#17110f 58%); padding:24px; }
+    #{{ section_id }} .mb-b2b__benefits { display:grid; grid-template-columns:1fr 1fr; gap:14px; padding:26px 0 34px; }
+    #{{ section_id }} .mb-b2b__benefit { min-height:92px; display:grid; grid-template-columns:44px 1fr; align-items:center; gap:14px; padding:18px 20px; border:1px solid var(--line); border-radius:18px; background:#fff; color:var(--ink); font-size:{{ section.settings.benefit_text_size }}px; font-weight:700; }
+    #{{ section_id }} .mb-b2b__benefit:hover { transform:translateY(-3px); border-color:#ff9a78; box-shadow:0 12px 28px rgba(255,102,51,.12); }
+    #{{ section_id }} .mb-b2b__benefit-media { width:44px; height:44px; display:flex; align-items:center; justify-content:center; }
+    #{{ section_id }} .mb-b2b__benefit-image { display:block; width:44px; height:44px; object-fit:contain; }
+    #{{ section_id }} .mb-b2b__benefit-icon { color:var(--blue); font-size:30px; line-height:1; }
+    #{{ section_id }} .mb-b2b__number { color:var(--blue); font-size:13px; font-weight:900; }
+    #{{ section_id }} .mb-b2b__arrow { font-size:22px; color:var(--blue); }
+    #{{ section_id }} .mb-b2b__cta-wrap { padding:8px 0 76px; text-align:center; }
+    #{{ section_id }} .mb-b2b__gate { position:relative; display:inline-flex; overflow:hidden; border-radius:999px; background:var(--blue); box-shadow:0 12px 28px rgba(255,102,51,.28); }
+    #{{ section_id }} .mb-b2b__gate-panel { position:absolute; z-index:1; left:0; width:100%; height:50%; background:var(--blue); pointer-events:none; transition:transform .65s cubic-bezier(.77,0,.18,1); }
+    #{{ section_id }} .mb-b2b__gate-panel--top { top:0; }
+    #{{ section_id }} .mb-b2b__gate-panel--bottom { bottom:0; }
+    #{{ section_id }} .mb-b2b__gate-button { position:relative; z-index:2; background:transparent; box-shadow:none; transition:opacity .2s ease, transform .65s ease; }
+    #{{ section_id }} .mb-b2b__gate.is-opening .mb-b2b__gate-panel--top { transform:translateY(-110%); }
+    #{{ section_id }} .mb-b2b__gate.is-opening .mb-b2b__gate-panel--bottom { transform:translateY(110%); }
+    #{{ section_id }} .mb-b2b__gate.is-opening .mb-b2b__gate-button { opacity:0; transform:scale(.92); }
+    #{{ section_id }} .mb-b2b__cta { display:inline-flex; align-items:center; justify-content:center; gap:14px; min-height:58px; padding:16px 28px; border:0; border-radius:999px; background:var(--blue); color:#fff; font-family:inherit; font-weight:900; font-size:{{ section.settings.button_text_size }}px; text-decoration:none; cursor:pointer; box-shadow:0 12px 28px rgba(255,102,51,.28); transition:transform .2s ease, background .2s ease; }
+    #{{ section_id }} .mb-b2b__cta:hover { transform:translateY(-2px); background:#df4b1a; }
+    #{{ section_id }} .mb-b2b__cta-wrap p { margin:12px 0 0; color:var(--muted); font-size:13px; }
+    #{{ section_id }} .mb-b2b__form-shell { scroll-margin-top:110px; margin-bottom:70px; padding:34px; border:1px solid var(--line); border-radius:24px; background:#fff; box-shadow:0 18px 55px rgba(73,31,17,.09); opacity:0; clip-path:inset(50% 0 50% 0 round 24px); transform:scaleY(.15); transform-origin:center; transition:opacity .5s ease, clip-path .65s cubic-bezier(.77,0,.18,1), transform .65s cubic-bezier(.77,0,.18,1); }
+    #{{ section_id }} .mb-b2b__form-shell.is-open { opacity:1; clip-path:inset(0 0 0 0 round 24px); transform:scaleY(1); }
+    #{{ section_id }} .mb-b2b__form-shell.is-closing { opacity:0; clip-path:inset(50% 0 50% 0 round 24px); transform:scaleY(.15); }
+    #{{ section_id }} .mb-b2b__form-heading { max-width:680px; margin:0 auto 26px; text-align:center; }
+    #{{ section_id }} .mb-b2b__form-heading>span { color:var(--blue); font-size:12px; font-weight:900; letter-spacing:.16em; text-transform:uppercase; }
+    #{{ section_id }} .mb-b2b__form-heading h2 { margin:8px 0; font-size:clamp(26px,4vw,40px); }
+    #{{ section_id }} .mb-b2b__form-heading p { margin:0; color:var(--muted); }
+    #{{ section_id }} .mb-b2b__form-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+    #{{ section_id }} .mb-b2b__form label { display:grid; gap:8px; color:var(--ink); font-size:14px; font-weight:800; text-align:left; }
+    #{{ section_id }} .mb-b2b__form input { width:100%; min-height:52px; padding:12px 14px; border:1px solid #d9cbc6; border-radius:12px; background:#fff; color:var(--ink); font:inherit; }
+    #{{ section_id }} .mb-b2b__form input:focus { outline:3px solid rgba(255,102,51,.18); border-color:var(--blue); }
+    #{{ section_id }} .mb-b2b__submit { display:flex; margin:24px auto 0; }
+    #{{ section_id }} .mb-b2b__form-success { padding:14px 16px; border-radius:12px; background:#e8f8ee; color:#176b36; font-weight:800; text-align:center; }
+    #{{ section_id }} .mb-b2b__ajax-status { margin:18px 0 0; color:#176b36; font-weight:800; text-align:center; }
+    #{{ section_id }} .mb-b2b__ajax-status.is-error { color:#a22b18; }
+    #{{ section_id }} .mb-b2b__submit:disabled { opacity:.65; cursor:wait; }
+    #{{ section_id }} .mb-b2b__products { padding:70px 0; border-top:1px solid var(--line); scroll-margin-top:90px; opacity:0; transform:translateY(55px) scale(.985); transform-origin:top center; transition:opacity .9s ease, transform 1.05s cubic-bezier(.16,1,.3,1); }
+    #{{ section_id }} .mb-b2b__products.is-open { opacity:1; transform:translateY(0); }
+    #{{ section_id }} .mb-b2b__section-heading { text-align:center; margin-bottom:34px; }
+    #{{ section_id }} .mb-b2b__section-heading h2 { margin:0; font-size:clamp(30px,4vw,48px); letter-spacing:-.04em; }
+    #{{ section_id }} .mb-b2b__table-scroll { overflow-x:auto; border:1px solid var(--line); border-radius:22px; background:#fff; box-shadow:0 18px 50px rgba(73,31,17,.08); }
+    #{{ section_id }} .mb-b2b__price-table { width:100%; min-width:820px; border-collapse:separate; border-spacing:0; font-size:{{ section.settings.table_text_size }}px; }
+    #{{ section_id }} .mb-b2b__price-table th, #{{ section_id }} .mb-b2b__price-table td { padding:18px 20px; border-right:1px solid var(--line); border-bottom:1px solid var(--line); text-align:center; white-space:nowrap; }
+    #{{ section_id }} .mb-b2b__price-table th:first-child { text-align:left; }
+    #{{ section_id }} .mb-b2b__price-table thead th { background:#101f30; color:#fff; font-weight:900; }
+    #{{ section_id }} .mb-b2b__price-table thead th:first-child { border-radius:20px 0 0; }
+    #{{ section_id }} .mb-b2b__price-table thead th:last-child { border-radius:0 20px 0 0; }
+    #{{ section_id }} .mb-b2b__price-table .mb-b2b__best { background:#fff0e9; color:#e84c18; font-weight:900; }
+    #{{ section_id }} .mb-b2b__price-table .mb-b2b__specialist { min-width:220px; white-space:normal; font-size:.92em; line-height:1.35; }
+    #{{ section_id }} .mb-b2b__price-table thead .mb-b2b__best { background:var(--blue); color:#fff; }
+    #{{ section_id }} .mb-b2b__price-table .mb-b2b__group th { padding:14px 20px; background:#f7f3f1; color:#7d3118; font-size:13px; letter-spacing:.08em; text-transform:uppercase; }
+    #{{ section_id }} .mb-b2b__price-table .mb-b2b__group .mb-b2b__specialist { text-align:center; text-transform:none; letter-spacing:0; }
+    #{{ section_id }} .mb-b2b__price-table tbody th a { color:var(--blue); font-weight:900; text-decoration:underline; text-underline-offset:3px; }
+    #{{ section_id }} .mb-b2b__price-table tbody th a:hover { color:#b9370d; }
+    #{{ section_id }} .mb-b2b__price-table tr:last-child th, #{{ section_id }} .mb-b2b__price-table tr:last-child td { border-bottom:0; }
+    #{{ section_id }} .mb-b2b__price-table th:last-child, #{{ section_id }} .mb-b2b__price-table td:last-child { border-right:0; }
+    #{{ section_id }} .mb-b2b__table-note { display:none; margin:12px 0 0; color:var(--muted); font-size:12px; text-align:center; }
+    #{{ section_id }} .mb-b2b__product-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:22px; }
+    #{{ section_id }} .mb-b2b__product { display:block; padding:14px 14px 24px; border-radius:22px; background:#fff; border:1px solid var(--line); color:var(--ink); text-decoration:none; transition:transform .2s ease, border-color .2s ease, box-shadow .2s ease; }
+    #{{ section_id }} .mb-b2b__product:hover { transform:translateY(-4px); border-color:var(--blue); box-shadow:0 16px 36px rgba(255,102,51,.13); }
+    #{{ section_id }} .mb-b2b__product-image { aspect-ratio:4/3; overflow:hidden; border-radius:15px; background:#e8eef5; }
+    #{{ section_id }} .mb-b2b__product-image img, #{{ section_id }} .mb-b2b__product-image svg { width:100%; height:100%; object-fit:cover; }
+    #{{ section_id }} .mb-b2b__tag { display:inline-block; margin:18px 8px 6px; padding:5px 10px; border-radius:999px; background:#ffe2d8; color:#b33a12; font-size:11px; font-weight:900; text-transform:uppercase; }
+    #{{ section_id }} .mb-b2b__product h3 { margin:8px 8px 6px; font-size:24px; }
+    #{{ section_id }} .mb-b2b__product p { margin:0 8px; color:var(--muted); line-height:1.5; }
+    #{{ section_id }} .mb-b2b__catalog-link { display:inline-flex; align-items:center; gap:9px; margin:18px 8px 0; color:var(--blue); font-size:14px; font-weight:900; text-transform:uppercase; letter-spacing:.04em; }
+    #{{ section_id }} .mb-b2b__marquee { overflow:hidden; padding:26px 0 80px; }
+    #{{ section_id }} .mb-b2b__track { display:flex; width:max-content; gap:16px; animation:mb-scroll-{{ section.id }} 30s linear infinite; }
+    #{{ section_id }} .mb-b2b__marquee:hover .mb-b2b__track { animation-play-state:paused; }
+    #{{ section_id }} .mb-b2b__gallery-item { width:clamp(230px,30vw,390px); aspect-ratio:4/3; overflow:hidden; border-radius:18px; background:#e8eef5; }
+    #{{ section_id }} .mb-b2b__gallery-item img { width:100%; height:100%; object-fit:cover; }
+    #{{ section_id }} .mb-b2b__final { position:relative; padding:78px 0; text-align:center; background:linear-gradient(135deg,#17110f,#642713); color:#fff; }
+    #{{ section_id }} .mb-b2b__final h2 { max-width:780px; margin:0 auto 28px; color:#fff; font-size:clamp(32px,5vw,58px); line-height:1.05; letter-spacing:-.045em; }
+    #{{ section_id }} .mb-b2b__final>div>span { color:#ffab8f; }
+    @keyframes mb-scroll-{{ section.id }} { to { transform:translateX(calc(-50% - 8px)); } }
+    @media (max-width:749px) {
+      #{{ section_id }} .mb-b2b__container { width:min(100% - 24px,1120px); }
+      #{{ section_id }} .mb-b2b__hero { padding-top:48px; }
+      #{{ section_id }} .mb-b2b__benefits, #{{ section_id }} .mb-b2b__product-grid, #{{ section_id }} .mb-b2b__form-grid { grid-template-columns:1fr; }
+      #{{ section_id }} .mb-b2b__benefit { font-size:15px; }
+      #{{ section_id }} .mb-b2b__cta { width:100%; }
+      #{{ section_id }} .mb-b2b__form-shell { padding:24px 18px; }
+      #{{ section_id }} .mb-b2b__table-note { display:block; }
+    }
+    @media (prefers-reduced-motion:reduce) { #{{ section_id }} .mb-b2b__track { animation:none; } #{{ section_id }} * { scroll-behavior:auto !important; transition-duration:.01ms !important; animation-duration:.01ms !important; } }
+  {% endstyle %}
+  
+  {% schema %}
+  {
+    "name": "LP Varejo Mibro Final",
+    "tag": "section",
+    "class": "section-lp-mibro",
+    "settings": [
+      { "type": "text", "id": "eyebrow", "label": "Texto superior", "default": "PARCERIA COMERCIAL MIBRO" },
+      { "type": "textarea", "id": "heading", "label": "Headline", "default": "Mibro: uma das maiores marcas de tecnologia vestível agora disponível para o seu negócio." },
+      { "type": "textarea", "id": "subheading", "label": "Subheadline", "default": "Torne-se parceiro comercial Mibro e leve ao seu público uma marca internacional de wearables, com portfólio completo para todos os perfis de consumidor." },
+      { "type": "header", "content": "Tamanhos dos textos" },
+      { "type": "range", "id": "heading_size", "min": 40, "max": 96, "step": 2, "unit": "px", "label": "Tamanho da headline", "default": 76 },
+      { "type": "range", "id": "subheading_size", "min": 14, "max": 32, "step": 1, "unit": "px", "label": "Tamanho da subheadline", "default": 22 },
+      { "type": "range", "id": "benefit_text_size", "min": 12, "max": 24, "step": 1, "unit": "px", "label": "Tamanho do texto dos cards", "default": 16 },
+      { "type": "range", "id": "button_text_size", "min": 13, "max": 24, "step": 1, "unit": "px", "label": "Tamanho do texto dos botões", "default": 17 },
+      { "type": "range", "id": "table_text_size", "min": 12, "max": 22, "step": 1, "unit": "px", "label": "Tamanho do texto da tabela", "default": 15 },
+      { "type": "video", "id": "video", "label": "Vídeo enviado ao Shopify" },
+      { "type": "video_url", "id": "video_url", "accept": ["youtube", "vimeo"], "label": "Ou URL do YouTube/Vimeo" },
+      { "type": "text", "id": "cta_text", "label": "Texto do botão que abre o formulário", "default": "Quero ser parceiro Mibro" },
+      { "type": "text", "id": "cta_note", "label": "Nota abaixo do botão", "default": "Fale com nossa equipe e conheça as condições comerciais." },
+      { "type": "text", "id": "form_heading", "label": "Título do formulário", "default": "Preencha seus dados para acessar os preços" },
+      { "type": "textarea", "id": "form_text", "label": "Texto do formulário", "default": "Nossa equipe receberá seu cadastro e o portfólio comercial será liberado após o envio." },
+    { "type": "text", "id": "form_submit_text", "label": "Texto do botão de enviar formulário", "default": "Enviar cadastro e liberar preços" },
+    { "type": "text", "id": "campaign_name", "label": "Identificação desta página/campanha", "default": "Atacado" },
+      {
+        "type": "select",
+        "id": "cnpj_data_level",
+        "label": "Dados buscados pelo CNPJ nesta página",
+        "default": "complete",
+        "options": [
+          { "value": "verify", "label": "Somente verificar o CNPJ" },
+          { "value": "essential", "label": "Dados essenciais" },
+          { "value": "complete", "label": "Todos os dados" }
+        ]
+      },      { "type": "checkbox", "id": "show_pricing_table", "label": "Exibir tabela de preços", "default": true },
+      { "type": "text", "id": "products_heading", "label": "Título do portfólio", "default": "Preços por quantidade" },
+      { "type": "header", "content": "Links dos produtos na tabela" },
+      { "type": "url", "id": "link_c4", "label": "Link — Mibro C4" },
+      { "type": "url", "id": "link_a3", "label": "Link — Mibro A3" },
+      { "type": "url", "id": "link_lite_3", "label": "Link — Mibro Lite 3" },
+      { "type": "url", "id": "link_lite_3_pro", "label": "Link — Mibro Lite 3 Pro" },
+      { "type": "url", "id": "link_gs_pro", "label": "Link — Mibro GS Pro" },
+      { "type": "url", "id": "link_gs_pro_2", "label": "Link — Mibro GS Pro 2" },
+      { "type": "url", "id": "link_gs_active", "label": "Link — Mibro GS Active" },
+      { "type": "url", "id": "link_gs_active_2", "label": "Link — Mibro GS Active 2" },
+      { "type": "url", "id": "link_gs_explorer", "label": "Link — Mibro GS Explorer" },
+      { "type": "text", "id": "final_heading", "label": "Chamada final", "default": "Leve uma marca global de wearables para o seu negócio." },
+      { "type": "header", "content": "Botão final separado" },
+      { "type": "text", "id": "final_cta_text", "label": "Texto do botão final", "default": "Falar com a equipe Mibro" },
+      { "type": "url", "id": "final_cta_link", "label": "Link do botão final" },
+      { "type": "checkbox", "id": "final_cta_new_tab", "label": "Abrir link em nova aba", "default": true }
+    ],
+    "blocks": [
+      {
+        "type": "benefit", "name": "Benefício", "limit": 6,
+        "settings": [
+          { "type": "image_picker", "id": "image", "label": "Imagem ou ícone" },
+          { "type": "text", "id": "icon", "label": "Ícone em emoji (opcional)", "info": "Use, por exemplo: 🌎, ⌚, 🛠️ ou 🤝. A imagem tem prioridade sobre o emoji." },
+          { "type": "text", "id": "text", "label": "Texto" }
+        ]
+      },
+      {
+        "type": "gallery", "name": "Imagem da faixa", "limit": 8,
+        "settings": [
+          { "type": "image_picker", "id": "image", "label": "Imagem" },
+          { "type": "text", "id": "alt", "label": "Descrição da imagem", "default": "Wearable Mibro" }
+        ]
+      }
+    ],
+    "presets": [{
+      "name": "LP Varejo Mibro Final",
+      "blocks": [
+        { "type": "benefit", "settings": { "text": "Marca global, presente em centenas de mercados, com respaldo de parceiros de peso" } },
+        { "type": "benefit", "settings": { "text": "Portfólio completo: linhas esportivas, lifestyle, essencial e áudio" } },
+        { "type": "benefit", "settings": { "text": "Suporte técnico e comercial para sua equipe de vendas" } },
+        { "type": "benefit", "settings": { "text": "Condições comerciais para parceiros estratégicos" } }
+      ]
+    }]
+  }
+  {% endschema %}

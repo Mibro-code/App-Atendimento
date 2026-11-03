@@ -1,0 +1,187 @@
+// Controle de custos da Meta: registro pelo webhook de status (pricing da
+// Meta), categoria sem classificação semântica, preços versionados,
+// relatório por empresa/número, orçamento (só alerta) e RBAC (só Master).
+require("dotenv").config();
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const prisma = require("../src/database/prisma");
+const costs = require("../src/services/meta-cost-service");
+
+const emailDomain = "@custos-meta.test";
+const prefix = "metacost-test-";
+const COUNTRY = `T${String(Date.now()).slice(-6)}`;
+let master;
+let agent;
+
+async function cleanup() {
+  await prisma.contact.deleteMany({ where: { externalId: { startsWith: prefix } } });
+  await prisma.metaPricing.deleteMany({ where: { country: { startsWith: "T" } } });
+  await prisma.user.deleteMany({ where: { email: { endsWith: emailDomain } } });
+}
+
+async function sentMessage({ companyId = "cmp_mibro", type = "text", template = null, phone = "5511933330000", occurredAt = new Date() } = {}) {
+  const contact = await prisma.contact.create({ data: { companyId, externalId: `${prefix}${Date.now()}-${Math.random()}`, phone, name: "Cliente Custo" } });
+  const conversation = await prisma.conversation.create({ data: { companyId, contactId: contact.id, status: "AGUARDANDO_CLIENTE" } });
+  return prisma.message.create({ data: {
+    conversationId: conversation.id, channel: "META", direction: "ENVIADA", status: "ENVIADA", type, text: "olá", occurredAt,
+    externalId: `wamid.${prefix}${Date.now()}.${Math.random()}`, rawPayload: template ? { template } : {},
+  } });
+}
+
+const status = (message, value, pricing) => ({ kind: "status", externalId: message.externalId, status: value, occurredAt: new Date(), rawPayload: pricing ? { pricing } : {} });
+
+test.before(async () => {
+  await cleanup();
+  master = await prisma.user.create({ data: { name: "Master Custos", email: `m${Date.now()}${emailDomain}`, role: "ADMIN" } });
+  agent = await prisma.user.create({ data: { name: "Atendente Custos", email: `a${Date.now()}${emailDomain}`, role: "SUPERVISOR", companyAccess: { create: { companyId: "cmp_mibro" } } } });
+});
+test.after(async () => {
+  await cleanup();
+  await prisma.$disconnect();
+});
+
+test("categoria: pricing da Meta > template > SERVICE; billable=false custa 0; sem preço fica nulo", async () => {
+  const service = await sentMessage();
+  const charge = await costs.recordStatusEvent(status(service, "sent", { billable: false, pricing_model: "PMP", category: "service", type: "free_customer_service" }));
+  assert.equal(charge.category, "SERVICE");
+  assert.equal(Number(charge.estimatedCost), 0);
+  assert.equal(charge.country, "BR");
+
+  const template = await sentMessage({ type: "template", template: { name: "promo_outubro", category: "MARKETING" } });
+  const noStatusPricing = await costs.recordStatusEvent(status(template, "sent"));
+  assert.equal(noStatusPricing.category, "MARKETING");
+  assert.equal(noStatusPricing.templateName, "promo_outubro");
+  // Meta informa a categoria real (ex.: template recategorizado) → prevalece.
+  const delivered = await costs.recordStatusEvent(status(template, "delivered", { billable: true, pricing_model: "PMP", category: "utility", type: "regular" }));
+  assert.equal(delivered.category, "UTILITY");
+  assert.ok(delivered.deliveredAt);
+  const read = await costs.recordStatusEvent(status(template, "read"));
+  assert.equal(read.category, "UTILITY", "status sem pricing preserva a classificação da Meta");
+  assert.equal(await prisma.metaMessageCharge.count({ where: { messageId: template.id } }), 1, "um registro por mensagem");
+
+  // Mensagem recebida, falha ou status desconhecido nunca vira custo.
+  assert.equal(await costs.recordStatusEvent({ kind: "status", externalId: "wamid.nao-existe", status: "sent", rawPayload: {} }), null);
+  assert.equal(await costs.recordStatusEvent(status(service, "failed")), null);
+  assert.equal(costs.normalizeCategory("marketing_lite"), "MARKETING");
+  assert.equal(costs.normalizeCategory("authentication-international"), "AUTHENTICATION");
+});
+
+test("sem categoria de template não inventa MARKETING; período usa Brasília e rejeita intervalo invertido", async () => {
+  const message = await sentMessage({ type: "template", template: { name: "sem_categoria" } });
+  const charge = await costs.recordStatusEvent(status(message, "sent"));
+  assert.equal(charge.category, "SERVICE");
+  const now = new Date("2026-10-01T01:30:00Z");
+  assert.equal(costs.periodRange({ period: "day" }, now).start.toISOString(), "2026-09-30T03:00:00.000Z");
+  assert.equal(costs.periodRange({ period: "month" }, now).start.toISOString(), "2026-09-01T03:00:00.000Z");
+  assert.throws(() => costs.periodRange({ from: "2026-10-02", to: "2026-10-01" }), { statusCode: 400 });
+});
+
+test("status de número adicional reconhece prefixo, não cruza contas e não duplica custos", async () => {
+  const account = await prisma.channelAccount.create({ data: { companyId: "cmp_mibro", channel: "META", name: `${prefix}${Date.now()}` } });
+  try {
+    const original = await sentMessage({ type: "template", template: { name: "comercial", category: "MARKETING" } });
+    const message = await prisma.message.update({ where: { id: original.id }, data: {
+      externalId: `${account.id}:${original.externalId}`, channelAccountId: account.id,
+    } });
+    const event = { ...status(original, "delivered"), channelAccountId: account.id };
+    assert.equal(await costs.recordStatusEvent({ ...event, channelAccountId: "other-account" }), null);
+    assert.equal(await costs.recordStatusEvent(status(original, "delivered")), null);
+    const charge = await costs.recordStatusEvent(event);
+    assert.equal(charge.messageId, message.id);
+    assert.equal(charge.channelAccountId, account.id);
+    assert.equal(charge.category, "MARKETING");
+    await costs.recordStatusEvent({ ...event, status: "read" });
+    assert.equal(await prisma.metaMessageCharge.count({ where: { messageId: message.id } }), 1);
+    const raw = await sentMessage();
+    await prisma.message.update({ where: { id: raw.id }, data: { channelAccountId: account.id } });
+    assert.ok(await costs.recordStatusEvent({ ...status(raw, "sent"), channelAccountId: account.id }));
+    assert.equal(await costs.recordStatusEvent({ ...status(raw, "sent"), channelAccountId: "other-account" }), null);
+  } finally {
+    await prisma.contact.deleteMany({ where: { externalId: { startsWith: prefix } } });
+    await prisma.channelAccount.delete({ where: { id: account.id } });
+  }
+});
+
+test("recuperação só inclui templates confirmados: dry-run, idempotência, preço ausente e horário preservado", async () => {
+  const at = new Date("2020-01-02T14:05:00Z");
+  const confirmed = await sentMessage({ type: "template", template: { name: "historico", category: "MARKETING" }, occurredAt: at });
+  await prisma.message.update({ where: { id: confirmed.id }, data: { status: "LIDA" } });
+  const delivered = await sentMessage({ type: "template", template: { name: "historico_entregue", category: "UTILITY" }, occurredAt: at });
+  await prisma.message.update({ where: { id: delivered.id }, data: { status: "ENTREGUE" } });
+  const failed = await sentMessage({ type: "template", template: { name: "falhou", category: "MARKETING" } });
+  await prisma.message.update({ where: { id: failed.id }, data: { status: "FALHOU" } });
+  const pending = await sentMessage({ type: "template", template: { name: "sem_confirmacao", category: "MARKETING" } });
+  const unknown = await sentMessage({ type: "template", template: { name: "sem_categoria" } });
+  await prisma.message.update({ where: { id: unknown.id }, data: { status: "LIDA" } });
+  const text = await sentMessage();
+  await prisma.message.update({ where: { id: text.id }, data: { status: "LIDA" } });
+  const messageIds = [confirmed, delivered, failed, pending, unknown, text].map(({ id }) => id);
+  const before = await prisma.message.findMany({ where: { id: { in: messageIds } }, orderBy: { id: "asc" } });
+  assert.deepEqual(await costs.recoverConfirmedTemplates({ messageIds }), { eligible: 2, created: 0, skippedUnknownCategory: 1, unpriced: 2 });
+  assert.equal(await prisma.metaMessageCharge.count({ where: { messageId: { in: messageIds } } }), 0);
+  assert.equal((await costs.recoverConfirmedTemplates({ messageIds, apply: true })).created, 2);
+  const charge = await prisma.metaMessageCharge.findUnique({ where: { messageId: confirmed.id } });
+  assert.equal(charge.sentAt.toISOString(), at.toISOString());
+  assert.equal(charge.estimatedCost, null);
+  assert.equal(charge.deliveredAt, null);
+  assert.equal(charge.billable, null);
+  assert.equal(charge.pricingCategory, null);
+  assert.equal(charge.category, "MARKETING");
+  assert.equal((await costs.recoverConfirmedTemplates({ messageIds, apply: true })).created, 0);
+  assert.deepEqual(await prisma.metaMessageCharge.findUnique({ where: { messageId: confirmed.id } }), charge);
+  assert.deepEqual(await prisma.message.findMany({ where: { id: { in: messageIds } }, orderBy: { id: "asc" } }), before);
+});
+
+test("preço retroativo respeita a próxima vigência; não mistura moedas; cadastro preenche custos sem preço", async () => {
+  const country = `${COUNTRY}R`;
+  const early = new Date("2026-01-01T03:00:00Z");
+  const middle = new Date("2026-02-01T03:00:00Z");
+  const late = new Date("2026-03-01T03:00:00Z");
+  await costs.createPricing({ country, category: "UTILITY", price: 0.2, effectiveFrom: early }, master);
+  await costs.createPricing({ country, category: "UTILITY", price: 0.4, effectiveFrom: late }, master);
+  const inserted = await costs.createPricing({ country, category: "UTILITY", price: 0.3, effectiveFrom: middle }, master);
+  assert.equal(inserted.effectiveTo.toISOString(), late.toISOString());
+  assert.equal(Number((await costs.priceFor({ country, category: "UTILITY", at: new Date("2026-02-15") })).price), 0.3);
+  await assert.rejects(() => costs.createPricing({ country, category: "UTILITY", price: 1, effectiveFrom: middle }, master), { statusCode: 400 });
+  await assert.rejects(() => costs.createPricing({ country, category: "SERVICE", price: 1, currency: "USD" }, master), { statusCode: 400 });
+  await assert.rejects(() => costs.setBudget({ monthlyBudget: 10 }, master), { statusCode: 400 });
+  await assert.rejects(() => costs.setBudget({ company: "mibro", monthlyBudget: 10, currency: "USD" }, master), { statusCode: 400 });
+  const message = await sentMessage();
+  const charge = await costs.recordStatusEvent(status(message, "sent", { billable: true, category: "utility" }));
+  await prisma.metaMessageCharge.update({ where: { id: charge.id }, data: { country, estimatedCost: null } });
+  await costs.createPricing({ country, category: "UTILITY", price: 0.5, effectiveFrom: new Date("2026-04-01T03:00:00Z") }, master);
+  assert.equal(Number((await prisma.metaMessageCharge.findUnique({ where: { id: charge.id } })).estimatedCost), 0.5);
+});
+
+test("preços versionados por vigência; relatório por empresa e número; orçamento só alerta; só Master", async () => {
+  const lastMonth = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000);
+  await costs.createPricing({ country: COUNTRY, category: "MARKETING", price: 0.5, effectiveFrom: lastMonth }, master);
+  const newer = await costs.createPricing({ country: COUNTRY, category: "MARKETING", price: 0.6, effectiveFrom: new Date(Date.now() - 1000) }, master);
+  const old = await prisma.metaPricing.findFirst({ where: { country: COUNTRY, price: 0.5 } });
+  assert.ok(old.effectiveTo, "preço anterior encerrado, não apagado");
+  assert.equal(Number((await costs.priceFor({ country: COUNTRY, category: "MARKETING", at: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000) })).price), 0.5);
+  assert.equal((await costs.priceFor({ country: COUNTRY, category: "MARKETING", at: new Date() })).id, newer.id);
+
+  // Envio para número do "país de teste" (DDI fora do BR = INTL) com preço.
+  await costs.createPricing({ country: "INTL", category: "MARKETING", price: 1.25 }, master).catch(() => {});
+  const intl = await sentMessage({ companyId: "cmp_sincrofit", type: "template", template: { name: "promo", category: "MARKETING" }, phone: "14155550000" });
+  const charge = await costs.recordStatusEvent(status(intl, "sent", { billable: true, category: "marketing", type: "regular" }));
+  assert.equal(charge.country, "INTL");
+  assert.equal(Number(charge.estimatedCost), 1.25);
+  await prisma.metaPricing.deleteMany({ where: { country: "INTL", createdById: master.id } });
+
+  await costs.setBudget({ company: "sincrofit", monthlyBudget: 10 }, master);
+  const report = await costs.getCostReport(master, { company: "sincrofit", period: "month" });
+  const sincro = report.companies.find(({ companyId }) => companyId === "cmp_sincrofit");
+  assert.ok(sincro.byCategory.MARKETING >= 1);
+  assert.ok(sincro.estimatedCost >= 1.25);
+  assert.equal(sincro.budget.monthlyBudget, 10);
+  assert.ok(sincro.budget.percent >= 12);
+  assert.equal(report.companies.some(({ companyId }) => companyId === "cmp_mibro"), false, "filtro de empresa");
+  await costs.setBudget({ company: "sincrofit", monthlyBudget: null }, master);
+
+  await assert.rejects(() => costs.getCostReport(agent, {}), { statusCode: 403 });
+  await assert.rejects(() => costs.createPricing({ country: "BR", category: "SERVICE", price: 0 }, agent), { statusCode: 403 });
+  await assert.rejects(() => costs.setBudget({ company: "mibro", monthlyBudget: 1 }, agent), { statusCode: 403 });
+  await assert.rejects(() => costs.createPricing({ country: COUNTRY, category: "XPTO", price: 1 }, master), { statusCode: 400 });
+});

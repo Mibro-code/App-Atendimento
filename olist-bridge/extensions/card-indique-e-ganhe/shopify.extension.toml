@@ -1,0 +1,14 @@
+api_version = "2026-04"
+
+[[extensions]]
+name = "Card Cupons"
+handle = "card-indique-e-ganhe"
+type = "ui_extension"
+uid = "514d78fb-62d8-49ea-c707-01fbc6b67e58eff68913"
+
+[[extensions.targeting]]
+module = "./src/ProfileBlock.jsx"
+target = "customer-account.profile.block.render"
+
+[extensions.capabilities]
+api_access = true

@@ -1,0 +1,51 @@
+# Ambiente de desenvolvimento: "docker compose -f docker-compose.dev.yml up".
+# Sobe o Postgres + o Next.js em modo dev com hot reload (código local
+# montado como volume). Para o build de produção, use docker-compose.yml.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mibro
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Configure_POSTGRES_PASSWORD}
+      POSTGRES_DB: mibro_vendedores
+    ports:
+      - "5434:5432"
+    volumes:
+      - mibro_pg_data_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mibro -d mibro_vendedores"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "${DATABASE_URL:?Configure_DATABASE_URL}"
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-troque-este-valor-para-um-segredo-forte-em-desenvolvimento}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
+      NODE_ENV: development
+      CRM_SHOPIFY_SHARED_SECRET: ${CRM_SHOPIFY_SHARED_SECRET:-}
+      CRM_SHOPIFY_MIBRO_SHARED_SECRET: ${CRM_SHOPIFY_MIBRO_SHARED_SECRET:-}
+      CRM_SHOPIFY_SINCROFIT_SHARED_SECRET: ${CRM_SHOPIFY_SINCROFIT_SHARED_SECRET:-}
+      SHOPIFY_WHOLESALE_URL: ${SHOPIFY_WHOLESALE_URL:-}
+      MIBRO_SHOPIFY_WHOLESALE_URL: ${MIBRO_SHOPIFY_WHOLESALE_URL:-}
+      SINCROFIT_SHOPIFY_WHOLESALE_URL: ${SINCROFIT_SHOPIFY_WHOLESALE_URL:-}
+      QUOTE_SESSION_TTL_MINUTES: ${QUOTE_SESSION_TTL_MINUTES:-10}
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+
+volumes:
+  mibro_pg_data_dev:

@@ -1,0 +1,9 @@
+# Adicionar este bloco ao Caddyfile existente em /opt/mibro-shopify.
+# O container crm-app é exposto somente na rede Docker shopify-proxy.
+crm.mibrobrasil.com.br {
+  encode zstd gzip
+
+  reverse_proxy crm-app:3000
+
+  import security_headers
+}

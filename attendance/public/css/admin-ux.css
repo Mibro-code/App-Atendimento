@@ -1,0 +1,80 @@
+/* Camada de legibilidade e interação para as telas administrativas
+   (Campanhas, Respostas Rápidas). Mantém a identidade visual: só ajusta
+   tamanhos mínimos de fonte, foco visível, áreas de toque e contraste. */
+
+/* Atributo hidden sempre vence: .empty-state{display:flex} mantinha o estado
+   vazio ocupando a tela e empurrava o editor para fora da área visível. */
+[hidden]{display:none!important}
+
+.sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
+/* Tipografia mínima legível (antes 7–9 px). */
+.sidebar-heading span,.card-heading span,.editor-heading>div>span{font-size:10px}
+.sidebar-heading p,.editor-heading p{font-size:12px}
+.bot-card b{font-size:13px}
+.bot-card small,.bot-meta{font-size:11px}
+.mini-status{font-size:10px}
+.fields label,.simulator-input{font-size:12px;color:var(--muted)}
+.fields label>span{font-weight:700}
+.fields input,.fields select,.fields textarea{font-size:13px;min-height:40px}
+.fields textarea{min-height:64px}
+.card-heading h3{font-size:16px}
+.card-help{margin:4px 0 12px;font-size:12px;line-height:1.45}
+.simulator-result p{font-size:12px}
+.qr-filters select,.qr-search-field input{font-size:12px;min-height:38px}
+.toast{font-size:13px}
+.safety-note b{font-size:12px}
+.safety-note p,.campaign-api-notice{font-size:11px}
+.campaign-api-notice b{font-size:12px}
+.status-actions button,.editor-actions button,.card-heading button,.card>button,.form-actions button,.simulator-actions button,.sidebar-heading button,.empty-state button{min-height:36px;font-size:12px}
+.metric-tile span{font-size:10px}
+.result-grid span{font-size:11px}
+.fields-heading{font-size:10px}
+
+/* Cabeçalho da lista e cards: botões sem quebrar, selos sem sair do card. */
+.sidebar-heading{gap:10px}
+.sidebar-heading>div{min-width:0}
+.sidebar-heading button{flex:none;white-space:nowrap}
+.bot-card header{flex-wrap:wrap;min-width:0}
+.bot-card header b{flex:1 1 120px;min-width:0}
+
+/* Rótulos de grupo dentro de .fields (ex.: "Categorias / setores"). */
+.fields .full>span:first-child{display:block;margin-bottom:4px;color:var(--muted);font-size:12px;font-weight:700}
+.fields .full>.card-help{margin:0 0 6px}
+
+/* Cabeçalho do editor: fundo sólido (o conteúdo rolado não aparece por trás). */
+.editor-heading{background:var(--surface);backdrop-filter:none}
+
+/* Foco visível em todos os controles. */
+:where(button,a,input,select,textarea,[tabindex]):focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+
+/* Topbar: botão de usuário legível nos dois temas. */
+html[data-theme="dark"] .user-button{color:var(--on-accent)}
+
+/* Aviso de segurança no tema escuro (antes fundo claro com texto claro). */
+html[data-theme="dark"] .safety-note{background:color-mix(in srgb,var(--orange) 6%,var(--surface));border-color:color-mix(in srgb,var(--orange) 28%,var(--line))}
+html[data-theme="dark"] .safety-note b{color:#f7a585}
+html[data-theme="dark"] .safety-note p{color:var(--muted)}
+
+/* Estados de lista (carregando/erro/vazio) compartilhados. */
+.list-state{display:grid;gap:8px;justify-items:start;padding:16px;border:1px dashed var(--line);border-radius:11px;background:var(--panel)}
+.list-state b{font-size:13px;color:var(--ink)}
+.list-state p{margin:0;color:var(--muted);font-size:12px;line-height:1.45}
+.list-state.error{border-style:solid;border-color:var(--danger,#d92d20)}
+.list-state button{min-height:36px;padding:0 14px;border:1px solid var(--line);border-radius:18px;color:var(--ink);background:var(--surface);font-size:12px;font-weight:800;cursor:pointer}
+
+.inline-spinner{display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;vertical-align:-2px;animation:admin-spin .7s linear infinite}
+@keyframes admin-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.inline-spinner{animation-duration:2s}}
+
+[aria-busy="true"]#editor{opacity:.65;transition:opacity .15s}
+
+/* Celular: sem rolagem horizontal, alvos de toque ≥ 40 px. */
+@media (max-width:720px){
+  .bots-shell{grid-template-columns:minmax(0,1fr)}
+  .bots-workspace,.bots-sidebar{min-width:0;max-width:100vw}
+  .editor-heading{padding:14px 12px}
+  .card{padding:14px}
+  .status-actions button,.editor-actions button,.form-actions button{min-height:40px}
+  .topbar{flex-wrap:wrap;row-gap:8px}
+}

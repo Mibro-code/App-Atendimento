@@ -1,0 +1,7 @@
+ALTER TYPE "ChannelAccountStatus" ADD VALUE IF NOT EXISTS 'RECONNECT_REQUIRED';
+
+ALTER TABLE "ChannelAccount"
+  ADD COLUMN "oauthProvider" TEXT,
+  ADD COLUMN "oauthScopes" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+  ADD COLUMN "tokenExpiresAt" TIMESTAMP(3),
+  ADD COLUMN "providerMetadata" JSONB NOT NULL DEFAULT '{}';
